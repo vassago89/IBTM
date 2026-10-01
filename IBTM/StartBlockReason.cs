@@ -7,6 +7,9 @@ public enum StartBlockReason
     [Description("")]
     None,
 
+    [Description("I/O feedback unavailable")]
+    IoUnavailable,
+
     [Description("Clear the cause, then press RESET")]
     Alarm,
 

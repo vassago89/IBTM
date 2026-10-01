@@ -64,10 +64,14 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public async Task LosingAnActivePcbStopsFasteningWhenTheOtherPcbIsStillPresent(bool selectedTest, bool betweenBolts)
+    [InlineData(false, false, true, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(false, false, false, false)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, false, false, true)]
+    public async Task PcbPresenceChangeStopsFasteningWithoutRestarting(
+        bool selectedTest, bool betweenBolts, bool otherPcbPresent, bool secondPcbArrives)
     {
         var settings = new BoltFasteningSettings
         {
@@ -94,7 +98,7 @@ public sealed class BoltFasteningTests
             },
             new() { ShootingBoltFeeder = false });
         io.SetInputs((InputIo.BoltFasteningHeatSink1Present, true),
-            (InputIo.BoltFasteningHeatSink2Present, true));
+            (InputIo.BoltFasteningHeatSink2Present, otherPcbPresent));
         await work.SeatAsync(CancellationToken.None);
         var job = work.CurrentJob;
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
@@ -108,14 +112,15 @@ public sealed class BoltFasteningTests
                 started = true;
                 starts++;
                 if (!betweenBolts)
-                    io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
+                    io.SetInput(secondPcbArrives ? InputIo.BoltFasteningHeatSink2Present
+                        : InputIo.BoltFasteningHeatSink1Present, secondPcbArrives);
             }
             if (output == OutputIo.ShootingHeadDown && on)
                 lowered = true;
         };
         station.Changed += () =>
         {
-            if (betweenBolts && started && station.ActiveBolt == otherBolt)
+            if (betweenBolts && started && station.ActiveBolt == (otherPcbPresent ? otherBolt : null))
                 io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -126,7 +131,7 @@ public sealed class BoltFasteningTests
         Assert.True(started);
         Assert.Equal(1, starts);
         Assert.Equal(betweenBolts, lowered);
-        Assert.True(work.CarrierSeated);
+        Assert.Equal(otherPcbPresent || secondPcbArrives, work.CarrierSeated);
         Assert.Same(job, work.CurrentJob);
         Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
         Assert.Equal(betweenBolts ? 1 : 0, assembly.ShootingBoltResults.Count);

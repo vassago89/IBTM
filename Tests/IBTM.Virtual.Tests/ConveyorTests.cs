@@ -470,6 +470,42 @@ public sealed class ConveyorTests
     }
 
     [Fact]
+    public async Task AutomaticConveyorClearsOutputsBeforeReportingStoppedOnFailure()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io);
+        io.Initialize();
+        var failure = new IOException("Automatic conveyor startup failed.");
+        var ended = false;
+        var outputsOnAtEnd = false;
+        conveyor.Trace += message =>
+        {
+            if (message != "MainConveyor: run started.")
+                return;
+            io.SetOutput(OutputIo.MainConveyorRun, true);
+            io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
+            io.SetOutput(OutputIo.MainConveyorAvailableToRear, true);
+            throw failure;
+        };
+        conveyor.StepChanged += () =>
+        {
+            if (conveyor.IsRunning)
+                return;
+            ended = true;
+            outputsOnAtEnd = io.GetOutput(OutputIo.MainConveyorRun)
+                || io.GetOutput(OutputIo.MainConveyorReadyToFront2)
+                || io.GetOutput(OutputIo.MainConveyorAvailableToRear);
+        };
+
+        Assert.Same(failure, await Record.ExceptionAsync(() => conveyor.RunAsync()));
+
+        Assert.True(ended);
+        Assert.False(outputsOnAtEnd);
+        Assert.False(conveyor.IsRunning);
+        Assert.Null(conveyor.Step);
+    }
+
+    [Fact]
     public async Task ConveyorStopsMotorAndPreservesRunFailureWhenHandshakeCleanupFails()
     {
         var io = CreateIo();
@@ -844,38 +880,6 @@ public sealed class ConveyorTests
         Assert.True(station.Completed);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ReadingPresenceFromAnEarlierInputSubscriberDoesNotConsumeTheArrival(bool presentAtStartup)
-    {
-        var io = CreateIo();
-        io.SetInput(InputIo.PcbPlacementHeatSink1Present, presentAtStartup);
-        ConveyorStation? station = null;
-        io.InputChanged += (input, value) =>
-        {
-            if (station is not null)
-                _ = station.CarrierPresent;
-        };
-        station = ConveyorStation.CreatePcbPlacement(io);
-        var edges = new List<bool>();
-        station.CarrierChanged += edges.Add;
-        var initialJob = station.CurrentJob;
-
-        io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
-
-        if (presentAtStartup)
-        {
-            Assert.Empty(edges);
-            Assert.Same(initialJob, station.CurrentJob);
-        }
-        else
-        {
-            Assert.Equal(new[] { true }, edges);
-            Assert.Same(initialJob, station.CurrentJob);
-        }
-    }
-
     [Fact]
     public void TransferRejectsReplacedDestinationWithoutChangingEitherJob()
     {
@@ -910,7 +914,7 @@ public sealed class ConveyorTests
     [InlineData(InputIo.PcbPlacementHeatSink1Present, InputIo.PcbPlacementHeatSink2Present)]
     [InlineData(InputIo.BoltFasteningHeatSink1Present, InputIo.BoltFasteningHeatSink2Present)]
     [InlineData(InputIo.InspectionHeatSink1Present, InputIo.InspectionHeatSink2Present)]
-    public async Task HeatSinkPresenceReportsOnlyCombinedCarrierEdges(InputIo heatSink1, InputIo heatSink2)
+    public async Task CarrierPresenceChangesPreserveJobUntilExplicitClear(InputIo heatSink1, InputIo heatSink2)
     {
         var io = CreateIo();
         var station = heatSink1 switch
@@ -919,8 +923,6 @@ public sealed class ConveyorTests
             InputIo.BoltFasteningHeatSink1Present => ConveyorStation.CreateBoltFastening(io),
             _ => ConveyorStation.CreateInspection(io),
         };
-        var edges = new List<bool>();
-        station.CarrierChanged += edges.Add;
         Assert.False(station.CarrierPresent);
         var arrival = station.WaitForCarrierAsync(default);
         io.SetInputs((heatSink1, true), (heatSink2, true));
@@ -936,7 +938,6 @@ public sealed class ConveyorTests
         Assert.True(station.CarrierPresent);
         Assert.Same(job, station.CurrentJob);
         Assert.True(station.Completed);
-        Assert.Equal(new[] { true }, edges);
 
         io.SetInput(heatSink1, false);
         Assert.False(station.CarrierPresent);
@@ -945,7 +946,6 @@ public sealed class ConveyorTests
         await arrival.WaitAsync(TimeSpan.FromSeconds(1));
         Assert.Same(job, station.CurrentJob);
         Assert.True(station.Completed);
-        Assert.Equal(new[] { true, false, true }, edges);
         Assert.Throws<InvalidOperationException>(station.ClearJob);
         io.SetInput(heatSink2, false);
         station.ClearJob();

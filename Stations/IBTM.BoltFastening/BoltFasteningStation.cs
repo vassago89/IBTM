@@ -301,8 +301,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     : BoltFasteningState.Waiting;
             }
 
-            if (_runJob is null || _carrierOperation?.IsCancellationRequested == true
-                || !ReferenceEquals(_runJob, Station.CurrentJob))
+            if (_runJob is null)
                 return BoltFasteningState.PreparingCarrier;
 
             var head = ActiveBolt?.Head;
@@ -334,6 +333,8 @@ public sealed class BoltFasteningStation : AutoUnit
         var job = _runJob!;
         try
         {
+            CheckCarrier();
+            operation?.Token.ThrowIfCancellationRequested();
             switch (step)
             {
                 case BoltFasteningState.Disabled:
@@ -357,11 +358,6 @@ public sealed class BoltFasteningStation : AutoUnit
                 case BoltFasteningState.Waiting:
                     return false;
                 case BoltFasteningState.PreparingCarrier:
-                    // Cancellation between bolts must not silently restart the same load.
-                    if (_carrierOperation?.IsCancellationRequested == true
-                        && Station.CarrierSeated && ReferenceEquals(_runJob, Station.CurrentJob))
-                        throw new MotionInterlockException(
-                            "The fastening carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
                     await ClearCarrierOperationAsync();
                     _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                     foreach (var heatSink in _runTargets)
@@ -383,7 +379,6 @@ public sealed class BoltFasteningStation : AutoUnit
                 case BoltFasteningState.CompletingCarrier:
                 {
                     var token = operation?.Token ?? throw new InvalidOperationException("No fastening work is selected.");
-                    CheckCarrier();
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     var completionStarted = Stopwatch.GetTimestamp();
@@ -406,7 +401,6 @@ public sealed class BoltFasteningStation : AutoUnit
                 case BoltFasteningState.FasteningShooting or BoltFasteningState.FasteningPickup:
                 {
                     var token = operation?.Token ?? throw new InvalidOperationException("No fastening work is selected.");
-                    CheckCarrier();
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     var bolt = selectedBolt ?? throw new InvalidOperationException("No bolt is selected.");
@@ -692,18 +686,12 @@ public sealed class BoltFasteningStation : AutoUnit
                     throw new ArgumentOutOfRangeException(nameof(step));
             }
         }
-        catch (OperationCanceledException) when (step is BoltFasteningState.FasteningShooting
-                or BoltFasteningState.FasteningPickup or BoltFasteningState.CompletingCarrier
-            && operation?.IsCancellationRequested == true
+        catch (OperationCanceledException) when (operation?.IsCancellationRequested == true
             && !cancellationToken.IsCancellationRequested)
         {
-            if (selectedBolts is not null
-                || Station.CarrierSeated && ReferenceEquals(job, Station.CurrentJob))
-                throw new MotionInterlockException(
-                    "The fastening carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
-            await ClearCarrierOperationAsync();
+            throw new MotionInterlockException(
+                "The fastening carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
         }
-        return true;
     }
 
     private void CheckCarrier()
@@ -715,7 +703,8 @@ public sealed class BoltFasteningStation : AutoUnit
             if (ReferenceEquals(operation, _carrierOperation)
                 && (!Station.CarrierSeated
                     || !ReferenceEquals(_runJob, Station.CurrentJob)
-                    || _runTargets!.Any(heatSink => !Station.IsHeatSinkPresent(heatSink))))
+                    || Enum.GetValues<HeatSinkSlot>().Any(heatSink =>
+                        Station.IsHeatSinkPresent(heatSink) != _runTargets!.Contains(heatSink))))
                 operation.Cancel();
         }
     }

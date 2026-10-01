@@ -87,16 +87,7 @@
         </Border>
         <Border Grid.Row="1" Background="{StaticResource EquipBgBrush}"
             ClipToBounds="True">
-            <Viewbox Margin="8" Stretch="Uniform">
-                <Canvas Width="1600" Height="{x:Static ui:MachineDiagramLayout.PlanHeight}">
-                    <ui:NgConveyorDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionLeft}" Canvas.Top="0" Panel.ZIndex="-10"/>
-                    <ui:MainConveyorDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.MainTop}"
-                        Panel.ZIndex="0"/>
-                    <ui:PcbTransferDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
-                    <ui:BoltFasteningDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
-                    <ui:InspectionStationDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
-                </Canvas>
-            </Viewbox>
+            <ui:MachineDiagramView Margin="8"/>
         </Border>
         <Border Grid.Row="1" Grid.Column="1" Margin="10,0,0,0" Padding="12"
             Background="{StaticResource PanelBgBrush}">

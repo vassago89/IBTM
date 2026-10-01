@@ -430,11 +430,13 @@
                             </Button>
                             <Button Content="{ui:Text 'START'}"
                                 Command="{Binding Operation.StartCommand}"
-                                IsEnabled="{Binding Operation.Machine.IsStartAllowed}"
                                 MinWidth="144" Height="48" Margin="0,0,8,0">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Operation.State.IsRunning}" Value="True">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                            </DataTrigger>
                                             <MultiDataTrigger>
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding Operation.MachineDisplayState}"

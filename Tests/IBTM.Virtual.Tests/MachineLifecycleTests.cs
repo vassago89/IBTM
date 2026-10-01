@@ -3013,6 +3013,65 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task StartReviewReportsEveryBlockedAreaWithoutMovingOrClearingJobs()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacer>().Station;
+        var fastening = services.GetRequiredService<BoltFasteningStation>().Station;
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            io.SetInputs((InputIo.PcbSupplyPcbDetected, true), (InputIo.PcbPlacementVacuumDetected, true),
+                (InputIo.ShootingTubeBoltDetected, true), (InputIo.PcbPlacementHeatSink1Present, true),
+                (InputIo.BoltFasteningHeatSink1Present, true));
+            fastening.Complete(fastening.CurrentJob);
+            var placementJob = placement.CurrentJob;
+            var fasteningJob = fastening.CurrentJob;
+            var writes = 0;
+            io.OutputChanged += (output, on) => writes++;
+
+            machine.CheckStartMaterials();
+
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Supply]);
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.ShootingHead]);
+            Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station1]);
+            Assert.Equal(StartCheckState.Completed, machine.StartChecks[StartArea.Station2]);
+            Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.PickupHead]);
+            Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.Station3]);
+            Assert.Equal(0, writes);
+            Assert.False(state.AutomaticRunning);
+
+            io.SetInputs((InputIo.PcbSupplyPcbDetected, false), (InputIo.PcbPlacementVacuumDetected, false),
+                (InputIo.ShootingTubeBoltDetected, false), (InputIo.PcbPlacementHeatSink1Present, false));
+            Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station1]);
+            machine.CheckStartMaterials();
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.Same(placementJob, placement.CurrentJob);
+            Assert.Same(fasteningJob, fastening.CurrentJob);
+            Assert.True(fastening.Completed);
+
+            // A clear review is not permission to ignore a change before final START.
+            io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+            await machine.StartAsync();
+            Assert.False(state.AutomaticRunning);
+            Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.ShootingHead]);
+            Assert.Same(placementJob, placement.CurrentJob);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task StartChecksHeldMaterialsOnlyWhenPressed()
     {
         var settings = FlowSettings();

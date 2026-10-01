@@ -1,0 +1,186 @@
+<UserControl x:Class="IBTM.UI.MachineDiagramView" x:Name="Diagram"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:IBTM.UI" xmlns:app="clr-namespace:IBTM"
+    mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}">
+    <UserControl.Resources>
+        <Style x:Key="StartCheckOutline" TargetType="Border">
+            <Setter Property="BorderThickness" Value="4"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Margin" Value="-6"/>
+            <Setter Property="Visibility" Value="Hidden"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="{x:Static app:StartCheckState.MaterialRemaining}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+                </Trigger>
+                <Trigger Property="Tag" Value="{x:Static app:StartCheckState.UnfinishedCarrier}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+                </Trigger>
+                <Trigger Property="Tag" Value="{x:Static app:StartCheckState.Unknown}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                </Trigger>
+                <Trigger Property="Tag" Value="{x:Static app:StartCheckState.Completed}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                </Trigger>
+                <Trigger Property="Tag" Value="{x:Static app:StartCheckState.HandoffReady}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    <Viewbox Stretch="Uniform">
+        <Canvas Width="1600" Height="{x:Static ui:MachineDiagramLayout.PlanHeight}">
+            <ui:NgConveyorDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionLeft}" Canvas.Top="0" Panel.ZIndex="-10"/>
+            <ui:MainConveyorDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.MainTop}"
+                Panel.ZIndex="0"/>
+            <ui:PcbTransferDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
+            <ui:BoltFasteningDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
+            <ui:InspectionStationDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
+
+            <Canvas Panel.ZIndex="100" IsHitTestVisible="False"
+                Visibility="{Binding ShowStartCheck, ElementName=Diagram, Converter={StaticResource BoolToVis}}">
+                <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}">
+                    <Border Tag="{Binding Machine.StartChecks[Supply]}">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource StartCheckOutline}">
+                                <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.SupplyWidth}"/>
+                                <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.SupplyHeight}"/>
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform X="{Binding PcbSupplyMapPosition.X, TargetNullValue=0, FallbackValue=0}"
+                                            Y="{Binding PcbSupplyMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SupplyPositionKnown}" Value="False">
+                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.SupplyRailWidth}"/>
+                                        <Setter Property="Height" Value="54"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.StatusTop}"/></Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <Border Tag="{Binding Machine.StartChecks[Placement]}">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource StartCheckOutline}">
+                                <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlacementWidth}"/>
+                                <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.PlacementHeight}"/>
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform X="{Binding PcbPlacementMapPosition.X, TargetNullValue=0, FallbackValue=0}"
+                                            Y="{Binding PcbPlacementMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PlacementPositionKnown}" Value="False">
+                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.SupplyRailWidth}"/>
+                                        <Setter Property="Height" Value="54"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.PlacementStatusLeft}" Y="{x:Static ui:MachineDiagramLayout.StatusTop}"/></Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                </Canvas>
+                <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningLeft}">
+                    <Border Tag="{Binding Machine.StartChecks[PickupHead]}">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource StartCheckOutline}">
+                                <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.HeadSize}"/>
+                                <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.HeadSize}"/>
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TransformGroup>
+                                            <TranslateTransform X="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Y="{x:Static ui:MachineDiagramLayout.HeadTop}"/>
+                                            <TranslateTransform X="{Binding PickupHeadMapPosition.X, TargetNullValue=0, FallbackValue=0}" Y="{Binding PickupHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
+                                        </TransformGroup>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding FasteningPositionKnown}" Value="False">
+                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
+                                        <Setter Property="Height" Value="14"/>
+                                        <Setter Property="Margin" Value="-2"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.PickupControllerRowTop}"/></Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding PickupHeadMapPosition}" Value="{x:Null}">
+                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
+                                        <Setter Property="Height" Value="14"/>
+                                        <Setter Property="Margin" Value="-2"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.PickupControllerRowTop}"/></Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <Border Tag="{Binding Machine.StartChecks[ShootingHead]}">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource StartCheckOutline}">
+                                <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.HeadSize}"/>
+                                <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.HeadSize}"/>
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TransformGroup>
+                                            <TranslateTransform X="{x:Static ui:MachineDiagramLayout.ShootingHeadLeft}" Y="{x:Static ui:MachineDiagramLayout.HeadTop}"/>
+                                            <TranslateTransform X="{Binding ShootingHeadMapPosition.X, TargetNullValue=0, FallbackValue=0}" Y="{Binding ShootingHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
+                                        </TransformGroup>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding FasteningPositionKnown}" Value="False">
+                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
+                                        <Setter Property="Height" Value="14"/>
+                                        <Setter Property="Margin" Value="-2"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.ShootingControllerRowTop}"/></Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ShootingHeadMapPosition}" Value="{x:Null}">
+                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
+                                        <Setter Property="Height" Value="14"/>
+                                        <Setter Property="Margin" Value="-2"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.ShootingControllerRowTop}"/></Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                </Canvas>
+                <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.MainTop}">
+                    <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.PlacementCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
+                        Width="{x:Static ui:MachineDiagramLayout.CarrierWidth}" Height="{x:Static ui:MachineDiagramLayout.CarrierHeight}"
+                        Tag="{Binding Machine.StartChecks[Station1]}" Style="{StaticResource StartCheckOutline}"/>
+                    <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
+                        Width="{x:Static ui:MachineDiagramLayout.CarrierWidth}" Height="{x:Static ui:MachineDiagramLayout.CarrierHeight}"
+                        Tag="{Binding Machine.StartChecks[Station2]}" Style="{StaticResource StartCheckOutline}"/>
+                    <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
+                        Width="{x:Static ui:MachineDiagramLayout.CarrierWidth}" Height="{x:Static ui:MachineDiagramLayout.CarrierHeight}"
+                        Tag="{Binding Machine.StartChecks[Station3]}" Style="{StaticResource StartCheckOutline}"/>
+                </Canvas>
+            </Canvas>
+        </Canvas>
+    </Viewbox>
+</UserControl>

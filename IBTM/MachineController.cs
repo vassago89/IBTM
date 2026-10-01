@@ -43,8 +43,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly ILogger<MachineController>? _log;
     private readonly Lock _resetGate;
     private Task _resetTask;
-    // Last START admission result. Sensor changes do not acknowledge material removal.
-    private StartBlockReason _startMaterialBlock;
     private readonly ConcurrentQueue<(MachineAlarm Alarm, bool Running, bool NgAlarm, bool SilenceBuzzer)> _indicatorNotifications;
     // Last handled notification, not the physical lamp/buzzer state.
     private (MachineAlarm Alarm, bool Running, bool NgAlarm)? _lastIndicatorNotification;
@@ -89,6 +87,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _resetGate = new();
         _resetTask = Task.CompletedTask;
         _indicatorNotifications = new();
+        StartChecks = Enum.GetValues<StartArea>().ToDictionary(area => area, area => StartCheckState.NotChecked);
 
         _state = state;
         _feedback = feedback;
@@ -623,8 +622,46 @@ public sealed partial class MachineController : INotifyPropertyChanged
         get
         {
             var block = GetStartBlock(_state.FeedbackReadiness);
-            return block == StartBlockReason.None ? _startMaterialBlock : block;
+            if (block != StartBlockReason.None)
+                return block;
+            if (StartChecks.Values.Contains(StartCheckState.Unknown))
+                return StartBlockReason.IoUnavailable;
+            if (StartChecks.Values.Contains(StartCheckState.MaterialRemaining))
+                return StartBlockReason.MaterialRemaining;
+            return StartChecks.Values.Contains(StartCheckState.UnfinishedCarrier)
+                ? StartBlockReason.UnfinishedCarrier : StartBlockReason.None;
         }
+    }
+
+    // Last explicit check only. Sensor edges do not clear blocked work.
+    public IReadOnlyDictionary<StartArea, StartCheckState> StartChecks { get; private set; }
+
+    public void CheckStartMaterials()
+    {
+        var checks = Enum.GetValues<StartArea>().ToDictionary(area => area, area => StartCheckState.Unknown);
+        if (_io.IsReady)
+        {
+            checks[StartArea.Supply] = !_io.GetInput(InputIo.PcbSupplyPcbDetected) ? StartCheckState.Empty
+                : !_state.RepeatEnabled && _pcbSupply.IsHandoffRestartAllowed
+                    ? StartCheckState.HandoffReady : StartCheckState.MaterialRemaining;
+            checks[StartArea.Placement] = _io.GetInput(InputIo.PcbPlacementPcbDetected)
+                || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
+                    ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
+            checks[StartArea.PickupHead] = _io.GetInput(InputIo.PickupHeadVacuumDetected)
+                ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
+            checks[StartArea.ShootingHead] = _io.GetInput(InputIo.ShootingHeadVacuumDetected)
+                || _io.GetInput(InputIo.ShootingTubeBoltDetected)
+                    ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
+            checks[StartArea.Station1] = !_pcbPlacement.Station.CarrierPresent ? StartCheckState.Empty
+                : _pcbPlacement.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
+            checks[StartArea.Station2] = !_fasteningStation.Station.CarrierPresent ? StartCheckState.Empty
+                : _fasteningStation.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
+            checks[StartArea.Station3] = !_inspectionStation.Station.CarrierPresent ? StartCheckState.Empty
+                : _inspectionStation.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
+        }
+        StartChecks = checks;
+        PropertyChanged?.Invoke(this, new(nameof(StartChecks)));
+        PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
     }
 
     public bool TeachingReady
@@ -696,22 +733,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     return;
                 operation.Token.ThrowIfCancellationRequested();
 
-                _startMaterialBlock = StartBlockReason.None;
-                if (_io.GetInput(InputIo.PcbSupplyPcbDetected)
-                        && (_state.RepeatEnabled || !_pcbSupply.IsHandoffRestartAllowed)
-                    || _io.GetInput(InputIo.PcbPlacementPcbDetected)
-                    || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
-                    || _io.GetInput(InputIo.PickupHeadVacuumDetected)
-                    || _io.GetInput(InputIo.ShootingHeadVacuumDetected)
-                    || _io.GetInput(InputIo.ShootingTubeBoltDetected))
-                    _startMaterialBlock = StartBlockReason.MaterialRemaining;
-                else if (_pcbPlacement.Station.CarrierPresent && !_pcbPlacement.Station.Completed
-                    || _fasteningStation.Station.CarrierPresent && !_fasteningStation.Station.Completed
-                    || _inspectionStation.Station.CarrierPresent && !_inspectionStation.Station.Completed)
-                    _startMaterialBlock = StartBlockReason.UnfinishedCarrier;
-
-                PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
-                if (_startMaterialBlock != StartBlockReason.None)
+                CheckStartMaterials();
+                if (StartChecks.Values.Any(value => value is StartCheckState.Unknown
+                    or StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier))
                     return;
 
                 // Only an accepted START clears work from stations that are now empty.

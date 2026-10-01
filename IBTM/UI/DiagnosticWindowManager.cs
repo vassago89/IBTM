@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using IBTM.Core;
@@ -72,6 +73,13 @@ public sealed class DiagnosticWindowManager
         _input = new(new InputViewModel(_signals));
         _input.Closed += (_, _) => _input = null;
         ShowWindow(_input);
+    }
+
+    public bool ConfirmStart(OperationViewModel viewModel, CancellationToken cancellationToken)
+    {
+        var window = new StartConfirmationWindow(viewModel) { Owner = Owner };
+        using var registration = cancellationToken.Register(() => window.Dispatcher.InvokeAsync(window.Close));
+        return !cancellationToken.IsCancellationRequested && window.ShowDialog() == true;
     }
 
     public void OpenOutputs()

@@ -688,8 +688,8 @@ public sealed class MachineHomeTests
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         var operation = services.GetRequiredService<OperationViewModel>();
-        var command = start ? operation.StartCommand : operation.HomeCommand;
-        var running = command.ExecuteAsync(null);
+        // This covers device preparation after the UI confirmation, not the modal review.
+        var running = start ? machine.StartAsync() : operation.HomeCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => state.IsRunning && !io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.Equal(!start, state.IsHoming);
         Assert.False(state.AutomaticRunning);
@@ -703,7 +703,10 @@ public sealed class MachineHomeTests
         Assert.True(io.GetOutput(OutputIo.PcbPlacementHandlerDown));
         Assert.True(machine.IsHomeAllowed);
 
-        await command.ExecuteAsync(null);
+        if (start)
+            await machine.StartAsync();
+        else
+            await operation.HomeCommand.ExecuteAsync(null);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
         Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.False(state.IsRunning);

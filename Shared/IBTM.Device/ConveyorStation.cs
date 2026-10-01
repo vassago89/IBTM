@@ -24,8 +24,6 @@ public enum StationCylinderState
 public sealed class ConveyorStation
 {
     private readonly IIoService _io;
-    // Notification history only; CarrierPresent always reads the current inputs.
-    private bool? _lastNotifiedPresence;
     private readonly InputIo _backupPlateUp;
     private readonly InputIo _backupPlateDown;
     private readonly InputIo _stopperUp;
@@ -58,8 +56,6 @@ public sealed class ConveyorStation
         HeatSink2Input = heatSink2;
         _backupPlate = backupPlate;
         _stopper = stopper;
-        if (io.IsReady)
-            _lastNotifiedPresence = CarrierPresent;
         io.InputChanged += OnInputChanged;
     }
 
@@ -71,8 +67,6 @@ public sealed class ConveyorStation
     public InputIo HeatSink2Input { get; }
 
     public event Action? Changed;
-
-    public event Action<bool>? CarrierChanged;
 
     public bool CarrierPresent => _io.GetInput(_heatSink1) || _io.GetInput(HeatSink2Input);
 
@@ -193,13 +187,7 @@ public sealed class ConveyorStation
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_io.TimeoutMilliseconds);
         var arrived = new AsyncAutoResetEvent();
-        void OnCarrierChanged(bool present)
-        {
-            if (present)
-                arrived.Set();
-        }
-
-        CarrierChanged += OnCarrierChanged;
+        Changed += arrived.Set;
         try
         {
             while (!CarrierPresent)
@@ -215,23 +203,12 @@ public sealed class ConveyorStation
         }
         finally
         {
-            CarrierChanged -= OnCarrierChanged;
+            Changed -= arrived.Set;
         }
     }
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input == _heatSink1 || input == HeatSink2Input)
-        {
-            var previous = _lastNotifiedPresence;
-            var present = _io.GetInput(_heatSink1) || _io.GetInput(HeatSink2Input);
-            _lastNotifiedPresence = present;
-            if (previous != present)
-            {
-                CarrierChanged?.Invoke(present);
-            }
-        }
-
         if (input == _backupPlateUp
             || input == _backupPlateDown
             || input == _stopperUp

@@ -49,6 +49,9 @@ public static class MachineDiagramLayout
     public const double SupplyRailTop = 172;
     public const double SupplyRailWidth = 258;
     public const double SupplyRailHeight = 138;
+    public const double PlacementStatusLeft = HeaderInset + SupplyRailWidth + 10;
+    public const double PickupControllerRowTop = DetailTop + 20;
+    public const double ShootingControllerRowTop = DetailTop + 38;
     public const double SupplyCarrierFrameWidth = 208;
     public const double SupplyCarrierWidth = 192;
     public const double SupplyCarrierHeight = 66;

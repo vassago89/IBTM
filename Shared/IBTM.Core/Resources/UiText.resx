@@ -3290,4 +3290,61 @@ See the application log for details.</value>
   <data name="remove unfinished carriers, then press start" xml:space="preserve">
     <value>Remove unfinished carriers, then press START</value>
   </data>
+  <data name="head 1 · pickup" xml:space="preserve">
+    <value>Head 1 · Pickup</value>
+  </data>
+  <data name="head 2 · shooting" xml:space="preserve">
+    <value>Head 2 · Shooting</value>
+  </data>
+  <data name="s1 · pcb placement" xml:space="preserve">
+    <value>S1 · PCB Placement</value>
+  </data>
+  <data name="s2 · bolt fastening" xml:space="preserve">
+    <value>S2 · Bolt Fastening</value>
+  </data>
+  <data name="s3 · inspection" xml:space="preserve">
+    <value>S3 · Inspection</value>
+  </data>
+  <data name="not checked" xml:space="preserve">
+    <value>Not checked</value>
+  </data>
+  <data name="empty" xml:space="preserve">
+    <value>Empty</value>
+  </data>
+  <data name="remove material" xml:space="preserve">
+    <value>Remove material</value>
+  </data>
+  <data name="unfinished carrier" xml:space="preserve">
+    <value>Unfinished carrier</value>
+  </data>
+  <data name="completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="ready for placement handoff" xml:space="preserve">
+    <value>Ready for Placement handoff</value>
+  </data>
+  <data name="i/o feedback unavailable" xml:space="preserve">
+    <value>I/O feedback unavailable</value>
+  </data>
+  <data name="review before start" xml:space="preserve">
+    <value>Review before START</value>
+  </data>
+  <data name="check that the shown material matches the machine." xml:space="preserve">
+    <value>Check that the shown material matches the machine.</value>
+  </data>
+  <data name="material check" xml:space="preserve">
+    <value>Material check</value>
+  </data>
+  <data name="remove red-marked material, then check again." xml:space="preserve">
+    <value>Remove red-marked material, then check again.</value>
+  </data>
+  <data name="check again" xml:space="preserve">
+    <value>Check again</value>
+  </data>
+  <data name="confirm and start" xml:space="preserve">
+    <value>Confirm and START</value>
+  </data>
+  <data name="ready to start" xml:space="preserve">
+    <value>Ready to start</value>
+  </data>
 </root>

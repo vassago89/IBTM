@@ -34,6 +34,7 @@ public partial class OperationViewModel : ObservableObject
     private volatile bool _active;
     private const int PcbHistoryPageSize = 100;
     private readonly MachineStore _store;
+    private readonly DiagnosticWindowManager _windows;
     private readonly PcbHistorySettings _historySettings;
     private readonly ILogger<OperationViewModel> _log;
     private string _pcbHistoryDirectory;
@@ -61,7 +62,8 @@ public partial class OperationViewModel : ObservableObject
         ILogger<OperationViewModel> log)
     {
         OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest);
-        StartCommand = new AsyncRelayCommand(machine.StartAsync);
+        StartCommand = new AsyncRelayCommand(StartAsync);
+        CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync, () => HasOlderPcbs);
@@ -69,6 +71,7 @@ public partial class OperationViewModel : ObservableObject
         PcbRecords = new();
         _pcbHistoryLimit = PcbHistoryPageSize;
         _store = store;
+        _windows = windows;
         _historySettings = historySettings;
         _pcbHistoryDirectory = historySettings.Directory;
         _log = log;
@@ -375,12 +378,62 @@ public partial class OperationViewModel : ObservableObject
     {
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, StartCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
+            [StopCommand, StartCommand, CheckStartCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
     }
 
     public IRelayCommand OpenBoltStationTestCommand { get; }
 
     public IAsyncRelayCommand StartCommand { get; }
+
+    public IAsyncRelayCommand CheckStartCommand { get; }
+
+    public bool IsStartReviewAllowed => Machine.IsStartAllowed && Machine.StartBlock == StartBlockReason.None
+        && Machine.StartChecks.Values.All(value => value is not (StartCheckState.NotChecked or StartCheckState.Unknown));
+
+    private async Task CheckStartAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Run(Machine.CheckStartMaterials, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _log.LogError(exception, "START material check failed.");
+            State.SetError(MachineAlarm.IoCommunication, exception);
+        }
+        finally
+        {
+            OnPropertyChanged(nameof(IsStartReviewAllowed));
+        }
+    }
+
+    private async Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (State.IsRunning || cancellationToken.IsCancellationRequested)
+            return;
+        // Register the async command's cancellation before entering the modal message loop.
+        await Task.Yield();
+        if (cancellationToken.IsCancellationRequested)
+            return;
+        var wasActive = _active;
+        bool confirmed;
+        _active = true;
+        try
+        {
+            OnMachineStateChanged(this, new(null));
+            OnRecipeChanged();
+            confirmed = _windows.ConfirmStart(this, cancellationToken);
+        }
+        finally
+        {
+            _active = wasActive;
+        }
+        if (confirmed && !cancellationToken.IsCancellationRequested)
+            await Machine.StartAsync(cancellationToken);
+    }
 
     public IAsyncRelayCommand StopCommand { get; }
 
@@ -388,7 +441,7 @@ public partial class OperationViewModel : ObservableObject
     {
         try
         {
-            IAsyncRelayCommand[] commands = [StartCommand, HomeCommand];
+            IAsyncRelayCommand[] commands = [StartCommand, CheckStartCommand, HomeCommand];
             var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
                 commands,
@@ -524,6 +577,7 @@ public partial class OperationViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(StartBlocked));
             OnPropertyChanged(nameof(StartBlock));
+            OnPropertyChanged(nameof(IsStartReviewAllowed));
         }
     }
 

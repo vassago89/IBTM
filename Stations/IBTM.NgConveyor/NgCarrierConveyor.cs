@@ -175,7 +175,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
         _repeat = repeat;
-        using var motor = new ConveyorRun(_io, OutputIo.NgConveyorRun, cancellationToken, OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
+        var motor = new ConveyorRun(_io, OutputIo.NgConveyorRun, cancellationToken, OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -331,15 +331,22 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         }
         finally
         {
-            EndRun(cancellationToken);
-            _repeat = false;
-            _movement = Movement.None;
-            // An interrupted ejection still needs operator confirmation, not an
-            // automatic refill on START. This records permission, not carrier position.
-            if (_ejectionPhase == EjectionPhase.Ejecting)
-                _ejectionPhase = EjectionPhase.WaitingForConfirmation;
-            Interlocked.Exchange(ref _ejectRequested, 0);
-            Interlocked.Exchange(ref _ejectCompleteRequested, 0);
+            try
+            {
+                motor.Dispose();
+            }
+            finally
+            {
+                _repeat = false;
+                _movement = Movement.None;
+                // An interrupted ejection still needs operator confirmation, not an
+                // automatic refill on START. This records permission, not carrier position.
+                if (_ejectionPhase == EjectionPhase.Ejecting)
+                    _ejectionPhase = EjectionPhase.WaitingForConfirmation;
+                Interlocked.Exchange(ref _ejectRequested, 0);
+                Interlocked.Exchange(ref _ejectCompleteRequested, 0);
+                EndRun(cancellationToken);
+            }
         }
     }
 

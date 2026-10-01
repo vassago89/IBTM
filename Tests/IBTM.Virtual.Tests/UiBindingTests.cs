@@ -523,6 +523,57 @@ public sealed class UiBindingTests
         operationView.Arrange(new Rect(0, 0, 1600, 900));
         operationView.UpdateLayout();
 
+        io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
+        var reviewLanguage = UiText.Culture.Name == "ko" ? UiLanguage.Korean : UiLanguage.English;
+        UiText.Apply(UiLanguage.Korean);
+        var review = new StartConfirmationWindow(operation) { ShowActivated = false, ShowInTaskbar = false, Opacity = 0 };
+        try
+        {
+            await operation.CheckStartCommand.ExecuteAsync(null);
+            review.Show();
+            await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+            if (operation.CheckStartCommand.ExecutionTask is { } checking)
+                await checking;
+            review.Measure(new Size(1600, 860));
+            review.Arrange(new Rect(0, 0, 1600, 860));
+            review.UpdateLayout();
+            await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
+            Assert.False(((Button)review.FindName("ConfirmButton")).IsEnabled);
+            io.SetInput(InputIo.PcbPlacementVacuumDetected, false);
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
+            await operation.CheckStartCommand.ExecuteAsync(null);
+            Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.Placement]);
+        }
+        finally
+        {
+            review.Close();
+            UiText.Apply(reviewLanguage);
+            io.SetInput(InputIo.PcbPlacementVacuumDetected, false);
+        }
+
+        var hiddenReview = new Style(typeof(StartConfirmationWindow));
+        hiddenReview.Setters.Add(new Setter(Window.ShowActivatedProperty, false));
+        hiddenReview.Setters.Add(new Setter(UIElement.OpacityProperty, 0d));
+        Application.Current.Resources[typeof(StartConfirmationWindow)] = hiddenReview;
+        try
+        {
+            var reviewing = operation.StartCommand.ExecuteAsync(null);
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => Application.Current.Windows.OfType<StartConfirmationWindow>().Any(), TimeSpan.FromSeconds(2)));
+            Assert.True(operation.StartCommand.IsRunning);
+            Assert.False(services.GetRequiredService<MachineState>().AutomaticRunning);
+            operation.StartCommand.Cancel();
+            await reviewing;
+            Assert.Empty(Application.Current.Windows.OfType<StartConfirmationWindow>());
+            Assert.False(services.GetRequiredService<MachineState>().AutomaticRunning);
+        }
+        finally
+        {
+            operation.StartCommand.Cancel();
+            Application.Current.Resources.Remove(typeof(StartConfirmationWindow));
+        }
+
         var normalStyle = new Style(typeof(PcbResultsWindow));
         normalStyle.Setters.Add(new Setter(Window.ShowActivatedProperty, false));
         normalStyle.Setters.Add(new Setter(Window.ShowInTaskbarProperty, false));

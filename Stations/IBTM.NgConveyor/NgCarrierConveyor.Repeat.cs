@@ -62,7 +62,7 @@ public sealed partial class NgCarrierConveyor
         if (!IsTransferClear)
             throw new InvalidOperationException("Release the NG transfer and raise the open pickup before returning the conveyor carrier.");
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        using var motor = new ConveyorRun(
+        var motor = new ConveyorRun(
             _io, OutputIo.NgConveyorRun, operation.Token,
             OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         void CheckPickup()
@@ -96,9 +96,16 @@ public sealed partial class NgCarrierConveyor
         }
         finally
         {
-            _movement = Movement.None;
             _transfer!.Changed -= CheckPickup;
-            EndRun(cancellationToken);
+            try
+            {
+                motor.Dispose();
+            }
+            finally
+            {
+                _movement = Movement.None;
+                EndRun(cancellationToken);
+            }
         }
     }
 }

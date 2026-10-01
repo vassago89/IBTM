@@ -45,7 +45,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         io.InputChanged += OnInputChanged;
         motion.StateChanged += OnMotionStateChanged;
         station.Changed += NotifyChanged;
-        station.CarrierChanged += OnCarrierChanged;
         StepChanged += NotifyChanged;
     }
 
@@ -208,12 +207,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         }
     }
 
-    private void OnCarrierChanged(bool present)
-    {
-        _runTargets = null;
-        _targetIndex = 0;
-    }
-
     private bool IsPcbGripUncertain
     {
         get
@@ -251,18 +244,28 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _handoffPosition = null;
         Phase = _units.PcbPlacement ? PcbPlacementState.Retracting
             : repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff;
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        void CheckCarrier()
+        {
+            if (_runTargets is { } targets
+                && (!Station.CarrierSeated || Enum.GetValues<HeatSinkSlot>().Any(heatSink =>
+                    Station.IsHeatSinkPresent(heatSink) != targets.Contains(heatSink))))
+                OperationCancellation.CancelIfNotDisposed(operation);
+        }
         try
         {
+            Changed += CheckCarrier;
             BeginRun(_units.PcbPlacement ? Phase : PcbPlacementState.Disabled);
             _supply.Changed += WakeRun;
             if (_units.PcbPlacement)
             {
-                await MoveToStandbyAsync(TargetHeatSink ?? HeatSinkSlot.HeatSink1, repeat, cancellationToken);
+                await MoveToStandbyAsync(TargetHeatSink ?? HeatSinkSlot.HeatSink1, repeat, operation.Token);
                 EnterStep(repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
             }
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (!Station.CarrierPresent || Station.Completed)
+                operation.Token.ThrowIfCancellationRequested();
+                if (Station.Completed)
                 {
                     _runTargets = null;
                     _targetIndex = 0;
@@ -272,15 +275,21 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     Station.StartRepeat(Station.CurrentJob);
                 var heatSink = TargetHeatSink;
                 var step = GetNextStep(heatSink, repeat);
-                if (!await ExecuteStepAsync(step, heatSink, cancellationToken, repeat))
-                    await WaitForChangeAsync(cancellationToken);
+                if (!await ExecuteStepAsync(step, heatSink, operation.Token, repeat))
+                    await WaitForChangeAsync(operation.Token);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
+        catch (OperationCanceledException) when (operation.IsCancellationRequested)
+        {
+            throw new MotionInterlockException(
+                "The placement carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
+        }
         finally
         {
+            Changed -= CheckCarrier;
             _supply.Changed -= WakeRun;
             _runTargets = null;
             _repeatTrip = null;
@@ -340,7 +349,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     ? "unfinished PCB handoff" : Station.Completed ? "carrier transfer" : "carrier seated");
             return false;
         }
-        if (Station.CarrierSeated)
+        if (Station.CarrierSeated && !Station.Completed)
             _runTargets ??= Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
         var job = _repeatTrip?.Job ?? Station.CurrentJob;
         var activePcb = IsRunning ? heatSink : null;
@@ -554,7 +563,11 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     cancellationToken.ThrowIfCancellationRequested();
                     var carrierComplete = TargetHeatSink is null;
                     if (carrierComplete)
+                    {
+                        _runTargets = null;
+                        _targetIndex = 0;
                         Station.Complete(job);
+                    }
                     EnterStep(repeat && carrierComplete ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
                     break;
                 case PcbPlacementState.WaitingForSupplyRelease or PcbPlacementState.WaitingForCarrier

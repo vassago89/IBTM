@@ -290,13 +290,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             BeginRun();
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (_inspectionOperation?.IsCancellationRequested == true
-                    && IsReadyToInspect && ReferenceEquals(_runJob, Station.CurrentJob))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    throw new MotionInterlockException(
-                        "Inspection carrier feedback changed during inspection. Check the PCB presence and supports before restarting.");
-                }
                 var step = !_units.Inspection && !CarrierSeatingRequested
                     ? InspectionStationState.Disabled : GetNextStep(repeat);
                 if (!await ExecuteStepAsync(step, repeat, cancellationToken))
@@ -357,8 +350,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     : InspectionStationState.Waiting;
             return WaitAtWaitingPosition(waiting);
         }
-        if (_runJob is null || _inspectionOperation?.IsCancellationRequested == true
-            || !ReferenceEquals(_runJob, Station.CurrentJob))
+        if (_runJob is null)
             return InspectionStationState.PreparingInspection;
         var target = InspectionTarget;
         if (target.Pcb is null)
@@ -383,6 +375,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         var operation = _inspectionOperation;
         try
         {
+            CheckInspectionPosition();
+            operation?.Token.ThrowIfCancellationRequested();
             switch (state)
             {
                 case InspectionStationState.PreparingTransfer
@@ -446,7 +440,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     EnterStep(state, workId: Station.CurrentJob.Id);
                     var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
                     var job = _runJob!;
-                    CheckInspectionPosition();
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     await MoveToWaitingPositionAsync(token);
@@ -464,7 +457,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     EnterStep(state, $"{pcb.GetDescription()} / Data Matrix", Station.CurrentJob.Id);
                     var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
                     var job = _runJob!;
-                    CheckInspectionPosition();
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     var assembly = Station.GetAssembly(job, pcb);
@@ -485,7 +477,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     EnterStep(state, $"{pcb.GetDescription()} / Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}", Station.CurrentJob.Id);
                     var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
                     var job = _runJob!;
-                    CheckInspectionPosition();
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     var assembly = Station.GetAssembly(job, pcb);
@@ -503,20 +494,12 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     throw new ArgumentOutOfRangeException(nameof(state));
             }
         }
-        catch (OperationCanceledException) when (state is InspectionStationState.ReadingBarcode
-                or InspectionStationState.InspectingBolt or InspectionStationState.CompletingInspection
-            && operation?.IsCancellationRequested == true
+        catch (OperationCanceledException) when (operation?.IsCancellationRequested == true
             && !cancellationToken.IsCancellationRequested)
         {
-            if (IsReadyToInspect && ReferenceEquals(_runJob, Station.CurrentJob))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                throw new MotionInterlockException(
-                    "Inspection carrier feedback changed during inspection. Check the PCB presence and supports before restarting.");
-            }
-            ClearInspectionOperation();
+            throw new MotionInterlockException(
+                "Inspection carrier feedback changed during inspection. Check the PCB presence and supports before restarting.");
         }
-        return true;
     }
 
     private void CheckInspectionPosition()

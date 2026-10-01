@@ -97,12 +97,7 @@ public sealed class InspectionTests
             io.SetOutput(OutputIo.MainConveyorRun, true);
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        station.StepChanged += () =>
-        {
-            if (captured && station.Step is InspectionStationState.Waiting)
-                stop.Cancel();
-        };
-        await station.RunAsync(stop.Token);
+        await Assert.ThrowsAsync<MotionInterlockException>(() => station.RunAsync(stop.Token));
 
         Assert.True(captured);
         Assert.False(recorded);
@@ -212,10 +207,12 @@ public sealed class InspectionTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public async Task PcbPresenceChangeDuringInspectionDoesNotCompleteTheOldPointList(bool secondPcbArrives, bool betweenPoints)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    public async Task PcbPresenceChangeStopsInspectionWithoutRestarting(bool secondPcbArrives, bool betweenPoints, bool removeCarrier)
     {
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
@@ -246,7 +243,7 @@ public sealed class InspectionTests
             new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes);
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
-            (InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, !secondPcbArrives),
+            (InputIo.InspectionHeatSink1Present, !removeCarrier), (InputIo.InspectionHeatSink2Present, !secondPcbArrives),
             (InputIo.InspectionBackupPlateUp, false), (InputIo.InspectionBackupPlateDown, true),
             (InputIo.InspectionStopperDown, false), (InputIo.InspectionStopperUp, true),
             (InputIo.NgCarrierPickupUp, true), (InputIo.NgCarrierPickupDown, false),

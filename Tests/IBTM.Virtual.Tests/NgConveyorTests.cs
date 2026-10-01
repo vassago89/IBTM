@@ -639,6 +639,17 @@ public sealed class NgConveyorTests
         var system = CreateSystem(ejectRunSeconds: 5);
         system.Io.SetInputs((InputIo.NgConveyorPosition1Occupied, true),
             (InputIo.NgConveyorPosition2Occupied, true));
+        var ended = false;
+        var outputsOnAtEnd = false;
+        system.Conveyor.StepChanged += () =>
+        {
+            if (system.Conveyor.IsRunning)
+                return;
+            ended = true;
+            outputsOnAtEnd = system.Io.GetOutput(OutputIo.NgConveyorRun)
+                || system.Io.GetOutput(OutputIo.NgCarrierEjectLamp)
+                || system.Io.GetOutput(OutputIo.NgCarrierEjectCompleteLamp);
+        };
         using var stop = new CancellationTokenSource();
         var run = system.Conveyor.RunAsync(stop.Token);
         system.Io.SetInput(InputIo.NgCarrierEjectButton, true);
@@ -646,6 +657,8 @@ public sealed class NgConveyorTests
         stop.Cancel();
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         await run.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.True(ended);
+        Assert.False(outputsOnAtEnd);
         Assert.False(system.Io.GetOutput(OutputIo.NgCarrierEjectLamp));
         Assert.False(system.Io.GetOutput(OutputIo.NgCarrierEjectCompleteLamp));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(

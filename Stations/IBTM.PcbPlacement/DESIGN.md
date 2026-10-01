@@ -86,6 +86,8 @@ remaining commands if carrier identity or seating changes.
 The Repeat argument controls IPM commands throughout the step; there is no second
 mode field. After STOP, remove PCBs from the handler and clear vacuum before START.
 Machine START also rejects an unfinished carrier still present at S1/S2/S3.
-Sensor edges while stopped do not clear its job. A new admitted carrier starts at the
+Carrier or support feedback changes during active work stop the run, including waits
+between PCBs and the final standby return. Sensor edges never reset the target index
+or clear its job. A new admitted carrier starts at the
 first present heat sink; recorded results do not select a resume point. A completed carrier stays complete. The original destination
 for a Repeat round trip is retained only while that run is active.

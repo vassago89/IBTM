@@ -127,7 +127,7 @@ public sealed partial class MainConveyor : AutoUnit
     {
         using var runCancellation = BeginConveyorOperation(cancellationToken);
         cancellationToken = runCancellation.Token;
-        using var motor = new ConveyorRun(
+        var motor = new ConveyorRun(
             _io, OutputIo.MainConveyorRun, cancellationToken,
             OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
         _repeat = repeat;
@@ -324,9 +324,16 @@ public sealed partial class MainConveyor : AutoUnit
         }
         finally
         {
-            _repeat = false;
-            _inspection.ClearInspectionRequest();
-            EndRun(cancellationToken);
+            try
+            {
+                motor.Dispose();
+            }
+            finally
+            {
+                _repeat = false;
+                _inspection.ClearInspectionRequest();
+                EndRun(cancellationToken);
+            }
         }
     }
 

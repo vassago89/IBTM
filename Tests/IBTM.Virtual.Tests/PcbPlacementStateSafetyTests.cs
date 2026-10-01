@@ -195,6 +195,56 @@ public sealed class PcbPlacementStateSafetyTests
             Assert.Equal(rig.Settings.HandoffPosition.X, rig.Motion.Position.X);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CarrierRemovalAndReplacementStopsPlacementWithoutResettingItsWork(bool duringRetraction)
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        rig.Supply.Handoff = duringRetraction ? PcbSupplyHandoff.Holding : PcbSupplyHandoff.Unavailable;
+        var job = rig.Work.CurrentJob;
+        var changed = false;
+        void ReplaceCarrier()
+        {
+            changed = true;
+            rig.Io.SetInput(InputIo.PcbPlacementHeatSink1Present, false);
+            rig.Io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+        }
+        rig.Placer.Trace += message =>
+        {
+            if (!duringRetraction && !changed && message.StartsWith("Waiting for feedback / work change:"))
+                ReplaceCarrier();
+        };
+        rig.Placer.StepChanged += () =>
+        {
+            switch (rig.Placer.Step)
+            {
+                case PcbPlacementState.ReceivingPcb:
+                    rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+                    break;
+                case PcbPlacementState.WaitingForSupplyRelease:
+                    rig.Supply.Handoff = PcbSupplyHandoff.Released;
+                    break;
+                case PcbPlacementState.Retracting when duringRetraction && !changed && rig.Work.Assemblies.Any():
+                    ReplaceCarrier();
+                    break;
+            }
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        await Assert.ThrowsAsync<MotionInterlockException>(() => rig.Placer.RunAsync(stop.Token));
+
+        Assert.True(changed);
+        Assert.False(stop.IsCancellationRequested);
+        Assert.True(rig.Work.CarrierSeated);
+        Assert.Same(job, rig.Work.CurrentJob);
+        Assert.Equal(duringRetraction ? 1 : 0, rig.Work.Assemblies.Count());
+        Assert.False(rig.Work.Completed);
+        Assert.False(rig.Motion.IsMoving);
+        Assert.False(rig.Placer.IsRunning);
+    }
+
     [Fact]
     public async Task NewRunRequiresManualRemovalAndStartsAtFirstTarget()
     {
