@@ -155,6 +155,21 @@ public sealed class UiBindingTests
             var motionWindow = new MotionDiagnosticsWindow(monitor);
             try
             {
+                monitor.Activate();
+                await Task.Run(() =>
+                {
+                    units.Inspection = false;
+                    monitor.Refresh();
+                });
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                    () => !monitor.View.Contains(axis), TimeSpan.FromSeconds(2)));
+                await Task.Run(() =>
+                {
+                    units.Inspection = true;
+                    monitor.Refresh();
+                });
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                    () => monitor.View.Contains(axis), TimeSpan.FromSeconds(2)));
                 var axisList = ((Grid)motionWindow.Content).Children.OfType<ListBox>().Single();
                 var axisView = (Grid)axisList.ItemTemplate.LoadContent();
                 axisView.DataContext = axis;
@@ -896,7 +911,7 @@ public sealed class UiBindingTests
             Assert.Equal(AppPage.Teaching, main.SelectedPage);
             Assert.False(page.IsEnabled);
             Assert.False(main.RecipeEditingEnabled);
-            Assert.False(main.IsNavigateAllowed(AppPage.Settings));
+            Assert.False(main.NavigateCommand.CanExecute(AppPage.Settings));
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => preview.Source is null,
                 TimeSpan.FromSeconds(2)));
@@ -1005,6 +1020,8 @@ public sealed class UiBindingTests
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
 
             var liveButton = new Button { Command = teaching.ToggleLiveViewCommand };
+            liveButton.SetBinding(UIElement.IsEnabledProperty,
+                new Binding(nameof(TeachingViewModel.IsToggleLiveViewAllowed)) { Source = teaching });
             var scanStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             releaseStop.Reset();
             light.BeforeOn = () =>

@@ -186,8 +186,6 @@ public partial class BoltStationTestViewModel : ObservableObject
 
     private async Task RunAsync(CancellationToken cancellationToken)
     {
-        if (!IsRunAllowed)
-            return;
         var selected = Bolts.Where(row => row.IsSelected).ToArray();
         Error = null;
         TotalRunSeconds = null;

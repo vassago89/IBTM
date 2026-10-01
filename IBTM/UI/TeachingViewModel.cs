@@ -1680,17 +1680,15 @@ public partial class TeachingViewModel : ObservableObject
     private Task StopCameraLiveAsync()
     {
         ToggleLiveViewCommand.Cancel();
-        if (!_cameraStop.IsCompleted)
-            return _cameraStop;
-
         lock (_liveImageGate)
         {
+            if (!_cameraStop.IsCompleted)
+                return _cameraStop;
             LiveImage = null;
             _pendingLiveFrame = null;
+            _cameraStop = Inspection.StopLiveViewAsync();
+            return _cameraStop;
         }
-
-        _cameraStop = Inspection.StopLiveViewAsync();
-        return _cameraStop;
     }
 
     private async Task RequestCameraStopAsync()
