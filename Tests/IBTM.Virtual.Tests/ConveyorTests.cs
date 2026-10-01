@@ -302,12 +302,12 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task LostCarrierStopsSeatingPushAndRestartPreservesRaisedSupport()
+    public async Task MissingCarrierAfterSeatingStopsTransferAndRestartPreservesRaisedSupport()
     {
         var io = CreateIo();
         io.Initialize();
         var conveyor = CreateConveyor(io,
-            settings: new ConveyorSettings { CarrierStopDelaySeconds = 30 });
+            settings: new ConveyorSettings { CarrierStopDelaySeconds = 0.2 });
         var pushing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         conveyor.Trace += message =>
         {
@@ -327,7 +327,7 @@ public sealed class ConveyorTests
             VirtualTestSupport.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
             var failure = await Assert.ThrowsAsync<InvalidOperationException>(
                 () => run.WaitAsync(TimeSpan.FromSeconds(2)));
-            Assert.Contains("lost during the seating push", failure.Message);
+            Assert.Contains("not detected after the seating push", failure.Message);
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
             Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.GetNextStep(io.GetOutput(OutputIo.MainConveyorRun)));
@@ -1432,7 +1432,12 @@ public sealed class ConveyorTests
             Assert.False(io.GetOutput(backupPlate));
             elapsed.Start();
             io.SetInput(second, true);
-            io.SetInput(second, false); // HS1 still proves presence after the HS2 arrival pulse.
+            io.SetInput(second, false);
+            io.SetInput(destination, false);
+            await Task.Delay(50);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(run.IsCompleted);
+            io.SetInput(destination, true);
 
             var delay = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.True(delay >= TimeSpan.FromSeconds(0.18), $"Stopped after {delay.TotalSeconds:F3} s.");
@@ -1565,13 +1570,13 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task LostAndRestoredArrivalDoesNotInheritDepartingResults()
+    public async Task TemporarySensorLossDuringSeatingKeepsDepartingResults()
     {
         var io = CreateIo();
         var source = ConveyorStation.CreateBoltFastening(io);
         var destination = CreateInspectionStation(io);
         var conveyor = new MainConveyor(
-            io, new ConveyorSettings { CarrierStopDelaySeconds = 30 }, new OperationCancellation(),
+            io, new ConveyorSettings { CarrierStopDelaySeconds = 0.2 }, new OperationCancellation(),
             ConveyorStation.CreatePcbPlacement(io), source, destination,
             new UnitSettings { Inspection = true });
         io.Initialize();
@@ -1593,19 +1598,19 @@ public sealed class ConveyorTests
         {
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-            var arrivingJob = destination.Station.CurrentJob;
             io.SetInput(InputIo.InspectionHeatSink2Present, true);
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => run.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.True(await WaitUntilAsync(
+                () => destination.Station.CurrentJob.Id == originalJob.Id,
+                TimeSpan.FromSeconds(2)));
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-            Assert.Same(arrivingJob, destination.Station.CurrentJob);
-            Assert.Empty(destination.Station.Assemblies);
+            Assert.Same(assembly, Assert.Single(destination.Station.Assemblies));
             Assert.False(destination.Station.Completed);
-            Assert.Same(assembly, Assert.Single(source.Assemblies));
+            Assert.Empty(source.Assemblies);
         }
         finally
         {
             conveyor.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
     }
 

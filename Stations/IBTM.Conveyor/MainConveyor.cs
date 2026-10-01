@@ -469,8 +469,6 @@ public sealed partial class MainConveyor : AutoUnit
         var timeoutMilliseconds = (int)timeout.TotalMilliseconds;
         var arrived = new TaskCompletionSource<ConveyorStation.Job>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var carrierLeft = new AsyncAutoResetEvent();
-        var arrivalLost = false;
         using var transfer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void ObserveEntry(InputIo input, bool value)
         {
@@ -484,11 +482,6 @@ public sealed partial class MainConveyor : AutoUnit
                 OperationCancellation.CancelIfNotDisposed(transfer);
             if (destination.IsHeatSinkPresent(HeatSinkSlot.HeatSink2))
                 arrived.TrySetResult(destination.CurrentJob);
-            if (arrived.Task.IsCompleted && !destination.CarrierPresent)
-            {
-                arrivalLost = true;
-                carrierLeft.Set();
-            }
         }
         Exception? failure = null;
         try
@@ -579,17 +572,16 @@ public sealed partial class MainConveyor : AutoUnit
                 {
                     throw new IoTimeoutException(destination.HeatSink2Input, true, timeoutMilliseconds);
                 }
-                if (!destination.CarrierPresent)
-                    carrierLeft.Set();
                 if (Step is MainConveyorState step)
                     TraceStep(step, target: "seating push", workId: destination.CurrentJob.Id, waitingFor:
                         $"Heat Sink 2 detected; push for {_settings.CarrierStopDelaySeconds} s");
-                var lostCarrier = await carrierLeft.WaitAsync(
+                // HS2 감지 뒤에는 순간적인 감지 끊김과 관계없이 밀착 시간을 채운다.
+                await Task.Delay(
                     TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
                     transfer.Token);
                 transfer.Token.ThrowIfCancellationRequested();
-                if (lostCarrier || !destination.CarrierPresent)
-                    throw new InvalidOperationException("Carrier presence was lost during the seating push.");
+                if (!destination.CarrierPresent)
+                    throw new InvalidOperationException("Carrier was not detected after the seating push.");
             }
             catch (OperationCanceledException exception) when (transfer.IsCancellationRequested
                 && !cancellationToken.IsCancellationRequested)
@@ -624,7 +616,6 @@ public sealed partial class MainConveyor : AutoUnit
                 // 감지 후 교체된 캐리어에는 이전 결과를 넘기지 않는다.
                 if (source is not null
                     && arrived.Task.IsCompletedSuccessfully
-                    && !arrivalLost
                     && destination.CarrierPresent
                     && ReferenceEquals(destination.CurrentJob, await arrived.Task))
                 {
