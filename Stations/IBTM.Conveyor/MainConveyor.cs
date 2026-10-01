@@ -613,7 +613,7 @@ public sealed partial class MainConveyor : AutoUnit
             try
             {
                 // HS2로 도착이 확인된 작업은 밀착 중 STOP해도 체결 결과를 이어받는다.
-                // 감지 후 교체된 캐리어에는 이전 결과를 넘기지 않는다.
+                // 목적지 작업이 별도로 초기화되었으면 이전 결과를 넘기지 않는다.
                 if (source is not null
                     && arrived.Task.IsCompletedSuccessfully
                     && destination.CarrierPresent

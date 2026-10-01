@@ -615,6 +615,7 @@ Repeat 역송에는 이 시간제한을 적용하지 않는다. 입구 센서 ON
 각 센서 대기 단계에서 시간을 재며, 초과 시 모터와 해당 SMEMA 출력을 끄고 기다리던 입력을 타임아웃으로 보고한다.
 스테이션 작업 완료·후단 준비 대기는 제한하지 않는다. 실린더 피드백은 기존 공통 I/O 타임아웃을 사용한다.
 HS2 감지 후 추가 밀착 시간과 후단 Ready OFF 뒤 추가 구동 시간은 별도이며, Settings → Operation & Timing → Main Conveyor에 모았다.
+밀착 중 센서가 잠깐 OFF돼도 구동과 결과 인계를 취소하지 않는다. 밀착이 끝나도 HS1·HS2가 모두 OFF이면 오류로 정지한다.
 S1/S2는 동시에 착좌하고 각 유닛이 작업한다. S3는 검사 전에 다른 이송이 가능하면 올려서
 기다린다. 가능한 이송이 끝나면 내리고 검사하며, 검사 요청 후에는 벨트를 정지한다.
 착좌 판정은 소재 감지와 백업 플레이트 상승 확인으로 하며 스토퍼 위치는 포함하지 않는다.
@@ -629,7 +630,7 @@ NG 픽업 XY 이동 완료 → 백업 플레이트 상승 → 스토퍼 하강�
 Repeat의 S3 역인계도 캐리어를 든 채 픽업 XY로 복귀한 후 플레이트를 올리고 픽업을 내린다.
 착좌 중 STOP된 미완료 캐리어는 제거한 뒤 START한다. 완료 캐리어는 지지를 유지하고 이송할 수 있다.
 집중 검사는 `StartChecksHeldMaterialsOnlyWhenPressed`, `StartRejectsUnfinishedCarrierEvenAfterRemovalAndReplacement`,
-`LostAndRestoredArrivalDoesNotInheritDepartingResults`, `ResetPreservesSeatedCarrierAndAllowsStartingItsTransfer`다.
+`TemporarySensorLossDuringSeatingKeepsDepartingResults`, `ResetPreservesSeatedCarrierAndAllowsStartingItsTransfer`다.
 셔틀의 `_cycleReturnPending`은 제거했다. `CycleAsync`는 하강 완료 후 현재 캐리어와
 픽업 상승을 확인하고 상승한다. 중단된 상승을 별도로 기억해 이어가지 않는다.
 전체 Repeat도 저장 단계 분기 없이 정방향 → NG 반환/셔틀 왕복 → Station 3 → 입구 순서로 실행한다.
