@@ -77,6 +77,18 @@
     <Grid Margin="16,12">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,8">
+            <Button DockPanel.Dock="Right" Content="{ui:Text 'Export CSV'}" Command="{Binding ExportCsvCommand}"
+                MinWidth="110" Margin="12,0,0,0" VerticalAlignment="Center">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Record}" Value="{x:Null}">
+                                <Setter Property="IsEnabled" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
                 <TextBlock Text="{Binding Record.Number, StringFormat={ui:Text 'PCB {0}'}}" FontSize="24" FontWeight="SemiBold"/>
                 <Border Background="{StaticResource ControlBgBrush}" CornerRadius="4" Margin="12,0,0,0" Padding="12,5" VerticalAlignment="Center">
@@ -314,7 +326,12 @@
                 </Grid>
             </Border>
         </Grid>
-        <TextBlock Grid.Row="3" Margin="0,8,0,0" FontSize="11" Foreground="{StaticResource TextMutedBrush}"
-            Text="{ui:Text 'Torque: controller unit'}" TextWrapping="Wrap"/>
+        <Grid Grid.Row="3" Margin="0,8,0,0" Height="24">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"
+                Text="{ui:Text 'Torque: controller unit'}"/>
+            <TextBlock Grid.Column="1" Text="{Binding ExportMessage}" ToolTip="{Binding ExportMessage}"
+                Margin="16,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
+        </Grid>
     </Grid>
 </Window>

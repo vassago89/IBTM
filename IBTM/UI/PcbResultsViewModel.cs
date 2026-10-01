@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -10,6 +13,7 @@ using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.Storage;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 
 namespace IBTM.UI;
 
@@ -23,11 +27,13 @@ public partial class PcbResultsViewModel : ObservableObject
         _images = images;
         _log = log;
         LoadImagesCommand = new AsyncRelayCommand(LoadImagesAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        ExportCsvCommand = new AsyncRelayCommand(ExportCsvAsync);
         BoltResults = [];
         Images = [];
     }
 
     public IAsyncRelayCommand LoadImagesCommand { get; }
+    public IAsyncRelayCommand ExportCsvCommand { get; }
 
     [ObservableProperty]
     public partial PcbRecord? Record { get; set; }
@@ -46,6 +52,9 @@ public partial class PcbResultsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string? ImageError { get; private set; }
+
+    [ObservableProperty]
+    public partial string? ExportMessage { get; private set; }
 
     public IReadOnlyList<PcbBoltPresenceView> InspectionOnlyResults
     {
@@ -80,6 +89,7 @@ public partial class PcbResultsViewModel : ObservableObject
             ?? BoltResults.FirstOrDefault();
         if (oldValue?.Number != newValue?.Number || oldValue?.DatabaseFile != newValue?.DatabaseFile)
         {
+            ExportMessage = null;
             Images = [];
             SelectedImage = null;
             _ = LoadImagesCommand.ExecuteAsync(null);
@@ -100,6 +110,98 @@ public partial class PcbResultsViewModel : ObservableObject
     {
         if (value is not null)
             SelectedBolt = BoltResults.FirstOrDefault(bolt => bolt.BoltId == value.Record.BoltId);
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        if (Record is not { } record)
+            return;
+
+        ExportMessage = null;
+        try
+        {
+            var barcode = string.IsNullOrWhiteSpace(record.PcbBarcode) ? "NO_READ" : record.PcbBarcode;
+            var invalidCharacters = Path.GetInvalidFileNameChars();
+            barcode = new string(barcode.Select(character => invalidCharacters.Contains(character) ? '_' : character).ToArray());
+            var dialog = new SaveFileDialog
+            {
+                Title = UiText.Get("Export CSV"),
+                Filter = "CSV (*.csv)|*.csv",
+                DefaultExt = ".csv",
+                FileName = $"{record.CreatedAt.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}_{barcode}_{record.Result.ToString().ToUpperInvariant()}.csv",
+            };
+
+            var csv = new StringBuilder();
+            AppendRow(UiText.Get("PCB results"), record.Number);
+            AppendRow(UiText.Get("Recipe"), record.RecipeName);
+            AppendRow(UiText.Get("Heat sink"), UiText.Get(record.HeatSink));
+            AppendRow(UiText.Get("Created at"), record.CreatedAt);
+            AppendRow(UiText.Get("Updated at"), record.UpdatedAt);
+            AppendRow(UiText.Get("Result"), UiText.Get(record.Result));
+            AppendRow(UiText.Get("Data Matrix"), record.PcbBarcode ?? UiText.Get("Not read"), UiText.Get(record.PcbBarcodeResult));
+            AppendRow(UiText.Get("Bolt fastening"), UiText.Get(record.FasteningResult));
+            AppendRow(UiText.Get("Vision inspection"), UiText.Get(record.InspectionResult));
+            AppendRow(UiText.Get("Turns result"), record.TurnsResult is { } turns ? UiText.Get(turns) : UiText.Get("Not set"));
+            AppendRow(UiText.Get("Torque: controller unit"));
+            AppendRow(UiText.Get("Blank = not recorded"));
+            csv.AppendLine();
+            AppendRow(UiText.Get("Bolt results"));
+            AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Fastening type"),
+                UiText.Get("Fasten"), UiText.Get("Vision inspection"), UiText.Get("Total turns"),
+                UiText.Get("Minimum turns"), UiText.Get("Turns result"), UiText.Get("Result torque"),
+                UiText.Get("Target torque"), UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"),
+                UiText.Get("Angle A3 (°)"), UiText.Get("Recorded at"), UiText.Get("Result source"),
+                UiText.Get("Error code"), UiText.Get("Error / message"));
+            var number = 0;
+            foreach (var bolt in BoltResults)
+            {
+                var result = bolt.Result;
+                var controller = result.Controller;
+                AppendRow(++number, bolt.BoltLabel, bolt.HeadLabel, bolt.Verdict, bolt.VisionVerdict,
+                    result.TotalTurns,
+                    result.MinimumTurns, bolt.TurnsVerdict, result.Torque,
+                    controller?.TargetTorque, controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds,
+                    controller?.Angle3, result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
+                    string.Join(" · ", new[] { result.Error, controller?.ErrorCode > 0 ? bolt.ControllerErrorDescription : null }
+                        .Where(message => !string.IsNullOrWhiteSpace(message))));
+            }
+            foreach (var bolt in InspectionOnlyResults)
+            {
+                AppendRow(++number, bolt.BoltLabel, null, UiText.Get("Not recorded"), bolt.Present ? "OK" : "NG",
+                    null, null, UiText.Get("Not recorded"), null, null, null, null, null, null, null, null, null);
+            }
+
+            if (dialog.ShowDialog() != true)
+                return;
+            await File.WriteAllTextAsync(dialog.FileName, csv.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+            ExportMessage = UiText.Format($"CSV saved: {dialog.FileName}");
+
+            void AppendRow(params object?[] values)
+            {
+                for (var index = 0; index < values.Length; index++)
+                {
+                    if (index > 0)
+                        csv.Append(',');
+                    var text = values[index] switch
+                    {
+                        DateTimeOffset time => time.ToString("yyyy-MM-dd HH:mm:ss.fff zzz", CultureInfo.InvariantCulture),
+                        IFormattable number => number.ToString(null, CultureInfo.InvariantCulture),
+                        { } value => value.ToString()!,
+                        _ => string.Empty,
+                    };
+                    // Names and barcodes are text, even when they begin with an Excel formula character.
+                    if (values[index] is string && text.TrimStart() is ['=' or '+' or '-' or '@', ..])
+                        text = "'" + text;
+                    csv.Append('"').Append(text.Replace("\"", "\"\"")).Append('"');
+                }
+                csv.AppendLine();
+            }
+        }
+        catch (Exception exception)
+        {
+            ExportMessage = UiText.Format($"CSV export failed: {exception.Message}");
+            _log.LogError(exception, "PCB {Number} CSV export failed.", record.Number);
+        }
     }
 
     private async Task LoadImagesAsync(CancellationToken cancellationToken)

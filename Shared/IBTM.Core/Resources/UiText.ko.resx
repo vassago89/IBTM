@@ -3389,4 +3389,37 @@
   <data name="rotation search" xml:space="preserve">
     <value>회전 검색</value>
   </data>
+  <data name="export csv" xml:space="preserve">
+    <value>CSV 저장</value>
+  </data>
+  <data name="csv saved: {0}" xml:space="preserve">
+    <value>CSV 저장 완료: {0}</value>
+  </data>
+  <data name="csv export failed: {0}" xml:space="preserve">
+    <value>CSV 저장 실패: {0}</value>
+  </data>
+  <data name="heat sink" xml:space="preserve">
+    <value>히트싱크</value>
+  </data>
+  <data name="created at" xml:space="preserve">
+    <value>생성 시각</value>
+  </data>
+  <data name="updated at" xml:space="preserve">
+    <value>갱신 시각</value>
+  </data>
+  <data name="turns result" xml:space="preserve">
+    <value>회전수 판정</value>
+  </data>
+  <data name="blank = not recorded" xml:space="preserve">
+    <value>빈칸 = 기록 없음</value>
+  </data>
+  <data name="fastening type" xml:space="preserve">
+    <value>체결 방식</value>
+  </data>
+  <data name="recorded at" xml:space="preserve">
+    <value>기록 시각</value>
+  </data>
+  <data name="result source" xml:space="preserve">
+    <value>결과 출처</value>
+  </data>
 </root>

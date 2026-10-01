@@ -3389,4 +3389,37 @@ See the application log for details.</value>
   <data name="rotation search" xml:space="preserve">
     <value>Rotation search</value>
   </data>
+  <data name="export csv" xml:space="preserve">
+    <value>Export CSV</value>
+  </data>
+  <data name="csv saved: {0}" xml:space="preserve">
+    <value>CSV saved: {0}</value>
+  </data>
+  <data name="csv export failed: {0}" xml:space="preserve">
+    <value>CSV export failed: {0}</value>
+  </data>
+  <data name="heat sink" xml:space="preserve">
+    <value>Heat sink</value>
+  </data>
+  <data name="created at" xml:space="preserve">
+    <value>Created at</value>
+  </data>
+  <data name="updated at" xml:space="preserve">
+    <value>Updated at</value>
+  </data>
+  <data name="turns result" xml:space="preserve">
+    <value>Turns result</value>
+  </data>
+  <data name="blank = not recorded" xml:space="preserve">
+    <value>Blank = not recorded</value>
+  </data>
+  <data name="fastening type" xml:space="preserve">
+    <value>Fastening type</value>
+  </data>
+  <data name="recorded at" xml:space="preserve">
+    <value>Recorded at</value>
+  </data>
+  <data name="result source" xml:space="preserve">
+    <value>Result source</value>
+  </data>
 </root>
