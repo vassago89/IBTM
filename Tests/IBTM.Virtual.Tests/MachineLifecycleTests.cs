@@ -1008,7 +1008,7 @@ public sealed partial class MachineLifecycleTests
             var moveTask = move.RunAsync(moveStop.Token);
             try
             {
-                Assert.Equal(InspectionStationState.PlacingCarrier, move.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
+                Assert.Equal(InspectionStationState.PlacingCarrier, move.GetNextStep());
                 Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
             }
             finally
@@ -5451,7 +5451,7 @@ public sealed partial class MachineLifecycleTests
             io.OutputChanged -= LoseSourceDuringDescent;
             io.SetInput(lostInput, true);
             Assert.True(await transfer.ExecuteTransferAsync(
-                destination, transfer.GetNextTransferStep(destination, canPickUp: true), timeout.Token));
+                destination, InspectionStationState.PickingCarrier, timeout.Token));
             Assert.True(transfer.IsTransferPending);
             Assert.True(transfer.IsRaised);
             Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
@@ -5508,7 +5508,7 @@ public sealed partial class MachineLifecycleTests
             gantry.Motion.Feedback.MovingChanged += moving => restarted |= moving;
             await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteTransferAsync(
                 NgTransferDestination.Shuttle,
-                move.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true), timeout.Token));
+                InspectionStationState.PlacingCarrier, timeout.Token));
             Assert.False(restarted);
         }
         finally
@@ -5845,9 +5845,9 @@ public sealed partial class MachineLifecycleTests
         await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        Assert.Equal(InspectionStationState.PickingCarrier, move.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
+        Assert.Equal(InspectionStationState.PickingCarrier, move.GetNextStep());
         await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None)!;
-        Assert.Equal(InspectionStationState.PlacingCarrier, move.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
+        Assert.Equal(InspectionStationState.PlacingCarrier, move.GetNextStep());
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.Equal(5, gantry.Motion.Feedback.Position.X);

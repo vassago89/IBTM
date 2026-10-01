@@ -324,7 +324,10 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         if (repeat && Step is InspectionStationState.HoldingAtDestination)
             return InspectionStationState.HoldingAtDestination;
         if (IsTransferPending)
-            return InspectionStationState.PlacingCarrier;
+        {
+            return repeat || !IsRaised || Gripper != NgTransferGripperState.Closed || _ngConveyor.IsReceiveAllowed
+                ? InspectionStationState.PlacingCarrier : InspectionStationState.WaitingForDestination;
+        }
         if (!IsRaised || Gripper != NgTransferGripperState.Open)
             return InspectionStationState.PreparingTransfer;
         if (repeat && IsEmptyRepeatAllowed && !Station.CarrierPresent
@@ -613,10 +616,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     // A stopped, lowered release is not resumed by guessing its XY location.
                     if (!IsRaised)
                         throw new InvalidOperationException("Raise the gripped NG carrier before transferring it.");
-                    if (!holdAtShuttle)
+                    if (destination == NgTransferDestination.Station)
                     {
-                        while (IsCarrierPresent(destination)
-                            || destination == NgTransferDestination.Shuttle && !_ngConveyor.IsReceiveAllowed)
+                        while (Station.CarrierPresent)
                         {
                             EnterStep(InspectionStationState.WaitingForDestination, destination.ToString());
                             await WaitForChangeAsync(carrying.Token);
@@ -634,8 +636,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         return true;
                     }
                     // Keep the closed gripper while waiting for the receiving support.
-                    while (!IsSupportReady(destination) || IsCarrierPresent(destination)
-                        || destination == NgTransferDestination.Shuttle && !_ngConveyor.IsReceiveAllowed)
+                    while (!IsSupportReady(destination))
                     {
                         EnterStep(InspectionStationState.WaitingForDestination, destination.ToString());
                         await WaitForChangeAsync(carrying.Token);

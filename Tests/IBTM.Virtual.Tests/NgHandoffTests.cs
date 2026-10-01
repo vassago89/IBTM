@@ -313,7 +313,7 @@ public sealed class NgHandoffTests
         Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
         SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         Assert.Equal(InspectionStationState.PlacingCarrier,
-            transfer.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
+            transfer.GetNextStep());
 
         var changedDuringTravel = false;
         motion.PositionChanged += (x, y, z) =>
@@ -340,7 +340,7 @@ public sealed class NgHandoffTests
         Assert.False(transfer.IsTransferPending);
         Assert.True(transfer.IsClear);
         Assert.Equal(InspectionStationState.TransferCompleted,
-            transfer.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
+            transfer.GetNextStep());
         Assert.True(signals.Inputs[InputIo.NgCarrierDetected].IsOn);
     }
 
