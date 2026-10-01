@@ -23,6 +23,7 @@ public sealed class HeatSinkAssembly
     private readonly ConcurrentDictionary<Guid, BoltResult> _shootingBoltResults;
     private readonly ConcurrentDictionary<Guid, BoltResult> _pickupBoltResults;
     private readonly ConcurrentDictionary<Guid, bool> _boltPresenceResults;
+    private string? _pcbBarcode;
 
     public HeatSinkAssembly(HeatSinkSlot heatSink)
     {
@@ -38,6 +39,7 @@ public sealed class HeatSinkAssembly
 
     public event Action<HeatSinkAssembly>? ResultsChanged;
     public event Action<InspectionCapture>? InspectionCaptured;
+    public event Action<HeatSinkAssembly>? InspectionCleared;
 
     public IReadOnlyDictionary<Guid, BoltResult> ShootingBoltResults => _shootingBoltResults;
 
@@ -52,10 +54,10 @@ public sealed class HeatSinkAssembly
     public AssemblyResult PcbBarcodeResult { get; private set; }
     public string? PcbBarcode
     {
-        get;
+        get => _pcbBarcode;
         set
         {
-            field = value;
+            _pcbBarcode = value;
             PcbBarcodeResult = string.IsNullOrEmpty(value) ? AssemblyResult.Ng : AssemblyResult.Ok;
             if (PcbBarcodeResult == AssemblyResult.Ng)
                 InspectionResult = AssemblyResult.Ng;
@@ -134,5 +136,24 @@ public sealed class HeatSinkAssembly
     public void RecordInspectionCapture(InspectionCapture capture)
     {
         InspectionCaptured?.Invoke(capture);
+    }
+
+    public void ClearFasteningResults()
+    {
+        _shootingBoltResults.Clear();
+        _pickupBoltResults.Clear();
+        FasteningResult = AssemblyResult.Pending;
+        TurnsResult = null;
+        ResultsChanged?.Invoke(this);
+    }
+
+    public void ClearInspectionResults()
+    {
+        _boltPresenceResults.Clear();
+        _pcbBarcode = null;
+        PcbBarcodeResult = AssemblyResult.Pending;
+        InspectionResult = AssemblyResult.Pending;
+        ResultsChanged?.Invoke(this);
+        InspectionCleared?.Invoke(this);
     }
 }

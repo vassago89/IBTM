@@ -575,14 +575,19 @@ public partial class TeachingViewModel : ObservableObject
                 Point(TeachingTarget.InspectionWaiting, TeachMode.XYOnly),
                 Point(TeachingTarget.NgCarrierPickup, TeachMode.XYOnly),
                 Point(TeachingTarget.NgShuttlePlace, TeachMode.XYOnly),
-                .. InspectionPoint.ForPcb(Recipes.Current, SelectedPcb)
-                    .Select(point => Point(point.IsDataMatrix ? TeachingTarget.DataMatrix : TeachingTarget.BoltReference,
-                        TeachMode.Image, point.Bolt)),
+                Point(TeachingTarget.DataMatrix, TeachMode.Image),
+                .. Recipes.Current.Pcb.FasteningPoints.Where(bolt => bolt.HeatSink == SelectedPcb)
+                    .Select(bolt => Point(TeachingTarget.BoltReference, TeachMode.Image, bolt)),
             ],
             _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
         };
         FilteredPoints = points
-            .OrderBy(point => point.Position.Target == TeachingTarget.BoltPosition ? 0 : 1)
+            .OrderBy(point => point.Position.Target switch
+            {
+                TeachingTarget.DataMatrix => 0,
+                TeachingTarget.BoltPosition or TeachingTarget.BoltReference => 1,
+                _ => 2,
+            })
             .ThenBy(point => point.Group)
             .ThenBy(point => point.Position.Target == TeachingTarget.PlacementHandoff ? 0 : 1)
             .ToArray();
@@ -610,8 +615,8 @@ public partial class TeachingViewModel : ObservableObject
 
     private bool IsFasteningMoveAllowed(int offset)
     {
-        if (!State.SetupEditingEnabled || !IsFasteningSelected
-            || SelectedPoint?.Position is not { Target: TeachingTarget.BoltPosition, Bolt: { } selected })
+        if (!State.SetupEditingEnabled || !IsInspectionSelected
+            || SelectedPoint?.Position is not { Target: TeachingTarget.BoltReference, Bolt: { } selected })
             return false;
         var bolts = Recipes.Current.Pcb.FasteningPoints.ToList();
         var index = bolts.FindIndex(bolt => bolt.Id == selected.Id);

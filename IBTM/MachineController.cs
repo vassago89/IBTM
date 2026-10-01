@@ -655,11 +655,14 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     || _io.GetInput(InputIo.ShootingTubeBoltDetected)
                         ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
                 checks[StartArea.Station1] = !_pcbPlacement.Station.CarrierPresent ? StartCheckState.Empty
-                    : _pcbPlacement.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
+                    : _pcbPlacement.Station.Completed ? StartCheckState.Completed
+                    : _pcbPlacement.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier;
                 checks[StartArea.Station2] = !_fasteningStation.Station.CarrierPresent ? StartCheckState.Empty
-                    : _fasteningStation.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
+                    : _fasteningStation.Station.Completed ? StartCheckState.Completed
+                    : _fasteningStation.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier;
                 checks[StartArea.Station3] = !_inspectionStation.Station.CarrierPresent ? StartCheckState.Empty
-                    : _inspectionStation.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
+                    : _inspectionStation.Station.Completed ? StartCheckState.Completed
+                    : _inspectionStation.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier;
             }
             return checks;
         }
@@ -688,16 +691,28 @@ public sealed partial class MachineController : INotifyPropertyChanged
         };
         station.RequireCurrentJob(job);
         operation.Token.ThrowIfCancellationRequested();
+        if (!station.CarrierPresent)
+            throw new InvalidOperationException("No carrier is detected at this station.");
         switch (action)
         {
             case CarrierWorkAction.Complete:
-                if (!station.CarrierPresent)
-                    throw new InvalidOperationException("No carrier is detected at this station.");
                 // This skips station work, but never manufactures a passing quality result.
                 station.Complete(job);
                 break;
             case CarrierWorkAction.Clear:
-                station.ClearJob();
+                foreach (var assembly in station.Assemblies)
+                {
+                    switch (area)
+                    {
+                        case StartArea.Station2:
+                            assembly.ClearFasteningResults();
+                            break;
+                        case StartArea.Station3:
+                            assembly.ClearInspectionResults();
+                            break;
+                    }
+                }
+                station.Restart(job, allowStart: true);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(action));
@@ -787,6 +802,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     _fasteningStation.Station.ClearJob();
                 if (!_inspectionStation.Station.CarrierPresent)
                     _inspectionStation.Station.ClearJob();
+
+                // Clear is a one-start acknowledgement, not permission to resume after another stop.
+                foreach (var station in new[] { _pcbPlacement.Station, _fasteningStation.Station, _inspectionStation.Station })
+                    if (station.IsRestartAllowed)
+                        station.Restart(station.CurrentJob);
 
                 var repeat = _state.RepeatEnabled;
                 var startedInManual = _state.ManualMode;

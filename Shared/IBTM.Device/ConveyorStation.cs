@@ -226,6 +226,8 @@ public sealed class ConveyorStation
 
     public bool Completed => CarrierPresent && _job.Completed;
 
+    public bool IsRestartAllowed => CarrierPresent && _job.RestartAllowed;
+
     public IEnumerable<HeatSinkAssembly> Assemblies => _job.Assemblies.Values;
 
     public bool HasNg => Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
@@ -300,16 +302,19 @@ public sealed class ConveyorStation
             if (job.Completed)
                 return;
             job.Completed = true;
+            job.RestartAllowed = false;
         }
         Changed?.Invoke();
     }
 
-    public void Restart(Job job)
+    public void Restart(Job job, bool allowStart = false)
     {
         lock (s_jobGate)
         {
             RequireCurrentJob(job);
             job.Completed = false;
+            // Only an explicit operator clear admits unfinished work at the next START.
+            job.RestartAllowed = allowStart;
         }
         // Keep recorded quality results with the carrier; they do not select sequence steps.
         Changed?.Invoke();
@@ -332,6 +337,7 @@ public sealed class ConveyorStation
         private static long s_nextId;
         internal readonly ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> Assemblies;
         internal volatile bool Completed;
+        internal volatile bool RestartAllowed;
 
         internal Job(long? id = null)
         {

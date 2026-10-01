@@ -3335,11 +3335,11 @@ See the application log for details.</value>
   <data name="carrier work" xml:space="preserve">
     <value>Carrier work</value>
   </data>
-  <data name="clear work" xml:space="preserve">
-    <value>Clear work</value>
+  <data name="clear results" xml:space="preserve">
+    <value>Clear results</value>
   </data>
-  <data name="complete skips this station; clear requires carrier removal." xml:space="preserve">
-    <value>Complete skips this station; clear requires carrier removal.</value>
+  <data name="complete: skip · clear: erase results and rework" xml:space="preserve">
+    <value>Complete: skip · Clear: erase results and rework</value>
   </data>
   <data name="current position (mm)" xml:space="preserve">
     <value>Current position (mm)</value>
@@ -3371,8 +3371,8 @@ See the application log for details.</value>
   <data name="marked complete" xml:space="preserve">
     <value>Marked complete</value>
   </data>
-  <data name="work cleared" xml:space="preserve">
-    <value>Work cleared</value>
+  <data name="results cleared" xml:space="preserve">
+    <value>Results cleared</value>
   </data>
   <data name="stop the machine before changing carrier work." xml:space="preserve">
     <value>Stop the machine before changing carrier work.</value>
@@ -3421,5 +3421,11 @@ See the application log for details.</value>
   </data>
   <data name="result source" xml:space="preserve">
     <value>Result source</value>
+  </data>
+  <data name="fastening order" xml:space="preserve">
+    <value>Fastening order</value>
+  </data>
+  <data name="ready to rework" xml:space="preserve">
+    <value>Ready to rework</value>
   </data>
 </root>

@@ -3451,53 +3451,178 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task StartReviewChangesOnlySelectedCarrierWorkAndPreservesQualityAndSensors()
+    [Theory]
+    [InlineData(StartArea.Station1)]
+    [InlineData(StartArea.Station2)]
+    [InlineData(StartArea.Station3)]
+    public async Task StartReviewClearsOnlySelectedStationResultsAndKeepsCarrierIdentity(StartArea area)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-clear-{Guid.NewGuid():N}");
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var placement = services.GetRequiredService<PcbPlacer>().Station;
         var fastening = services.GetRequiredService<BoltFasteningStation>().Station;
+        var inspection = services.GetRequiredService<InspectionStation>().Station;
+        var station = area switch
+        {
+            StartArea.Station1 => placement,
+            StartArea.Station2 => fastening,
+            _ => inspection,
+        };
+        var history = services.GetRequiredService<PcbHistoryWriter>();
+        var store = services.GetRequiredService<MachineStore>();
         await machine.InitializeAsync();
         try
         {
-            io.SetInputs((InputIo.PcbPlacementHeatSink1Present, true), (InputIo.BoltFasteningHeatSink1Present, true),
+            io.SetInputs((InputIo.PcbPlacementHeatSink1Present, true), (InputIo.PcbPlacementHeatSink2Present, true),
+                (InputIo.BoltFasteningHeatSink1Present, true), (InputIo.BoltFasteningHeatSink2Present, true),
+                (InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true),
                 (InputIo.PickupHeadVacuumDetected, true));
-            var job = fastening.CurrentJob;
-            var assembly = fastening.GetAssembly(HeatSinkSlot.HeatSink1);
-            assembly.PcbBarcode = null;
+            var job = station.CurrentJob;
+            var assemblies = Enum.GetValues<HeatSinkSlot>().Select(station.GetAssembly).ToArray();
+            foreach (var assembly in assemblies)
+            {
+                assembly.PcbBarcode = $"PCB-{assembly.HeatSink}";
+                assembly.RecordBolt(FasteningHead.Shooting, BoltId(1), new(true, 8));
+                assembly.RecordBolt(FasteningHead.Pickup, BoltId(2), new(false, 2) { MinimumTurns = 3 });
+                assembly.CompleteFastening();
+                assembly.RecordBoltPresence(BoltId(1), false);
+                assembly.CompleteInspection();
+                assembly.RecordInspectionCapture(new(null, DateTimeOffset.Now,
+                    new ImageFrame(1, 1, 3, [1, 2, 3]), new PixelRegion(0, 0, 1, 1), true, assembly.PcbBarcode));
+            }
+            await history.FlushAsync();
+            var numbers = assemblies.Select(assembly => assembly.PcbNumber).ToArray();
             var writes = 0;
             io.OutputChanged += (output, on) => writes++;
 
-            machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Complete);
+            machine.ChangeCarrierWork(area, job, CarrierWorkAction.Complete);
 
-            Assert.True(fastening.Completed);
-            Assert.False(placement.Completed);
-            Assert.Same(job, fastening.CurrentJob);
-            Assert.Same(assembly, Assert.Single(fastening.Assemblies));
-            Assert.Equal(AssemblyResult.Ng, assembly.Result);
-            Assert.Equal(StartCheckState.Completed, machine.StartChecks[StartArea.Station2]);
-            Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station1]);
+            Assert.True(station.Completed);
+            Assert.All(assemblies, assembly => Assert.Equal(AssemblyResult.Ng, assembly.Result));
+            Assert.Equal(StartCheckState.Completed, machine.StartChecks[area]);
             Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.PickupHead]);
-            Assert.Throws<InvalidOperationException>(() => machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Clear));
-            Assert.Same(job, fastening.CurrentJob);
 
-            io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
-            machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Clear);
+            machine.ChangeCarrierWork(area, job, CarrierWorkAction.Clear);
+            await history.FlushAsync();
 
-            Assert.NotSame(job, fastening.CurrentJob);
-            Assert.Empty(fastening.Assemblies);
-            Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.Station2]);
-            Assert.Equal(AssemblyResult.Ng, assembly.Result);
+            Assert.Same(job, station.CurrentJob);
+            Assert.True(station.CarrierPresent);
+            Assert.False(station.Completed);
+            Assert.True(station.IsRestartAllowed);
+            Assert.Equal(StartCheckState.ReworkReady, machine.StartChecks[area]);
+            foreach (var other in new[] { placement, fastening, inspection }.Where(other => other != station))
+            {
+                Assert.False(other.Completed);
+                Assert.False(other.IsRestartAllowed);
+                Assert.Empty(other.Assemblies);
+            }
+            Assert.Equal(numbers, assemblies.Select(assembly => assembly.PcbNumber));
+            var records = store.LoadPcbs(settings.PcbHistory.Directory);
+            Assert.Equal(2, records.Count);
+            foreach (var assembly in assemblies)
+            {
+                Assert.Same(assembly, station.GetAssembly(assembly.HeatSink));
+                var record = records.Single(record => record.Number == assembly.PcbNumber);
+                if (area == StartArea.Station2)
+                {
+                    Assert.Empty(record.ShootingBoltResults);
+                    Assert.Empty(record.PickupBoltResults);
+                    Assert.Null(record.TurnsResult);
+                    Assert.Equal(AssemblyResult.Pending, record.FasteningResult);
+                }
+                else
+                {
+                    Assert.Single(record.ShootingBoltResults);
+                    Assert.Single(record.PickupBoltResults);
+                    Assert.Equal(AssemblyResult.Pending, record.TurnsResult);
+                    Assert.Equal(AssemblyResult.Ng, record.FasteningResult);
+                }
+                if (area == StartArea.Station3)
+                {
+                    Assert.Null(record.PcbBarcode);
+                    Assert.Equal(AssemblyResult.Pending, record.PcbBarcodeResult);
+                    Assert.Empty(record.BoltPresenceResults);
+                    Assert.Equal(AssemblyResult.Pending, record.InspectionResult);
+                    Assert.Empty(store.LoadPcbImages(record));
+                }
+                else
+                {
+                    Assert.Equal($"PCB-{assembly.HeatSink}", record.PcbBarcode);
+                    Assert.Single(record.BoltPresenceResults);
+                    Assert.Equal(AssemblyResult.Ng, record.InspectionResult);
+                    Assert.Single(store.LoadPcbImages(record));
+                }
+            }
             Assert.Equal(0, writes);
-            Assert.Throws<InvalidOperationException>(() => machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Clear));
+            io.SetInputs((InputIo.PcbPlacementHeatSink1Present, false), (InputIo.PcbPlacementHeatSink2Present, false),
+                (InputIo.BoltFasteningHeatSink1Present, false), (InputIo.BoltFasteningHeatSink2Present, false),
+                (InputIo.InspectionHeatSink1Present, false), (InputIo.InspectionHeatSink2Present, false));
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeCarrierWork(area, job, CarrierWorkAction.Clear));
+            station.ClearJob();
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeCarrierWork(area, job, CarrierWorkAction.Clear));
             using var running = services.GetRequiredService<OperationCancellation>().TryBegin();
             Assert.NotNull(running);
             Assert.Throws<InvalidOperationException>(() => machine.ChangeCarrierWork(StartArea.Station1, placement.CurrentJob, CarrierWorkAction.Complete));
             Assert.False(placement.Completed);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartReviewClearAllowsOneStartAndDoesNotBypassHeldMaterial()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<BoltFasteningStation>().Station;
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+            var job = station.CurrentJob;
+            machine.CheckStartMaterials();
+            Assert.Equal(StartBlockReason.UnfinishedCarrier, machine.StartBlock);
+
+            machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Clear);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+            await machine.StartAsync();
+            Assert.False(state.AutomaticRunning);
+            Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+            Assert.True(station.IsRestartAllowed);
+
+            io.SetInput(InputIo.PickupHeadVacuumDetected, false);
+            using var stop = new CancellationTokenSource();
+            state.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(MachineState.AutomaticRunning) && state.AutomaticRunning)
+                    stop.Cancel();
+            };
+            await machine.StartAsync(stop.Token);
+            Assert.True(stop.IsCancellationRequested);
+            Assert.False(station.IsRestartAllowed);
+            Assert.Same(job, station.CurrentJob);
+
+            // A second stop needs a new operator decision; clear is not a permanent bypass.
+            await machine.StartAsync();
+            Assert.False(state.AutomaticRunning);
+            Assert.Equal(StartBlockReason.UnfinishedCarrier, machine.StartBlock);
+            machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Clear);
+            Assert.True(station.IsRestartAllowed);
+            machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Complete);
+            Assert.False(station.IsRestartAllowed);
+            Assert.True(station.Completed);
         }
         finally
         {

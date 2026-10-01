@@ -56,7 +56,8 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
     public partial int PendingCount { get; private set; }
 
     private sealed record PendingWrite(
-        HeatSinkAssembly Assembly, string Directory, PcbRecord Record, InspectionCapture? Capture = null);
+        HeatSinkAssembly Assembly, string Directory, PcbRecord Record, InspectionCapture? Capture = null,
+        bool ClearInspectionImages = false);
 
     private void OnAssemblyCreated(HeatSinkAssembly assembly)
     {
@@ -78,6 +79,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
         // The station records results after this creation callback returns.
         assembly.ResultsChanged += QueueResults;
         assembly.InspectionCaptured += QueueImage;
+        assembly.InspectionCleared += QueueInspectionClear;
         Enqueue(new(assembly, directory, initial));
 
         void QueueResults(HeatSinkAssembly source)
@@ -102,6 +104,11 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
             // The camera/preview can reuse its buffer after this callback returns.
             var copy = capture with { Frame = capture.Frame with { Pixels = (byte[])capture.Frame.Pixels.Clone() } };
             Enqueue(new(assembly, directory, initial, copy));
+        }
+
+        void QueueInspectionClear(HeatSinkAssembly source)
+        {
+            Enqueue(new(source, directory, initial, ClearInspectionImages: true));
         }
     }
 
@@ -146,7 +153,12 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                 var number = write.Assembly.PcbNumber ?? _store.NextPcbNumber();
                 write.Assembly.PcbNumber = number;
                 file = Path.Combine(Path.GetFullPath(write.Directory), $"PCB-{write.Record.CreatedAt:yyyy-MM}.db");
-                if (write.Capture is { } capture)
+                if (write.ClearInspectionImages)
+                {
+                    _store.DeletePcbImages(file, number);
+                    ImageSaved?.Invoke(number);
+                }
+                else if (write.Capture is { } capture)
                 {
                     var encoder = new PngBitmapEncoder();
                     encoder.Frames.Add(BitmapFrame.Create(InspectionPreviewViewModel.CreateBitmap(capture.Frame)));

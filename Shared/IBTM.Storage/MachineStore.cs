@@ -383,6 +383,20 @@ public sealed class MachineStore
         command.ExecuteNonQuery();
     }
 
+    public void DeletePcbImages(string databaseFile, long pcbNumber)
+    {
+        using var connection = new SqliteConnection(
+            new SqliteConnectionStringBuilder { DataSource = databaseFile }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='PcbImages'";
+        if ((long)command.ExecuteScalar()! == 0)
+            return;
+        command.CommandText = "DELETE FROM PcbImages WHERE PcbNumber=$pcb";
+        command.Parameters.AddWithValue("$pcb", pcbNumber);
+        command.ExecuteNonQuery();
+    }
+
     public IReadOnlyList<PcbInspectionImage> LoadPcbImages(PcbRecord record)
     {
         if (record.DatabaseFile is null)

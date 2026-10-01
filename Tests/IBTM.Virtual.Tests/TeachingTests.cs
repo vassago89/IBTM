@@ -1021,7 +1021,7 @@ public sealed class TeachingTests
     }
 
     [Fact]
-    public async Task TeachingReordersFasteningWithinEachHeadAndSavesWithoutChangingInspectionOrder()
+    public async Task InspectionTeachingReordersFasteningWithinEachHeadAndSavesWithoutChangingInspectionOrder()
     {
         await using var services = CreateServices(FlowSettings());
         var recipes = services.GetRequiredService<RecipeManager>();
@@ -1036,17 +1036,29 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         Assert.Equal(shooting1.Id, teaching.SelectedPoint!.Position.Bolt!.Id);
         Assert.False(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.False(teaching.IsMoveFasteningLaterAllowed);
+        teaching.MoveFasteningLaterCommand.Execute(null);
+        Assert.Empty(recipes.Current.Pcb.FasteningOrder);
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        teaching.Activate();
+        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
         Assert.True(teaching.IsMoveFasteningLaterAllowed);
         var earlierUpdates = 0;
         var laterUpdates = 0;
-        teaching.MoveFasteningEarlierCommand.CanExecuteChanged += (sender, args) => earlierUpdates++;
-        teaching.MoveFasteningLaterCommand.CanExecuteChanged += (sender, args) => laterUpdates++;
+        teaching.PropertyChanged += (sender, args) =>
+        {
+            if (args.PropertyName == nameof(TeachingViewModel.IsMoveFasteningEarlierAllowed))
+                earlierUpdates++;
+            if (args.PropertyName == nameof(TeachingViewModel.IsMoveFasteningLaterAllowed))
+                laterUpdates++;
+        };
         teaching.MoveFasteningLaterCommand.Execute(null);
         Assert.Equal(shooting1.Id, teaching.SelectedPoint!.Position.Bolt!.Id);
         Assert.True(earlierUpdates > 0);
         Assert.True(laterUpdates > 0);
         Assert.Same(shooting1, teaching.SelectedPoint!.Position.Bolt);
-        Assert.Equal(TeachingTarget.BoltPosition, teaching.SelectedPoint.Position.Target);
+        Assert.Equal(TeachingTarget.BoltReference, teaching.SelectedPoint.Position.Target);
+        Assert.Equal(TeachingPointGroup.ShootingFastening, teaching.SelectedPoint.Group);
         teaching.SelectedPoint.BoltName = "Selected shooting bolt";
         Assert.Equal("Selected shooting bolt", shooting1.Name);
         Assert.True(string.IsNullOrEmpty(shooting2.Name));
@@ -1058,7 +1070,7 @@ public sealed class TeachingTests
         Assert.Equal(new[] { shooting2.Id, shooting1.Id, otherShooting.Id, pickup1.Id, pickup2.Id, otherPickup.Id },
             recipes.Current.Pcb.FasteningOrder);
 
-        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SafeZ);
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
         Assert.False(teaching.IsMoveFasteningEarlierAllowed);
         Assert.False(teaching.IsMoveFasteningLaterAllowed);
         teaching.MoveFasteningLaterCommand.Execute(null);
@@ -1099,7 +1111,7 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt?.Id == shooting1.Id);
         Assert.Equal("Selected shooting bolt", teaching.SelectedPoint.BoltName);
-        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.True(teaching.IsMoveFasteningEarlierAllowed);
         Assert.False(teaching.IsMoveFasteningLaterAllowed);
         Assert.True(teaching.IsRemoveBoltPointAllowed);
         teaching.RemoveBoltPointCommand.Execute(null);
@@ -1124,7 +1136,7 @@ public sealed class TeachingTests
         Assert.Equal(new[] { pickup1.Id, shooting2.Id, pickup2.Id, addedId, addedPickupId },
             recipes.Current.Pcb.BoltPoints.Where(point => point.HeatSink == HeatSinkSlot.HeatSink1).Select(bolt => bolt.Id));
 
-        // Inspection keeps its own order; deleting the last bolt leaves a non-bolt selection.
+        // The production inspection order is unchanged; deleting the last bolt leaves a non-bolt selection.
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         foreach (var bolt in recipes.Current.Pcb.BoltPoints.ToArray())
         {
@@ -1150,6 +1162,7 @@ public sealed class TeachingTests
         Assert.Same(recreated.Position.Bolt, teaching.SelectedPoint!.Position.Bolt);
         Assert.False(teaching.IsMoveFasteningEarlierAllowed);
         Assert.False(teaching.IsMoveFasteningLaterAllowed);
+        teaching.Deactivate();
         await services.GetRequiredService<MachineController>().ShutdownAsync();
     }
 

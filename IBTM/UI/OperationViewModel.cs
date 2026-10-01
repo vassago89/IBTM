@@ -434,7 +434,7 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             await Task.Run(() => Machine.ChangeCarrierWork(area, job, action, cancellationToken), cancellationToken);
-            StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action == CarrierWorkAction.Complete ? "Marked complete" : "Work cleared")}";
+            StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action == CarrierWorkAction.Complete ? "Marked complete" : "Results cleared")}";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)

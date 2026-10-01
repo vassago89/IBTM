@@ -3335,11 +3335,11 @@
   <data name="carrier work" xml:space="preserve">
     <value>캐리어 작업</value>
   </data>
-  <data name="clear work" xml:space="preserve">
-    <value>클리어</value>
+  <data name="clear results" xml:space="preserve">
+    <value>결과 삭제</value>
   </data>
-  <data name="complete skips this station; clear requires carrier removal." xml:space="preserve">
-    <value>완료: 이 공정 건너뛰기 · 클리어: 캐리어 제거 후 초기화</value>
+  <data name="complete: skip · clear: erase results and rework" xml:space="preserve">
+    <value>완료: 공정 건너뛰기 · 클리어: 결과 삭제 후 재작업</value>
   </data>
   <data name="current position (mm)" xml:space="preserve">
     <value>현재 위치 (mm)</value>
@@ -3371,8 +3371,8 @@
   <data name="marked complete" xml:space="preserve">
     <value>완료 처리됨</value>
   </data>
-  <data name="work cleared" xml:space="preserve">
-    <value>작업 기록 초기화됨</value>
+  <data name="results cleared" xml:space="preserve">
+    <value>공정 결과 삭제됨 · 재작업 대기</value>
   </data>
   <data name="stop the machine before changing carrier work." xml:space="preserve">
     <value>운전을 정지한 뒤 작업 상태를 변경하세요.</value>
@@ -3421,5 +3421,11 @@
   </data>
   <data name="result source" xml:space="preserve">
     <value>결과 출처</value>
+  </data>
+  <data name="fastening order" xml:space="preserve">
+    <value>체결 순서</value>
+  </data>
+  <data name="ready to rework" xml:space="preserve">
+    <value>재작업 대기</value>
   </data>
 </root>

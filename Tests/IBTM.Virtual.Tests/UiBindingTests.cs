@@ -568,11 +568,11 @@ public sealed class UiBindingTests
                 io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
                 await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                 Assert.True(((Button)review.FindName("CompleteWorkButton")).IsEnabled);
-                Assert.False(((Button)review.FindName("ClearWorkButton")).IsEnabled);
+                Assert.True(((Button)review.FindName("ClearWorkButton")).IsEnabled);
                 io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
                 await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                 Assert.False(((Button)review.FindName("CompleteWorkButton")).IsEnabled);
-                Assert.True(((Button)review.FindName("ClearWorkButton")).IsEnabled);
+                Assert.False(((Button)review.FindName("ClearWorkButton")).IsEnabled);
             }
             finally
             {

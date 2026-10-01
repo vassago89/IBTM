@@ -28,6 +28,9 @@
                 <Trigger Property="Tag" Value="{x:Static app:StartCheckState.HandoffReady}">
                     <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
                 </Trigger>
+                <Trigger Property="Tag" Value="{x:Static app:StartCheckState.ReworkReady}">
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="StartAreaTarget" TargetType="Button">

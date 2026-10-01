@@ -153,13 +153,29 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ui:TeachingPointListBox>
-                    <UniformGrid Grid.Row="2" Columns="2" Margin="0,8,0,0"
-                        Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}">
-                        <Button Content="{ui:Text '↑ Earlier'}" Command="{Binding MoveFasteningEarlierCommand}" IsEnabled="{Binding IsMoveFasteningEarlierAllowed}"
-                            Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="0,0,3,0"/>
-                        <Button Content="{ui:Text '↓ Later'}" Command="{Binding MoveFasteningLaterCommand}" IsEnabled="{Binding IsMoveFasteningLaterAllowed}"
-                            Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="3,0,0,0"/>
-                    </UniformGrid>
+                    <StackPanel Grid.Row="2" Margin="0,8,0,0"
+                        Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{ui:Text 'Fastening order'}" Margin="0,0,0,6"/>
+                        <UniformGrid Columns="2">
+                            <Button Content="{ui:Text '↑ Earlier'}" Command="{Binding MoveFasteningEarlierCommand}" IsEnabled="{Binding IsMoveFasteningEarlierAllowed}"
+                                Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="0,0,3,0"/>
+                            <Button Content="{ui:Text '↓ Later'}" Command="{Binding MoveFasteningLaterCommand}" IsEnabled="{Binding IsMoveFasteningLaterAllowed}"
+                                Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="3,0,0,0"/>
+                        </UniformGrid>
+                        <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,10,0,0">
+                            <StackPanel>
+                                <ComboBox ItemsSource="{Binding FasteningHeads}"
+                                    SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"
+                                    IsEnabled="{Binding IsAddBoltPointAllowed}" Margin="0,0,0,6"/>
+                                <UniformGrid Columns="2">
+                                    <Button Content="{ui:Text 'Add Bolt'}" Command="{Binding AddBoltPointCommand}" IsEnabled="{Binding IsAddBoltPointAllowed}"
+                                        Style="{StaticResource PrimaryButtonStyle}" Padding="8,6" Margin="0,0,3,0"/>
+                                    <Button Content="{ui:Text 'Remove Bolt'}" Command="{Binding RemoveBoltPointCommand}" IsEnabled="{Binding IsRemoveBoltPointAllowed}"
+                                        Style="{StaticResource DangerButtonStyle}" Padding="8,6" Margin="3,0,0,0"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </Grid>
             </Border>
             <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="12">
@@ -212,18 +228,9 @@
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
                                 <WrapPanel Margin="0,0,0,4">
-                                    <ComboBox ItemsSource="{Binding FasteningHeads}" Width="180" Margin="0,0,8,4"
-                                        SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <Button Content="{ui:Text 'Add Bolt'}" Command="{Binding AddBoltPointCommand}" IsEnabled="{Binding IsAddBoltPointAllowed}"
-                                        Style="{StaticResource PrimaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
-                                    <Button Content="{ui:Text 'Remove Bolt'}" Command="{Binding RemoveBoltPointCommand}" IsEnabled="{Binding IsRemoveBoltPointAllowed}"
-                                        Style="{StaticResource DangerButtonStyle}" Padding="12,7" Margin="0,0,0,4"/>
-                                </WrapPanel>
-                                <WrapPanel Grid.Row="1" Margin="0,0,0,4">
                                     <Button Command="{Binding ToggleLiveViewCommand}" IsEnabled="{Binding IsToggleLiveViewAllowed}" Margin="0,0,8,4" Width="96" Padding="12,7">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
@@ -246,7 +253,7 @@
                                             Style="{StaticResource SecondaryButtonStyle}" Padding="12,7"/>
                                     </StackPanel>
                                 </WrapPanel>
-                                <Border Grid.Row="2" Background="{StaticResource ImageBackgroundBrush}">
+                                <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
                                     <Grid>
                                         <ui:InspectionImageView Source="{Binding CameraImage}" ShowCrosshair="True"/>
                                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"

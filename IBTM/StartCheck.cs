@@ -34,6 +34,8 @@ public enum StartCheckState
     UnfinishedCarrier,
     [Description("Completed")]
     Completed,
+    [Description("Ready to rework")]
+    ReworkReady,
     [Description("Ready for Placement handoff")]
     HandoffReady,
 }
@@ -42,6 +44,6 @@ public enum CarrierWorkAction
 {
     [Description("Mark complete")]
     Complete,
-    [Description("Clear work")]
+    [Description("Clear results")]
     Clear,
 }

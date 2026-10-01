@@ -245,7 +245,7 @@
                 </ScrollViewer>
                 <StackPanel Grid.Row="3" Margin="0,12,0,0">
                     <StackPanel Style="{StaticResource CarrierActions}">
-                        <TextBlock Text="{ui:Text 'Complete skips this station; clear requires carrier removal.'}"
+                        <TextBlock Text="{ui:Text 'Complete: skip · Clear: erase results and rework'}"
                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
                         <UniformGrid Columns="2">
                             <Button x:Name="CompleteWorkButton" Content="{ui:Text 'Mark complete'}" Command="{Binding ChangeCarrierWorkCommand}"
@@ -267,7 +267,7 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button x:Name="ClearWorkButton" Content="{ui:Text 'Clear work'}" Command="{Binding ChangeCarrierWorkCommand}"
+                            <Button x:Name="ClearWorkButton" Content="{ui:Text 'Clear results'}" Command="{Binding ChangeCarrierWorkCommand}"
                                 CommandParameter="{x:Static app:CarrierWorkAction.Clear}" Margin="4,0,0,0" Height="38">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -277,7 +277,7 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding State.Available}" Value="True"/>
                                                     <Condition Binding="{Binding State.IsRunning}" Value="False"/>
-                                                    <Condition Binding="{Binding StartStation.CarrierPresent}" Value="False"/>
+                                                    <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="IsEnabled" Value="True"/>
                                             </MultiDataTrigger>

@@ -192,7 +192,7 @@ public class TeachingPoint : ObservableObject
         {
             switch (_definition.Target)
             {
-                case TeachingTarget.BoltPosition:
+                case TeachingTarget.BoltPosition or TeachingTarget.BoltReference:
                     return _definition.Bolt!.Head == FasteningHead.Shooting
                         ? TeachingPointGroup.ShootingFastening : TeachingPointGroup.PickupFastening;
                 case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
