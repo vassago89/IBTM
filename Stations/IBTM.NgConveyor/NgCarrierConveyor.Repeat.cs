@@ -47,7 +47,11 @@ public sealed partial class NgCarrierConveyor
             finally
             {
                 forward.Cancel();
-                await Task.WhenAll(conveyor, end);
+                try
+                {
+                    await Task.WhenAll(conveyor, end);
+                }
+                catch (OperationCanceledException) when (forward.IsCancellationRequested) { }
             }
             cancellationToken.ThrowIfCancellationRequested();
             await ReturnFromConveyorAsync(cancellationToken);

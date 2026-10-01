@@ -35,12 +35,12 @@ public sealed partial class MachineController
                 independentUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.PcbSupply,
                     _pcbSupply.RunAsync(_pcbPlacement, repeat.Token, repeat: true),
-                    repeat));
+                    repeat, repeat: true));
             if (_units.NgConveyor && !_units.Inspection)
                 independentUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.NgConveyor,
                     _ngConveyor.RunRepeatAsync(repeat.Token),
-                    repeat));
+                    repeat, repeat: true));
             if (!_units.MainConveyor && !_units.Inspection)
             {
                 using var units = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

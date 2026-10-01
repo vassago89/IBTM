@@ -187,6 +187,18 @@ public sealed class MachineState : INotifyPropertyChanged
 
     public bool IsError => Alarm != MachineAlarm.None;
 
+    // Pending maintenance does not trip the immediate-error cancellation watcher.
+    public (MachineAlarm Alarm, Exception Error)? PendingStop
+    {
+        get;
+        internal set
+        {
+            field = value;
+            PropertyChanged?.Invoke(this, new(nameof(PendingStop)));
+            NotifyChanged();
+        }
+    }
+
     public bool AutomaticRunning
     {
         get;

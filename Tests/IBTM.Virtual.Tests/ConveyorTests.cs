@@ -20,6 +20,82 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class ConveyorTests
 {
+    [Fact]
+    public async Task MaintenanceWithdrawsFrontReadyWithoutStartingAnEmptyBelt()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io, inspectionEnabled: false);
+        io.Initialize();
+        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+        io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var run = conveyor.RunAsync(stop.Token);
+        await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, true);
+        conveyor.IsTransferPaused = true;
+        await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, false);
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
+        Assert.True(await WaitUntilAsync(() => conveyor.Step is MainConveyorState.Waiting && conveyor.IsWaiting,
+            TimeSpan.FromSeconds(1)));
+        Assert.True(conveyor.IsRunning);
+        stop.Cancel();
+        await run;
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+        Assert.False(conveyor.IsRunning);
+    }
+
+    [Fact]
+    public async Task MaintenanceFinishesIncomingTransferAndSeatsTheCarrier()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io, inspectionEnabled: false);
+        io.Initialize();
+        io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            conveyor.IsTransferPaused = true;
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+            io.SetInputs((InputIo.MainConveyorEntryCarrierDetected, false),
+                (InputIo.PcbPlacementHeatSink1Present, true), (InputIo.PcbPlacementHeatSink2Present, true));
+            Assert.True(await WaitUntilAsync(() => conveyor.Step is MainConveyorState.Waiting && conveyor.IsWaiting,
+                TimeSpan.FromSeconds(2)));
+            Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
+            Assert.False(io.GetInput(InputIo.PcbPlacementBackupPlateDown));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+    }
+
+    [Fact]
+    public async Task MaintenanceKeepsCompletedInspectionCarrierAndPreparesUnfinishedInspection()
+    {
+        var io = CreateIo();
+        var units = new UnitSettings();
+        var inspection = CreateInspectionStation(io, units);
+        var conveyor = new MainConveyor(io, new(), new(), ConveyorStation.CreatePcbPlacement(io),
+            ConveyorStation.CreateBoltFastening(io), inspection, units);
+        io.Initialize();
+        var motion = (IXyMotion)inspection.Motion.Feedback;
+        await motion.HomeAsync(MotionAxis.X, 20_000);
+        await motion.HomeAsync(MotionAxis.Y, 20_000);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        io.SetInput(InputIo.MainConveyorReadyFromRear, true);
+        conveyor.IsTransferPaused = true;
+        Assert.Equal(MainConveyorState.PreparingInspectionCarrier, conveyor.GetNextStep(false));
+        inspection.Station.Complete();
+        Assert.Equal(MainConveyorState.Waiting, conveyor.GetNextStep(false));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

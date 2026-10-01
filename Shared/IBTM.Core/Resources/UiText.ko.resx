@@ -3347,4 +3347,7 @@
   <data name="ready to start" xml:space="preserve">
     <value>시작 가능</value>
   </data>
+  <data name="finishing work" xml:space="preserve">
+    <value>작업 마무리 중</value>
+  </data>
 </root>

@@ -902,9 +902,37 @@ public sealed class PcbPlacementStateSafetyTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task VacuumTimeoutBeforeLiftKeepsPcbSupportedForMaintenance(bool repeat)
+    {
+        using var rig = new PlacementRig(vacuumTimeout: 300);
+        await rig.InitializeAsync();
+        rig.Placer.StepChanged += () =>
+        {
+            if (rig.Placer.Step is PcbPlacementState.ReceivingPcb or PcbPlacementState.PickingPcb)
+                rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        };
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PcbPlacementVacuumEjector && on)
+                rig.Io.SetInput(InputIo.PcbPlacementVacuumDetected, false);
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = rig.Placer.RunAsync(stop.Token, repeat);
+        var failure = await Assert.ThrowsAsync<MaintenanceStopException>(() => run);
+        Assert.IsType<IoTimeoutException>(failure.InnerException);
+        Assert.Equal(repeat ? rig.Position.Z : rig.Settings.ReceiveZ, rig.Motion.Position.Z);
+        Assert.Equal(PcbSupplyHandoff.Holding, rig.Supply.Handoff);
+        Assert.False(rig.Work.Completed);
+        Assert.Empty(rig.Work.Assemblies);
+        Assert.False(rig.Motion.IsMoving);
+    }
+
     private sealed class PlacementRig : IDisposable
     {
-        public PlacementRig(bool probeFeedback = false, OperationCancellation? operations = null, bool acknowledgeDeparture = true)
+        public PlacementRig(bool probeFeedback = false, OperationCancellation? operations = null, bool acknowledgeDeparture = true, int vacuumTimeout = 10_000)
         {
             AcknowledgeDeparture = acknowledgeDeparture;
             Settings = new PcbPlacementHandlerSettings
@@ -914,7 +942,7 @@ public sealed class PcbPlacementStateSafetyTests
                 ReceiveZ = 12,
             };
             Position = new() { X = 70, Y = 20, Z = 10 };
-            Io = new(Outputs(new PcbPlacementHandlerHardwareSettings(), new ConveyorHardwareSettings()), new());
+            Io = new(Outputs(new PcbPlacementHandlerHardwareSettings(), new ConveyorHardwareSettings()), new() { TimeoutMilliseconds = vacuumTimeout });
             Motion = new(Settings.Motion, operations ?? new());
 
             Supply = new() { Handoff = PcbSupplyHandoff.Holding };

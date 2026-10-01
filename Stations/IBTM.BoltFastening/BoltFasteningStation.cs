@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BoltFeeder;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
@@ -14,6 +15,7 @@ namespace IBTM.BoltFastening;
 public sealed class BoltFasteningStation : AutoUnit
 {
     private readonly IIoService _io;
+    private readonly BoltFeederUnit _feeder;
     private readonly IXyMotion _motion;
     private readonly BoltFasteningSettings _settings;
     private readonly CarrierReferenceSettings _carrierReference;
@@ -40,11 +42,13 @@ public sealed class BoltFasteningStation : AutoUnit
         ConveyorStation station,
         RecipeManager recipes,
         UnitSettings units,
+        BoltFeederUnit feeder,
         ILogger<BoltFasteningStation>? log = null)
     {
         ShootingHead = shootingHead;
         PickupHead = pickupHead;
         _io = io;
+        _feeder = feeder;
         _motion = motion;
         _settings = settings;
         _carrierReference = carrierReference;
@@ -248,6 +252,14 @@ public sealed class BoltFasteningStation : AutoUnit
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+        catch (MaintenanceStopException exception)
+        {
+            failure = exception;
+            // Retries returned to Safe Z, or feed preparation joined its motion.
+            await RaiseCylindersAsync(cancellationToken);
+            await MoveZAsync(_settings.SafeZ, cancellationToken);
+            throw;
         }
         catch (Exception exception)
         {
@@ -456,7 +468,8 @@ public sealed class BoltFasteningStation : AutoUnit
                                 if (pendingFeed is not null)
                                     _log?.LogInformation("Bolt timing {Bolt}: using shooting supply started during previous retraction.", bolt.Id);
                                 var first = await Task.WhenAny(moving, shooting);
-                                if (!first.IsCompletedSuccessfully)
+                                if (!first.IsCompletedSuccessfully
+                                    && first.Exception?.InnerException is not MaintenanceStopException)
                                 {
                                     preparation.Cancel();
                                     pendingCancellation?.Cancel();
@@ -532,7 +545,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                     if (vacuumDetected)
                                         break;
                                     if (retry >= retryCount)
-                                        throw new InvalidOperationException(
+                                        throw new MaintenanceStopException(
                                             $"Pickup bolt {bolt.Id}, {bolt.HeatSink}: vacuum not detected at Safe Z after {retry + 1} pickup attempts.");
                                     _log?.LogWarning(
                                         "Pickup bolt {Bolt}, {HeatSink}: vacuum not detected at Safe Z; retry {Retry}/{RetryCount}.",
@@ -961,7 +974,7 @@ public sealed class BoltFasteningStation : AutoUnit
             SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken));
     }
 
-    internal Task WaitForBoltSupplyAsync(FasteningHead head, CancellationToken cancellationToken)
+    internal async Task WaitForBoltSupplyAsync(FasteningHead head, CancellationToken cancellationToken)
     {
         var boltDetected = head switch
         {
@@ -969,7 +982,30 @@ public sealed class BoltFasteningStation : AutoUnit
             FasteningHead.Shooting => InputIo.ShootingFeederBoltDetected,
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
-        return _io.WaitForInputAsync(boltDetected, true, Timeout.Infinite, cancellationToken, requireCurrent: true);
+        var changed = new AsyncAutoResetEvent();
+        void OnBoltInputChanged(InputIo input, bool value)
+        {
+            if (input == boltDetected)
+                changed.Set();
+        }
+        _feeder.Changed += changed.Set;
+        _io.InputChanged += OnBoltInputChanged;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            while (!_io.GetInput(boltDetected))
+            {
+                // Use a bolt still present, but never wait for a feeder that has stopped on an empty alarm.
+                if (_feeder.EmptyAlarm is { } alarm)
+                    throw new MaintenanceStopException("Bolt supply stopped. Remove the incomplete carrier before restarting.", alarm);
+                await changed.WaitAsync(cancellationToken);
+            }
+        }
+        finally
+        {
+            _feeder.Changed -= changed.Set;
+            _io.InputChanged -= OnBoltInputChanged;
+        }
     }
 
     public void StopShooting(Exception? operationFailure = null)

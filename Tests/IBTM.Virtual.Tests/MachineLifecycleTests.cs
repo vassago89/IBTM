@@ -27,6 +27,342 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Theory]
+    [InlineData(FasteningHead.Pickup, false)]
+    [InlineData(FasteningHead.Shooting, false)]
+    [InlineData(FasteningHead.Pickup, true)]
+    public async Task FeederMaintenanceWaitsForMotionCleanupAndSafetyStillPreempts(FasteningHead head, bool emergencyStop)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.PickupBoltFeeder = head == FasteningHead.Pickup;
+        settings.Units.ShootingBoltFeeder = head == FasteningHead.Shooting;
+        settings.BoltFeeder.PickupTimeoutMilliseconds = 80;
+        settings.BoltFeeder.ShootingTimeoutMilliseconds = 80;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placer = services.GetRequiredService<PcbPlacer>();
+        var motion = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.PcbPlacementHandler];
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        await motion.MoveAxisAsync(MotionAxis.Z, 0, 10_000);
+        settings.PcbPlacementHandler.Motion.ZSpeed = 5;
+        io.SetInput(head == FasteningHead.Pickup ? InputIo.PickupFeederBoltDetected : InputIo.ShootingFeederBoltDetected, false);
+        var run = machine.StartAsync();
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => state.PendingStop is not null, TimeSpan.FromSeconds(3)), state.AlarmDetail);
+            Assert.False(run.IsCompleted);
+            Assert.True(placer.IsRunning);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(io.GetOutput(OutputIo.Buzzer));
+            if (emergencyStop)
+                io.SetInput(InputIo.EmergencyStop1Pressed, true);
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop
+                : head == FasteningHead.Pickup ? MachineAlarm.PickupBoltFeeder : MachineAlarm.ShootingBoltFeeder, state.Alarm);
+            Assert.Null(state.PendingStop);
+            Assert.False(placer.IsRunning);
+            Assert.False(motion.IsMoving);
+            if (!emergencyStop)
+                Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.Z, motion.Position.Z);
+            await VirtualTestSupport.WaitForOutputAsync(io, OutputIo.Buzzer, true);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task CameraFailureDuringMaintenanceFinishingStopsImmediately()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.Units.PickupBoltFeeder = true;
+        settings.BoltFeeder.PickupTimeoutMilliseconds = 80;
+        var camera = new HeldCamera();
+        await using var services = new ServiceCollection()
+            .AddSingleton(_ => OpenMachineStore())
+            .AddVirtualApplication(settings)
+            .AddSingleton<ICamera>(camera)
+            .BuildServiceProvider();
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var inspection = services.GetRequiredService<InspectionStation>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        await inspection.Station.PrepareToReceiveAsync(default);
+        state.PropertyChanged += (sender, args) =>
+        {
+            if (args.PropertyName == nameof(MachineState.AutomaticRunning) && state.AutomaticRunning)
+                io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        };
+        var run = machine.StartAsync();
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => camera.Capturing.Task.IsCompleted, TimeSpan.FromSeconds(5)),
+                $"Start={machine.StartBlock}, step={inspection.Step}, alarm={state.AlarmDetail}");
+            io.SetInput(InputIo.PickupFeederBoltDetected, false);
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => state.PendingStop is not null, TimeSpan.FromSeconds(2)));
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            camera.Image.TrySetException(new IOException("Camera disconnected during capture."));
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(MachineAlarm.Inspection, state.Alarm);
+            Assert.Contains("Camera disconnected", state.AlarmDetail);
+            Assert.False(inspection.Station.Completed);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(FasteningHead.Pickup)]
+    [InlineData(FasteningHead.Shooting)]
+    public async Task FeederMaintenanceEndsPendingBoltWaitWithoutCompletingCarrier(FasteningHead head)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Units.PickupBoltFeeder = head == FasteningHead.Pickup;
+        settings.Units.ShootingBoltFeeder = head == FasteningHead.Shooting;
+        settings.BoltFeeder.PickupTimeoutMilliseconds = 300;
+        settings.BoltFeeder.ShootingTimeoutMilliseconds = 300;
+        await using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        PrepareCarrierTeaching(settings, recipe);
+        foreach (var bolt in recipe.Pcb.BoltPoints)
+        {
+            bolt.Head = head;
+            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
+        }
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        station.StepChanged += () =>
+        {
+            if (station.Step is BoltFasteningState.FasteningPickup or BoltFasteningState.FasteningShooting)
+                io.SetInput(head == FasteningHead.Pickup ? InputIo.PickupFeederBoltDetected : InputIo.ShootingFeederBoltDetected, false);
+        };
+        var run = machine.StartAsync();
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => station.Step is BoltFasteningState.Waiting, TimeSpan.FromSeconds(3)), state.AlarmDetail);
+            io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+            await station.Station.SeatAsync(default);
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(head == FasteningHead.Pickup ? MachineAlarm.PickupBoltFeeder : MachineAlarm.ShootingBoltFeeder, state.Alarm);
+            Assert.False(station.Station.Completed);
+            Assert.True(station.IsAtSafeZ);
+            Assert.True(station.IsHorizontalMoveAllowed);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+            machine.CheckStartMaterials();
+            Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station2]);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task MaintenanceFinishesMeasuredBoltAndKeepsCompletedCarrier()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Units.PickupBoltFeeder = true;
+        settings.Units.ShootingBoltFeeder = true;
+        settings.BoltFeeder.ShootingTimeoutMilliseconds = 30;
+        await using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        PrepareCarrierTeaching(settings, recipe);
+        foreach (var bolt in recipe.Pcb.BoltPoints)
+        {
+            bolt.Head = FasteningHead.Pickup;
+            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
+        }
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupHeadVacuumPump && on)
+                io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+            if (output == OutputIo.PickupBoltStart && on)
+                io.SetInput(InputIo.ShootingFeederBoltDetected, false);
+        };
+        var run = machine.StartAsync();
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => station.Step is BoltFasteningState.Waiting, TimeSpan.FromSeconds(3)), state.AlarmDetail);
+            io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+            await station.Station.SeatAsync(default);
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(MachineAlarm.ShootingBoltFeeder, state.Alarm);
+            Assert.True(station.Station.Completed, state.AlarmDetail);
+            Assert.Single(Assert.Single(station.Station.Assemblies).PickupBoltResults);
+            Assert.True(station.IsAtSafeZ);
+            Assert.True(station.IsHorizontalMoveAllowed);
+            machine.CheckStartMaterials();
+            Assert.Equal(StartCheckState.Completed, machine.StartChecks[StartArea.Station2]);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task MaintenanceFinishesPlacementCarrierAndLeavesRestartableMaterial()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.Units.PcbPlacement = true;
+        settings.Units.PickupBoltFeeder = true;
+        settings.BoltFeeder.PickupTimeoutMilliseconds = 80;
+        await using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 5 };
+        recipe.PcbSupply.Pcb2PickPosition = new() { X = 30, Y = 10, Z = 5 };
+        recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 50, Y = 60, Z = 15 };
+        recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 90, Y = 60, Z = 15 };
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placer = services.GetRequiredService<PcbPlacer>();
+        var supplier = services.GetRequiredService<PcbSupplier>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        io.SetInput(InputIo.AutoMode, false);
+        var receipts = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PcbPlacementVacuumEjector && on)
+            {
+                receipts++;
+                io.SetInput(InputIo.PickupFeederBoltDetected, false);
+            }
+        };
+        state.PropertyChanged += (sender, args) =>
+        {
+            if (args.PropertyName == nameof(MachineState.AutomaticRunning) && state.AutomaticRunning)
+                io.SetInputs((InputIo.PcbPlacementHeatSink1Present, true), (InputIo.PcbPlacementHeatSink2Present, true));
+        };
+        var run = machine.StartAsync();
+        try
+        {
+            Assert.True(await WaitUntilAsync(() => state.AutomaticRunning, TimeSpan.FromSeconds(2)), state.AlarmDetail);
+            await placer.Station.SeatAsync(default);
+            await run.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(MachineAlarm.PickupBoltFeeder, state.Alarm);
+            Assert.Equal(2, receipts);
+            Assert.True(placer.Station.Completed, state.AlarmDetail);
+            Assert.Equal(2, placer.Station.Assemblies.Count());
+            Assert.False(placer.PcbSecured);
+            machine.CheckStartMaterials();
+            Assert.Equal(StartCheckState.Completed, machine.StartChecks[StartArea.Station1]);
+            Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.Placement]);
+            Assert.Contains(machine.StartChecks[StartArea.Supply], new[] { StartCheckState.Empty, StartCheckState.HandoffReady });
+            Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.Z, placer.Motion.Feedback.Position.Z);
+            Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.X, placer.Motion.Feedback.Position.X);
+            Assert.Equal(60, placer.Motion.Feedback.Position.Y);
+            Assert.False(placer.Motion.Feedback.IsMoving);
+            Assert.False(supplier.Motion.Feedback.IsMoving);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task MaintenanceLetsSupplyReachHandoffBeforeStopping()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.Units.PickupBoltFeeder = true;
+        settings.BoltFeeder.PickupTimeoutMilliseconds = 30;
+        await using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 5 };
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var supplier = services.GetRequiredService<PcbSupplier>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        io.SetInput(InputIo.AutoMode, false);
+        supplier.StepChanged += () =>
+        {
+            if (supplier.Step is PcbSupplyState.PickingPcb)
+                io.SetInput(InputIo.PickupFeederBoltDetected, false);
+        };
+        var run = machine.StartAsync();
+        try
+        {
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(MachineAlarm.PickupBoltFeeder, state.Alarm);
+            Assert.True(supplier.IsHandoffRestartAllowed, state.AlarmDetail);
+            Assert.True(supplier.PcbSecured);
+            machine.CheckStartMaterials();
+            Assert.Equal(StartCheckState.HandoffReady, machine.StartChecks[StartArea.Supply]);
+            Assert.False(supplier.Motion.Feedback.IsMoving);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    private sealed class HeldCamera : ICamera
+    {
+        public HeldCamera()
+        {
+            Capturing = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            Image = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        public TaskCompletionSource Capturing { get; }
+        public TaskCompletionSource<ImageFrame> Image { get; }
+        public event Action<ImageFrame>? FrameReady { add { } remove { } }
+        public event Action<Exception>? LiveViewFailed { add { } remove { } }
+        public bool IsLiveView => false;
+        public (int Width, int Height) FrameSize => (640, 480);
+        public void Initialize() { }
+        public void StartLiveView() { }
+        public void StopLiveView() { }
+        public async Task<ImageFrame> CaptureAsync(CancellationToken cancellationToken = default)
+        {
+            Capturing.TrySetResult();
+            return await Image.Task.WaitAsync(cancellationToken);
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task DisabledPlacementAndFasteningTransferCarrierThroughBothStations(bool raisedAtStart)

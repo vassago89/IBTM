@@ -724,6 +724,34 @@ public sealed class PcbSupplyHandoffTests
         }
     }
 
+    [Fact]
+    public async Task StopAtSupplyHandoffPreservesRestartableGrip()
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Supplier.Trace += message =>
+        {
+            if (message.StartsWith("Waiting for feedback"))
+                waiting.TrySetResult();
+        };
+        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token);
+        await waiting.Task.WaitAsync(stop.Token);
+        Assert.True(rig.Supplier.IsHandoffRestartAllowed);
+        stop.Cancel();
+        await run;
+        Assert.True(rig.Supplier.IsHandoffRestartAllowed);
+        Assert.True(rig.Supplier.PcbSecured);
+        Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+        Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
+        Assert.Equal(rig.Settings.HandoffPosition.Z, rig.Motion.Position.Z);
+        Assert.False(rig.Motion.IsMoving);
+    }
+
     private sealed class HandoffRig : IDisposable
     {
         public HandoffRig(bool probeFeedback = false)

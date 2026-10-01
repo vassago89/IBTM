@@ -70,7 +70,7 @@ internal static class VirtualTestSupport
         var units = new UnitSettings();
         return new(shooting, pickup, io, motion, new(motion), settings, reference,
             ConveyorStation.CreateBoltFastening(io),
-            new(OpenMachineStore(), new()), units);
+            new(OpenMachineStore(), new()), units, new(io, new(), units));
     }
 
     public static InspectionStation CreateNgTransfer(

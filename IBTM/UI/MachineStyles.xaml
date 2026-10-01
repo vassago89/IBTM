@@ -158,6 +158,9 @@
             <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.Running}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
             </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.Finishing}">
+                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+            </Trigger>
             <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.Homing}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
             </Trigger>

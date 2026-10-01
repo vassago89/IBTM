@@ -636,30 +636,38 @@ public sealed partial class MachineController : INotifyPropertyChanged
     // Last explicit check only. Sensor edges do not clear blocked work.
     public IReadOnlyDictionary<StartArea, StartCheckState> StartChecks { get; private set; }
 
+    private IReadOnlyDictionary<StartArea, StartCheckState> CurrentStartMaterials
+    {
+        get
+        {
+            var checks = Enum.GetValues<StartArea>().ToDictionary(area => area, area => StartCheckState.Unknown);
+            if (_io.IsReady)
+            {
+                checks[StartArea.Supply] = !_io.GetInput(InputIo.PcbSupplyPcbDetected) ? StartCheckState.Empty
+                    : !_state.RepeatEnabled && _pcbSupply.IsHandoffRestartAllowed
+                        ? StartCheckState.HandoffReady : StartCheckState.MaterialRemaining;
+                checks[StartArea.Placement] = _io.GetInput(InputIo.PcbPlacementPcbDetected)
+                    || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
+                        ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
+                checks[StartArea.PickupHead] = _io.GetInput(InputIo.PickupHeadVacuumDetected)
+                    ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
+                checks[StartArea.ShootingHead] = _io.GetInput(InputIo.ShootingHeadVacuumDetected)
+                    || _io.GetInput(InputIo.ShootingTubeBoltDetected)
+                        ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
+                checks[StartArea.Station1] = !_pcbPlacement.Station.CarrierPresent ? StartCheckState.Empty
+                    : _pcbPlacement.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
+                checks[StartArea.Station2] = !_fasteningStation.Station.CarrierPresent ? StartCheckState.Empty
+                    : _fasteningStation.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
+                checks[StartArea.Station3] = !_inspectionStation.Station.CarrierPresent ? StartCheckState.Empty
+                    : _inspectionStation.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
+            }
+            return checks;
+        }
+    }
+
     public void CheckStartMaterials()
     {
-        var checks = Enum.GetValues<StartArea>().ToDictionary(area => area, area => StartCheckState.Unknown);
-        if (_io.IsReady)
-        {
-            checks[StartArea.Supply] = !_io.GetInput(InputIo.PcbSupplyPcbDetected) ? StartCheckState.Empty
-                : !_state.RepeatEnabled && _pcbSupply.IsHandoffRestartAllowed
-                    ? StartCheckState.HandoffReady : StartCheckState.MaterialRemaining;
-            checks[StartArea.Placement] = _io.GetInput(InputIo.PcbPlacementPcbDetected)
-                || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
-                    ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
-            checks[StartArea.PickupHead] = _io.GetInput(InputIo.PickupHeadVacuumDetected)
-                ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
-            checks[StartArea.ShootingHead] = _io.GetInput(InputIo.ShootingHeadVacuumDetected)
-                || _io.GetInput(InputIo.ShootingTubeBoltDetected)
-                    ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
-            checks[StartArea.Station1] = !_pcbPlacement.Station.CarrierPresent ? StartCheckState.Empty
-                : _pcbPlacement.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
-            checks[StartArea.Station2] = !_fasteningStation.Station.CarrierPresent ? StartCheckState.Empty
-                : _fasteningStation.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
-            checks[StartArea.Station3] = !_inspectionStation.Station.CarrierPresent ? StartCheckState.Empty
-                : _inspectionStation.Station.Completed ? StartCheckState.Completed : StartCheckState.UnfinishedCarrier;
-        }
-        StartChecks = checks;
+        StartChecks = CurrentStartMaterials;
         PropertyChanged?.Invoke(this, new(nameof(StartChecks)));
         PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
     }
@@ -885,7 +893,17 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     _state.Changed -= StopWhenOperationBecomesUnavailable;
                     _feedback.Sampled -= StopWhenMotionFeedbackBecomesUnavailable;
                     _state.AutomaticRunning = false;
-                    StopAndReportFailure();
+                    _inspectionStation.ClearInspectionRequest();
+                    try
+                    {
+                        StopAndReportFailure();
+                        if (_state.PendingStop is { } pending && !_state.IsError)
+                            _state.SetError(pending.Alarm, pending.Error);
+                    }
+                    finally
+                    {
+                        _state.PendingStop = null;
+                    }
                 }
             }
             catch (OperationCanceledException) when (
@@ -906,80 +924,147 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private async Task RunAutomaticUnitsAsync(CancellationTokenSource cycle, bool repeat)
     {
         var runningUnits = new List<Task>();
-        if (!cycle.IsCancellationRequested && _units.PcbSupply && (!repeat || _units.PcbPlacement))
+        AutoUnit[] workUnits = [_conveyor, _pcbSupply, _pcbPlacement,
+            _fasteningStation, _inspectionStation, _ngConveyor];
+        var changed = new AsyncAutoResetEvent();
+        void OnFeedbackSampled(MotionGroup group, MotionFeedbackSample sample)
         {
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.PcbSupply,
-                _pcbSupply.RunAsync(_pcbPlacement, cycle.Token, repeat),
-                cycle));
+            changed.Set();
         }
-
-        if (!cycle.IsCancellationRequested)
+        foreach (var unit in workUnits)
         {
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.PcbPlacement,
-                _pcbPlacement.RunAsync(cycle.Token, repeat),
-                cycle));
+            unit.Changed += changed.Set;
+            unit.StepChanged += changed.Set;
         }
-
-        if (!cycle.IsCancellationRequested && !repeat
-            && (_units.PickupBoltFeeder || _units.ShootingBoltFeeder))
+        _state.Changed += changed.Set;
+        _feedback.Sampled += OnFeedbackSampled;
+        try
         {
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                _units.ShootingBoltFeeder ? MachineAlarm.ShootingBoltFeeder : MachineAlarm.PickupBoltFeeder,
-                _boltFeeder.RunAsync(cycle.Token),
-                cycle));
-        }
+            if (!cycle.IsCancellationRequested && _units.PcbSupply && (!repeat || _units.PcbPlacement))
+            {
+                runningUnits.Add(ObserveAutomaticUnitAsync(
+                    MachineAlarm.PcbSupply,
+                    _pcbSupply.RunAsync(_pcbPlacement, cycle.Token, repeat),
+                    cycle, repeat));
+            }
 
-        if (!cycle.IsCancellationRequested)
+            if (!cycle.IsCancellationRequested)
+            {
+                runningUnits.Add(ObserveAutomaticUnitAsync(
+                    MachineAlarm.PcbPlacement,
+                    _pcbPlacement.RunAsync(cycle.Token, repeat),
+                    cycle, repeat));
+            }
+
+            if (!cycle.IsCancellationRequested && !repeat
+                && (_units.PickupBoltFeeder || _units.ShootingBoltFeeder))
+            {
+                runningUnits.Add(ObserveAutomaticUnitAsync(
+                    _units.ShootingBoltFeeder ? MachineAlarm.ShootingBoltFeeder : MachineAlarm.PickupBoltFeeder,
+                    _boltFeeder.RunAsync(cycle.Token),
+                    cycle, repeat));
+            }
+
+            if (!cycle.IsCancellationRequested)
+            {
+                if (_units.BoltFastening && (repeat || !_units.PickupBoltFeeder))
+                    _log?.LogInformation(
+                        "Pickup bolt feeding is disabled for this run; pickup motion remains active without vacuum ON or bolt detection waits. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
+                if (_units.BoltFastening && (repeat || !_units.ShootingBoltFeeder))
+                    _log?.LogInformation(
+                        "Shooting bolt feeding is disabled for this run; bolt supply and shooting are skipped. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
+                runningUnits.Add(ObserveAutomaticUnitAsync(
+                    MachineAlarm.BoltFastening,
+                    _fasteningStation.RunAsync(cycle.Token, repeat),
+                    cycle, repeat));
+            }
+
+            if (!cycle.IsCancellationRequested)
+            {
+                runningUnits.Add(ObserveAutomaticUnitAsync(
+                    MachineAlarm.Inspection,
+                    _inspectionStation.RunAsync(cycle.Token, repeat),
+                    cycle, repeat));
+            }
+
+            if (!cycle.IsCancellationRequested && _units.NgConveyor && !repeat)
+            {
+                runningUnits.Add(ObserveAutomaticUnitAsync(
+                    MachineAlarm.NgConveyor,
+                    _ngConveyor.RunAsync(cycle.Token, repeat),
+                    cycle, repeat));
+            }
+
+            // Stations report existing carrier work before the conveyor selects its first transfer.
+            if (!cycle.IsCancellationRequested && _units.MainConveyor)
+            {
+                runningUnits.Add(ObserveAutomaticUnitAsync(
+                    MachineAlarm.MainConveyor,
+                    _conveyor.RunAsync(cycle.Token, repeat),
+                    cycle, repeat));
+            }
+
+            while (!cycle.IsCancellationRequested)
+            {
+                if (_state.PendingStop is not null && workUnits.All(unit => !unit.IsRunning || unit.IsWaiting))
+                {
+                    // Use START's material rules without updating its explicit operator check.
+                    // Failed units may still require manual removal; healthy work must finish.
+                    var ready = true;
+                    foreach (var (area, material) in CurrentStartMaterials)
+                    {
+                        if (material == StartCheckState.Unknown)
+                            ready = false;
+                        if (material is not (StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier))
+                            continue;
+                        ready &= area switch
+                        {
+                            StartArea.Placement or StartArea.Station1 => !_pcbPlacement.IsRunning,
+                            StartArea.PickupHead or StartArea.ShootingHead or StartArea.Station2 => !_fasteningStation.IsRunning,
+                            _ => false,
+                        };
+                    }
+                    if (ready && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
+                        && _feedback.Motions.All(pair => !_units.IsMotionEnabled(pair.Key)
+                            || pair.Value.Feedback.IsReady
+                                && MotionServiceBase.IsSettled(pair.Value.Feedback, pair.Value.Feedback.Axes)))
+                        break;
+                }
+                await changed.WaitAsync(cycle.Token);
+            }
+        }
+        catch (OperationCanceledException) when (cycle.IsCancellationRequested) { }
+        catch (Exception exception)
         {
-            if (_units.BoltFastening && (repeat || !_units.PickupBoltFeeder))
-                _log?.LogInformation(
-                    "Pickup bolt feeding is disabled for this run; pickup motion remains active without vacuum ON or bolt detection waits. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
-            if (_units.BoltFastening && (repeat || !_units.ShootingBoltFeeder))
-                _log?.LogInformation(
-                    "Shooting bolt feeding is disabled for this run; bolt supply and shooting are skipped. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.BoltFastening,
-                _fasteningStation.RunAsync(cycle.Token, repeat),
-                cycle));
+            _state.SetError(IsMotionFailure(exception) ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication, exception);
         }
-
-        if (!cycle.IsCancellationRequested)
+        finally
         {
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.Inspection,
-                _inspectionStation.RunAsync(
-                    cycle.Token,
-                    repeat),
-                cycle));
+            cycle.Cancel();
+            try
+            {
+                await Task.WhenAll(runningUnits).ConfigureAwait(false);
+            }
+            finally
+            {
+                foreach (var unit in workUnits)
+                {
+                    unit.Changed -= changed.Set;
+                    unit.StepChanged -= changed.Set;
+                }
+                _state.Changed -= changed.Set;
+                _feedback.Sampled -= OnFeedbackSampled;
+                _conveyor.IsTransferPaused = false;
+                _pcbPlacement.IsPrefetchAllowed = true;
+            }
         }
-
-        if (!cycle.IsCancellationRequested && _units.NgConveyor && !repeat)
-        {
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.NgConveyor,
-                _ngConveyor.RunAsync(cycle.Token, repeat),
-                cycle));
-        }
-
-        // Stations report existing carrier work before the conveyor selects its first transfer.
-        if (!cycle.IsCancellationRequested && _units.MainConveyor)
-        {
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.MainConveyor,
-                _conveyor.RunAsync(cycle.Token, repeat),
-                cycle));
-        }
-
-        // STOP and repeat reversal wait for every unit's command cleanup.
-        await Task.WhenAll(runningUnits).ConfigureAwait(false);
     }
 
     private async Task ObserveAutomaticUnitAsync(
         MachineAlarm alarm,
         Task running,
-        CancellationTokenSource cycle)
+        CancellationTokenSource cycle,
+        bool repeat = false)
     {
         try
         {
@@ -992,6 +1077,27 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
         catch (OperationCanceledException) when (cycle.IsCancellationRequested)
         {
+        }
+        catch (Exception exception) when (!repeat && (!cycle.IsCancellationRequested || _state.PendingStop is not null)
+            && (exception is MaintenanceStopException
+                || alarm is MachineAlarm.PickupBoltFeeder or MachineAlarm.ShootingBoltFeeder
+                    && exception is IoTimeoutException
+                    { Input: InputIo.PickupFeederBoltDetected or InputIo.ShootingFeederBoltDetected }))
+        {
+            var timeout = exception as IoTimeoutException ?? exception.InnerException as IoTimeoutException;
+            if (timeout is not null)
+                alarm = timeout.Input == InputIo.PickupFeederBoltDetected
+                    ? MachineAlarm.PickupBoltFeeder : MachineAlarm.ShootingBoltFeeder;
+            lock (cycle)
+            {
+                if (_state.PendingStop is null && !_state.IsError)
+                {
+                    _conveyor.IsTransferPaused = true;
+                    _pcbPlacement.IsPrefetchAllowed = false;
+                    _state.PendingStop = (alarm, exception);
+                    _log?.LogWarning(exception, "Finishing automatic work for maintenance: {Alarm}.", alarm);
+                }
+            }
         }
         catch (Exception exception)
         {
@@ -1017,7 +1123,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
         finally
         {
-            cycle.Cancel();
+            if (_state.PendingStop is null || _state.IsError)
+                cycle.Cancel();
         }
     }
 

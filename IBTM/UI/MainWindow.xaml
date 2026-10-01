@@ -359,7 +359,6 @@
                     <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
                             <TextBlock Text="{Binding Operation.AlarmMessage}" ToolTip="{Binding Operation.AlarmDetail}"
-                                Visibility="{Binding Operation.HasAlarm, Converter={StaticResource BoolToVis}}"
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                             <TextBlock Text="{Binding ResetError}"
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
@@ -421,7 +420,13 @@
                                         <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
                                         <Setter Property="ToolTip" Value="{Binding Operation.Machine.HomeBlock, Converter={StaticResource UiTextConverter}}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.State.IsHoming}" Value="True">
+                                            <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
+                                            Value="{x:Static ui:MachineDisplayState.Finishing}">
+                                            <Setter Property="Background" Value="{StaticResource AttentionBackgroundBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Operation.State.IsHoming}" Value="True">
                                                 <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>

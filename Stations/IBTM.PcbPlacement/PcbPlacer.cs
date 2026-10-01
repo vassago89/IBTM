@@ -38,6 +38,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _settings = settings;
         _supply = supply;
         Station = station;
+        IsPrefetchAllowed = true;
         _recipes = recipes;
         _units = units;
         Motion = motionStatus;
@@ -62,6 +63,18 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private sealed record RepeatPcbTrip(ConveyorStation.Job Job, HeatSinkSlot HeatSink);
 
     public ConveyorStation Station { get; }
+
+    public bool IsPrefetchAllowed
+    {
+        get;
+        set
+        {
+            if (field == value)
+                return;
+            field = value;
+            WakeRun();
+        }
+    }
 
     private void OnMotionStateChanged()
     {
@@ -438,6 +451,9 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     EnterStep(PcbPlacementState.WaitingForSupplyDeparture);
                     break;
                 case PcbPlacementState.MovingToHandoff:
+                    // During maintenance only the seated, unfinished carrier may receive another PCB.
+                    if (!IsPrefetchAllowed && (!Station.CarrierSeated || Station.Completed || heatSink is null))
+                        return false;
                     if (_units.PcbSupply && _supply.Handoff != PcbSupplyHandoff.Holding)
                         return false;
                     await SetLiftDownAsync(false, cancellationToken);
@@ -813,7 +829,23 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.PcbPlacementVacuumEjector, on);
-        await _io.WaitForInputAsync(InputIo.PcbPlacementVacuumDetected, on, cancellationToken, requireCurrent: true);
+        try
+        {
+            await _io.WaitForInputAsync(InputIo.PcbPlacementVacuumDetected, on, cancellationToken, requireCurrent: true);
+        }
+        catch (IoTimeoutException exception) when (on && IsRunning
+            && !cancellationToken.IsCancellationRequested
+            && _io.GetInput(InputIo.PcbPlacementPcbDetected)
+            && (Phase == PcbPlacementState.ReceivingPcb
+                    && _supply.Handoff == PcbSupplyHandoff.Holding
+                    && _handoffPosition is { } handoff && MotionServiceBase.IsHoldingPosition(_motion, handoff)
+                || Phase == PcbPlacementState.PickingPcb && _repeatTrip is { } trip
+                    && Station.CarrierSeated && Station.IsHeatSinkPresent(trip.HeatSink)
+                    && Lift == StationCylinderState.Down
+                    && MotionServiceBase.IsHoldingPosition(_motion, GetHeatSinkPosition(trip.HeatSink))))
+        {
+            throw new MaintenanceStopException("Placement vacuum was not detected before lifting. The PCB remains on its support; check the vacuum and remove the PCB before restarting.", exception);
+        }
     }
 
     private void EnsureHandlerRaised(CancellationToken cancellationToken)

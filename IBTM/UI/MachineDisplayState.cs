@@ -25,6 +25,9 @@ public enum MachineDisplayState
     [Description("Running")]
     Running,
 
+    [Description("Finishing work")]
+    Finishing,
+
     [Description("Homing")]
     Homing,
 

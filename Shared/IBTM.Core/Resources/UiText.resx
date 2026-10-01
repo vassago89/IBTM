@@ -3347,4 +3347,7 @@ See the application log for details.</value>
   <data name="ready to start" xml:space="preserve">
     <value>Ready to start</value>
   </data>
+  <data name="finishing work" xml:space="preserve">
+    <value>Finishing work</value>
+  </data>
 </root>

@@ -8,7 +8,7 @@ public abstract class AutoUnit
 {
     private readonly AsyncAutoResetEvent _stateChanged;
     private string? _lastStep;
-    private bool _waiting;
+    private bool _waitLogged;
 
     protected AutoUnit()
     {
@@ -61,15 +61,15 @@ public abstract class AutoUnit
         if (_lastStep == detail)
             return;
         _lastStep = detail;
-        _waiting = false;
+        _waitLogged = false;
         Trace.Invoke(detail);
     }
 
     protected Task WaitForChangeAsync(CancellationToken cancellationToken, TimeSpan? timeout = null)
     {
-        if (!_waiting && _lastStep is not null)
+        if (!_waitLogged && _lastStep is not null)
         {
-            _waiting = true;
+            _waitLogged = true;
             Trace?.Invoke($"Waiting for feedback / work change: {_lastStep}");
         }
         return timeout is { } duration
@@ -82,7 +82,7 @@ public abstract class AutoUnit
         Step = initialStep;
         IsRunning = true;
         _lastStep = null;
-        _waiting = false;
+        _waitLogged = false;
         Trace?.Invoke($"{GetType().Name}: run started.");
         if (Step is not null)
             StepChanged?.Invoke();
@@ -92,9 +92,20 @@ public abstract class AutoUnit
     {
         IsRunning = false;
         Step = null;
+        NotifyChanged();
         StepChanged?.Invoke();
         Trace?.Invoke(
             $"{GetType().Name}: run ended; cancelled={cancellationToken.IsCancellationRequested}; "
                 + $"last={_lastStep ?? "no step"}.");
+    }
+}
+
+// Only known failures with material still held or supported may request a finish stop.
+// Motion, I/O loss and cleanup failures remain immediate faults.
+public sealed class MaintenanceStopException : InvalidOperationException
+{
+    public MaintenanceStopException(string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
     }
 }

@@ -25,8 +25,11 @@ public sealed class BoltFeederUnit : AutoUnit
         io.InputChanged += OnInputChanged;
     }
 
+    public IoTimeoutException? EmptyAlarm { get; private set; }
+
     public async Task RunAsync(CancellationToken cancellationToken = default, FasteningHead? head = null)
     {
+        EmptyAlarm = null;
         var pickupEnabled = _units.PickupBoltFeeder && head is not FasteningHead.Shooting;
         var shootingEnabled = _units.ShootingBoltFeeder && head is not FasteningHead.Pickup;
         var startedAt = Stopwatch.GetTimestamp();
@@ -74,6 +77,9 @@ public sealed class BoltFeederUnit : AutoUnit
         catch (Exception exception)
         {
             failure = exception;
+            if (exception is IoTimeoutException timeout
+                && timeout.Input is InputIo.PickupFeederBoltDetected or InputIo.ShootingFeederBoltDetected)
+                EmptyAlarm = timeout;
             throw;
         }
         finally

@@ -326,9 +326,9 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public string? AlarmDetail => State.ReadError?.ToString() ?? State.AlarmDetail;
+    public string? AlarmDetail => State.ReadError?.ToString() ?? State.AlarmDetail ?? State.PendingStop?.Error.ToString();
 
-    public string? AlarmMessage => State.ReadError?.Message ?? State.AlarmMessage;
+    public string? AlarmMessage => State.ReadError?.Message ?? State.AlarmMessage ?? State.PendingStop?.Error.Message;
 
     public bool SafetyBypass
     {
@@ -538,7 +538,7 @@ public partial class OperationViewModel : ObservableObject
     {
         if (e.PropertyName is null or nameof(MachineState.Available) or nameof(MachineState.SafetyReady)
             or nameof(MachineState.Alarm) or nameof(MachineState.FeedbackReadiness) or nameof(MachineState.IsHoming)
-            or nameof(MachineState.ServoPowerOn) or nameof(MachineState.IsRunning))
+            or nameof(MachineState.ServoPowerOn) or nameof(MachineState.IsRunning) or nameof(MachineState.PendingStop))
             OnPropertyChanged(nameof(MachineDisplayState));
         if (e.PropertyName is null or nameof(MachineState.AutoMode) or nameof(MachineState.Available))
             OnPropertyChanged(nameof(ModeText));
@@ -547,9 +547,9 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(nameof(HasAlarm));
             OnPropertyChanged(nameof(Alarm));
         }
-        if (e.PropertyName is null or nameof(MachineState.AlarmDetail) or nameof(MachineState.ReadError))
+        if (e.PropertyName is null or nameof(MachineState.AlarmDetail) or nameof(MachineState.ReadError) or nameof(MachineState.PendingStop))
             OnPropertyChanged(nameof(AlarmDetail));
-        if (e.PropertyName is null or nameof(MachineState.AlarmMessage) or nameof(MachineState.ReadError))
+        if (e.PropertyName is null or nameof(MachineState.AlarmMessage) or nameof(MachineState.ReadError) or nameof(MachineState.PendingStop))
             OnPropertyChanged(nameof(AlarmMessage));
         if (e.PropertyName is null or nameof(MachineState.AutomaticRunning)
             or nameof(MachineState.Alarm) or nameof(MachineState.Available))
@@ -864,6 +864,8 @@ public partial class OperationViewModel : ObservableObject
                     return MachineDisplayState.ServoOff;
                 case { FeedbackReadiness.Homed: false }:
                     return MachineDisplayState.HomeRequired;
+                case { PendingStop: not null }:
+                    return MachineDisplayState.Finishing;
                 case { IsRunning: true }:
                     return MachineDisplayState.Running;
                 default:

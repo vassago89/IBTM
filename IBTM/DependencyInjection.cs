@@ -182,6 +182,7 @@ public static class DependencyInjection
                         ConveyorStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()),
                         provider.GetRequiredService<RecipeManager>(),
                         provider.GetRequiredService<UnitSettings>(),
+                        provider.GetRequiredService<BoltFeederUnit>(),
                         provider.GetRequiredService<ILogger<BoltFasteningStation>>()));
 
         services

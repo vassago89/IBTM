@@ -46,6 +46,18 @@ public sealed partial class MainConveyor : AutoUnit
         inspection.Changed += NotifyChanged;
     }
 
+    public bool IsTransferPaused
+    {
+        get;
+        set
+        {
+            if (field == value)
+                return;
+            field = value;
+            WakeRun();
+        }
+    }
+
     private bool IsNgTransferRequired => _units.Inspection && _inspection.RouteToNg;
 
     private bool IsRearDischargeAllowed
@@ -123,7 +135,9 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
+    public async Task RunAsync(
+        CancellationToken cancellationToken = default,
+        bool repeat = false)
     {
         using var runCancellation = BeginConveyorOperation(cancellationToken);
         cancellationToken = runCancellation.Token;
@@ -138,7 +152,7 @@ public sealed partial class MainConveyor : AutoUnit
             {
                 var state = GetNextStep(_io.GetOutput(OutputIo.MainConveyorRun));
                 cancellationToken.ThrowIfCancellationRequested();
-                SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, IsRearDischargeAllowed, cancellationToken);
+                SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, !IsTransferPaused && IsRearDischargeAllowed, cancellationToken);
                 switch (state)
                 {
                     case MainConveyorState.PreparingInspectionCarrier:
@@ -299,7 +313,8 @@ public sealed partial class MainConveyor : AutoUnit
                         throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported main conveyor step.");
                 }
 
-                if (state is MainConveyorState.WaitingForFrontCarrier
+                if (!IsTransferPaused
+                    && state is MainConveyorState.WaitingForFrontCarrier
                         or MainConveyorState.WaitingForRearEquipment
                         or MainConveyorState.WaitingForBoltFastening
                         or MainConveyorState.WaitingForInspectionClear
@@ -353,6 +368,8 @@ public sealed partial class MainConveyor : AutoUnit
             return transfer;
         if (_inspection.Station.Completed)
         {
+            if (IsTransferPaused)
+                return transfer;
             // 검사 완료: 바로 배출할 수 없으면 플레이트를 올려 벨트에서 분리한다.
             if (_inspection.Station.CarrierSeated)
                 return transfer;
@@ -396,17 +413,20 @@ public sealed partial class MainConveyor : AutoUnit
         get
         {
             // 이송 우선순위: S3 배출 → S2→S3 → S1→S2 → 전단 반입.
-            if (IsRearDischargeAllowed && DownstreamReady)
-                return MainConveyorState.DischargingInspectionCarrier;
-            if ((!_repeat || ReferenceEquals(RepeatEndStation, _inspection.Station))
-                && _fastening.Completed && _inspection.IsReceiveAllowed)
-                return MainConveyorState.MovingBoltFasteningToInspection;
-            if ((!_repeat || !ReferenceEquals(RepeatEndStation, _placement))
-                && _placement.Completed && !_fastening.CarrierPresent)
-                return MainConveyorState.MovingPcbPlacementToBoltFastening;
-            if (!_placement.CarrierPresent
-                && (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable))
-                return MainConveyorState.ReceivingFrontCarrier;
+            if (!IsTransferPaused)
+            {
+                if (IsRearDischargeAllowed && DownstreamReady)
+                    return MainConveyorState.DischargingInspectionCarrier;
+                if ((!_repeat || ReferenceEquals(RepeatEndStation, _inspection.Station))
+                    && _fastening.Completed && _inspection.IsReceiveAllowed)
+                    return MainConveyorState.MovingBoltFasteningToInspection;
+                if ((!_repeat || !ReferenceEquals(RepeatEndStation, _placement))
+                    && _placement.Completed && !_fastening.CarrierPresent)
+                    return MainConveyorState.MovingPcbPlacementToBoltFastening;
+                if (!_placement.CarrierPresent
+                    && (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable))
+                    return MainConveyorState.ReceivingFrontCarrier;
+            }
             if (IsRearDischargeAllowed)
                 return MainConveyorState.WaitingForRearEquipment;
             if (_fastening.CarrierPresent)
@@ -507,11 +527,21 @@ public sealed partial class MainConveyor : AutoUnit
                     entered.TrySetResult();
                 if (receiving)
                 {
+                    if (IsTransferPaused && !entered.Task.IsCompleted)
+                    {
+                        SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false, transfer.Token);
+                        return;
+                    }
                     // Arm entry detection before READY; this call owns the whole receipt.
                     if (!_repeat && !entered.Task.IsCompleted)
                         SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, true, transfer.Token);
                     while (!entered.Task.IsCompleted && !UpstreamCarrierAvailable)
                     {
+                        if (IsTransferPaused)
+                        {
+                            SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false, transfer.Token);
+                            return;
+                        }
                         var next = GetNextStep(false);
                         if (next is not (MainConveyorState.WaitingForFrontCarrier
                             or MainConveyorState.WaitingForRearEquipment
@@ -524,7 +554,7 @@ public sealed partial class MainConveyor : AutoUnit
                         }
                         EnterStep(next, waitingFor: "Entry carrier detected=ON OR Front 2 Available=ON");
                         // No receipt has started: a completed S3 may now advertise its carrier.
-                        SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, IsRearDischargeAllowed, transfer.Token);
+                        SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, !IsTransferPaused && IsRearDischargeAllowed, transfer.Token);
                         await WaitForChangeAsync(transfer.Token);
                     }
                     EnterStep(MainConveyorState.ReceivingFrontCarrier, waitingFor: "S1 Heat Sink 2 detected=ON");
