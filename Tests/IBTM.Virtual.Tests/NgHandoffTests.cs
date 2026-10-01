@@ -53,7 +53,7 @@ public sealed class NgHandoffTests
     }
 
     [Fact]
-    public async Task PickupMoveUsesTargetAndKeepsLoweredGripOnItsSupport()
+    public async Task PickupRaisesBeforeMovingToItsTargetAndGripping()
     {
         var system = await CreateAsync();
         using var motion = system.Motion;
@@ -67,7 +67,7 @@ public sealed class NgHandoffTests
         await Assert.ThrowsAsync<MotionInterlockException>(() =>
             transfer.MoveToCarrierAsync(NgTransferDestination.Station, CancellationToken.None));
 
-        // Gripping may finish at the lowered support without requesting XY movement.
+        // A new pickup starts by raising, then moving to its source.
         await transfer.ExecuteTransferAsync(
             NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
         Assert.True(transfer.IsTransferPending);
@@ -330,8 +330,8 @@ public sealed class NgHandoffTests
         foreach (var value in new[] { false, true })
         {
             io.SetInput(InputIo.NgCarrierDetected, value);
-            Assert.Equal(InspectionStationState.HoldingAtDestination,
-                transfer.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true, repeat: true));
+            Assert.True(transfer.IsTransferPending);
+            Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
         }
 
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
@@ -339,8 +339,7 @@ public sealed class NgHandoffTests
             NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
         Assert.False(transfer.IsTransferPending);
         Assert.True(transfer.IsClear);
-        Assert.Equal(InspectionStationState.TransferCompleted,
-            transfer.GetNextStep());
+        Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
         Assert.True(signals.Inputs[InputIo.NgCarrierDetected].IsOn);
     }
 
@@ -357,8 +356,15 @@ public sealed class NgHandoffTests
         SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
             InspectionStationState.PlacingCarrier, stop.Token, repeat: true);
-        await transfer.SetLiftUpAsync(false, stop.Token);
-        await transfer.SetGripperOpenAsync(true, stop.Token);
+        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        var releaseRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.NgCarrierGripperClose || on)
+                return;
+            io.SetInput(InputIo.NgShuttleCarrierDetected, false);
+            releaseRequested.TrySetResult();
+        };
         var scheduler = new ConcurrentExclusiveSchedulerPair();
         try
         {
@@ -368,6 +374,7 @@ public sealed class NgHandoffTests
                     NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
                 try
                 {
+                    await releaseRequested.Task.WaitAsync(stop.Token);
                     io.SetInput(InputIo.NgShuttleCarrierDetected, true);
                     io.SetInput(InputIo.NgShuttleCarrierDetected, false);
                     await Task.Yield();
@@ -500,7 +507,8 @@ public sealed class NgHandoffTests
             Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
 
             io.SetInputs((InputIo.NgCarrierPickupUp, false), (InputIo.NgCarrierPickupDown, true));
-            var placing = transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
+            await transfer.SetGripperOpenAsync(true, stop.Token);
+            var placing = transfer.SetLiftUpAsync(true, stop.Token);
             Assert.False(transfer.IsTransferPending); // Only the completed release command clears it.
             Assert.False(placing.IsCompleted);
             Assert.Equal(NgConveyorState.WaitingForTransferRelease, system.Conveyor.Step);
