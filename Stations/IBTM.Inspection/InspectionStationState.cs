@@ -61,23 +61,3 @@ public enum InspectionStationState
     [Description("Waiting for NG Shuttle Down")]
     WaitingForShuttleDown,
 }
-
-public enum NgTransferDestination
-{
-    [Description("Station 3")]
-    Station,
-    [Description("Shuttle")]
-    Shuttle,
-}
-
-public enum NgTransferGripperState
-{
-    [Description("Open")]
-    Open,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Closed")]
-    Closed,
-}

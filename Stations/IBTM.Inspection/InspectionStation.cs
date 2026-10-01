@@ -18,7 +18,6 @@ public sealed record CarrierImage(AxisPosition Center, ImageFrame Frame);
 public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeedback
 {
     private readonly ILogger<InspectionStation>? _log;
-    private readonly IIoService _io;
     private readonly IXyMotion _motion;
     private readonly MotionSettings _motionSettings;
     private readonly NgCarrierTransferSettings _settings;
@@ -56,7 +55,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         LightingSettings lightingSettings,
         RecipeManager recipes,
         ILogger<InspectionStation>? log = null)
-        : base([
+        : base(io, [
             InputIo.NgCarrierPickupUp,
             InputIo.NgCarrierPickupDown,
             InputIo.NgCarrierGripperOpen,
@@ -66,7 +65,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         _log = log;
         Station = station;
         Motion = motionStatus;
-        _io = io;
         _motion = motion;
         _motionSettings = motionSettings.Motion;
         _settings = settings;
@@ -80,7 +78,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         camera.LiveViewFailed += OnCameraLiveViewFailed;
         station.Changed += NotifyChanged;
         motion.StateChanged += NotifyChanged;
-        ObserveIo(io);
         ngConveyor.AttachTransfer(this);
         ngConveyor.Changed += NotifyChanged;
         recipes.Changed += NotifyChanged;
@@ -108,7 +105,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     {
         get
         {
-            switch ((_io.GetInput(InputIo.NgCarrierPickupUp), _io.GetInput(InputIo.NgCarrierPickupDown)))
+            switch ((Io.GetInput(InputIo.NgCarrierPickupUp), Io.GetInput(InputIo.NgCarrierPickupDown)))
             {
                 case (true, false):
                     return StationCylinderState.Up;
@@ -125,8 +122,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         get
         {
             switch ((
-                _io.GetInput(InputIo.NgCarrierGripperOpen),
-                _io.GetInput(InputIo.NgCarrierGripperClosed)))
+                Io.GetInput(InputIo.NgCarrierGripperOpen),
+                Io.GetInput(InputIo.NgCarrierGripperClosed)))
             {
                 case (true, false):
                     return NgTransferGripperState.Open;
@@ -142,7 +139,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     {
         return location == NgTransferDestination.Station
             ? Station.CarrierPresent
-            : _io.GetInput(InputIo.NgShuttleCarrierDetected);
+            : Io.GetInput(InputIo.NgShuttleCarrierDetected);
     }
 
     public MotionStatus Motion { get; }
@@ -160,7 +157,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
     }
 
-    public bool IsRaised => _io.GetInput(InputIo.NgCarrierPickupUp) && !_io.GetInput(InputIo.NgCarrierPickupDown);
+    public bool IsRaised => Io.GetInput(InputIo.NgCarrierPickupUp) && !Io.GetInput(InputIo.NgCarrierPickupDown);
 
     public bool IsClear => IsRaised && !IsTransferPending;
 
@@ -171,7 +168,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             return Station.CarrierPresent
                 && Station.BackupPlate == StationCylinderState.Down
                 && Station.Stopper == StationCylinderState.Up
-                && !_io.GetOutput(OutputIo.MainConveyorRun);
+                && !Io.GetOutput(OutputIo.MainConveyorRun);
         }
     }
 
@@ -733,7 +730,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 if (!allowEmpty)
                 {
                     if (destination == NgTransferDestination.Shuttle)
-                        await _io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true, cancellationToken, requireCurrent: true);
+                        await Io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true, cancellationToken, requireCurrent: true);
                     else
                         await Station.WaitForCarrierAsync(cancellationToken);
                 }
@@ -788,7 +785,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         return location == NgTransferDestination.Station
             ? Station.BackupPlate == StationCylinderState.Up
                 && Station.Stopper == StationCylinderState.Down
-            : _io.GetInput(InputIo.NgShuttleUp) && !_io.GetInput(InputIo.NgShuttleDown);
+            : Io.GetInput(InputIo.NgShuttleUp) && !Io.GetInput(InputIo.NgShuttleDown);
     }
 
     public Task SetLiftUpAsync(bool up, CancellationToken cancellationToken = default)
@@ -796,12 +793,12 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         cancellationToken.ThrowIfCancellationRequested();
         if (up && IsTransferPending && Gripper != NgTransferGripperState.Closed)
             throw new MotionInterlockException("Confirm the NG gripper is closed before raising the pending transfer.");
-        return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, !up, cancellationToken);
+        return Io.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, !up, cancellationToken);
     }
 
     public async Task SetGripperOpenAsync(bool open, CancellationToken cancellationToken = default)
     {
-        await _io.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, !open, cancellationToken);
+        await Io.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, !open, cancellationToken);
         if (open && Gripper == NgTransferGripperState.Open)
             IsTransferPending = false;
     }

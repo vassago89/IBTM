@@ -358,6 +358,13 @@ public sealed class MachineStoreTests
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.EjectRunSeconds = 0);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.EjectRunSeconds = double.NaN);
         settings.NgConveyor.EjectRunSeconds = 1.25;
+        Assert.Equal(5, settings.NgConveyor.CarrierStopDelaySeconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.CarrierStopDelaySeconds = -1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.CarrierStopDelaySeconds = double.NaN);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.CarrierStopDelaySeconds = double.PositiveInfinity);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.CarrierStopDelaySeconds = double.MaxValue);
+        settings.NgConveyor.CarrierStopDelaySeconds = 0;
+        settings.NgConveyor.CarrierStopDelaySeconds = 0.25;
         settings.Lighting.StabilizationDelayMilliseconds = 375;
         settings.IoBoltHardware.Outputs[OutputIo.ShootingBoltStart].Number = 115;
         await store.SaveSettingsAsync(settings.Sections);

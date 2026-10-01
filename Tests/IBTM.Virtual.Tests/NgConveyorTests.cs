@@ -233,6 +233,41 @@ public sealed class NgConveyorTests
         }
     }
 
+    [Theory]
+    [InlineData(false, 0.2)]
+    [InlineData(true, 0)]
+    public async Task ArrivalPulseUsesConfiguredAdditionalRun(bool reverse, double delaySeconds)
+    {
+        var system = CreateSystem(carrierStopDelaySeconds: delaySeconds);
+        system.Io.AutoResponseEnabled = false;
+        var destination = reverse ? InputIo.NgShuttleCarrierDetected : InputIo.NgConveyorPosition1Occupied;
+        long arrivedAt = 0;
+        TimeSpan? stoppedAfter = null;
+        system.Io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.NgConveyorRun)
+                return;
+            if (on)
+            {
+                arrivedAt = Stopwatch.GetTimestamp();
+                system.Io.SetInput(destination, true);
+                system.Io.SetInput(destination, false);
+            }
+            else if (arrivedAt != 0)
+            {
+                stoppedAfter = Stopwatch.GetElapsedTime(arrivedAt);
+            }
+        };
+
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await system.Conveyor.RunUntilAsync(destination, reverse, stop.Token);
+        Assert.NotNull(stoppedAfter);
+        Assert.True(stoppedAfter >= TimeSpan.FromSeconds(delaySeconds) - TimeSpan.FromMilliseconds(15));
+        Assert.False(system.Io.GetInput(destination));
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+        Assert.Equal(reverse, system.Io.GetOutput(OutputIo.NgConveyorReverse));
+    }
+
     [Fact]
     public async Task NgReverseReturnLowersShuttleBeforeStartingBelt()
     {
@@ -247,8 +282,7 @@ public sealed class NgConveyorTests
                 beltStarted = true;
             }
         };
-        // Allow the existing five-second equipment-debug delay after arrival.
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await system.Conveyor.ReturnFromConveyorAsync(stop.Token);
         Assert.True(beltStarted);
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
@@ -268,7 +302,7 @@ public sealed class NgConveyorTests
         system.Io.SetInputs(
             (InputIo.NgConveyorPosition1Occupied, severalOccupiedSensors),
             (InputIo.NgConveyorPosition2Occupied, severalOccupiedSensors));
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var run = system.Conveyor.ReturnFromConveyorAsync(stop.Token);
         try
         {
@@ -277,7 +311,7 @@ public sealed class NgConveyorTests
             Assert.False(run.IsCompleted);
             system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
             Assert.True(await WaitUntilAsync(
-                () => !system.Io.GetOutput(OutputIo.NgShuttleDown), TimeSpan.FromSeconds(7)));
+                () => !system.Io.GetOutput(OutputIo.NgShuttleDown), TimeSpan.FromSeconds(2)));
             Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
             system.Io.SetInputs((InputIo.NgShuttleDown, false), (InputIo.NgShuttleUp, true));
             await run.WaitAsync(TimeSpan.FromSeconds(1));
@@ -296,7 +330,7 @@ public sealed class NgConveyorTests
     [InlineData(true)]
     public async Task NgReturnStopsBeltImmediatelyDuringArrivalSettling(bool losePickupClearance)
     {
-        var system = CreateSystem();
+        var system = CreateSystem(carrierStopDelaySeconds: 5);
         await system.Conveyor.SetShuttleDownAsync(true);
         await system.Signals.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false);
         system.Io.AutoResponseEnabled = false;
@@ -307,7 +341,7 @@ public sealed class NgConveyorTests
         {
             await WaitForOutputAsync(system.Io, OutputIo.NgConveyorRun, true);
             system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-            // Cancel after arrival, while the existing settling delay is still active.
+            // Cancel after arrival, while the configured additional run is still active.
             await Task.Delay(100);
             Assert.False(run.IsCompleted);
             Assert.True(system.Io.GetOutput(OutputIo.NgConveyorRun));
@@ -890,7 +924,11 @@ public sealed class NgConveyorTests
         Assert.Equal(stopAtDestination ? 1 : 2, motorStarts);
     }
 
-    private static TestSystem CreateSystem(int alarmCarrierCount = 3, UnitSettings? units = null, double ejectRunSeconds = 0.35)
+    private static TestSystem CreateSystem(
+        int alarmCarrierCount = 3,
+        UnitSettings? units = null,
+        double ejectRunSeconds = 0.35,
+        double carrierStopDelaySeconds = 0)
     {
         var io = new VirtualIoService(
             Outputs(
@@ -905,7 +943,12 @@ public sealed class NgConveyorTests
         var motionSettings = new InspectionGantrySettings();
         var motion = new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);
         var work = ConveyorStation.CreateInspection(io);
-        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings { AlarmCarrierCount = alarmCarrierCount, EjectRunSeconds = ejectRunSeconds }, units);
+        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings
+        {
+            AlarmCarrierCount = alarmCarrierCount,
+            EjectRunSeconds = ejectRunSeconds,
+            CarrierStopDelaySeconds = carrierStopDelaySeconds,
+        }, units);
         var pickup = new InspectionStation(
             work,
             motion,

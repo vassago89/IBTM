@@ -352,10 +352,10 @@ public sealed class AutoUnitTests
     private sealed class TestUnit : AutoUnit
     {
         public TestUnit(IIoService? io = null)
-            : base([InputIo.NgCarrierEjectButton], [OutputIo.NgConveyorRun])
+            : base(
+                io ?? new VirtualIoService(new NgConveyorHardwareSettings().Outputs, new()),
+                [InputIo.NgCarrierEjectButton], [OutputIo.NgConveyorRun])
         {
-            if (io is not null)
-                ObserveIo(io);
         }
 
         public bool? InputValue { get; private set; }

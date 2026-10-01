@@ -18,8 +18,8 @@ public sealed partial class NgCarrierConveyor
         transfer.Changed += changed.Set;
         try
         {
-            while (Step is not NgConveyorState.ReadyToEject || _io.GetOutput(OutputIo.NgConveyorRun)
-                || !_io.GetInput(InputIo.NgConveyorPosition1Occupied) || _io.GetInput(InputIo.NgShuttleCarrierDetected)
+            while (Step is not NgConveyorState.ReadyToEject || Io.GetOutput(OutputIo.NgConveyorRun)
+                || !Io.GetInput(InputIo.NgConveyorPosition1Occupied) || Io.GetInput(InputIo.NgShuttleCarrierDetected)
                 || ShuttleLift != StationCylinderState.Up || !IsTransferClear)
                 await changed.WaitAsync(cancellationToken);
         }
@@ -67,7 +67,7 @@ public sealed partial class NgCarrierConveyor
             throw new InvalidOperationException("Release the NG transfer and raise the open pickup before returning the conveyor carrier.");
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var motor = new ConveyorRun(
-            _io, OutputIo.NgConveyorRun, operation.Token,
+            Io, OutputIo.NgConveyorRun, operation.Token,
             OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         void CheckPickup()
         {
@@ -82,12 +82,12 @@ public sealed partial class NgCarrierConveyor
             EnterStep(NgConveyorState.ReturningToShuttle);
             CheckPickup();
             operation.Token.ThrowIfCancellationRequested();
-            if (!_io.GetInput(InputIo.NgShuttleCarrierDetected))
+            if (!Io.GetInput(InputIo.NgShuttleCarrierDetected))
                 await SetShuttleDownAsync(true, operation.Token);
-            if (ShuttleLift != StationCylinderState.Down && !_io.GetInput(InputIo.NgShuttleCarrierDetected))
+            if (ShuttleLift != StationCylinderState.Down && !Io.GetInput(InputIo.NgShuttleCarrierDetected))
                 throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
 
-            await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false, operation.Token);
+            await Io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false, operation.Token);
             _movement = Movement.ReturningToShuttle;
             await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, operation.Token);
             await SetShuttleDownAsync(false, operation.Token);

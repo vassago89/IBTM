@@ -14,7 +14,6 @@ namespace IBTM.BoltFastening;
 
 public sealed class BoltFasteningStation : AutoUnit
 {
-    private readonly IIoService _io;
     private readonly BoltFeederUnit _feeder;
     private readonly IXyMotion _motion;
     private readonly BoltFasteningSettings _settings;
@@ -45,7 +44,7 @@ public sealed class BoltFasteningStation : AutoUnit
         UnitSettings units,
         BoltFeederUnit feeder,
         ILogger<BoltFasteningStation>? log = null)
-        : base([
+        : base(io, [
             InputIo.PickupHeadVacuumDetected,
             InputIo.ShootingTubeBoltDetected,
             InputIo.PickupHeadUp,
@@ -60,7 +59,6 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         ShootingHead = shootingHead;
         PickupHead = pickupHead;
-        _io = io;
         _feeder = feeder;
         _motion = motion;
         _settings = settings;
@@ -72,7 +70,6 @@ public sealed class BoltFasteningStation : AutoUnit
         Motion = motionStatus;
         InitializeRecipeBoltPositions();
         recipes.Changed += InitializeRecipeBoltPositions;
-        ObserveIo(io);
         station.Changed += NotifyChanged;
     }
 
@@ -97,7 +94,7 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         get
         {
-            switch ((_io.GetInput(InputIo.PickupHeadUp), _io.GetInput(InputIo.PickupHeadDown)))
+            switch ((Io.GetInput(InputIo.PickupHeadUp), Io.GetInput(InputIo.PickupHeadDown)))
             {
                 case (true, false):
                     return StationCylinderState.Up;
@@ -113,7 +110,7 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         get
         {
-            switch ((_io.GetInput(InputIo.ShootingHeadUp), _io.GetInput(InputIo.ShootingHeadDown)))
+            switch ((Io.GetInput(InputIo.ShootingHeadUp), Io.GetInput(InputIo.ShootingHeadDown)))
             {
                 case (true, false):
                     return StationCylinderState.Up;
@@ -129,7 +126,7 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         get
         {
-            switch ((_io.GetInput(InputIo.PickupTableUp), _io.GetInput(InputIo.PickupTableDown)))
+            switch ((Io.GetInput(InputIo.PickupTableUp), Io.GetInput(InputIo.PickupTableDown)))
             {
                 case (true, false):
                     return StationCylinderState.Up;
@@ -198,7 +195,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 if (!repeat && _units.ShootingBoltFeeder
                     && (selectedBolts is null || _recipes.Current.Pcb.BoltPoints.Any(
                         bolt => bolt.Head == FasteningHead.Shooting && selectedBolts.Contains(bolt.Id))))
-                    _io.SetOutput(OutputIo.ShootingEscapeForward, false);
+                    Io.SetOutput(OutputIo.ShootingEscapeForward, false);
                 if (selectedBolts is not null)
                     Station.Restart(Station.CurrentJob);
                 if (StandbyBolt is { IsFasteningPositionDefined: true } standby)
@@ -210,7 +207,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     var startupStarted = Stopwatch.GetTimestamp();
                     await RaiseCylindersAsync(cancellationToken);
                     await MoveZAsync(0, cancellationToken);
-                    await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
+                    await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
                     EnsureCanMoveHorizontal(cancellationToken);
                     await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
                     await MoveZAsync(_settings.SafeZ, cancellationToken);
@@ -357,7 +354,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     var standbyStarted = Stopwatch.GetTimestamp();
                     await RaiseCylindersAsync(cancellationToken);
                     await MoveZAsync(_settings.SafeZ, cancellationToken);
-                    await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
+                    await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
                     EnsureCanMoveHorizontal(cancellationToken);
                     await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
                     _log?.LogInformation("Bolt timing {Bolt}: standby complete, total={ElapsedMs:F1} ms.",
@@ -436,7 +433,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 {
                                     await RaiseCylindersAsync(token);
                                     await MoveZAsync(_settings.SafeZ, token);
-                                    await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
+                                    await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
                                 }
                                 if (ShootingHeadPosition != StationCylinderState.Up
                                     && (!IsAt(bolt) || feeding))
@@ -504,12 +501,12 @@ public sealed class BoltFasteningStation : AutoUnit
                                 _log?.LogInformation("Bolt timing {Bolt}: pickup changeover Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
                                     bolt.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                                 started = Stopwatch.GetTimestamp();
-                                await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, token);
+                                await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, token);
                                 _log?.LogInformation("Bolt timing {Bolt}: pickup table DOWN confirmed, elapsed={ElapsedMs:F1} ms.",
                                     bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                             }
 
-                            if (!_io.GetInput(InputIo.PickupHeadVacuumDetected))
+                            if (!Io.GetInput(InputIo.PickupHeadVacuumDetected))
                             {
                                 TraceStep(step, target, job.Id, "pickup XY movement");
                                 await MoveToPickupXYAsync(token);
@@ -531,7 +528,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                     if (feeding)
                                     {
                                         token.ThrowIfCancellationRequested();
-                                        _io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
+                                        Io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
                                         await Task.Delay(_settings.PickupVacuumDelayMilliseconds, token);
                                     }
 
@@ -540,12 +537,12 @@ public sealed class BoltFasteningStation : AutoUnit
                                     token.ThrowIfCancellationRequested();
                                     if (!feeding)
                                         break;
-                                    var vacuumDetected = _io.GetInput(InputIo.PickupHeadVacuumDetected);
+                                    var vacuumDetected = Io.GetInput(InputIo.PickupHeadVacuumDetected);
                                     _log?.LogInformation("Bolt timing {Bolt}: pickup vacuum at Safe Z, attempt={Attempt}, detected={Detected}.",
                                         bolt.Id, retry + 1, vacuumDetected);
                                     if (vacuumDetected)
                                         break;
-                                    _io.SetOutput(OutputIo.PickupHeadVacuumPump, false);
+                                    Io.SetOutput(OutputIo.PickupHeadVacuumPump, false);
                                     if (retry >= retryCount)
                                         throw new MaintenanceStopException(
                                             $"Pickup bolt {bolt.Id}, {bolt.HeatSink}: vacuum not detected at Safe Z after {retry + 1} pickup attempts.");
@@ -617,7 +614,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 feedToken.ThrowIfCancellationRequested();
                                 _log?.LogInformation("Bolt {Head}: motor START completed; requesting head DOWN.", bolt.Head);
                                 // Screw contact can stop the cylinder before its DOWN sensor.
-                                _io.SetOutput(bolt.Head == FasteningHead.Pickup
+                                Io.SetOutput(bolt.Head == FasteningHead.Pickup
                                     ? OutputIo.PickupHeadDown : OutputIo.ShootingHeadDown, true);
                                 feedToken.ThrowIfCancellationRequested();
                                 _log?.LogInformation("Bolt {Head}: head DOWN output sent.", bolt.Head);
@@ -771,11 +768,11 @@ public sealed class BoltFasteningStation : AutoUnit
         boltId ??= ActiveBolt?.Id;
         _log?.LogInformation("Bolt timing {Bolt}: shooting feed begin.", boltId);
         cancellationToken.ThrowIfCancellationRequested();
-        if ((_io.GetInput(InputIo.ShootingEscapeForward), _io.GetInput(InputIo.ShootingEscapeBackward))
+        if ((Io.GetInput(InputIo.ShootingEscapeForward), Io.GetInput(InputIo.ShootingEscapeBackward))
             is not (false, true))
-            await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false, cancellationToken);
+            await Io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false, cancellationToken);
         await WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken);
-        await _io.WaitForInputAsync(
+        await Io.WaitForInputAsync(
             InputIo.ShootingTubeBoltDetected, false, _settings.ShootingDetectionTimeoutMilliseconds,
             cancellationToken, requireCurrent: true);
         _log?.LogInformation("Bolt timing {Bolt}: feeder ready / tube clear, elapsed={ElapsedMs:F1} ms.",
@@ -786,26 +783,26 @@ public sealed class BoltFasteningStation : AutoUnit
         try
         {
             started = Stopwatch.GetTimestamp();
-            await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true, cancellationToken);
+            await Io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true, cancellationToken);
             _log?.LogInformation("Bolt timing {Bolt}: escape FORWARD, elapsed={ElapsedMs:F1} ms.",
                 boltId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             started = Stopwatch.GetTimestamp();
-            _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
-            boltPassed = _io.WaitForInputAsync(
+            Io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
+            boltPassed = Io.WaitForInputAsync(
                 InputIo.ShootingTubeBoltDetected, true, _settings.ShootingDetectionTimeoutMilliseconds, passage.Token);
             cancellationToken.ThrowIfCancellationRequested();
-            _io.SetOutput(OutputIo.ShootBolt, true);
+            Io.SetOutput(OutputIo.ShootBolt, true);
             await boltPassed;
             _log?.LogInformation("Bolt timing {Bolt}: shot to tube ON, elapsed={ElapsedMs:F1} ms.",
                 boltId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             var arrivalStartedAt = Stopwatch.GetTimestamp();
-            await _io.WaitForInputAsync(
+            await Io.WaitForInputAsync(
                 InputIo.ShootingTubeBoltDetected, false, _settings.ShootingDetectionTimeoutMilliseconds, cancellationToken);
             _log?.LogInformation("Bolt timing {Bolt}: tube passage OFF, elapsed={ElapsedMs:F1} ms.",
                 boltId, Stopwatch.GetElapsedTime(arrivalStartedAt).TotalMilliseconds);
             started = Stopwatch.GetTimestamp();
             cancellationToken.ThrowIfCancellationRequested();
-            _io.SetOutput(OutputIo.ShootingEscapeForward, false);
+            Io.SetOutput(OutputIo.ShootingEscapeForward, false);
             _log?.LogInformation("Bolt timing {Bolt}: escape BACKWARD requested, elapsed={ElapsedMs:F1} ms.",
                 boltId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             var arrivalRemaining = TimeSpan.FromSeconds(_settings.ShootingArrivalDelaySeconds)
@@ -970,7 +967,7 @@ public sealed class BoltFasteningStation : AutoUnit
             FasteningHead.Shooting => OutputIo.ShootingHeadDown,
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
-        return _io.SetOutputAndWaitAsync(output, down, cancellationToken);
+        return Io.SetOutputAndWaitAsync(output, down, cancellationToken);
     }
 
     public Task RaiseCylindersAsync(CancellationToken cancellationToken = default)
@@ -995,11 +992,11 @@ public sealed class BoltFasteningStation : AutoUnit
                 changed.Set();
         }
         _feeder.Changed += changed.Set;
-        _io.InputChanged += OnBoltInputChanged;
+        Io.InputChanged += OnBoltInputChanged;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            while (!_io.GetInput(boltDetected))
+            while (!Io.GetInput(boltDetected))
             {
                 // Use a bolt still present, but never wait for a feeder that has stopped on an empty alarm.
                 if (_feeder.EmptyAlarm is { } alarm)
@@ -1010,7 +1007,7 @@ public sealed class BoltFasteningStation : AutoUnit
         finally
         {
             _feeder.Changed -= changed.Set;
-            _io.InputChanged -= OnBoltInputChanged;
+            Io.InputChanged -= OnBoltInputChanged;
         }
     }
 
@@ -1019,7 +1016,7 @@ public sealed class BoltFasteningStation : AutoUnit
         Exception? cleanupFailure = null;
         try
         {
-            _io.SetOutput(OutputIo.ShootBolt, false);
+            Io.SetOutput(OutputIo.ShootBolt, false);
         }
         catch (Exception exception)
         {
@@ -1027,7 +1024,7 @@ public sealed class BoltFasteningStation : AutoUnit
         }
         try
         {
-            _io.SetOutput(OutputIo.ShootingEscapeForward, false);
+            Io.SetOutput(OutputIo.ShootingEscapeForward, false);
         }
         catch (Exception exception)
         {
@@ -1039,7 +1036,7 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public void StopIoStart(FasteningHead head)
     {
-        _io.SetOutput(
+        Io.SetOutput(
             head == FasteningHead.Pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart,
             false);
     }
@@ -1053,9 +1050,9 @@ public sealed class BoltFasteningStation : AutoUnit
             ? OutputIo.PickupHeadVacuumPump
             : OutputIo.ShootingHeadVacuumPump;
         cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(output, on);
+        Io.SetOutput(output, on);
         if (head == FasteningHead.Pickup)
-            await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, on, cancellationToken, requireCurrent: true);
+            await Io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, on, cancellationToken, requireCurrent: true);
     }
 
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
@@ -1125,7 +1122,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     tableDown ? "DOWN" : "UP");
                 EnsureCanMoveHorizontal(cancellationToken);
                 if (PickupTablePosition != (tableDown ? StationCylinderState.Down : StationCylinderState.Up))
-                    await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, tableDown, cancellationToken);
+                    await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, tableDown, cancellationToken);
                 _log?.LogInformation("Bolt teaching Move To: pickup table feedback confirmed.");
                 using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 void CheckTeachingClearance()
@@ -1225,7 +1222,7 @@ public sealed class BoltFasteningStation : AutoUnit
         if (PickupTablePosition != StationCylinderState.Down)
         {
             started = Stopwatch.GetTimestamp();
-            await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, cancellationToken);
+            await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, cancellationToken);
             _log?.LogInformation("Bolt timing {Bolt}: pickup travel table DOWN confirmed, elapsed={ElapsedMs:F1} ms.",
                 boltId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }

@@ -254,6 +254,17 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'After arrival sensor (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                            VerticalAlignment="Center"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Text="{Binding Settings.NgConveyor.CarrierStopDelaySeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                            VerticalAlignment="Center" Grid.Column="1"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
                                         <TextBlock Text="{ui:Text 'Eject run after S1 (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"

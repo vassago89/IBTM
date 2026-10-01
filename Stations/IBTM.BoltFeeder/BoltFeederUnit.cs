@@ -9,7 +9,6 @@ namespace IBTM.BoltFeeder;
 
 public sealed class BoltFeederUnit : AutoUnit
 {
-    private readonly IIoService _io;
     private readonly BoltFeederSettings _settings;
     private readonly UnitSettings _units;
     // Sensor-edge times only: empty alarms and shooting run-on do not have sequence states.
@@ -18,17 +17,15 @@ public sealed class BoltFeederUnit : AutoUnit
     private long _escapeChangedAt;
 
     public BoltFeederUnit(IIoService io, BoltFeederSettings settings, UnitSettings units)
-        : base([
+        : base(io, [
             InputIo.PickupFeederBoltDetected,
             InputIo.ShootingFeederBoltDetected,
             InputIo.ShootingEscapeForward,
             InputIo.ShootingEscapeBackward,
         ])
     {
-        _io = io;
         _settings = settings;
         _units = units;
-        ObserveIo(io);
     }
 
     public IoTimeoutException? EmptyAlarm { get; private set; }
@@ -56,19 +53,19 @@ public sealed class BoltFeederUnit : AutoUnit
                 if (shootingEnabled)
                 {
                     // Feed during escape travel; only the empty alarm waits for its return.
-                    if (_io.GetInput(InputIo.ShootingEscapeBackward)
-                        && !_io.GetInput(InputIo.ShootingEscapeForward))
+                    if (Io.GetInput(InputIo.ShootingEscapeBackward)
+                        && !Io.GetInput(InputIo.ShootingEscapeForward))
                     {
                         waitMilliseconds = Math.Min(waitMilliseconds,
                             CheckEmptyTimeout(InputIo.ShootingFeederBoltDetected,
                                 _settings.ShootingTimeoutMilliseconds, cancellationToken));
                     }
-                    var runOnRemaining = _io.GetInput(InputIo.ShootingFeederBoltDetected)
+                    var runOnRemaining = Io.GetInput(InputIo.ShootingFeederBoltDetected)
                         ? _settings.ShootingRunOnMilliseconds
                             - Stopwatch.GetElapsedTime(Volatile.Read(ref _shootingChangedAt)).TotalMilliseconds
                         : double.PositiveInfinity;
                     cancellationToken.ThrowIfCancellationRequested();
-                    _io.SetOutput(OutputIo.ShootingFeederOff, runOnRemaining <= 0);
+                    Io.SetOutput(OutputIo.ShootingFeederOff, runOnRemaining <= 0);
                     if (runOnRemaining > 0)
                         waitMilliseconds = Math.Min(waitMilliseconds, runOnRemaining);
                 }
@@ -108,7 +105,7 @@ public sealed class BoltFeederUnit : AutoUnit
 
     private double CheckEmptyTimeout(InputIo input, int timeoutMilliseconds, CancellationToken cancellationToken)
     {
-        var detected = _io.GetInput(input);
+        var detected = Io.GetInput(input);
         cancellationToken.ThrowIfCancellationRequested();
         if (detected || timeoutMilliseconds == Timeout.Infinite)
             return double.PositiveInfinity;
@@ -124,7 +121,7 @@ public sealed class BoltFeederUnit : AutoUnit
 
     public void Stop()
     {
-        _io.SetOutput(OutputIo.ShootingFeederOff, true);
+        Io.SetOutput(OutputIo.ShootingFeederOff, true);
     }
 
     protected override void OnInputChanged(InputIo input, bool value)

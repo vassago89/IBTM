@@ -28,7 +28,7 @@ public sealed partial class MainConveyor
         StepChanged += changed.Set;
         try
         {
-            while (_io.GetOutput(OutputIo.MainConveyorRun)
+            while (Io.GetOutput(OutputIo.MainConveyorRun)
                 || Step is MainConveyorState.ReceivingFrontCarrier
                     or MainConveyorState.MovingPcbPlacementToBoltFastening
                     or MainConveyorState.MovingBoltFasteningToInspection
@@ -53,7 +53,7 @@ public sealed partial class MainConveyor
             using var runCancellation = BeginConveyorOperation(cancellationToken);
             cancellationToken = runCancellation.Token;
             using var entryStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, entryStop.Token, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+            using var motor = new ConveyorRun(Io, OutputIo.MainConveyorRun, entryStop.Token, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
             var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             void StopAtEntry(InputIo input, bool value)
             {
@@ -72,7 +72,7 @@ public sealed partial class MainConveyor
                 }
             }
 
-            _io.InputChanged += StopAtEntry;
+            Io.InputChanged += StopAtEntry;
             try
             {
                 await Task.WhenAll(
@@ -80,7 +80,7 @@ public sealed partial class MainConveyor
                     _fastening.ReleaseAsync(cancellationToken),
                     _inspection.Station.ReleaseAsync(cancellationToken));
 
-                if (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
+                if (Io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                     StopAtEntry(InputIo.MainConveyorEntryCarrierDetected, true);
                 if (arrived.Task.IsCompleted)
                 {
@@ -105,7 +105,7 @@ public sealed partial class MainConveyor
             }
             finally
             {
-                _io.InputChanged -= StopAtEntry;
+                Io.InputChanged -= StopAtEntry;
             }
         }
         finally

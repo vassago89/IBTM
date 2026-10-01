@@ -8,25 +8,24 @@ namespace IBTM.Device;
 
 public abstract class AutoUnit
 {
+    protected readonly IIoService Io;
     private readonly AsyncAutoResetEvent _stateChanged;
     private readonly HashSet<InputIo> _inputs;
     private readonly HashSet<OutputIo> _outputs;
     private string? _lastStep;
     private bool _waitLogged;
 
-    protected AutoUnit(InputIo[] inputs, OutputIo[]? outputs = null)
+    protected AutoUnit(IIoService io, InputIo[] inputs, OutputIo[]? outputs = null)
     {
+        Io = io;
         _stateChanged = new();
         _inputs = new(inputs);
         _outputs = new(outputs ?? []);
-    }
 
-    // Subscribe after the unit has initialized the members used by its input handler.
-    protected void ObserveIo(IIoService io)
-    {
-        io.InputChanged += OnIoInputChanged;
+        // MachineController starts I/O acquisition after all units are constructed.
+        Io.InputChanged += OnIoInputChanged;
         if (_outputs.Count > 0)
-            io.OutputChanged += OnIoOutputChanged;
+            Io.OutputChanged += OnIoOutputChanged;
     }
 
     private void OnIoInputChanged(InputIo input, bool value)

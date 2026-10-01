@@ -11,7 +11,6 @@ namespace IBTM.Conveyor;
 
 public sealed partial class MainConveyor : AutoUnit
 {
-    private readonly IIoService _io;
     private readonly ConveyorSettings _settings;
     private readonly OperationCancellation _operations;
     private readonly ConveyorStation _placement;
@@ -32,21 +31,19 @@ public sealed partial class MainConveyor : AutoUnit
         ConveyorStation fastening,
         InspectionStation inspection,
         UnitSettings units)
-        : base([
+        : base(io, [
             InputIo.AutoMode,
             InputIo.MainConveyorAvailableFromFront2,
             InputIo.MainConveyorReadyFromRear,
             InputIo.MainConveyorEntryCarrierDetected,
         ])
     {
-        _io = io;
         _settings = settings;
         _operations = operations;
         _placement = placement;
         _fastening = fastening;
         _inspection = inspection;
         _units = units;
-        ObserveIo(io);
         placement.Changed += NotifyChanged;
         fastening.Changed += NotifyChanged;
         inspection.Changed += NotifyChanged;
@@ -81,9 +78,9 @@ public sealed partial class MainConveyor : AutoUnit
     {
         get
         {
-            return _io.GetInput(InputIo.AutoMode)
+            return Io.GetInput(InputIo.AutoMode)
                 ? _testUpstreamCarrierAvailable
-                : _io.GetInput(InputIo.MainConveyorAvailableFromFront2);
+                : Io.GetInput(InputIo.MainConveyorAvailableFromFront2);
         }
     }
 
@@ -91,9 +88,9 @@ public sealed partial class MainConveyor : AutoUnit
     {
         get
         {
-            return _io.GetInput(InputIo.AutoMode)
+            return Io.GetInput(InputIo.AutoMode)
                 ? _testDownstreamReady
-                : _io.GetInput(InputIo.MainConveyorReadyFromRear);
+                : Io.GetInput(InputIo.MainConveyorReadyFromRear);
         }
     }
 
@@ -103,7 +100,7 @@ public sealed partial class MainConveyor : AutoUnit
         set
         {
             // The selector contact is ON in teaching/manual mode.
-            value = value && _io.IsReady && _io.GetInput(InputIo.AutoMode);
+            value = value && Io.IsReady && Io.GetInput(InputIo.AutoMode);
             if (_testUpstreamCarrierAvailable == value)
                 return;
             _testUpstreamCarrierAvailable = value;
@@ -116,7 +113,7 @@ public sealed partial class MainConveyor : AutoUnit
         get => _testDownstreamReady;
         set
         {
-            value = value && _io.IsReady && _io.GetInput(InputIo.AutoMode);
+            value = value && Io.IsReady && Io.GetInput(InputIo.AutoMode);
             if (_testDownstreamReady == value)
                 return;
             _testDownstreamReady = value;
@@ -140,7 +137,7 @@ public sealed partial class MainConveyor : AutoUnit
         using var runCancellation = BeginConveyorOperation(cancellationToken);
         cancellationToken = runCancellation.Token;
         var motor = new ConveyorRun(
-            _io, OutputIo.MainConveyorRun, cancellationToken,
+            Io, OutputIo.MainConveyorRun, cancellationToken,
             OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
         _repeat = repeat;
         try
@@ -148,7 +145,7 @@ public sealed partial class MainConveyor : AutoUnit
             BeginRun();
             while (!cancellationToken.IsCancellationRequested)
             {
-                var state = GetNextStep(_io.GetOutput(OutputIo.MainConveyorRun));
+                var state = GetNextStep(Io.GetOutput(OutputIo.MainConveyorRun));
                 cancellationToken.ThrowIfCancellationRequested();
                 SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, !IsTransferPaused && IsRearDischargeAllowed, cancellationToken);
                 switch (state)
@@ -156,8 +153,8 @@ public sealed partial class MainConveyor : AutoUnit
                     case MainConveyorState.PreparingInspectionCarrier:
                         EnterStep(state);
                         var inspectionJob = _inspection.Station.CurrentJob;
-                        await _io.SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true, cancellationToken);
-                        await _io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
+                        await Io.SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true, cancellationToken);
+                        await Io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
                         if (!_inspection.InspectionRequested
                             && NextTransfer is MainConveyorState.DischargingInspectionCarrier
@@ -201,7 +198,7 @@ public sealed partial class MainConveyor : AutoUnit
                         }
                         Changed += ObserveRear;
                         using var discharge = new ConveyorRun(
-                            _io, OutputIo.MainConveyorRun, cancellationToken,
+                            Io, OutputIo.MainConveyorRun, cancellationToken,
                             OutputIo.MainConveyorAvailableToRear);
                         try
                         {
@@ -225,14 +222,14 @@ public sealed partial class MainConveyor : AutoUnit
                             EnterStep(MainConveyorState.DischargingInspectionCarrier, waitingFor: "Rear Ready=OFF");
                             // Finish motor setup before the final READY check.
                             cancellationToken.ThrowIfCancellationRequested();
-                            _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
+                            Io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
                             cancellationToken.ThrowIfCancellationRequested();
-                            _io.SetOutput(OutputIo.MainConveyorForward, true);
+                            Io.SetOutput(OutputIo.MainConveyorForward, true);
                             cancellationToken.ThrowIfCancellationRequested();
                             if (rearReleased.Task.IsCompleted || !DownstreamReady)
                                 continue;
                             cancellationToken.ThrowIfCancellationRequested();
-                            _io.SetOutput(OutputIo.MainConveyorRun, true);
+                            Io.SetOutput(OutputIo.MainConveyorRun, true);
                             try
                             {
                                 await rearReleased.Task.WaitAsync(timeout, cancellationToken);
@@ -416,7 +413,7 @@ public sealed partial class MainConveyor : AutoUnit
                     && _placement.Completed && !_fastening.CarrierPresent)
                     return MainConveyorState.MovingPcbPlacementToBoltFastening;
                 if (!_placement.CarrierPresent
-                    && (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable))
+                    && (Io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable))
                     return MainConveyorState.ReceivingFrontCarrier;
             }
             if (IsRearDischargeAllowed)
@@ -439,13 +436,13 @@ public sealed partial class MainConveyor : AutoUnit
         // Keep Station 3 supported while an NG transfer has not released its grip.
         var preparation = new List<Task>(3);
         if (!_placement.CarrierPresent && _placement.BackupPlate != StationCylinderState.Down)
-            preparation.Add(_io.SetOutputAndWaitAsync(
+            preparation.Add(Io.SetOutputAndWaitAsync(
                 OutputIo.PcbPlacementBackupPlateUp, false, cancellationToken));
         if (!_fastening.CarrierPresent && _fastening.BackupPlate != StationCylinderState.Down)
-            preparation.Add(_io.SetOutputAndWaitAsync(
+            preparation.Add(Io.SetOutputAndWaitAsync(
                 OutputIo.BoltFasteningBackupPlateUp, false, cancellationToken));
         if (_inspection.IsReceiveAllowed && _inspection.Station.BackupPlate != StationCylinderState.Down)
-            preparation.Add(_io.SetOutputAndWaitAsync(
+            preparation.Add(Io.SetOutputAndWaitAsync(
                 OutputIo.InspectionBackupPlateUp, false, cancellationToken));
         return Task.WhenAll(preparation);
     }
@@ -478,7 +475,7 @@ public sealed partial class MainConveyor : AutoUnit
         Exception? failure = null;
         try
         {
-            using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, transfer.Token);
+            using var motor = new ConveyorRun(Io, OutputIo.MainConveyorRun, transfer.Token);
             try
             {
                 if (!receiving)
@@ -506,9 +503,9 @@ public sealed partial class MainConveyor : AutoUnit
 
                 destination.Changed += ObserveArrival;
                 if (receiving)
-                    _io.InputChanged += ObserveEntry;
+                    Io.InputChanged += ObserveEntry;
                 ObserveArrival();
-                if (receiving && _io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
+                if (receiving && Io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                     entered.TrySetResult();
                 if (receiving)
                 {
@@ -590,7 +587,7 @@ public sealed partial class MainConveyor : AutoUnit
             finally
             {
                 if (receiving)
-                    _io.InputChanged -= ObserveEntry;
+                    Io.InputChanged -= ObserveEntry;
                 destination.Changed -= ObserveArrival;
             }
         }
@@ -641,10 +638,10 @@ public sealed partial class MainConveyor : AutoUnit
     private void SetSmemaOutput(OutputIo output, bool value, CancellationToken cancellationToken)
     {
         // The selector is ON in teaching/manual mode; direct OUTPUTS remain available.
-        if (!_io.GetInput(InputIo.AutoMode))
+        if (!Io.GetInput(InputIo.AutoMode))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _io.SetOutput(output, value);
+            Io.SetOutput(output, value);
         }
     }
 
@@ -652,7 +649,7 @@ public sealed partial class MainConveyor : AutoUnit
     {
         using var runCancellation = BeginConveyorOperation(cancellationToken);
         cancellationToken = runCancellation.Token;
-        using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+        using var motor = new ConveyorRun(Io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
         try
         {
             StartMotor(cancellationToken);
@@ -682,7 +679,7 @@ public sealed partial class MainConveyor : AutoUnit
         var run = _runCancellation;
         _runCancellation = null;
         using var motor = new ConveyorRun(
-            _io, OutputIo.MainConveyorRun, CancellationToken.None,
+            Io, OutputIo.MainConveyorRun, CancellationToken.None,
             OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
         try
         {
@@ -697,10 +694,10 @@ public sealed partial class MainConveyor : AutoUnit
     private void StartMotor(CancellationToken cancellationToken, bool reverse = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
+        Io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
         cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(OutputIo.MainConveyorForward, !reverse);
+        Io.SetOutput(OutputIo.MainConveyorForward, !reverse);
         cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(OutputIo.MainConveyorRun, true);
+        Io.SetOutput(OutputIo.MainConveyorRun, true);
     }
 }
