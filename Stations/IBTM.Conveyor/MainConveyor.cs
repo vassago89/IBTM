@@ -32,6 +32,12 @@ public sealed partial class MainConveyor : AutoUnit
         ConveyorStation fastening,
         InspectionStation inspection,
         UnitSettings units)
+        : base([
+            InputIo.AutoMode,
+            InputIo.MainConveyorAvailableFromFront2,
+            InputIo.MainConveyorReadyFromRear,
+            InputIo.MainConveyorEntryCarrierDetected,
+        ])
     {
         _io = io;
         _settings = settings;
@@ -40,7 +46,7 @@ public sealed partial class MainConveyor : AutoUnit
         _fastening = fastening;
         _inspection = inspection;
         _units = units;
-        io.InputChanged += OnInputChanged;
+        ObserveIo(io);
         placement.Changed += NotifyChanged;
         fastening.Changed += NotifyChanged;
         inspection.Changed += NotifyChanged;
@@ -118,20 +124,12 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    private void OnInputChanged(InputIo input, bool value)
+    protected override void OnInputChanged(InputIo input, bool value)
     {
         if (input == InputIo.AutoMode && !value)
         {
             _testUpstreamCarrierAvailable = false;
             _testDownstreamReady = false;
-        }
-
-        if (input is InputIo.AutoMode
-            or InputIo.MainConveyorAvailableFromFront2
-            or InputIo.MainConveyorReadyFromRear
-            or InputIo.MainConveyorEntryCarrierDetected)
-        {
-            NotifyChanged();
         }
     }
 

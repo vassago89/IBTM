@@ -1,18 +1,50 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 
-namespace IBTM.Core;
+namespace IBTM.Device;
 
 public abstract class AutoUnit
 {
     private readonly AsyncAutoResetEvent _stateChanged;
+    private readonly HashSet<InputIo> _inputs;
+    private readonly HashSet<OutputIo> _outputs;
     private string? _lastStep;
     private bool _waitLogged;
 
-    protected AutoUnit()
+    protected AutoUnit(InputIo[] inputs, OutputIo[]? outputs = null)
     {
         _stateChanged = new();
+        _inputs = new(inputs);
+        _outputs = new(outputs ?? []);
+    }
+
+    // Subscribe after the unit has initialized the members used by its input handler.
+    protected void ObserveIo(IIoService io)
+    {
+        io.InputChanged += OnIoInputChanged;
+        if (_outputs.Count > 0)
+            io.OutputChanged += OnIoOutputChanged;
+    }
+
+    private void OnIoInputChanged(InputIo input, bool value)
+    {
+        if (!_inputs.Contains(input))
+            return;
+        OnInputChanged(input, value);
+        NotifyChanged();
+    }
+
+    private void OnIoOutputChanged(OutputIo output, bool value)
+    {
+        if (_outputs.Contains(output))
+            NotifyChanged();
+    }
+
+    protected virtual void OnInputChanged(InputIo input, bool value)
+    {
     }
 
     public event Action? Changed;
@@ -97,15 +129,5 @@ public abstract class AutoUnit
         Trace?.Invoke(
             $"{GetType().Name}: run ended; cancelled={cancellationToken.IsCancellationRequested}; "
                 + $"last={_lastStep ?? "no step"}.");
-    }
-}
-
-// Only known failures with material still held or supported may request a finish stop.
-// Motion, I/O loss and cleanup failures remain immediate faults.
-public sealed class MaintenanceStopException : InvalidOperationException
-{
-    public MaintenanceStopException(string message, Exception? innerException = null)
-        : base(message, innerException)
-    {
     }
 }

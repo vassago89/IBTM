@@ -18,11 +18,17 @@ public sealed class BoltFeederUnit : AutoUnit
     private long _escapeChangedAt;
 
     public BoltFeederUnit(IIoService io, BoltFeederSettings settings, UnitSettings units)
+        : base([
+            InputIo.PickupFeederBoltDetected,
+            InputIo.ShootingFeederBoltDetected,
+            InputIo.ShootingEscapeForward,
+            InputIo.ShootingEscapeBackward,
+        ])
     {
         _io = io;
         _settings = settings;
         _units = units;
-        io.InputChanged += OnInputChanged;
+        ObserveIo(io);
     }
 
     public IoTimeoutException? EmptyAlarm { get; private set; }
@@ -121,7 +127,7 @@ public sealed class BoltFeederUnit : AutoUnit
         _io.SetOutput(OutputIo.ShootingFeederOff, true);
     }
 
-    private void OnInputChanged(InputIo input, bool value)
+    protected override void OnInputChanged(InputIo input, bool value)
     {
         switch (input)
         {
@@ -134,9 +140,6 @@ public sealed class BoltFeederUnit : AutoUnit
             case InputIo.ShootingEscapeForward or InputIo.ShootingEscapeBackward:
                 Interlocked.Exchange(ref _escapeChangedAt, Stopwatch.GetTimestamp());
                 break;
-            default:
-                return;
         }
-        NotifyChanged();
     }
 }

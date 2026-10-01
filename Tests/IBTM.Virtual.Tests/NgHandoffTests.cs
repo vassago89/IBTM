@@ -49,7 +49,7 @@ public sealed class NgHandoffTests
         SetCarrier(system.Io, InputIo.InspectionHeatSink1Present, false);
         await transfer.ExecuteTransferAsync(
             NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token,
-            holdAtDestination: true);
+            repeat: true);
         Assert.True(transfer.IsTransferPending);
         Assert.True(transfer.IsRaised);
         Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
@@ -262,7 +262,7 @@ public sealed class NgHandoffTests
             io.SetInput(InputIo.NgCarrierDetected, !io.GetInput(InputIo.NgCarrierDetected));
         };
         await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
-            InspectionStationState.PlacingCarrier, stop.Token, holdAtDestination: true);
+            InspectionStationState.PlacingCarrier, stop.Token, repeat: true);
         Assert.True(changedDuringTravel);
         Assert.True(transfer.IsRaised);
         Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
@@ -271,7 +271,7 @@ public sealed class NgHandoffTests
         {
             io.SetInput(InputIo.NgCarrierDetected, value);
             Assert.Equal(InspectionStationState.HoldingAtDestination,
-                transfer.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true, holdAtDestination: true));
+                transfer.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true, repeat: true));
         }
 
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
@@ -296,7 +296,7 @@ public sealed class NgHandoffTests
             NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
         SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
-            InspectionStationState.PlacingCarrier, stop.Token, holdAtDestination: true);
+            InspectionStationState.PlacingCarrier, stop.Token, repeat: true);
         await transfer.SetLiftUpAsync(false, stop.Token);
         await transfer.SetGripperOpenAsync(true, stop.Token);
         var scheduler = new ConcurrentExclusiveSchedulerPair();

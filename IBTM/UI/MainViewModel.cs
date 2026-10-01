@@ -50,9 +50,6 @@ public partial class MainViewModel : ObservableObject
     public partial string? SelectedRecipeName { get; set; }
 
     [ObservableProperty]
-    public partial string? ResetError { get; set; }
-
-    [ObservableProperty]
     public partial string? NavigationError { get; set; }
 
     public MainViewModel(
@@ -72,8 +69,6 @@ public partial class MainViewModel : ObservableObject
         OpenMotionCommand = new RelayCommand(windows.OpenMotion, () => IsOpenDiagnosticAllowed);
         OpenAdcProtocolCommand = new RelayCommand(windows.OpenAdcProtocol, () => IsOpenDiagnosticAllowed);
         OpenLogsCommand = new RelayCommand(windows.OpenLogs, () => IsOpenDiagnosticAllowed);
-        ResetCommand = new AsyncRelayCommand(
-            ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         NavigateCommand = new AsyncRelayCommand<AppPage>(NavigateAsync);
 
         Operation = operationViewModel;
@@ -222,14 +217,13 @@ public partial class MainViewModel : ObservableObject
     public Task ShutdownAsync()
     {
         _shuttingDown = true;
-        OnPropertyChanged(nameof(IsResetAllowed));
         _state.PropertyChanged -= OnMachineStateChanged;
         NavigateCommand.PropertyChanged -= OnRecipeEditingChanged;
         RecipeEditor.LoadCommand.PropertyChanged -= OnRecipeEditingChanged;
         _teachingViewModel.PropertyChanged -= OnRecipeEditingChanged;
 
         return Task.WhenAll(
-            CommandShutdown.WaitAsync(CommandShutdown.Capture(ResetCommand, NavigateCommand)),
+            CommandShutdown.WaitAsync(CommandShutdown.Capture(NavigateCommand)),
             Operation.ShutdownAsync(),
             _teachingViewModel.ShutdownAsync(),
             _inspectionTeachingViewModel.ShutdownAsync(),
@@ -237,28 +231,6 @@ public partial class MainViewModel : ObservableObject
             _settingsViewModel.ShutdownAsync(),
             RecipeEditor.ShutdownAsync());
     }
-
-    public IAsyncRelayCommand ResetCommand { get; }
-
-    private async Task ResetAsync()
-    {
-        if (!IsResetAllowed)
-            return;
-        // Acknowledge even when hardware recovery is blocked; the controller owns admission.
-        ResetError = null;
-        _log.LogInformation("On-screen RESET requested.");
-        try
-        {
-            await _machine.ResetAsync();
-        }
-        catch (Exception exception)
-        {
-            ResetError = UiText.Format($"RESET failed: {exception.Message}");
-            _log.LogError(exception, "On-screen RESET failed.");
-        }
-    }
-
-    public bool IsResetAllowed => !_shuttingDown;
 
     public IAsyncRelayCommand<AppPage> NavigateCommand { get; }
 

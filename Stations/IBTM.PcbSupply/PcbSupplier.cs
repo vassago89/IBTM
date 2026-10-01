@@ -30,6 +30,16 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         PcbSupplySettings settings,
         RecipeManager recipes,
         UnitSettings units)
+        : base([
+            InputIo.AutoMode,
+            InputIo.PcbSupplyAvailableFromFront1,
+            InputIo.PcbSupplyUnrotated,
+            InputIo.PcbSupplyRotated,
+            InputIo.PcbSupplyGripperClosed,
+            InputIo.PcbSupplyGripperOpen,
+            InputIo.PcbSupplyIpmFixerForward,
+            InputIo.PcbSupplyPcbDetected,
+        ])
     {
         _motion = motion;
         _io = io;
@@ -38,7 +48,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         _recipes = recipes;
         Motion = motionStatus;
         Phase = PcbSupplyState.MovingToPickup;
-        io.InputChanged += OnInputChanged;
+        ObserveIo(io);
         motion.StateChanged += OnMotionStateChanged;
         StepChanged += NotifyChanged;
     }
@@ -155,23 +165,11 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, false);
     }
 
-    private void OnInputChanged(InputIo input, bool value)
+    protected override void OnInputChanged(InputIo input, bool value)
     {
         if (input == InputIo.AutoMode && !value)
             _testUpstreamCarrierAvailable = false;
-
-        if (input is InputIo.AutoMode
-            or InputIo.PcbSupplyAvailableFromFront1
-            or InputIo.PcbSupplyUnrotated
-            or InputIo.PcbSupplyRotated
-            or InputIo.PcbSupplyGripperClosed
-            or InputIo.PcbSupplyGripperOpen
-            or InputIo.PcbSupplyIpmFixerForward
-            or InputIo.PcbSupplyPcbDetected)
-        {
-            OnHandlerChanged();
-            NotifyChanged();
-        }
+        OnHandlerChanged();
     }
 
     private void OnHandlerChanged()

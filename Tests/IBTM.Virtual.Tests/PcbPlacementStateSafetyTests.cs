@@ -842,6 +842,33 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.Same(assembly, Assert.Single(rig.Work.Assemblies));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CompletedCarrierReturningDuringStepSelectionRemainsWaiting(bool repeat)
+    {
+        using var rig = new PlacementRig(probeInputs: true);
+        await rig.InitializeAsync();
+        var job = rig.Work.CurrentJob;
+        rig.Work.Complete(job);
+        await rig.Placer.ExecuteStepAsync(
+            PcbPlacementState.WaitingForCarrier, HeatSinkSlot.HeatSink1, CancellationToken.None, repeat);
+        rig.Io.SetInput(InputIo.PcbPlacementHeatSink1Present, false);
+        rig.InputProbe!.BeforeInputRead = input =>
+        {
+            if (input != InputIo.PcbPlacementHeatSink2Present)
+                return;
+            // The first presence check sees an empty station; the seating check sees it again.
+            rig.InputProbe.BeforeInputRead = null;
+            rig.Io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+        };
+
+        Assert.Equal(PcbPlacementState.WaitingForCarrier,
+            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1, repeat));
+        Assert.True(rig.Work.Completed);
+        Assert.Same(job, rig.Work.CurrentJob);
+    }
+
     [Fact]
     public async Task PressDoesNotRecordAnAssemblyIfPcbDisappears()
     {
@@ -977,7 +1004,7 @@ public sealed class PcbPlacementStateSafetyTests
 
     private sealed class PlacementRig : IDisposable
     {
-        public PlacementRig(bool probeFeedback = false, OperationCancellation? operations = null, bool acknowledgeDeparture = true, int vacuumTimeout = 10_000)
+        public PlacementRig(bool probeFeedback = false, OperationCancellation? operations = null, bool acknowledgeDeparture = true, int vacuumTimeout = 10_000, bool probeInputs = false)
         {
             AcknowledgeDeparture = acknowledgeDeparture;
             Settings = new PcbPlacementHandlerSettings
@@ -992,7 +1019,14 @@ public sealed class PcbPlacementStateSafetyTests
 
             Supply = new() { Handoff = PcbSupplyHandoff.Holding };
             Units = new();
-            Work = ConveyorStation.CreatePcbPlacement(Io);
+            IIoService io = Io;
+            if (probeInputs)
+            {
+                io = System.Reflection.DispatchProxy.Create<IIoService, IoTests.OutputReadProbe>();
+                InputProbe = (IoTests.OutputReadProbe)io;
+                InputProbe.Io = Io;
+            }
+            Work = ConveyorStation.CreatePcbPlacement(io);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition = Position;
             IMotionFeedback feedback = Motion;
@@ -1004,7 +1038,7 @@ public sealed class PcbPlacementStateSafetyTests
                 FeedbackProbe.ReportReady = true;
             }
             Placer = new PcbPlacer((IXyMotion)feedback, new MotionStatus(feedback),
-                Io,
+                io,
                 Settings,
                 Supply,
                 Work,
@@ -1022,6 +1056,7 @@ public sealed class PcbPlacementStateSafetyTests
         public VirtualMotionService Motion { get; }
         public ConveyorStation Work { get; }
         public PcbPlacer Placer { get; }
+        public IoTests.OutputReadProbe? InputProbe { get; }
         public MachineTestSupport.ScopedMotionProbe? FeedbackProbe { get; }
         public SupplyFeedback Supply { get; }
 

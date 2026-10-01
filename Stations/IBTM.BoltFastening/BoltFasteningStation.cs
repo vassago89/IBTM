@@ -45,6 +45,18 @@ public sealed class BoltFasteningStation : AutoUnit
         UnitSettings units,
         BoltFeederUnit feeder,
         ILogger<BoltFasteningStation>? log = null)
+        : base([
+            InputIo.PickupHeadVacuumDetected,
+            InputIo.ShootingTubeBoltDetected,
+            InputIo.PickupHeadUp,
+            InputIo.PickupHeadDown,
+            InputIo.ShootingHeadUp,
+            InputIo.ShootingHeadDown,
+            InputIo.PickupTableUp,
+            InputIo.PickupTableDown,
+            InputIo.ShootingEscapeForward,
+            InputIo.ShootingEscapeBackward,
+        ])
     {
         ShootingHead = shootingHead;
         PickupHead = pickupHead;
@@ -60,7 +72,7 @@ public sealed class BoltFasteningStation : AutoUnit
         Motion = motionStatus;
         InitializeRecipeBoltPositions();
         recipes.Changed += InitializeRecipeBoltPositions;
-        io.InputChanged += OnInputChanged;
+        ObserveIo(io);
         station.Changed += NotifyChanged;
     }
 
@@ -135,23 +147,6 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             return PickupHeadPosition == StationCylinderState.Up
                 && ShootingHeadPosition == StationCylinderState.Up;
-        }
-    }
-
-    private void OnInputChanged(InputIo input, bool value)
-    {
-        if (input is InputIo.PickupHeadVacuumDetected
-            or InputIo.ShootingTubeBoltDetected
-            or InputIo.PickupHeadUp
-            or InputIo.PickupHeadDown
-            or InputIo.ShootingHeadUp
-            or InputIo.ShootingHeadDown
-            or InputIo.PickupTableUp
-            or InputIo.PickupTableDown
-            or InputIo.ShootingEscapeForward
-            or InputIo.ShootingEscapeBackward)
-        {
-            NotifyChanged();
         }
     }
 

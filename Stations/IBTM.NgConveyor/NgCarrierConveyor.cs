@@ -22,12 +22,22 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         IIoService io,
         NgConveyorSettings settings,
         UnitSettings units)
+        : base([
+            InputIo.NgConveyorPosition1Occupied,
+            InputIo.NgConveyorPosition2Occupied,
+            InputIo.NgConveyorStopperUp,
+            InputIo.NgConveyorStopperDown,
+            InputIo.NgCarrierEjectButton,
+            InputIo.NgCarrierEjectCompleteButton,
+            InputIo.NgShuttleUp,
+            InputIo.NgShuttleDown,
+            InputIo.NgShuttleCarrierDetected,
+        ], [OutputIo.NgConveyorRun])
     {
         _io = io;
         _settings = settings;
         _units = units;
-        io.InputChanged += OnInputChanged;
-        io.OutputChanged += OnOutputChanged;
+        ObserveIo(io);
     }
 
     public void AttachTransfer(INgCarrierTransferFeedback transfer)
@@ -111,7 +121,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             && !(runCommandOn ?? _io.GetOutput(OutputIo.NgConveyorRun));
     }
 
-    private void OnInputChanged(InputIo input, bool value)
+    protected override void OnInputChanged(InputIo input, bool value)
     {
         // InputChanged supplies button edges; held buttons and presses during movement
         // must not become another ejection when the current operation ends.
@@ -136,26 +146,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         Interlocked.Exchange(ref _ejectCompleteRequested, 1);
                     break;
             }
-        }
-        if (input is InputIo.NgConveyorPosition1Occupied
-            or InputIo.NgConveyorPosition2Occupied
-            or InputIo.NgConveyorStopperUp
-            or InputIo.NgConveyorStopperDown
-            or InputIo.NgCarrierEjectButton
-            or InputIo.NgCarrierEjectCompleteButton
-            or InputIo.NgShuttleUp
-            or InputIo.NgShuttleDown
-            or InputIo.NgShuttleCarrierDetected)
-        {
-            NotifyChanged();
-        }
-    }
-
-    private void OnOutputChanged(OutputIo output, bool value)
-    {
-        if (output == OutputIo.NgConveyorRun)
-        {
-            NotifyChanged();
         }
     }
 

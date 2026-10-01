@@ -4,12 +4,60 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Device;
+using IBTM.NgConveyor;
+using IBTM.Virtual;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
 
 public sealed class AutoUnitTests
 {
+    [Fact]
+    public async Task RegisteredIoNotifiesAndWakesAfterUnitInputHandling()
+    {
+        var io = new VirtualIoService(new NgConveyorHardwareSettings().Outputs, new());
+        io.Initialize();
+        var unit = new TestUnit(io);
+        var observedInputs = new List<bool?>();
+        unit.Changed += () => observedInputs.Add(unit.InputValue);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var executions = 0;
+        var run = unit.RunAsync(token =>
+        {
+            Interlocked.Increment(ref executions);
+            return unit.WaitAsync(token);
+        }, stop.Token);
+        try
+        {
+            io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+            io.SetOutput(OutputIo.NgCarrierEjectLamp, true);
+            Assert.Null(unit.InputValue);
+            Assert.Empty(observedInputs);
+            Assert.Equal(1, Volatile.Read(ref executions));
+
+            io.SetInput(InputIo.NgCarrierEjectButton, true);
+            Assert.Equal(true, Assert.Single(observedInputs));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => Volatile.Read(ref executions) == 2, TimeSpan.FromSeconds(1)));
+
+            io.SetOutput(OutputIo.NgConveyorRun, true);
+            Assert.Equal(2, observedInputs.Count);
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => Volatile.Read(ref executions) == 3, TimeSpan.FromSeconds(1)));
+
+            io.SetInput(InputIo.NgCarrierEjectButton, false);
+            Assert.Equal(false, observedInputs.Last());
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => Volatile.Read(ref executions) == 4, TimeSpan.FromSeconds(1)));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+    }
+
     [Fact]
     public async Task TimedWaitCompletesNormallyAndStillRespondsToChangesAndCancellation()
     {
@@ -303,6 +351,20 @@ public sealed class AutoUnitTests
 
     private sealed class TestUnit : AutoUnit
     {
+        public TestUnit(IIoService? io = null)
+            : base([InputIo.NgCarrierEjectButton], [OutputIo.NgConveyorRun])
+        {
+            if (io is not null)
+                ObserveIo(io);
+        }
+
+        public bool? InputValue { get; private set; }
+
+        protected override void OnInputChanged(InputIo input, bool value)
+        {
+            InputValue = value;
+        }
+
         public void ReportFeedback()
         {
             NotifyChanged();

@@ -29,8 +29,23 @@ public sealed partial class InspectionStation
 
     public async Task ReturnToStationAsync(CancellationToken cancellationToken)
     {
-        await RunToAsync(NgTransferDestination.Station, cancellationToken,
-            allowEmpty: IsEmptyRepeatAllowed);
+        try
+        {
+            BeginRun();
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var state = GetNextTransferStep(NgTransferDestination.Station, canPickUp: true, repeat: true);
+                if (state == InspectionStationState.TransferCompleted)
+                    break;
+                if (!await ExecuteTransferAsync(NgTransferDestination.Station, state, cancellationToken, repeat: true))
+                    await WaitForChangeAsync(cancellationToken);
+            }
+        }
+        finally
+        {
+            EndRun(cancellationToken);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     public async Task ClearStationAsync(CancellationToken cancellationToken)

@@ -284,13 +284,13 @@ public sealed class UiBindingTests
         OutputWindow? window = null;
         try
         {
-            var resetButton = new Button { Command = main.ResetCommand };
+            var resetButton = new Button { Command = main.Operation.ResetCommand };
             io.SetInput(InputIo.EmergencyStop1Pressed, true);
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.Buzzer), TimeSpan.FromSeconds(2)));
             Assert.False(machine.IsResetAllowed);
             Assert.True(resetButton.IsEnabled);
-            await main.ResetCommand.ExecuteAsync(null);
+            await main.Operation.ResetCommand.ExecuteAsync(null);
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => !io.GetOutput(OutputIo.Buzzer), TimeSpan.FromSeconds(2)));
             Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
@@ -299,13 +299,13 @@ public sealed class UiBindingTests
             // The virtual safety relay, like the equipment, restores contactor power on hardware RESET.
             io.SetInput(InputIo.ResetButton, true);
             Assert.True(resetButton.IsEnabled);
-            await main.ResetCommand.ExecuteAsync(null);
+            await main.Operation.ResetCommand.ExecuteAsync(null);
             io.SetInput(InputIo.ResetButton, false);
             using (services.GetRequiredService<OperationCancellation>().Link())
             {
                 Assert.False(machine.IsResetAllowed);
                 Assert.True(resetButton.IsEnabled);
-                await main.ResetCommand.ExecuteAsync(null);
+                await main.Operation.ResetCommand.ExecuteAsync(null);
             }
 
             await VerifyIndependentTeachingAsync(services);
@@ -685,8 +685,22 @@ public sealed class UiBindingTests
                 Assert.False(startState.AutomaticRunning);
                 Assert.True(startState.IsError);
                 Assert.False(string.IsNullOrWhiteSpace(startOperation.AlarmMessage));
+                Assert.Equal(startOperation.AlarmMessage, ((TextBlock)startWindow.FindName("StartAlarmMessage")).Text);
+                Assert.False(confirm.IsEnabled);
 
-                startState.ClearError();
+                // Recover from the same review, without closing it or starting production.
+                var reset = (Button)startWindow.FindName("ResetButton");
+                Assert.Same(startOperation.ResetCommand, reset.Command);
+                Assert.True(reset.IsEnabled);
+                await ((IAsyncRelayCommand)reset.Command).ExecuteAsync(null);
+                await Dispatcher.Yield(DispatcherPriority.ContextIdle);
+                Assert.True(startWindow.IsVisible);
+                Assert.False(startState.IsError);
+                Assert.Null(startOperation.ResetError);
+                Assert.False(startState.AutomaticRunning);
+                Assert.False(starting.IsCompleted);
+
+                startIo.SetInputs((InputIo.PcbPlacementBackupPlateUp, true), (InputIo.PcbPlacementBackupPlateDown, false));
                 await startOperation.CheckStartCommand.ExecuteAsync(null);
                 var preparing = ((IAsyncRelayCommand)confirm.Command).ExecuteAsync(null);
                 Assert.True(await VirtualTestSupport.WaitUntilAsync(
@@ -1159,7 +1173,7 @@ public sealed class UiBindingTests
                 if (hardwareReset)
                     await Task.Run(() => io.SetInput(InputIo.ResetButton, true));
                 else
-                    await main.ResetCommand.ExecuteAsync(null);
+                    await main.Operation.ResetCommand.ExecuteAsync(null);
 
                 Assert.True(await VirtualTestSupport.WaitUntilAsync(
                     () => live.IsChecked == false && preview.Source is null

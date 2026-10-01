@@ -513,10 +513,13 @@ public sealed class IoTests
         public IIoService Io = null!;
         public int Reads;
         public Action? BeforeRead;
+        public Action<InputIo>? BeforeInputRead;
         public Exception? Error;
 
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
+            if (method!.Name == nameof(IIoService.GetInput))
+                BeforeInputRead?.Invoke((InputIo)args![0]!);
             if (method!.Name == nameof(IIoService.GetOutput))
             {
                 BeforeRead?.Invoke();

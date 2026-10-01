@@ -34,6 +34,14 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         ConveyorStation station,
         RecipeManager recipes,
         UnitSettings units)
+        : base([
+            InputIo.PcbPlacementHandlerDown,
+            InputIo.PcbPlacementHandlerUp,
+            InputIo.PcbPlacementIpmDown,
+            InputIo.PcbPlacementIpmUp,
+            InputIo.PcbPlacementPcbDetected,
+            InputIo.PcbPlacementVacuumDetected,
+        ])
     {
         _motion = motion;
         _io = io;
@@ -45,7 +53,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _units = units;
         Motion = motionStatus;
         Phase = PcbPlacementState.MovingToHandoff;
-        io.InputChanged += OnInputChanged;
+        ObserveIo(io);
         motion.StateChanged += OnMotionStateChanged;
         station.Changed += NotifyChanged;
         StepChanged += NotifyChanged;
@@ -142,19 +150,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             return MotionServiceBase.IsAtZ(_motion, _settings.HandoffPosition.Z)
                 && MotionServiceBase.IsSettled(_motion, MotionAxis.Z);
-        }
-    }
-
-    private void OnInputChanged(InputIo input, bool value)
-    {
-        if (input is InputIo.PcbPlacementHandlerDown
-            or InputIo.PcbPlacementHandlerUp
-            or InputIo.PcbPlacementIpmDown
-            or InputIo.PcbPlacementIpmUp
-            or InputIo.PcbPlacementPcbDetected
-            or InputIo.PcbPlacementVacuumDetected)
-        {
-            NotifyChanged();
         }
     }
 
@@ -316,12 +311,13 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             return PcbPlacementState.Disabled;
         if (Station.Completed)
             return PcbPlacementState.WaitingForCarrier;
+        // Completed includes live presence; recheck it after reading seating feedback below.
         var state = Phase;
         if (repeat && _repeatTrip is null)
         {
             if (state == PcbPlacementState.Retracting)
                 return state;
-            if (!Station.CarrierSeated)
+            if (!Station.CarrierSeated || Station.Completed)
                 return PcbPlacementState.WaitingForCarrier;
             return heatSink is null ? PcbPlacementState.Retracting : PcbPlacementState.PickingPcb;
         }
@@ -333,7 +329,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 return PcbPlacementState.MovingToHandoff;
             case PcbPlacementState.WaitingForSupplyRelease when _supply.Handoff == PcbSupplyHandoff.Released:
                 return PcbPlacementState.PreparingPlacement;
-            case PcbPlacementState.WaitingForCarrier when Station.CarrierSeated:
+            case PcbPlacementState.WaitingForCarrier when Station.CarrierSeated && !Station.Completed:
                 if (heatSink is null)
                     return PcbPlacementState.Retracting;
                 return PcbSecured ? PcbPlacementState.PlacingPcb : PcbPlacementState.MovingToHandoff;

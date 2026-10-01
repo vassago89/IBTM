@@ -105,7 +105,7 @@
             </Border>
             <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="108"/>
+                    <RowDefinition Height="216"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
@@ -115,6 +115,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <TextBlock TextWrapping="Wrap" TextTrimming="CharacterEllipsis" FontSize="17"
                             FontWeight="SemiBold" MinHeight="24" MaxHeight="48">
@@ -135,12 +136,38 @@
                                             <Setter Property="Text" Value="{ui:Text 'Checking...'}"/>
                                             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                                         </DataTrigger>
+                                        <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
+                                            <Setter Property="Text" Value="{ui:Text 'RESETTING...'}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                        <TextBlock Grid.Row="1" Text="{Binding AlarmMessage}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
-                            Margin="0,8,0,0" Foreground="{StaticResource AccentRedBrush}"/>
+                        <ScrollViewer Grid.Row="1" Margin="0,8,0,10" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
+                                    FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}"
+                                    Visibility="{Binding HasAlarm, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock x:Name="StartAlarmMessage" Text="{Binding AlarmMessage}" TextWrapping="Wrap"
+                                    Foreground="{StaticResource AccentRedBrush}"/>
+                                <TextBlock Text="{Binding ResetError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                        <Button x:Name="ResetButton" Grid.Row="2" Command="{Binding ResetCommand}" IsEnabled="{Binding IsResetAllowed}"
+                            Height="36" ToolTip="{ui:Text 'Silence buzzer / recover stopped hardware; servos may turn ON.'}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Setter Property="Content" Value="{ui:Text 'RESET'}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
+                                            <Setter Property="Content" Value="{ui:Text 'RESETTING...'}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </Grid>
                 </Border>
                 <StackPanel Grid.Row="1" Margin="0,0,0,12">
@@ -271,6 +298,7 @@
                                                     <Condition Binding="{Binding State.Available}" Value="True"/>
                                                     <Condition Binding="{Binding State.IsRunning}" Value="False"/>
                                                     <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
+                                                    <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
                                                     <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
                                                     <Condition Binding="{Binding StartStation.Completed}" Value="False"/>
                                                 </MultiDataTrigger.Conditions>
@@ -291,6 +319,7 @@
                                                     <Condition Binding="{Binding State.Available}" Value="True"/>
                                                     <Condition Binding="{Binding State.IsRunning}" Value="False"/>
                                                     <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
+                                                    <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
                                                     <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="IsEnabled" Value="True"/>
@@ -322,6 +351,9 @@
                             <DataTrigger Binding="{Binding ConfirmStartCommand.IsRunning}" Value="True">
                                 <Setter Property="IsEnabled" Value="False"/>
                             </DataTrigger>
+                            <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
+                                <Setter Property="IsEnabled" Value="False"/>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Button.Style>
@@ -336,6 +368,7 @@
                                     <Condition Binding="{Binding IsStartReviewAllowed}" Value="True"/>
                                     <Condition Binding="{Binding CheckStartCommand.IsRunning}" Value="False"/>
                                     <Condition Binding="{Binding ChangeCarrierWorkCommand.IsRunning}" Value="False"/>
+                                    <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="IsEnabled" Value="True"/>
                                 <Setter Property="Background" Value="{StaticResource PrimaryButtonBackgroundBrush}"/>

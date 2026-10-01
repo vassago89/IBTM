@@ -46,7 +46,7 @@ public sealed class InspectionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task StartupNotificationFailureClearsInspectionRun(bool transferOnly)
+    public async Task StartupNotificationFailureClearsInspectionRun(bool repeatReturn)
     {
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         using var motion = new VirtualMotionService(new(), new(), hasZ: false);
@@ -58,8 +58,8 @@ public sealed class InspectionTests
                 throw failure;
         };
 
-        var error = await Record.ExceptionAsync(() => transferOnly
-            ? station.RunToAsync(NgTransferDestination.Shuttle, CancellationToken.None)
+        var error = await Record.ExceptionAsync(() => repeatReturn
+            ? station.ReturnToStationAsync(CancellationToken.None)
             : station.RunAsync());
 
         Assert.Same(failure, error);

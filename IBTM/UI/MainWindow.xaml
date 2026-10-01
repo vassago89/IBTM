@@ -318,7 +318,7 @@
                         <StackPanel>
                             <TextBlock Text="{Binding Operation.AlarmMessage}" ToolTip="{Binding Operation.AlarmDetail}"
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                            <TextBlock Text="{Binding ResetError}"
+                            <TextBlock Text="{Binding Operation.ResetError}"
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                             <TextBlock Text="{Binding NavigationError}"
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
@@ -416,7 +416,7 @@
                             </Button>
                         </StackPanel>
                         <Button
-                            Command="{Binding ResetCommand}" IsEnabled="{Binding IsResetAllowed}"
+                            Command="{Binding Operation.ResetCommand}" IsEnabled="{Binding Operation.IsResetAllowed}"
                             ToolTip="{ui:Text 'Silence buzzer / recover stopped hardware; servos may turn ON.'}"
                             ToolTipService.ShowOnDisabled="True" MinWidth="120" Height="48" Margin="0,0,8,0">
                             <Button.Style>
@@ -424,7 +424,7 @@
                                     <Setter Property="Content" Value="{ui:Text 'RESET'}"/>
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
+                                        <DataTrigger Binding="{Binding Operation.ResetCommand.IsRunning}" Value="True">
                                             <Setter Property="Content" Value="{ui:Text 'RESETTING...'}"/>
                                         </DataTrigger>
                                     </Style.Triggers>

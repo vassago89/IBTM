@@ -70,6 +70,7 @@ public partial class OperationViewModel : ObservableObject
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        ResetCommand = new AsyncRelayCommand(ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync);
         RetryPcbSaveCommand = new AsyncRelayCommand(RetryPcbSaveAsync);
@@ -80,6 +81,7 @@ public partial class OperationViewModel : ObservableObject
         _historySettings = historySettings;
         _pcbHistoryDirectory = historySettings.Directory;
         _log = log;
+        IsResetAllowed = true;
         PcbDetails = pcbDetails;
         HasOlderPcbs = true;
 
@@ -410,9 +412,10 @@ public partial class OperationViewModel : ObservableObject
 
     public Task ShutdownAsync()
     {
+        IsResetAllowed = false;
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
+            [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
     }
 
     public IRelayCommand OpenBoltStationTestCommand { get; }
@@ -559,6 +562,32 @@ public partial class OperationViewModel : ObservableObject
     }
 
     public IAsyncRelayCommand HomeCommand { get; }
+
+    public IAsyncRelayCommand ResetCommand { get; }
+
+    [ObservableProperty]
+    public partial bool IsResetAllowed { get; private set; }
+
+    [ObservableProperty]
+    public partial string? ResetError { get; private set; }
+
+    private async Task ResetAsync()
+    {
+        if (!IsResetAllowed)
+            return;
+        // Acknowledge even when hardware recovery is blocked; the controller owns admission.
+        ResetError = null;
+        _log.LogInformation("On-screen RESET requested.");
+        try
+        {
+            await Machine.ResetAsync();
+        }
+        catch (Exception exception)
+        {
+            ResetError = UiText.Format($"RESET failed: {exception.Message}");
+            _log.LogError(exception, "On-screen RESET failed.");
+        }
+    }
 
     private static AssemblyResult GetAssemblyResult(ConveyorStation station, HeatSinkSlot heatSink, bool inspection)
     {
