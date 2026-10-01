@@ -16,8 +16,7 @@ public sealed partial class InspectionStation
         try
         {
             while (Step is not InspectionStationState.HoldingAtDestination
-                || !IsTransferPending || !IsRaised || Gripper != NgTransferGripperState.Closed
-                || _settings.ShuttlePlacePosition is not { } position || !MotionServiceBase.IsAt(_motion, position))
+                || !IsTransferPending || !IsRaised || Gripper != NgTransferGripperState.Closed)
                 await changed.WaitAsync(cancellationToken);
         }
         finally
@@ -32,14 +31,8 @@ public sealed partial class InspectionStation
         try
         {
             BeginRun();
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                var state = GetNextTransferStep(NgTransferDestination.Station, canPickUp: true, repeat: true);
-                if (state == InspectionStationState.TransferCompleted)
-                    break;
-                if (!await ExecuteTransferAsync(NgTransferDestination.Station, state, cancellationToken, repeat: true))
-                    await WaitForChangeAsync(cancellationToken);
-            }
+            await ExecuteTransferAsync(NgTransferDestination.Station,
+                InspectionStationState.PlacingCarrier, cancellationToken, repeat: true);
         }
         finally
         {
