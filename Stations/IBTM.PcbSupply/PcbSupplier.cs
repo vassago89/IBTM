@@ -293,20 +293,14 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             continue;
                         }
                         _pickStep = returnedPcb == HeatSinkSlot.HeatSink2 ? PickStep.Pcb2 : PickStep.Pcb1;
-                        if (Rotation != PcbSupplyRotationState.Unrotated
-                            && placement.Handoff is PcbPlacementHandoff.Returning or PcbPlacementHandoff.Holding)
-                            throw new MotionInterlockException("Supply cannot prepare rotation while Placement holds the PCB at receive Z.");
+                        if (placement.Handoff is PcbPlacementHandoff.Returning or PcbPlacementHandoff.Holding)
+                            throw new MotionInterlockException("Supply cannot prepare the handoff while Placement holds the PCB at receive Z.");
                         if (!PcbSecured)
                         {
                             await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, cancellationToken);
                             await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, cancellationToken);
                         }
-                        if (_handoffPosition is not { } handoffPosition
-                            || !MotionServiceBase.IsHoldingPosition(_motion, handoffPosition)
-                            || Rotation != PcbSupplyRotationState.Unrotated)
-                        {
-                            await PrepareHandoffAsync(cancellationToken);
-                        }
+                        await PrepareHandoffAsync(cancellationToken);
                         EnterStep(PcbSupplyState.WaitingForReturnedPcbGrip);
                         break;
                     case PcbSupplyState.ReceivingReturnedPcb:
@@ -748,8 +742,6 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (MotionServiceBase.IsHoldingPosition(_motion, position) && Rotation == rotation)
-            return;
         if (rotation == PcbSupplyRotationState.Between)
             throw new MotionInterlockException("Confirm Supply rotation feedback before moving to the handoff position.");
         using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

@@ -1707,12 +1707,16 @@ public sealed class BoltFasteningTests
         Assert.True(io.GetOutput(OutputIo.PickupHeadDown));
         Assert.Equal(1, bus.StartWrites);
         var job = work.CurrentJob;
-        var movedBeforeRestart = false;
+        var fasteningPosition = motion.Position;
+        var clearedBeforeRestart = false;
         var restarted = false;
         motion.PositionChanged += (x, y, z) =>
         {
             if (!restarted)
-                movedBeforeRestart = true;
+            {
+                Assert.Equal((fasteningPosition.X, fasteningPosition.Y), (x, y));
+                clearedBeforeRestart |= z == settings.SafeZ;
+            }
         };
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         io.OutputChanged += (output, on) =>
@@ -1728,7 +1732,7 @@ public sealed class BoltFasteningTests
                 finish.Cancel();
         };
         await station.RunAsync(finish.Token);
-        Assert.False(movedBeforeRestart);
+        Assert.True(clearedBeforeRestart);
         Assert.Same(job, work.CurrentJob);
         Assert.Same(assembly, Assert.Single(work.Assemblies));
         Assert.True(work.CarrierPresent);

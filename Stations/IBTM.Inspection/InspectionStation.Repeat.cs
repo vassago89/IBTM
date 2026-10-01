@@ -59,7 +59,6 @@ public sealed partial class InspectionStation
             || !IsRaised)
             throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the waiting position.");
 
-        if (!MotionServiceBase.IsAt(_motion, waitingPosition))
-            await MoveToAsync(waitingPosition, cancellationToken: cancellationToken);
+        await MoveToAsync(waitingPosition, cancellationToken: cancellationToken);
     }
 }

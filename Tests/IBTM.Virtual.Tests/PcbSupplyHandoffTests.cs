@@ -13,6 +13,19 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbSupplyHandoffTests
 {
+    [Fact]
+    public async Task HandoffMoveDoesNotSkipSmallPositionError()
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        var target = rig.Settings.HandoffPosition;
+        await rig.Motion.AdjustAxisAsync(MotionAxis.X, target.X + 0.04, 2_000);
+
+        await rig.Supplier.PrepareHandoffAsync(CancellationToken.None);
+
+        Assert.Equal((target.X, target.Y, target.Z), rig.Motion.Position);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -16,6 +16,29 @@ namespace IBTM.Virtual.Tests;
 public sealed class NgHandoffTests
 {
     [Fact]
+    public async Task PickupMoveUsesTargetAndKeepsLoweredGripOnItsSupport()
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var transfer = system.Inspection;
+        await motion.AdjustAxisAsync(MotionAxis.X, 0.04, 1_000);
+
+        await transfer.MoveToCarrierAsync(NgTransferDestination.Station, CancellationToken.None);
+        Assert.Equal(0, motion.Position.X);
+
+        await transfer.SetLiftUpAsync(false);
+        await Assert.ThrowsAsync<MotionInterlockException>(() =>
+            transfer.MoveToCarrierAsync(NgTransferDestination.Station, CancellationToken.None));
+
+        // Gripping may finish at the lowered support without requesting XY movement.
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
+        Assert.True(transfer.IsTransferPending);
+        Assert.True(transfer.IsRaised);
+        Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
+    }
+
+    [Fact]
     public async Task CancelledLiftDoesNotReportLostGripOrChangeTransferOwnership()
     {
         var system = await CreateAsync();

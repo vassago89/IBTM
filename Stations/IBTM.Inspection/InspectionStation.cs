@@ -543,8 +543,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         cancellationToken.ThrowIfCancellationRequested();
         var position = _settings.WaitingPosition
             ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
-        if (!MotionServiceBase.IsAt(_motion, position))
-            await MoveToAsync(position, cancellationToken: cancellationToken);
+        await MoveToAsync(position, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (_waitingForShuttleDown)
         {
@@ -651,7 +650,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             case InspectionStationState.PickingCarrier:
                 EnterStep(state, destination.ToString());
                 var source = GetOppositeDestination(destination);
-                if (IsTransferPending
+                if ((IsTransferPending || !IsRaised)
                     && (!IsSupportReady(source)
                         || !allowEmpty && !IsCarrierPresent(source)
                         || Lift != StationCylinderState.Down
@@ -660,7 +659,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 {
                     throw new InvalidOperationException("NG transfer grip is uncertain away from its supported pickup position. Check the carrier before resuming.");
                 }
-                await MoveToCarrierAsync(source, cancellationToken);
+                // A lowered pickup finishes gripping on its support before any XY travel.
+                if (IsRaised)
+                    await MoveToCarrierAsync(source, cancellationToken);
                 if (!IsSupportReady(source) || !allowEmpty && !IsCarrierPresent(source))
                     return false;
                 if (Lift != StationCylinderState.Down)
@@ -695,7 +696,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         carrying.Token.ThrowIfCancellationRequested();
                         if (destination == NgTransferDestination.Station && !IsSupportReady(destination))
                             await SeatStationAsync(carrying.Token);
-                        else if (!MotionServiceBase.IsAt(_motion, position))
+                        else
                             await MoveToAsync(position, cancellationToken: carrying.Token);
                         CheckGrip();
                         carrying.Token.ThrowIfCancellationRequested();
@@ -822,8 +823,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         cancellationToken.ThrowIfCancellationRequested();
         var position = GetTransferPosition(source)
             ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to a carrier.");
-        if (MotionServiceBase.IsAt(_motion, position))
-            return;
         await MoveToAsync(position, cancellationToken: cancellationToken);
     }
 

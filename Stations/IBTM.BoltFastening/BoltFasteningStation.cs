@@ -435,13 +435,10 @@ public sealed class BoltFasteningStation : AutoUnit
                                     await MoveZAsync(_settings.SafeZ, token);
                                     await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
                                 }
-                                if (ShootingHeadPosition != StationCylinderState.Up
-                                    && (!IsAt(bolt) || feeding))
+                                if (ShootingHeadPosition != StationCylinderState.Up)
                                     await ClearHeadAsync(FasteningHead.Shooting, _settings.GetSafeZ(FasteningHead.Shooting), token);
                             }
-                            var moveRequired = !IsAt(bolt);
-                            if (moveRequired || feeding)
-                                await RaiseCylindersAsync(token);
+                            await RaiseCylindersAsync(token);
 
                             if (feeding)
                             {
@@ -455,7 +452,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 if (shooting?.IsCompleted == true)
                                     await shooting;
                                 // XY travel and fastening-Z descent overlap the supply's arrival delay.
-                                var moving = moveRequired ? MoveToBoltAsync(bolt, preparation.Token) : Task.CompletedTask;
+                                var moving = MoveToBoltAsync(bolt, preparation.Token);
                                 if (moving.IsCompleted && pendingFeed is null)
                                     await moving;
                                 shooting ??= ShootBoltAsync(preparation.Token, bolt.Id);
@@ -482,7 +479,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 _log?.LogInformation("Bolt timing {Bolt}: movement / shooting supply joined, elapsed={ElapsedMs:F1} ms, supplied during previous retraction={Prefed}.",
                                     bolt.Id, Stopwatch.GetElapsedTime(supplyWaitStarted).TotalMilliseconds, pendingFeed is not null);
                             }
-                            else if (moveRequired)
+                            else
                                 await MoveToBoltAsync(bolt, token);
                             break;
                         }
@@ -555,12 +552,9 @@ public sealed class BoltFasteningStation : AutoUnit
                             }
                             else if (IsAtPickupXY)
                                 await ReturnFromPickupAsync(token);
-                            if (!IsAt(bolt))
-                            {
-                                TraceStep(step, target, job.Id, "fastening point movement");
-                                await RaiseCylindersAsync(token);
-                                await MoveToBoltAsync(bolt, token);
-                            }
+                            TraceStep(step, target, job.Id, "fastening point movement");
+                            await RaiseCylindersAsync(token);
+                            await MoveToBoltAsync(bolt, token);
                             break;
                         }
                         default:
