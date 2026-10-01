@@ -298,6 +298,72 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task MaintenanceStopsWithPrefetchedPlacementPcbAndRequiresRemovalBeforeRestart()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.Units.PcbPlacement = true;
+        settings.Units.MainConveyor = true;
+        settings.Units.PickupBoltFeeder = true;
+        settings.BoltFeeder.PickupTimeoutMilliseconds = 80;
+        await using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 5 };
+        recipe.PcbSupply.Pcb2PickPosition = new() { X = 30, Y = 10, Z = 5 };
+        recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 50, Y = 60, Z = 15 };
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placer = services.GetRequiredService<PcbPlacer>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        // Supply can prefetch a PCB while the carrier conveyor has no incoming carrier.
+        io.InputChanged += (input, on) =>
+        {
+            if (input == InputIo.MainConveyorAvailableFromFront2 && on)
+                io.SetInput(input, false);
+        };
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+        io.SetInput(InputIo.AutoMode, false);
+        var run = machine.StartAsync();
+        try
+        {
+            Assert.True(await WaitUntilAsync(
+                () => placer.Step is PcbPlacementState.WaitingForCarrier && placer.PcbSecured,
+                TimeSpan.FromSeconds(5)), state.AlarmDetail);
+            io.SetInput(InputIo.PickupFeederBoltDetected, false);
+
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(MachineAlarm.PickupBoltFeeder, state.Alarm);
+            Assert.Null(state.PendingStop);
+            Assert.False(state.AutomaticRunning);
+            Assert.False(placer.Station.CarrierPresent);
+            Assert.True(placer.PcbSecured);
+            Assert.False(placer.Motion.Feedback.IsMoving);
+            Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.Z, placer.Motion.Feedback.Position.Z);
+            Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.X, placer.Motion.Feedback.Position.X);
+            Assert.Equal(60, placer.Motion.Feedback.Position.Y);
+            Assert.True(io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+
+            await machine.ResetAsync();
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            await machine.StartAsync();
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
+            Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+            Assert.False(state.AutomaticRunning);
+            Assert.True(placer.PcbSecured);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task PlacementVacuumMaintenanceKeepsPlacementAlarmAndSupplyGrip()
     {
         var settings = FlowSettings();

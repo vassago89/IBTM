@@ -32,11 +32,11 @@
         </Style>
         <Style x:Key="AdcSignalStateStyle" TargetType="TextBlock" BasedOn="{StaticResource SmemaSignalStateStyle}">
             <Setter Property="TextAlignment" Value="Center"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="14"/>
         </Style>
         <Style x:Key="AdcAlarmStateStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="TextAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -128,10 +128,10 @@
 
             <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}"
                 Canvas.Top="{x:Static ui:MachineDiagramLayout.DetailTop}"
-                Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54">
+                Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="{x:Static ui:MachineDiagramLayout.ControllerTableHeight}">
                 <Grid.Resources>
                     <Style TargetType="TextBlock">
-                        <Setter Property="FontSize" Value="13"/>
+                        <Setter Property="FontSize" Value="14"/>
                         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                         <Setter Property="VerticalAlignment" Value="Center"/>
                         <Setter Property="TextAlignment" Value="Center"/>
@@ -144,27 +144,27 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="18"/>
-                    <RowDefinition Height="18"/>
-                    <RowDefinition Height="18"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock Text="{ui:Text 'Controller'}" TextAlignment="Left" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Text="{ui:Text 'Controller'}" Margin="8,0,0,0" TextAlignment="Left" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBlock Grid.Column="1" Text="{ui:Text 'READY'}" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBlock Grid.Column="2" Text="{ui:Text 'RUN'}" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBlock Grid.Column="3" Text="{ui:Text 'ALARM'}" Foreground="{StaticResource TextMutedBrush}"/>
-                <TextBlock Grid.Row="1" Text="{ui:Text 'Pickup'}" TextAlignment="Left" FontWeight="SemiBold"/>
+                <TextBlock Grid.Row="1" Text="{ui:Text 'Pickup'}" Margin="8,0,0,0" TextAlignment="Left" FontWeight="SemiBold"/>
                 <TextBlock Grid.Row="1" Grid.Column="1" Tag="{Binding Fastening.PickupHead.Monitor.Sample.Status.Ready}" Style="{StaticResource AdcSignalStateStyle}"/>
                 <TextBlock Grid.Row="1" Grid.Column="2" Tag="{Binding Fastening.PickupHead.Monitor.Sample.Status.Running}" Style="{StaticResource AdcSignalStateStyle}"/>
                 <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding Fastening.PickupHead.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"
                     Tag="{Binding Fastening.PickupHead.Monitor.Sample.Status.Alarm}" Style="{StaticResource AdcAlarmStateStyle}"/>
-                <TextBlock Grid.Row="2" Text="{ui:Text 'Shooting'}" TextAlignment="Left" FontWeight="SemiBold"/>
+                <TextBlock Grid.Row="2" Text="{ui:Text 'Shooting'}" Margin="8,0,0,0" TextAlignment="Left" FontWeight="SemiBold"/>
                 <TextBlock Grid.Row="2" Grid.Column="1" Tag="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Ready}" Style="{StaticResource AdcSignalStateStyle}"/>
                 <TextBlock Grid.Row="2" Grid.Column="2" Tag="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Running}" Style="{StaticResource AdcSignalStateStyle}"/>
                 <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"
                     Tag="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Alarm}" Style="{StaticResource AdcAlarmStateStyle}"/>
             </Grid>
 
-            <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="314"
+            <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="342"
                 Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="{x:Static ui:MachineDiagramLayout.PickupFeederHeight}">
                 <Border Style="{StaticResource DeviceBodyStyle}"/>
                 <Grid Width="{x:Static ui:MachineDiagramLayout.PickupFeederWidth}" HorizontalAlignment="Left">
@@ -230,7 +230,7 @@
                         <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Canvas.Top="125"
                             Text="{ui:Text 'Pickup'}" FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                         <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeadTop}"
-                            Width="{x:Static ui:MachineDiagramLayout.HeadSize}" Height="{x:Static ui:MachineDiagramLayout.HeadSize}">
+                            Width="{x:Static ui:MachineDiagramLayout.HeadSize}" Height="{x:Static ui:MachineDiagramLayout.HeadSize}" Opacity="0.6">
                             <Border Margin="-6" Tag="{Binding Fastening.Motion.IsMoving}" Style="{StaticResource OverheadBodyStyle}"/>
                             <Border Tag="{Binding Fastening.PickupHeadPosition}" Style="{StaticResource ToolHeadFootprintStyle}"/>
                             <Border Width="14" Height="4" Background="{StaticResource TextMutedBrush}" CornerRadius="2"/>
@@ -257,7 +257,7 @@
                         <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.ShootingHeadLeft}" Canvas.Top="65" Text="{ui:Text 'Shooting'}"
                             FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                         <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.ShootingHeadLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeadTop}"
-                            Width="{x:Static ui:MachineDiagramLayout.HeadSize}" Height="{x:Static ui:MachineDiagramLayout.HeadSize}">
+                            Width="{x:Static ui:MachineDiagramLayout.HeadSize}" Height="{x:Static ui:MachineDiagramLayout.HeadSize}" Opacity="0.6">
                             <Border Margin="-6" Tag="{Binding Fastening.Motion.IsMoving}" Style="{StaticResource OverheadBodyStyle}"/>
                             <Border Tag="{Binding Fastening.ShootingHeadPosition}" Style="{StaticResource ToolHeadFootprintStyle}"/>
                             <Ellipse Width="12" Height="12" Fill="{StaticResource EquipBgBrush}"
@@ -270,7 +270,7 @@
                 </Grid>
             </Canvas>
         </Canvas>
-        <Grid Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="138" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,164,0,0">
+        <Grid Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="138" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,192,0,0">
             <Grid.RenderTransform>
                 <TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}"/>
             </Grid.RenderTransform>

@@ -1077,13 +1077,17 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     or NgConveyorState.WaitingForEjectConfirmation or NgConveyorState.ReadyToEject or NgConveyorState.Full))
                 {
                     // Use START's material rules without updating its explicit operator check.
-                    // Failed units may still require manual removal; healthy work must finish.
+                    // Finish current carriers. A prefetched PCB has no carrier to finish after
+                    // new transfers are paused; keep it gripped for manual removal at the stop.
                     var ready = CurrentStartMaterials.All(check => check.Value switch
                     {
                         StartCheckState.Unknown => false,
                         StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier => check.Key switch
                         {
-                            StartArea.Placement or StartArea.Station1 => !_pcbPlacement.IsRunning,
+                            StartArea.Placement => !_pcbPlacement.IsRunning
+                                || _pcbPlacement.Step is PcbPlacementState.WaitingForCarrier
+                                    && (!_pcbPlacement.Station.CarrierPresent || _pcbPlacement.Station.Completed),
+                            StartArea.Station1 => !_pcbPlacement.IsRunning,
                             StartArea.PickupHead or StartArea.ShootingHead or StartArea.Station2 => !_fasteningStation.IsRunning,
                             _ => false,
                         },

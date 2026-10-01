@@ -417,10 +417,10 @@
     <value>선택 해제</value>
   </data>
   <data name="clear the cause, then press reset" xml:space="preserve">
-    <value>원인 해소 후 리셋하세요</value>
+    <value>이상 원인을 조치한 뒤 리셋을 누르세요</value>
   </data>
   <data name="clear the motion fault, then press reset" xml:space="preserve">
-    <value>모션 오류 해소 후 리셋하세요</value>
+    <value>축 알람을 확인하고 리셋을 누르세요</value>
   </data>
   <data name="clipboard is unavailable: {0}" xml:space="preserve">
     <value>클립보드 사용 불가: {0}</value>
@@ -429,7 +429,7 @@
     <value>도어를 닫으세요</value>
   </data>
   <data name="close doors, then press reset" xml:space="preserve">
-    <value>도어를 닫은 후 리셋하세요</value>
+    <value>도어를 닫고 리셋을 누르세요</value>
   </data>
   <data name="closed" xml:space="preserve">
     <value>닫힘</value>
@@ -1288,7 +1288,7 @@
     <value>위치 2로 이동 중</value>
   </data>
   <data name="multiple reference images are linked to this point. resolve the duplicate before capturing." xml:space="preserve">
-    <value>기준 이미지가 중복 연결되어 있습니다. 중복 해소 후 촬영하세요.</value>
+    <value>같은 위치에 기준 이미지가 여러 장 연결되어 있습니다. 하나만 남긴 뒤 촬영하세요.</value>
   </data>
   <data name="negative limit" xml:space="preserve">
     <value>음의 리밋</value>
@@ -1741,7 +1741,7 @@
     <value>픽업 · 공급 및 체결</value>
   </data>
   <data name="pickup · supply bypassed / dry run" xml:space="preserve">
-    <value>픽업 · 공급 제외 / 공회전</value>
+    <value>픽업 · 볼트 없이 공회전</value>
   </data>
   <data name="pickup: pick / fasten" xml:space="preserve">
     <value>픽업·체결</value>
@@ -1856,7 +1856,7 @@
 </value>
   </data>
   <data name="press reset to restore servo power" xml:space="preserve">
-    <value>리셋으로 서보 전원을 복구하세요</value>
+    <value>리셋을 눌러 서보를 켜세요</value>
   </data>
   <data name="pure barcode" xml:space="preserve">
     <value>바코드 전용</value>
@@ -2015,7 +2015,7 @@
     <value>비상정지 양쪽 해제 필요</value>
   </data>
   <data name="release e-stop, then press reset" xml:space="preserve">
-    <value>비상정지 해제 후 리셋하세요</value>
+    <value>비상정지 버튼을 풀고 리셋을 누르세요</value>
   </data>
   <data name="release held pcb before home (ipm lift down)" xml:space="preserve">
     <value>원점 전 파지된 PCB 해제 (IPM 리프트 하강 상태)</value>
@@ -2075,7 +2075,7 @@
     <value>응답 타임아웃 (s)</value>
   </data>
   <data name="restore air pressure, then press reset" xml:space="preserve">
-    <value>공압 복구 후 리셋하세요</value>
+    <value>공압이 정상으로 돌아오면 리셋을 누르세요</value>
   </data>
   <data name="result" xml:space="preserve">
     <value>결과</value>
@@ -2339,7 +2339,7 @@
     <value>슈팅 피더 OFF (리니어)</value>
   </data>
   <data name="shooting feeder · supply bypassed" xml:space="preserve">
-    <value>슈팅 피더 · 공급 제외</value>
+    <value>슈팅 피더 · 사용 안 함</value>
   </data>
   <data name="shooting head" xml:space="preserve">
     <value>슈팅 헤드</value>
@@ -2378,7 +2378,7 @@
     <value>슈팅 · 공급 및 체결</value>
   </data>
   <data name="shooting · supply bypassed / dry run" xml:space="preserve">
-    <value>슈팅 · 공급 제외 / 공회전</value>
+    <value>슈팅 · 볼트 없이 공회전</value>
   </data>
   <data name="shooting: feed / fasten" xml:space="preserve">
     <value>슈팅 공급·체결</value>
@@ -2510,7 +2510,7 @@
     <value>공급</value>
   </data>
   <data name="supply bypassed" xml:space="preserve">
-    <value>공급 제외</value>
+    <value>볼트 공급 안 함</value>
   </data>
   <data name="supply gripper closed" xml:space="preserve">
     <value>공급 그리퍼 닫힘</value>
@@ -3264,7 +3264,7 @@
     <value>공급·안착 핸들러의 PCB와 체결 헤드의 볼트를 제거하세요</value>
   </data>
   <data name="remove unfinished carriers, then press start" xml:space="preserve">
-    <value>미완료 캐리어를 제거한 뒤 START를 누르세요</value>
+    <value>미완료 캐리어를 꺼낸 뒤 시작을 누르세요</value>
   </data>
   <data name="s1 · pcb placement" xml:space="preserve">
     <value>S1 · PCB 안착</value>
@@ -3333,13 +3333,14 @@
     <value>볼트 감지</value>
   </data>
   <data name="carrier work" xml:space="preserve">
-    <value>캐리어 작업</value>
+    <value>공정 상태</value>
   </data>
   <data name="clear results" xml:space="preserve">
     <value>결과 삭제</value>
   </data>
   <data name="complete: skip · clear: erase results and rework" xml:space="preserve">
-    <value>완료: 공정 건너뛰기 · 클리어: 결과 삭제 후 재작업</value>
+    <value>완료 처리: 이 공정 건너뛰기
+결과 삭제: 이 공정 다시 작업</value>
   </data>
   <data name="current position (mm)" xml:space="preserve">
     <value>현재 위치 (mm)</value>
@@ -3357,7 +3358,7 @@
     <value>완료 처리</value>
   </data>
   <data name="select a carrier or handler in the diagram." xml:space="preserve">
-    <value>그림에서 캐리어 또는 핸들러를 선택하세요.</value>
+    <value>확인할 캐리어나 핸들러를 누르세요.</value>
   </data>
   <data name="tube bolt detected" xml:space="preserve">
     <value>튜브 볼트 감지</value>

@@ -420,7 +420,7 @@ Operation failed. Check controller status.</value>
     <value>Clear the cause, then press RESET</value>
   </data>
   <data name="clear the motion fault, then press reset" xml:space="preserve">
-    <value>Clear the motion fault, then press RESET</value>
+    <value>Check the axis alarm, then press RESET</value>
   </data>
   <data name="clipboard is unavailable: {0}" xml:space="preserve">
     <value>Clipboard is unavailable: {0}</value>
@@ -3339,7 +3339,8 @@ See the application log for details.</value>
     <value>Clear results</value>
   </data>
   <data name="complete: skip · clear: erase results and rework" xml:space="preserve">
-    <value>Complete: skip · Clear: erase results and rework</value>
+    <value>Mark complete: skip this station
+Clear results: run this station again</value>
   </data>
   <data name="current position (mm)" xml:space="preserve">
     <value>Current position (mm)</value>

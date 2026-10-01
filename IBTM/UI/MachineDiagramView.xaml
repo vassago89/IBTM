@@ -7,9 +7,8 @@
     mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}">
     <UserControl.Resources>
         <Style x:Key="StartCheckOutline" TargetType="Border">
-            <Setter Property="BorderThickness" Value="4"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Margin" Value="-6"/>
+            <Setter Property="BorderThickness" Value="3"/>
+            <Setter Property="CornerRadius" Value="4"/>
             <Setter Property="Visibility" Value="Visible"/>
             <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
             <Style.Triggers>
@@ -149,8 +148,7 @@
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding FasteningPositionKnown}" Value="False">
                                         <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
-                                        <Setter Property="Height" Value="14"/>
-                                        <Setter Property="Margin" Value="-2"/>
+                                        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Setter Property="RenderTransform">
                                             <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.PickupControllerRowTop}"/></Setter.Value>
@@ -158,8 +156,7 @@
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding PickupHeadMapPosition}" Value="{x:Null}">
                                         <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
-                                        <Setter Property="Height" Value="14"/>
-                                        <Setter Property="Margin" Value="-2"/>
+                                        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Setter Property="RenderTransform">
                                             <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.PickupControllerRowTop}"/></Setter.Value>
@@ -188,8 +185,7 @@
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding FasteningPositionKnown}" Value="False">
                                         <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
-                                        <Setter Property="Height" Value="14"/>
-                                        <Setter Property="Margin" Value="-2"/>
+                                        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Setter Property="RenderTransform">
                                             <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.ShootingControllerRowTop}"/></Setter.Value>
@@ -197,8 +193,7 @@
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding ShootingHeadMapPosition}" Value="{x:Null}">
                                         <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
-                                        <Setter Property="Height" Value="14"/>
-                                        <Setter Property="Margin" Value="-2"/>
+                                        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Setter Property="RenderTransform">
                                             <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.ShootingControllerRowTop}"/></Setter.Value>

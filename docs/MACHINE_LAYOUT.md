@@ -189,14 +189,23 @@ discharge trigger. Rear wins when it is ready; a blocked Rear does not prevent a
 already-waiting Front carrier from entering. Front Ready and Rear Available are not
 advertised together. Outputs are commands, not state evidence.
 
-After STOP, remove PCBs from Supply/Placement and bolts from the fastening heads
-before START. Presence/vacuum feedback blocks START until that material is cleared;
-RESET does not override it. Supply starts at PCB 1, Placement at the first present
-heat sink, and incomplete fastening/inspection at the first configured point.
+After STOP, START checks current material feedback. Remove PCBs from the handlers
+and bolts from the fastening heads. Normal Supply handoff is the exception: a PCB
+held at the confirmed handoff position may wait for Placement across STOP.
+Unfinished station carriers block START even after presence goes OFF and ON.
+The start review can explicitly mark a station complete or clear its results;
+clear permits one fresh run of that station, not resumption of its interrupted step.
 Completed carriers retain their completion and results; their units do not restart work.
-Carriers on the main conveyor and NG shuttle/conveyor may remain. NG discharge
-continues from current sensors; there is no between-sensor recovery wait.
+Supply starts at PCB 1 after any retained handoff, and Placement at the first target.
+NG shuttle/conveyor discharge continues from current sensors; there is no
+between-sensor recovery wait.
 RESET clears device alarms without changing support outputs or completing work.
+
+Maintenance faults pause new main-conveyor transfers and Placement prefetch while
+current work finishes where possible. If Placement already holds a prefetched PCB
+with no unfinished carrier at S1, stop with vacuum maintained instead of waiting
+for a carrier that the paused conveyor cannot deliver. That PCB still blocks START
+until manually removed; RESET does not release it or approve another run.
 
 The machine has three external SMEMA connections. Front 1 belongs to PCB Supply,
 Front 2 belongs to the main heat sink carrier conveyor, and Rear belongs to the

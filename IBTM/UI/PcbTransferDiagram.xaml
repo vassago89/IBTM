@@ -121,7 +121,7 @@
                 <Grid.RenderTransform>
                     <TranslateTransform X="{Binding PcbSupplyMapPosition.X, TargetNullValue=0, FallbackValue=0}" Y="{Binding PcbSupplyMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                 </Grid.RenderTransform>
-                <Grid Width="92" Height="72" HorizontalAlignment="Center" VerticalAlignment="Bottom">
+                <Grid Width="92" Height="72" HorizontalAlignment="Center" VerticalAlignment="Bottom" Opacity="0.6">
                     <Border Tag="{Binding Supply.Motion.IsMoving}" Style="{StaticResource OverheadBodyStyle}"/>
                     <Grid Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,4,0,0">
                         <Ellipse Width="12" Height="12" VerticalAlignment="Top" Fill="{StaticResource EquipBgBrush}"
@@ -177,7 +177,7 @@
                         Y="{Binding PcbPlacementMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                 </Grid.RenderTransform>
                 <Grid Width="92" Height="72" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                    Margin="{x:Static ui:MachineDiagramLayout.PlacementToolMargin}">
+                    Margin="{x:Static ui:MachineDiagramLayout.PlacementToolMargin}" Opacity="0.6">
                     <Border Tag="{Binding Placement.Motion.IsMoving}" Style="{StaticResource PlacementBodyStyle}"/>
                     <Grid Width="24" Height="18" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,4,0,0">
                         <Border Width="20" Height="3" VerticalAlignment="Top" Background="{StaticResource TextMutedBrush}"
