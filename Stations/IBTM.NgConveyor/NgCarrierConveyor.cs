@@ -294,8 +294,8 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         while (_io.GetInput(InputIo.NgCarrierEjectButton) || _io.GetInput(InputIo.NgCarrierEjectCompleteButton))
                             await WaitForChangeAsync(cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
-                        if (!_io.GetInput(InputIo.NgConveyorStopperUp) || _io.GetInput(InputIo.NgConveyorStopperDown))
-                            await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
+                        //if (!_io.GetInput(InputIo.NgConveyorStopperUp) || _io.GetInput(InputIo.NgConveyorStopperDown))
+                        //    await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
                         Interlocked.Exchange(ref _ejectCompleteRequested, 0);
                         _ejectionPhase = EjectionPhase.Idle;
                         NotifyChanged();
