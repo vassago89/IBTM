@@ -197,7 +197,7 @@
             </Border>
         </Grid>
 
-        <TabControl x:Name="ProtocolTabs" Grid.Row="3" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}">
+        <TabControl x:Name="ProtocolTabs" Grid.Row="3" Style="{StaticResource SectionTabs}" ItemContainerStyle="{StaticResource SectionTab}">
         <TabItem Header="{ui:Text 'Frame Log'}">
         <Border Padding="18,14" Style="{StaticResource CardStyle}">
             <Grid>

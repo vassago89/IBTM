@@ -3435,4 +3435,7 @@ Clear results: run this station again</value>
   <data name="clear counts" xml:space="preserve">
     <value>Clear</value>
   </data>
+  <data name="fastening method" xml:space="preserve">
+    <value>Fastening method</value>
+  </data>
 </root>

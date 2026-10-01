@@ -1476,11 +1476,15 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     failureAlarm = MachineAlarm.HomeFailed;
                     if (_units.PcbPlacement)
                     {
-                        // Placement must finish homing before any other unit starts.
+                        // Avoid interference: home Placement Z, Y, then X before any other unit starts.
                         await CheckHomeAsync(
                             _pcbPlacement.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
-                        await CheckHomeAsync(_pcbPlacement.HomeHorizontalAsync(cancellationToken), cancellationToken);
+                        await CheckHomeAsync(
+                            _pcbPlacement.HomeAxisAsync(MotionAxis.Y, cancellationToken), cancellationToken);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await CheckHomeAsync(
+                            _pcbPlacement.HomeAxisAsync(MotionAxis.X, cancellationToken), cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
                     }
                     await Task.WhenAll(

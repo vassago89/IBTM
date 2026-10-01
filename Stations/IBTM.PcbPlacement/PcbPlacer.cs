@@ -740,9 +740,10 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
     {
-        if (!await HomeAxisAsync(MotionAxis.Y, cancellationToken))
-            return false;
-        return await HomeAxisAsync(MotionAxis.X, cancellationToken);
+        EnsureHandlerRaised(cancellationToken);
+        return await _motion.HomeHorizontalAsync(
+            _settings.Motion.HorizontalHome.SearchSpeed,
+            cancellationToken);
     }
 
     public Task MoveAxisAsync(

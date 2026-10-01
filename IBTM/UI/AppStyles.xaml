@@ -457,14 +457,14 @@
                 <ControlTemplate TargetType="TabItem">
                     <Border x:Name="Root" Padding="12,8" Background="{StaticResource ControlBgBrush}"
                         BorderBrush="{StaticResource ControlBorderBrush}" BorderThickness="1" CornerRadius="2">
-                        <ContentPresenter ContentSource="Header"/>
+                        <ContentPresenter x:Name="Header" ContentSource="Header"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource CardBgBrush}"/>
                             <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource ControlFocusBorderBrush}"/>
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter TargetName="Header" Property="TextElement.FontWeight" Value="SemiBold"/>
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource ControlHoverBorderBrush}"/>

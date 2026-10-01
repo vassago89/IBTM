@@ -174,7 +174,7 @@
             <Border Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
                 <Grid Margin="18,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="280"/>
+                        <ColumnDefinition Width="310"/>
                         <ColumnDefinition Width="18"/>
                         <ColumnDefinition Width="240"/>
                         <ColumnDefinition Width="24"/>
@@ -184,7 +184,7 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Tag="{Binding Operation.MachineDisplayState}" Style="{StaticResource MachineStateBadgeStyle}" Width="130">
+                        <Border Tag="{Binding Operation.MachineDisplayState}" Style="{StaticResource MachineStateBadgeStyle}" Width="160">
                             <TextBlock
                                 Text="{Binding Operation.MachineDisplayState,
                                                      Converter={StaticResource UiTextConverter}}"

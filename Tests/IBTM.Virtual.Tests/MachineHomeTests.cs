@@ -104,7 +104,7 @@ public sealed class MachineHomeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PlacementHomeRunsZThenYThenXBeforeOtherUnits(bool allUnits)
+    public async Task PlacementHomeUsesSequentialAxesOnlyForAllUnits(bool allUnits)
     {
         var settings = FlowSettings();
         settings.PcbPlacementHandler.HandoffPosition.Z = 8;
@@ -118,6 +118,12 @@ public sealed class MachineHomeTests
         services.GetRequiredService<VirtualIoService>().OutputChanged += (output, _) => outputs.Enqueue(output);
         var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
         var placement = motions[MotionGroup.PcbPlacementHandler];
+        var placementStarts = new ConcurrentQueue<bool>();
+        placement.MovingChanged += moving =>
+        {
+            if (moving)
+                placementStarts.Enqueue(true);
+        };
         var placementHomeOrder = new List<MotionAxis>();
         placement.StateChanged += () =>
         {
@@ -146,7 +152,10 @@ public sealed class MachineHomeTests
 
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.Empty(outputs);
-            Assert.Equal(new[] { MotionAxis.Z, MotionAxis.Y, MotionAxis.X }, placementHomeOrder);
+            Assert.Equal(allUnits ? 3 : 2, placementStarts.Count);
+            Assert.Equal(MotionAxis.Z, placementHomeOrder[0]);
+            if (allUnits)
+                Assert.Equal(new[] { MotionAxis.Z, MotionAxis.Y, MotionAxis.X }, placementHomeOrder);
             Assert.Equal(allUnits ? motions.Count - 1 : 0, starts.Select(start => start.Group).Distinct().Count());
             Assert.All(starts, start => Assert.True(start.PlacementHomed, $"{start.Group} started before Placement HOME completed."));
             foreach (var (group, motion) in motions)

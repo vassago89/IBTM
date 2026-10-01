@@ -29,7 +29,7 @@
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="MinWidth" Value="0"/>
             <Setter Property="Padding" Value="5,6"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
             <Style.Triggers>
                 <Trigger Property="Tag">
@@ -87,12 +87,12 @@
                 <ColumnDefinition Width="42"/>
                 <ColumnDefinition Width="108"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="62"/>
-                <ColumnDefinition Width="62"/>
-                <ColumnDefinition Width="62"/>
-                <ColumnDefinition Width="62"/>
-                <ColumnDefinition Width="62"/>
-                <ColumnDefinition Width="62"/>
+                <ColumnDefinition Width="78"/>
+                <ColumnDefinition Width="78"/>
+                <ColumnDefinition Width="78"/>
+                <ColumnDefinition Width="78"/>
+                <ColumnDefinition Width="78"/>
+                <ColumnDefinition Width="78"/>
                 <ColumnDefinition Width="196"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="{ui:Text 'NO.'}" Style="{StaticResource SectionHeaderStyle}"/>
@@ -125,12 +125,12 @@
                             <ColumnDefinition Width="42"/>
                             <ColumnDefinition Width="108"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="62"/>
-                            <ColumnDefinition Width="62"/>
-                            <ColumnDefinition Width="62"/>
-                            <ColumnDefinition Width="62"/>
-                            <ColumnDefinition Width="62"/>
-                            <ColumnDefinition Width="62"/>
+                            <ColumnDefinition Width="78"/>
+                            <ColumnDefinition Width="78"/>
+                            <ColumnDefinition Width="78"/>
+                            <ColumnDefinition Width="78"/>
+                            <ColumnDefinition Width="78"/>
+                            <ColumnDefinition Width="78"/>
                             <ColumnDefinition Width="196"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{Binding Address}"

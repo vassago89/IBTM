@@ -63,7 +63,7 @@
     </Style>
 
     <Style x:Key="EquipmentRoleLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource MapHintStyle}">
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="TextAlignment" Value="Center"/>

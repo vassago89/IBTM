@@ -126,7 +126,7 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="TextAlignment" Value="Center"/>
         <Setter Property="MinWidth" Value="68"/>
-        <Setter Property="Height" Value="28"/>
+        <Setter Property="MinHeight" Value="30"/>
         <Setter Property="Padding" Value="8,5"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Bold"/>

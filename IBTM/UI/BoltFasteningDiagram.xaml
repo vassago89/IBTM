@@ -51,7 +51,7 @@
         </Style>
         <Style x:Key="FeederCommandLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource EquipmentRoleLabelStyle}">
             <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="IsHitTestVisible" Value="True"/>
         </Style>
     </UserControl.Resources>

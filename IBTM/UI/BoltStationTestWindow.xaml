@@ -116,7 +116,7 @@
                     <ColumnDefinition Width="140"/><ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="1" Text="{ui:Text 'BOLT'}" Style="{StaticResource TestCell}"/>
-                <TextBlock Grid.Column="2" Text="{ui:Text 'Head'}" Style="{StaticResource TestCell}"/>
+                <TextBlock Grid.Column="2" Text="{ui:Text 'Fastening method'}" Style="{StaticResource TestCell}"/>
                 <TextBlock Grid.Column="3" Text="{ui:Text 'Fasten'}" Style="{StaticResource TestCell}"/>
                 <TextBlock Grid.Column="4" Text="{ui:Text 'Torque / target'}" Style="{StaticResource TestCell}"/>
                 <TextBlock Grid.Column="5" Text="{ui:Text 'Turns'}" Style="{StaticResource TestCell}"/>

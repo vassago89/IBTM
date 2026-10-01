@@ -33,7 +33,7 @@
         <ui:LogTextBox x:Name="LogText" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2" Margin="0,12,0,0"
             Text="{Binding Text, Mode=OneWay}"
             IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
-            SelectionText="{Binding SelectedText, Mode=TwoWay}" IsPaused="{Binding IsPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="13" TextWrapping="NoWrap" Padding="8"
+            SelectionText="{Binding SelectedText, Mode=TwoWay}" IsPaused="{Binding IsPaused, Mode=TwoWay}" FontFamily="Consolas" FontSize="14" TextWrapping="NoWrap" Padding="8"
             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
         <StackPanel Grid.Row="3" Margin="0,12,0,0">
             <ScrollViewer Height="36" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

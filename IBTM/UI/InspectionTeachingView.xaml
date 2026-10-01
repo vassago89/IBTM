@@ -72,7 +72,7 @@
                                     </GroupStyle>
                                 </ListBox.GroupStyle>
                                 <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:InspectionPoint}">
-                                    <StackPanel Margin="4,4"><TextBlock Text="{Binding Name}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
+                                    <StackPanel Margin="4,4"><TextBlock Text="{Binding Name}" Height="22" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
                                         <TextBlock Text="{Binding PositionLabel}" Height="34" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding PositionLabel}"
                                             Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" FontSize="12" Margin="0,3,0,0"/>
                                     </StackPanel>
@@ -140,11 +140,11 @@
                                                 <DockPanel>
                                                     <TextBlock DockPanel.Dock="Right" Text="{Binding Verdict}" Tag="{Binding Record.Success}"
                                                         Style="{StaticResource ResultValueStyle}" Margin="8,0,4,0"/>
-                                                    <TextBlock Text="{Binding Title}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}"/>
+                                                    <TextBlock Text="{Binding Title}" Height="22" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}"/>
                                                 </DockPanel>
                                                 <TextBlock Text="{Binding Details}" Height="34" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Details}"
                                                     FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
-                                                <TextBlock Text="{Binding Error}" Height="16" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" FontSize="12" Foreground="{StaticResource AccentAmberBrush}"/>
+                                                <TextBlock Text="{Binding Error}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" FontSize="12" Foreground="{StaticResource AccentAmberBrush}"/>
                                             </StackPanel>
                                         </Grid>
                                     </DataTemplate>
@@ -183,11 +183,11 @@
                             </Button>
                             <Button Content="{ui:Text 'Show Reference Image'}" Command="{Binding ShowRecipeImageCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,6"/>
                         </WrapPanel>
-                        <TextBlock Text="{Binding ImageSource}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding ImageSource}"/>
-                        <TextBlock Text="{Binding OriginalResult}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding OriginalResult}"
+                        <TextBlock Text="{Binding ImageSource}" Height="22" TextTrimming="CharacterEllipsis" ToolTip="{Binding ImageSource}"/>
+                        <TextBlock Text="{Binding OriginalResult}" Height="22" TextTrimming="CharacterEllipsis" ToolTip="{Binding OriginalResult}"
                             Tag="{Binding OriginalImage.Record.Success}" Style="{StaticResource ResultValueStyle}" Margin="0,3,0,0"/>
                         <StackPanel IsEnabled="{Binding IsIdle}" Margin="0,8,0,0">
-                            <TextBlock Text="{ui:Text 'Reference image unavailable'}" Height="18" Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,0,6">
+                            <TextBlock Text="{ui:Text 'Reference image unavailable'}" Height="22" Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,0,6">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Hidden"/>
