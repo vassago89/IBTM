@@ -320,7 +320,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 return InspectionStationState.PreparingInspectionPosition;
         }
         if (!_units.Inspection)
-            return WaitAtWaitingPosition(InspectionStationState.Disabled);
+            return InspectionStationState.Disabled;
         var transferState = GetNextTransferStep(
             NgTransferDestination.Shuttle,
             canPickUp: repeat && IsEmptyRepeatAllowed && !Station.CarrierPresent
@@ -330,8 +330,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             return transferState;
 
         if (!IsReadyToInspect)
-            return WaitAtWaitingPosition(IsWaitingForConveyor
-                ? InspectionStationState.WaitingForConveyor : InspectionStationState.Waiting);
+            return IsWaitingForConveyor
+                ? InspectionStationState.WaitingForConveyor : InspectionStationState.Waiting;
         if (_runJob is null)
             return InspectionStationState.PreparingInspection;
         var target = InspectionTarget;
@@ -341,11 +341,11 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         {
             return HasBarcodeRegion(target.Pcb.Value)
                 ? InspectionStationState.ReadingBarcode
-                : WaitAtWaitingPosition(InspectionStationState.BarcodeTeachingRequired);
+                : InspectionStationState.BarcodeTeachingRequired;
         }
         return HasRegion(target.Bolt)
             ? InspectionStationState.InspectingBolt
-            : WaitAtWaitingPosition(InspectionStationState.FovTeachingRequired);
+            : InspectionStationState.FovTeachingRequired;
     }
 
     private async Task<bool> ExecuteStepAsync(
@@ -409,13 +409,19 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         Station.Complete();
                     return false;
                 case InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor:
-                    EnterStep(state, workId: Station.CurrentJob.Id, waitingFor: "carrier, supports and clear pickup");
+                case InspectionStationState.BarcodeTeachingRequired or InspectionStationState.FovTeachingRequired:
+                    // Return on entering a wait, not on every feedback notification while waiting.
+                    if (IsClear && !Equals(Step, state)
+                        && Step is not InspectionStationState.ReturningToWaitingPosition
+                            and not InspectionStationState.CompletingInspection)
+                    {
+                        EnterStep(InspectionStationState.ReturningToWaitingPosition, workId: Station.CurrentJob.Id);
+                        await MoveToWaitingPositionAsync(cancellationToken);
+                    }
+                    EnterStep(state, workId: Station.CurrentJob.Id);
                     return false;
                 case InspectionStationState.WaitingForShuttleDown:
                     EnterStep(state, workId: Station.CurrentJob.Id, waitingFor: $"shuttle Down; current={_ngConveyor.ShuttleLift}");
-                    return false;
-                case InspectionStationState.BarcodeTeachingRequired or InspectionStationState.FovTeachingRequired:
-                    EnterStep(state, workId: Station.CurrentJob.Id);
                     return false;
                 case InspectionStationState.CompletingInspection:
                 {
@@ -529,13 +535,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         _runPoints = null;
         _pointIndex = 0;
         NotifyChanged();
-    }
-
-    private InspectionStationState WaitAtWaitingPosition(InspectionStationState waiting)
-    {
-        return IsClear && !IsTransferAtWaitingPosition
-            ? InspectionStationState.ReturningToWaitingPosition
-            : waiting;
     }
 
     private async Task MoveToWaitingPositionAsync(CancellationToken cancellationToken)

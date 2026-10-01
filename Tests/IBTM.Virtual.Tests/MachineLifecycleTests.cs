@@ -980,7 +980,7 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Equal(
             lift == StationCylinderState.Up
-                ? InspectionStationState.ReturningToWaitingPosition
+                ? InspectionStationState.Waiting
                 : InspectionStationState.PlacingCarrier,
             station.GetNextStep());
 
@@ -2717,7 +2717,8 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(1, pickups);
             Assert.Equal(0, starts);
             Assert.False(vacuumRequested);
-            Assert.True(station.IsAtPickupXY);
+            Assert.Equal((settings.BoltFastening.PickupPosition.X, settings.BoltFastening.PickupPosition.Y),
+                (station.Motion.Feedback.Position.X, station.Motion.Feedback.Position.Y));
             Assert.True(station.IsAtSafeZ);
             Assert.Equal(StationCylinderState.Down, station.PickupHeadPosition);
             Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));

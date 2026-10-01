@@ -669,6 +669,7 @@ public sealed class InspectionTests
         Assert.Equal(2, work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Count);
         Assert.Equal(AssemblyResult.Ok, work.GetAssembly(HeatSinkSlot.HeatSink2).InspectionResult);
         VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        work.ClearJob();
         io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
         Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
 
@@ -681,6 +682,7 @@ public sealed class InspectionTests
         Assert.All(heatSink2.BoltPresenceResults.Values, Assert.True);
 
         VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        work.ClearJob();
         Assert.False(work.CarrierPresent);
 
         HeatSinkAssembly[] interruptedAssemblies = [];
@@ -688,6 +690,7 @@ public sealed class InspectionTests
         {
             interruptedAssemblies = work.Assemblies.ToArray();
             VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+            work.ClearJob();
             VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
             cancellation.Cancel();
         };
@@ -726,7 +729,7 @@ public sealed class InspectionTests
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
-        Assert.Equal(InspectionStationState.ReturningToWaitingPosition, transferStation.GetNextStep());
+        Assert.Equal(InspectionStationState.WaitingForConveyor, transferStation.GetNextStep());
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperUp, false);

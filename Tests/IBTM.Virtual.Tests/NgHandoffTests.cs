@@ -16,6 +16,43 @@ namespace IBTM.Virtual.Tests;
 public sealed class NgHandoffTests
 {
     [Fact]
+    public async Task InspectionReturnsOnceBeforeWaitingEvenWithSmallPositionError()
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var transfer = system.Inspection;
+        await motion.AdjustAxisAsync(MotionAxis.X, 0.04, 1_000);
+        var moves = 0;
+        motion.MovingChanged += moving =>
+        {
+            if (moving)
+                Interlocked.Increment(ref moves);
+        };
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        transfer.StepChanged += () =>
+        {
+            if (transfer.Step is InspectionStationState.Waiting)
+                waiting.TrySetResult();
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var run = transfer.RunAsync(stop.Token);
+        try
+        {
+            await waiting.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.Equal(0, motion.Position.X);
+            Assert.False(motion.IsMoving);
+            system.Io.SetOutput(OutputIo.MainConveyorRun, true);
+            await Task.Delay(50);
+            Assert.Equal(1, Volatile.Read(ref moves));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+    }
+
+    [Fact]
     public async Task PickupMoveUsesTargetAndKeepsLoweredGripOnItsSupport()
     {
         var system = await CreateAsync();
