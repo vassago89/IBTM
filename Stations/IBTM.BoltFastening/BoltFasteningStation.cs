@@ -338,7 +338,7 @@ public sealed class BoltFasteningStation : AutoUnit
             {
                 case BoltFasteningState.Disabled:
                     if (Station.CarrierSeated)
-                        Station.Complete(Station.CurrentJob);
+                        Station.Complete();
                     return false;
                 case BoltFasteningState.MovingToStandby:
                 {

@@ -441,9 +441,9 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<InspectionStation>();
+        services.GetRequiredService<UnitSettings>().NgConveyor = true;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         await services.GetRequiredService<InspectionStation>().Station.PrepareToReceiveAsync(CancellationToken.None);
         services.GetRequiredService<VirtualCamera>().BoltsPresent = false;
@@ -2275,6 +2275,7 @@ public sealed partial class MachineLifecycleTests
             settings.Options.TimeoutMilliseconds = 2_000;
             io.AutoResponseEnabled = true;
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            work.ClearJob();
             await station.SetVacuumAsync(FasteningHead.Pickup, false, CancellationToken.None);
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -2581,9 +2582,9 @@ public sealed partial class MachineLifecycleTests
         transferSettings.WaitingPosition = new() { X = 15, Y = 35 };
         var waitingPosition = transferSettings.WaitingPosition;
         services.GetRequiredService<VirtualCamera>().BoltsPresent = !ng;
+        services.GetRequiredService<UnitSettings>().NgConveyor = true;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.MainConveyorReadyFromRear, rearReady);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
@@ -4848,7 +4849,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task FasteningCompletionCannotCompleteAReplacementCarrier()
+    public async Task FasteningCompletionKeepsInterruptedCarrierHistory()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
@@ -4884,7 +4885,7 @@ public sealed partial class MachineLifecycleTests
             await station.RunAsync(stop.Token).WaitAsync(TimeSpan.FromSeconds(4));
             Assert.True(replaced);
             Assert.True(previousAssembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Success);
-            Assert.Empty(work.Assemblies);
+            Assert.Same(previousAssembly, Assert.Single(work.Assemblies));
             Assert.False(work.Completed);
             Assert.False(gantry.Motion.Feedback.IsMoving);
         }

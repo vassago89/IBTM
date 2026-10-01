@@ -328,7 +328,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             ActivePcb = null;
             if (Station.CarrierSeated && _repeatTrip is null && !PcbSecured && !IsPcbGripUncertain)
-                Station.Complete(Station.CurrentJob);
+                Station.Complete();
             EnterStep(PcbPlacementState.Disabled, workId: Station.CurrentJob.Id,
                 waitingFor: _repeatTrip is not null || PcbSecured || IsPcbGripUncertain
                     ? "unfinished PCB handoff" : Station.Completed ? "carrier transfer" : "carrier seated");

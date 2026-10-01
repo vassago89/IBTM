@@ -313,10 +313,12 @@ public sealed class ConveyorStation
         Changed?.Invoke();
     }
 
-    public void Complete(Job job)
+    public void Complete(Job? job = null)
     {
         lock (s_jobGate)
         {
+            // Disabled units complete the current carrier atomically with result handoff.
+            job ??= _job;
             RequireCurrentJob(job);
             if (job.Completed)
                 return;

@@ -1913,6 +1913,7 @@ public sealed class BoltFasteningTests
         if (replaceCarrier)
         {
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            station.Station.ClearJob();
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         }
         else
@@ -2351,9 +2352,10 @@ public sealed class BoltFasteningTests
             Assert.Equal(
                 new (byte Head, ushort Preset)[] { (2, 1), (2, 1), (1, 1), (1, 1) },
                 tightenings);
-            // A replaced carrier must never inherit the previous carrier's in-flight result.
+            // A new admitted carrier must never inherit the previous carrier's in-flight result.
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
             io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
+            work.ClearJob();
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             var previousAssembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
             var carrierReplaced = false;
@@ -2361,6 +2363,7 @@ public sealed class BoltFasteningTests
             afterStop = () =>
             {
                 VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+                work.ClearJob();
                 VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
                 carrierReplaced = true;
                 carrierChange.Cancel();

@@ -430,7 +430,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 case InspectionStationState.Disabled:
                     EnterStep(state, workId: Station.CurrentJob.Id);
                     if (Station.CarrierSeated || IsAtInspectionPosition)
-                        Station.Complete(Station.CurrentJob);
+                        Station.Complete();
                     return false;
                 case InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor:
                     EnterStep(state, workId: Station.CurrentJob.Id, waitingFor: "carrier, supports and clear pickup");
