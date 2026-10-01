@@ -4,7 +4,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
-    xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:BoltStationTestViewModel, IsDesignTimeCreatable=False}"
     Title="{ui:Text 'Bolt Station · Selected Bolt Test'}" Width="1080" Height="960"

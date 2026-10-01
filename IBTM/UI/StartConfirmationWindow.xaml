@@ -168,8 +168,16 @@
                                                 <TextBlock Text="{Binding PcbNumber, StringFormat={ui:Text 'PCB {0}'}, TargetNullValue=—}" Margin="0,4,0,0"/>
                                                 <TextBlock Text="{Binding PcbBarcode}" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
                                                 <UniformGrid Columns="2" Margin="0,8,0,0">
-                                                    <StackPanel><TextBlock Text="{ui:Text 'Bolt Fastening'}" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding FasteningResult, Converter={StaticResource UiTextConverter}}"/></StackPanel>
-                                                    <StackPanel><TextBlock Text="{ui:Text 'Inspection'}" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding InspectionResult, Converter={StaticResource UiTextConverter}}"/></StackPanel>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{ui:Text 'Bolt Fastening'}" Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <TextBlock Text="{Binding FasteningResult, Converter={StaticResource UiTextConverter}}"
+                                                            Tag="{Binding FasteningResult}" Style="{StaticResource ResultValueStyle}"/>
+                                                    </StackPanel>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{ui:Text 'Inspection'}" Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <TextBlock Text="{Binding InspectionResult, Converter={StaticResource UiTextConverter}}"
+                                                            Tag="{Binding InspectionResult}" Style="{StaticResource ResultValueStyle}"/>
+                                                    </StackPanel>
                                                 </UniformGrid>
                                             </StackPanel>
                                         </Border>
