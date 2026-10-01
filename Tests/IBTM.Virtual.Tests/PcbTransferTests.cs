@@ -267,7 +267,7 @@ public sealed class PcbTransferTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
         await placer.MoveAxisAsync(MotionAxis.Z, placementSettings.HandoffPosition.Z);
-        Assert.True(placer.IsAtHorizontalZ);
+        Assert.Equal(placementSettings.HandoffPosition.Z, placementMotion.Position.Z);
         await placer.SetLiftDownAsync(true);
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));

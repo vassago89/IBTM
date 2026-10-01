@@ -124,16 +124,12 @@ public sealed partial class MachineController
             {
                 if (_pcbPlacement.Lift != StationCylinderState.Up)
                     return OutputBlockReason.PlacementNotRaised;
-                if (!_pcbPlacement.IsAtHorizontalZ)
-                    return OutputBlockReason.PlacementNotAtSafeZ;
             }
 
             if (_units.BoltFastening)
             {
                 if (!_fasteningStation.IsHorizontalMoveAllowed)
                     return OutputBlockReason.FasteningNotRaised;
-                if (!_fasteningStation.IsAtSafeZ)
-                    return OutputBlockReason.FasteningNotAtSafeZ;
             }
 
             // Disabling inspection does not remove the pickup or release its carrier.
@@ -163,6 +159,10 @@ public sealed partial class MachineController
         {
             CheckPath();
             operation.Token.ThrowIfCancellationRequested();
+            if (_units.PcbPlacement)
+                await _pcbPlacement.MoveAxisAsync(MotionAxis.Z, _placementSettings.HandoffPosition.Z, operation.Token);
+            if (_units.BoltFastening)
+                await _fasteningStation.MoveZAsync(_fasteningSettings.SafeZ, operation.Token);
             await _conveyor.ReturnToStartAsync(operation.Token);
             operation.Token.ThrowIfCancellationRequested();
         }

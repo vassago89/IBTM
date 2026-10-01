@@ -174,26 +174,6 @@ public sealed class BoltFasteningTests
         }
     }
 
-    [Fact]
-    public async Task BoltPositionRequiresHomedAxesEvenWhenCoordinatesMatch()
-    {
-        var settings = new BoltFasteningSettings { SafeZ = 0 };
-        settings.ShootingHead.FasteningZ = 0;
-        var io = new VirtualIoService(Outputs(new BoltFasteningHardwareSettings()), new());
-        using var motion = new VirtualMotionService(settings.Motion, new());
-        using var bus = new VirtualAdcBus();
-        var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
-        var station = CreateFastening(head, head, io, motion, settings, new());
-        var bolt = Bolt(1, FasteningHead.Shooting, 0, 0);
-        motion.Initialize();
-
-        Assert.False(station.IsAt(bolt));
-        await HomeAsync(motion, 1_000);
-        Assert.True(station.IsAt(bolt));
-        await motion.MoveAxisAsync(MotionAxis.X, 1, 1_000);
-        Assert.False(station.IsAt(bolt));
-    }
-
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
@@ -652,7 +632,7 @@ public sealed class BoltFasteningTests
                 if (on && bus.StartWrites == 2 && arrivalDelaySeconds > 0)
                 {
                     Assert.True(Stopwatch.GetElapsedTime(secondPassageAt).TotalSeconds >= arrivalDelaySeconds);
-                    Assert.True(station.IsAt(bolts[2]));
+                    Assert.True(MotionServiceBase.IsAt(motion, settings.GetBoltPosition(bolts[2])));
                 }
             }
             if (output == OutputIo.PickupTableDown)
@@ -2124,7 +2104,7 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.PickupTableDown && on)
             {
                 tableDescents++;
-                Assert.True(station.IsAtSafeZ);
+                Assert.Equal(settings.SafeZ, motion.Position.Z);
                 Assert.True(station.IsHorizontalMoveAllowed);
                 Assert.Equal(2, starts.Count);
                 Assert.All(work.Assemblies, assembly => Assert.Single(assembly.ShootingBoltResults));
@@ -2200,6 +2180,8 @@ public sealed class BoltFasteningTests
         var settings = new BoltFasteningSettings
         {
             ShootingArrivalDelaySeconds = 0.05,
+            // The virtual machine applies vacuum feedback after 200 ms.
+            PickupVacuumDelayMilliseconds = 250,
             Motion = new MotionSettings { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
             SafeZ = 5,
             PickupPosition = new AxisPosition { X = 10, Y = 10, Z = 10 },
@@ -2366,8 +2348,8 @@ public sealed class BoltFasteningTests
             Assert.Equal(AssemblyResult.Ok, heatSink2.FasteningResult);
             Assert.False(heatSink1.ShootingBoltResults[VirtualTestSupport.BoltId(2)].Success);
             Assert.True(heatSink1.PickupBoltResults[VirtualTestSupport.BoltId(1)].Success);
-            Assert.True(heatSink2.ShootingBoltResults[VirtualTestSupport.BoltId(2)].Success);
-            Assert.True(heatSink2.PickupBoltResults[VirtualTestSupport.BoltId(1)].Success);
+            Assert.True(heatSink2.ShootingBoltResults[VirtualTestSupport.BoltId(2, HeatSinkSlot.HeatSink2)].Success);
+            Assert.True(heatSink2.PickupBoltResults[VirtualTestSupport.BoltId(1, HeatSinkSlot.HeatSink2)].Success);
             Assert.False(movedWithLoweredCylinder);
             Assert.False(movedBelowTravelZ);
             Assert.Equal(4, fasteningHeights.Count);
@@ -2376,7 +2358,7 @@ public sealed class BoltFasteningTests
                 item.Head == 1 ? settings.PickupHead.FasteningZ : settings.ShootingHead.FasteningZ,
                 item.Z));
             Assert.True(station.IsHorizontalMoveAllowed);
-            Assert.True(station.IsAtSafeZ);
+            Assert.Equal(settings.SafeZ, motion.Position.Z);
             Assert.Equal(
                 new (byte Head, ushort Preset)[] { (2, 1), (2, 1), (1, 1), (1, 1) },
                 tightenings);

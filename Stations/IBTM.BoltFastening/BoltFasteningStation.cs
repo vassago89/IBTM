@@ -219,9 +219,11 @@ public sealed class BoltFasteningStation : AutoUnit
             {
                 if (_units.BoltFastening && repeat && !_units.MainConveyor && Station.Completed)
                 {
-                    if (!Station.CarrierSeated || !IsHorizontalMoveAllowed || !IsAtSafeZ)
-                        throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads at safe height.");
-                    Station.StartRepeat(Station.CurrentJob);
+                    if (!Station.CarrierSeated || !IsHorizontalMoveAllowed)
+                        throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads raised.");
+                    var completedJob = Station.CurrentJob;
+                    await MoveZAsync(_settings.SafeZ, cancellationToken);
+                    Station.StartRepeat(completedJob);
                 }
                 if (testJob is not null)
                 {
@@ -577,8 +579,6 @@ public sealed class BoltFasteningStation : AutoUnit
                         _log?.LogInformation("Bolt timing {Bolt}: heads UP confirmed before START, elapsed={ElapsedMs:F1} ms.",
                             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                         Station.RequireCurrentJob(job);
-                        if (!IsAt(bolt))
-                            throw new InvalidOperationException("The head must be at the bolt's fastening XYZ before starting.");
 
                         using (var fastening = CancellationTokenSource.CreateLinkedTokenSource(token))
                         {
@@ -875,21 +875,6 @@ public sealed class BoltFasteningStation : AutoUnit
             safeZ, Stopwatch.GetElapsedTime(zStarted, first == moving ? firstFinished : finished).TotalMilliseconds,
             Stopwatch.GetElapsedTime(zStarted, finished).TotalMilliseconds,
             Stopwatch.GetElapsedTime(clearanceStarted, finished).TotalMilliseconds);
-    }
-
-    public bool IsAtSafeZ
-    {
-        get
-        {
-            return MotionServiceBase.IsSettled(_motion, MotionAxis.Z)
-                && MotionServiceBase.IsAtZ(_motion, _settings.SafeZ);
-        }
-    }
-
-    internal bool IsAt(BoltPoint bolt)
-    {
-        var position = _settings.GetBoltPosition(bolt);
-        return MotionServiceBase.IsAt(_motion, position);
     }
 
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)

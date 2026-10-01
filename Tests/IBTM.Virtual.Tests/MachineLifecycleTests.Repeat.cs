@@ -402,6 +402,79 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RepeatRaisesPlacementAndFasteningBeforeReversing(bool stopDuringClearance)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Units.PcbPlacement = true;
+        settings.Units.BoltFastening = true;
+        await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacer>();
+        var fastening = services.GetRequiredService<BoltFasteningStation>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInputs(
+            (InputIo.InspectionHeatSink1Present, true),
+            (InputIo.InspectionHeatSink2Present, true));
+        var work = services.GetRequiredService<InspectionStation>().Station;
+        await work.SeatAsync(CancellationToken.None);
+        work.Complete(work.CurrentJob);
+        io.SetInput(InputIo.AutoMode, true);
+        state.RepeatEnabled = true;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var clearanceStarted = false;
+        var reversed = false;
+        machine.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName != nameof(MachineController.RepeatDisplayPhase)
+                || machine.RepeatDisplayPhase != RepeatPhase.ReturnToStart)
+                return;
+            // Change the targets after forward work has drained so both Z moves are required.
+            settings.PcbPlacementHandler.HandoffPosition.Z = placement.Motion.Feedback.Position.Z - 1;
+            settings.BoltFastening.SafeZ = fastening.Motion.Feedback.Position.Z - 1;
+        };
+        placement.Motion.Feedback.PositionChanged += (_, _, _) =>
+        {
+            if (machine.RepeatDisplayPhase != RepeatPhase.ReturnToStart)
+                return;
+            clearanceStarted = true;
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            if (stopDuringClearance)
+                stop.Cancel();
+        };
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.MainConveyorRun || !on
+                || io.GetOutput(OutputIo.MainConveyorForward))
+                return;
+            reversed = true;
+            Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.Z, placement.Motion.Feedback.Position.Z);
+            Assert.Equal(settings.BoltFastening.SafeZ, fastening.Motion.Feedback.Position.Z);
+            Assert.False(placement.Motion.Feedback.IsMoving);
+            Assert.False(fastening.Motion.Feedback.IsMoving);
+            stop.Cancel();
+        };
+        try
+        {
+            await machine.StartAsync(stop.Token);
+            Assert.True(clearanceStarted, state.AlarmDetail);
+            Assert.Equal(!stopDuringClearance, reversed);
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     [Trait("Category", "MachineFlow")]
     public async Task RepeatStopDiscardsReturnPhaseAndAllowsRestartWithoutReset()

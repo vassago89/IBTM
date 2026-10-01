@@ -19,12 +19,8 @@ public enum OutputBlockReason
 
     [Description("Raise placement cylinders")]
     PlacementNotRaised,
-    [Description("Placement Z: conveyor clearance required")]
-    PlacementNotAtSafeZ,
     [Description("Raise both fastening heads")]
     FasteningNotRaised,
-    [Description("Fastening Z: conveyor clearance required")]
-    FasteningNotAtSafeZ,
     [Description("Raise NG pickup (UP=ON, DOWN=OFF)")]
     NgPickupNotRaised,
     [Description("NG transfer pending")]

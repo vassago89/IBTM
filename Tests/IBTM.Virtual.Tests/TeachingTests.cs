@@ -1548,7 +1548,7 @@ public sealed class TeachingTests
                 .Get<PcbPlacementHandlerSettings>().HandoffPosition.Z);
             await teaching.SaveCommand.ExecuteAsync(null);
             Assert.Equal(7, settings.PcbPlacementHandler.HandoffPosition.Z);
-            Assert.True(placement.IsAtHorizontalZ);
+            Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.Z, placement.Motion.Feedback.Position.Z);
             Assert.Null(teaching.SaveError);
 
             await placement.MoveAxisAsync(MotionAxis.Z, 9);

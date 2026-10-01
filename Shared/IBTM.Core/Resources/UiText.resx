@@ -785,9 +785,6 @@ Operation failed. Check controller status.</value>
   <data name="fastening timeout must be greater than 0 s." xml:space="preserve">
     <value>Fastening timeout must be greater than 0 s.</value>
   </data>
-  <data name="fastening z: conveyor clearance required" xml:space="preserve">
-    <value>Fastening Z: conveyor clearance required</value>
-  </data>
   <data name="fastening..." xml:space="preserve">
     <value>Fastening...</value>
   </data>
@@ -1799,9 +1796,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="placement vacuum ejector" xml:space="preserve">
     <value>Placement Vacuum Ejector</value>
-  </data>
-  <data name="placement z: conveyor clearance required" xml:space="preserve">
-    <value>Placement Z: conveyor clearance required</value>
   </data>
   <data name="placing and pressing pcb" xml:space="preserve">
     <value>Placing / pressing PCB</value>

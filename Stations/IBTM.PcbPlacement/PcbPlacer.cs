@@ -141,15 +141,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public bool PcbSecured => Pcb == PlacementPcbState.Secured;
 
-    public bool IsAtHorizontalZ
-    {
-        get
-        {
-            return MotionServiceBase.IsAtZ(_motion, _settings.HandoffPosition.Z)
-                && MotionServiceBase.IsSettled(_motion, MotionAxis.Z);
-        }
-    }
-
     // Current run phase; START always begins a new handoff.
     public PcbPlacementState Phase { get; private set; }
 

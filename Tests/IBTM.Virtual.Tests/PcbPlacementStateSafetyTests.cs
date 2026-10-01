@@ -806,7 +806,7 @@ public sealed class PcbPlacementStateSafetyTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         Assert.True(await rig.Placer.ExecuteStepAsync(
             rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token));
-        Assert.True(rig.Placer.IsAtHorizontalZ);
+        Assert.Equal(rig.Settings.HandoffPosition.Z, rig.Motion.Position.Z);
         Assert.True(MotionServiceBase.IsSettled(rig.Placer.Motion.Feedback, MotionAxis.Y));
         Assert.Equal(rig.Position.Y, rig.Motion.Position.Y);
         Assert.Equal(50, rig.Motion.Position.X);

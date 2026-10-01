@@ -164,7 +164,7 @@ public sealed partial class MachineLifecycleTests
             await run.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal(head == FasteningHead.Pickup ? MachineAlarm.PickupBoltFeeder : MachineAlarm.ShootingBoltFeeder, state.Alarm);
             Assert.False(station.Station.Completed);
-            Assert.True(station.IsAtSafeZ);
+            Assert.Equal(settings.BoltFastening.SafeZ, station.Motion.Feedback.Position.Z);
             Assert.True(station.IsHorizontalMoveAllowed);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
             Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
@@ -219,7 +219,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(MachineAlarm.ShootingBoltFeeder, state.Alarm);
             Assert.True(station.Station.Completed, state.AlarmDetail);
             Assert.Single(Assert.Single(station.Station.Assemblies).PickupBoltResults);
-            Assert.True(station.IsAtSafeZ);
+            Assert.Equal(settings.BoltFastening.SafeZ, station.Motion.Feedback.Position.Z);
             Assert.True(station.IsHorizontalMoveAllowed);
             machine.CheckStartMaterials();
             Assert.Equal(StartCheckState.Completed, machine.StartChecks[StartArea.Station2]);
@@ -2719,7 +2719,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(vacuumRequested);
             Assert.Equal((settings.BoltFastening.PickupPosition.X, settings.BoltFastening.PickupPosition.Y),
                 (station.Motion.Feedback.Position.X, station.Motion.Feedback.Position.Y));
-            Assert.True(station.IsAtSafeZ);
+            Assert.Equal(settings.BoltFastening.SafeZ, station.Motion.Feedback.Position.Z);
             Assert.Equal(StationCylinderState.Down, station.PickupHeadPosition);
             Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
             Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults);

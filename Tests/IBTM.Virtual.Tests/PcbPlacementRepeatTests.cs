@@ -417,7 +417,7 @@ public sealed class PcbPlacementRepeatTests
         Assert.Empty(supplyOutputs);
         Assert.Equal(StationCylinderState.Up, rig.Placer.Lift);
         Assert.Equal(StationCylinderState.Up, rig.Placer.IpmLift);
-        Assert.True(rig.Placer.IsAtHorizontalZ);
+        Assert.Equal(rig.Settings.HandoffPosition.Z, rig.Motion.Position.Z);
         Assert.False(rig.Io.GetInput(InputIo.PcbPlacementVacuumDetected));
 
         // The material remains on both original heat sinks after the repeat.

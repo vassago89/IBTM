@@ -30,6 +30,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly OperationCancellation _operations;
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
+    private readonly PcbPlacementHandlerSettings _placementSettings;
+    private readonly BoltFasteningSettings _fasteningSettings;
     private readonly RecipeManager _recipes;
     private readonly IIoService _io;
     private readonly IReadOnlyDictionary<MotionGroup, IXyMotion> _motions;
@@ -71,6 +73,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
         OperationCancellation operations,
         MachineOptions options,
         UnitSettings units,
+        PcbPlacementHandlerSettings placementSettings,
+        BoltFasteningSettings fasteningSettings,
         RecipeManager recipes,
         IIoService io,
         MainConveyor conveyor,
@@ -94,6 +98,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _operations = operations;
         _options = options;
         _units = units;
+        _placementSettings = placementSettings;
+        _fasteningSettings = fasteningSettings;
         _recipes = recipes;
         _io = io;
         _motions = motions;
