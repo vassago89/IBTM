@@ -209,10 +209,11 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Fact]
-    public async Task NewRunRejectsHeldPcbWithoutMovingOrReleasing()
+    public async Task NewRunRejectsHeldPcbAwayFromHandoffWithoutMovingOrReleasing()
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
+        await rig.Supplier.MoveAxisAsync(MotionAxis.X, rig.Settings.HandoffPosition.X + 10);
         rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
@@ -223,6 +224,85 @@ public sealed class PcbSupplyHandoffTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Supplier.RunAsync(rig.Placement, repeat: true));
         Assert.False(commanded);
         Assert.True(rig.Supplier.PcbSecured);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task RestartFinishesWaitingHandoffThenStartsPickupFromPcbOne(int stoppedPcb)
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        rig.Io.SetInput(InputIo.AutoMode, false);
+        rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var restarting = false;
+        var handoffs = 0;
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.PickingPcb && !restarting)
+                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            if (rig.Supplier.Step is PcbSupplyState.HandingOff && !restarting)
+            {
+                if (++handoffs == stoppedPcb)
+                    stop.Cancel();
+                else
+                    rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+            }
+            if (rig.Supplier.Step is PcbSupplyState.WaitingForPlacementClear)
+            {
+                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, false);
+                rig.Placement.Handoff = PcbPlacementHandoff.Clear;
+            }
+            if (rig.Supplier.Step is PcbSupplyState.MovingToPickup)
+                rig.Placement.Handoff = PcbPlacementHandoff.Unavailable;
+        };
+        await rig.Supplier.RunAsync(rig.Placement, stop.Token);
+        Assert.Equal(stoppedPcb, handoffs);
+        Assert.True(rig.Supplier.IsHandoffRestartAllowed);
+        Assert.Equal(PcbSupplyHandoff.Holding, rig.Supplier.Handoff);
+
+        restarting = true;
+        var moved = false;
+        var changedGripOrRotation = false;
+        rig.Motion.MovingChanged += moving => moved |= moving;
+        rig.Io.OutputChanged += (output, on) => changedGripOrRotation |= output
+            is OutputIo.PcbSupplyRotate or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward;
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Supplier.Trace += message =>
+        {
+            if (message.StartsWith("Waiting for feedback") && rig.Supplier.Phase == PcbSupplyState.HandingOff)
+                waiting.TrySetResult();
+        };
+        using var restart = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var returnedToPcbOne = false;
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.WaitingForCarrier)
+            {
+                returnedToPcbOne = true;
+                restart.Cancel();
+            }
+        };
+        var run = rig.Supplier.RunAsync(rig.Placement, restart.Token);
+        try
+        {
+            await waiting.Task.WaitAsync(restart.Token);
+            Assert.False(moved);
+            Assert.False(changedGripOrRotation);
+            Assert.True(rig.Supplier.PcbSecured);
+            rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(returnedToPcbOne);
+            Assert.Equal(rig.Recipes.Current.PcbSupply.Pcb1PickPosition.X, rig.Motion.Position.X);
+            Assert.Equal(rig.Settings.TravelZ, rig.Motion.Position.Z);
+            Assert.True(rig.Supplier.PcbReleased);
+        }
+        finally
+        {
+            restart.Cancel();
+            await run;
+        }
     }
 
     [Fact]

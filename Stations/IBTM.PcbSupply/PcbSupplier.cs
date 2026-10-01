@@ -579,7 +579,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         finally
         {
             placement.Changed -= WakeRun;
-            if (!IsHandoffRestartAllowed)
+            if (_repeat || Phase != PcbSupplyState.HandingOff)
                 _handoffPosition = null;
             _repeat = false;
             try

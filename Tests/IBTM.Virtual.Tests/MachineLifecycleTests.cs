@@ -2966,6 +2966,53 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task StartAllowsSecuredSupplyWaitingAtHandoffInNormalMode()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var supplier = services.GetRequiredService<PcbSupplier>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            await supplier.PrepareHandoffAsync(CancellationToken.None);
+            io.AutoResponseEnabled = false;
+            io.SetInputs((InputIo.PcbSupplyPcbDetected, true),
+                (InputIo.PcbSupplyGripperClosed, true), (InputIo.PcbSupplyGripperOpen, false),
+                (InputIo.PcbSupplyIpmFixerForward, true));
+            Assert.True(supplier.IsHandoffRestartAllowed);
+            state.RepeatEnabled = true;
+            await machine.StartAsync();
+            Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+            Assert.False(state.AutomaticRunning);
+
+            state.RepeatEnabled = false;
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            var admitted = false;
+            state.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(MachineState.AutomaticRunning) && state.AutomaticRunning)
+                {
+                    admitted = true;
+                    stop.Cancel();
+                }
+            };
+            await machine.StartAsync(stop.Token);
+            Assert.True(admitted, $"START={machine.StartBlock}; alarm={state.AlarmDetail}");
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.True(supplier.PcbSecured);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task StartChecksHeldMaterialsOnlyWhenPressed()
     {
         var settings = FlowSettings();

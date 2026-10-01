@@ -185,8 +185,13 @@ not wait for it or cancel when it is OFF. This path has no support-presence inpu
 release occurs at the taught pickup XYZ even if no physical support is present.
 The virtual model represents fixed supports at those pickup positions.
 
-After STOP, remove the PCB from Supply before START. Neither the selected slot
-nor an interrupted release is resumed. A new run moves empty to PCB 1 standby;
+After STOP, remove the PCB from Supply before START, except for a normal-mode PCB
+already secured at the completed forward handoff. START rechecks settled handoff
+XYZ, Unrotated feedback, gripper and IPM fixation before allowing that receipt to
+continue. Supply stays still and holds the PCB until Placement confirms holding.
+The next pickup scan always starts at PCB 1, including after this handoff; the
+previous slot is not resumed. Partial release, interrupted travel and Repeat-held
+PCBs still require removal. An empty new run moves to PCB 1 standby;
 Repeat then waits for Placement's return request. Grip loss during the pickup lift
 still stops the operation, and a missing returned PCB does not advance to another slot.
 
