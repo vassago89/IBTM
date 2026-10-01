@@ -75,7 +75,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(
-                await VirtualTestSupport.WaitUntilAsync(() => inspection.Station.CarrierSeated, TimeSpan.FromSeconds(5)),
+                await VirtualTestSupport.WaitUntilAsync(() => inspection.Station.Completed, TimeSpan.FromSeconds(5)),
                 $"Conveyor={conveyor.Step}, FasteningCompleted={fastening.Completed}, "
                     + $"FasteningSeated={fastening.CarrierSeated}, InspectionCanReceive={inspection.IsReceiveAllowed}, "
                     + $"Alarm={state.AlarmMessage}");
@@ -339,7 +339,6 @@ public sealed partial class MachineLifecycleTests
         };
         await work.Station.PrepareToReceiveAsync(CancellationToken.None);
         io.SetInput(InputIo.AutoMode, false);
-        Assert.True(work.IsAtInspectionPosition);
         await WaitUntilAsync(() => state.FeedbackReadiness.Homed);
         Assert.True(machine.IsStartAllowed);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -348,6 +347,7 @@ public sealed partial class MachineLifecycleTests
         {
             await WaitUntilAsync(() => state.AutomaticRunning);
             io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
+            Assert.True(work.IsAtInspectionPosition);
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => work.Station.Completed, TimeSpan.FromSeconds(3)),
                 $"Alarm={state.Alarm}; inspection={inspector.GetNextStep()}; captures={string.Join(", ", captures)}; {state.AlarmDetail}");
             Assert.Equal(new (HeatSinkSlot, Guid?)[] {
@@ -443,6 +443,7 @@ public sealed partial class MachineLifecycleTests
         var gantry = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         await services.GetRequiredService<InspectionStation>().Station.PrepareToReceiveAsync(CancellationToken.None);
         services.GetRequiredService<VirtualCamera>().BoltsPresent = false;
@@ -1976,6 +1977,9 @@ public sealed partial class MachineLifecycleTests
         settings.Units.ShootingBoltFeeder = shootingEnabled;
         var pickupFeeding = pickupEnabled && !repeat;
         var shootingFeeding = shootingEnabled && !repeat;
+        // Leave time for the simulated 200 ms vacuum response before reaching Safe Z.
+        if (pickupFeeding)
+            settings.BoltFastening.Motion.ZSpeed = 20;
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [
@@ -2579,6 +2583,7 @@ public sealed partial class MachineLifecycleTests
         services.GetRequiredService<VirtualCamera>().BoltsPresent = !ng;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.MainConveyorReadyFromRear, rearReady);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);

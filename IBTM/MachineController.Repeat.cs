@@ -59,6 +59,10 @@ public sealed partial class MachineController
                     await _inspectionStation.ReturnToStationAsync(cancellationToken);
                     RepeatDisplayPhase = RepeatPhase.ClearStation3;
                     await _inspectionStation.ClearStationAsync(cancellationToken);
+                    // A completed return starts the next standalone inspection cycle.
+                    // Sensor edges no longer create a new carrier job.
+                    if (!_units.MainConveyor && _inspectionStation.Station.Completed)
+                        _inspectionStation.Station.StartRepeat(_inspectionStation.Station.CurrentJob);
                 }
                 if (_units.MainConveyor)
                 {
