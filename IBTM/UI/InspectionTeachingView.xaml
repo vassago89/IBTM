@@ -149,7 +149,15 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <Button Grid.Row="4" Content="{ui:Text 'Load for Reinspection'}" Command="{Binding UseHistoryImageCommand}"
-                                Style="{StaticResource PrimaryButtonStyle}" Padding="8,6" Margin="0,8,0,0"/>
+                                Padding="8,6" Margin="0,8,0,0">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HistoryImageTarget}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                         </Grid>
                     </TabItem>
                 </TabControl>
@@ -162,6 +170,7 @@
                             <Button Content="{ui:Text 'Inspect This Image'}" Command="{Binding InspectCommand}" Margin="0,0,8,6">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                        <Setter Property="IsEnabled" Value="{Binding IsInspectAllowed}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ElementName=EditorRoot, Path=(Validation.HasError)}" Value="True">
                                                 <Setter Property="IsEnabled" Value="False"/>
@@ -238,7 +247,7 @@
                         <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}" Margin="0,0,6,0">
                             <ui:InspectionImageView x:Name="InspectionImage" Source="{Binding Preview.Image}"
                                 SourceRegion="{Binding Preview.Region}" RegionCommand="{Binding DrawRegionCommand}"
-                                IsEnabled="{Binding IsIdle}" ShowCrosshair="True" Cursor="Cross"/>
+                                IsEnabled="{Binding IsDrawRegionAllowed}" ShowCrosshair="True" Cursor="Cross"/>
                         </Border>
                         <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource ImageBackgroundBrush}" Margin="6,0,0,0">
                             <ui:InspectionImageView Source="{Binding Preview.Image}" SourceRegion="{Binding Preview.Region}"

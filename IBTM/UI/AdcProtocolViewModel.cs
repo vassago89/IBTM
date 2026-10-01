@@ -8,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -38,8 +37,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private OperationCancellation.Operation? _operationCancellation;
     private readonly IAsyncRelayCommand[] _commands;
     private readonly MachineState _state;
-    private readonly Dispatcher _dispatcher;
-    private int _refreshQueued;
     private bool _disposed;
     [ObservableProperty]
     public partial bool IsClosing { get; set; }
@@ -87,7 +84,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         ILogger<AdcProtocolViewModel>? log = null,
         ILogger<AdcBoltHead>? headLog = null)
     {
-        _dispatcher = Dispatcher.CurrentDispatcher;
         _frameLogGate = new();
         _frameLog = new();
         AddressText = ((ushort)AdcResultRegister.EventCount).ToString();
@@ -102,30 +98,30 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         ];
 
         ToggleConnectionCommand = new AsyncRelayCommand(
-            ToggleConnectionAsync, () => IsConnectAllowed, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            ToggleConnectionAsync, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         SelectPresetCommand = new AsyncRelayCommand(
-            SelectPresetAsync, () => ProtocolEnabled, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            SelectPresetAsync, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         StartCommand = new AsyncRelayCommand(
-            StartAsync, () => IsTestBoltHeadAllowed, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            StartAsync, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         StopCommand = new AsyncRelayCommand(
-            StopAsync, () => IsStopAllowed, AsyncRelayCommandOptions.AllowConcurrentExecutions | AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions | AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         ReverseCommand = new AsyncRelayCommand(
-            ReverseAsync, () => IsTestBoltHeadAllowed, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            ReverseAsync, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         ReleaseReverseCommand = new RelayCommand(ReleaseReverse);
         ResetAlarmCommand = new AsyncRelayCommand(
-            ResetAlarmAsync, () => ProtocolEnabled, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            ResetAlarmAsync, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         ReadResultCommand = new AsyncRelayCommand(
-            ReadResultAsync, () => ProtocolEnabled, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            ReadResultAsync, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         ReadDeviceInformationCommand = new AsyncRelayCommand(
-            ReadDeviceInformationAsync, () => ProtocolEnabled, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            ReadDeviceInformationAsync, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         CaptureDeviceInformationCommand = new AsyncRelayCommand(
-            CaptureDeviceInformationAsync, () => ProtocolEnabled, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            CaptureDeviceInformationAsync, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         ExecuteRegisterCommand = new AsyncRelayCommand(
-            ExecuteRegisterAsync, () => ProtocolEnabled, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
+            ExecuteRegisterAsync, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         ClearLogCommand = new RelayCommand(ClearLog);
         CopyLogCommand = new RelayCommand(CopyLog);
         CopyAllLogCommand = new RelayCommand(CopyAllLog);
-        RefreshPortsCommand = new RelayCommand(RefreshPorts, () => PortSelectionEnabled);
+        RefreshPortsCommand = new RelayCommand(RefreshPorts);
         _commands = [ToggleConnectionCommand, SelectPresetCommand, StartCommand, StopCommand,
             ReverseCommand, ResetAlarmCommand, ReadResultCommand, ReadDeviceInformationCommand,
             CaptureDeviceInformationCommand, ExecuteRegisterCommand];
@@ -216,7 +212,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedPortChanged(string? value)
     {
-        ToggleConnectionCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsConnectAllowed));
     }
 
     partial void OnSelectedHeadChanging(FasteningHead value)
@@ -248,14 +244,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_disposed || Interlocked.Exchange(ref _refreshQueued, 1) != 0)
-            return;
-        _dispatcher.BeginInvoke(() =>
-        {
-            Interlocked.Exchange(ref _refreshQueued, 0);
-            if (!_disposed)
-                RefreshControls();
-        });
+        if (!_disposed)
+            RefreshControls();
     }
 
     public IAsyncRelayCommand ToggleConnectionCommand { get; }
@@ -451,7 +441,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         ReverseCommand.Cancel();
     }
 
-    private bool IsTestBoltHeadAllowed => ProtocolEnabled && _state.ManualSetupEnabled;
+    public bool IsTestBoltHeadAllowed => ProtocolEnabled && _state.ManualSetupEnabled;
 
     public IAsyncRelayCommand ResetAlarmCommand { get; }
 
@@ -736,7 +726,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         AppendLog($"ERROR  {exception.Message}", record: false);
     }
 
-    private bool IsConnectAllowed
+    public bool IsConnectAllowed
     {
         get
         {
@@ -745,7 +735,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    private bool IsStopAllowed
+    public bool IsStopAllowed
     {
         get
         {
@@ -761,17 +751,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(PortSelectionEnabled));
         OnPropertyChanged(nameof(SlaveSelectionEnabled));
         OnPropertyChanged(nameof(ProtocolEnabled));
-        RefreshPortsCommand.NotifyCanExecuteChanged();
-        ToggleConnectionCommand.NotifyCanExecuteChanged();
-        SelectPresetCommand.NotifyCanExecuteChanged();
-        StartCommand.NotifyCanExecuteChanged();
-        ReverseCommand.NotifyCanExecuteChanged();
-        StopCommand.NotifyCanExecuteChanged();
-        ResetAlarmCommand.NotifyCanExecuteChanged();
-        ReadResultCommand.NotifyCanExecuteChanged();
-        ReadDeviceInformationCommand.NotifyCanExecuteChanged();
-        CaptureDeviceInformationCommand.NotifyCanExecuteChanged();
-        ExecuteRegisterCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsTestBoltHeadAllowed));
+        OnPropertyChanged(nameof(IsStopAllowed));
+        OnPropertyChanged(nameof(IsConnectAllowed));
     }
 
     internal Task ShutdownAsync()

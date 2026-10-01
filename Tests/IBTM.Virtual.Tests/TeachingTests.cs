@@ -45,7 +45,7 @@ public sealed class TeachingTests
         try
         {
             await WaitUntilAsync(() => teaching.Motion.Position.Z == 7
-                && teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+                && teaching.IsStepXPlusAllowed);
             Assert.Equal(TeachingMotionHint.None, teaching.MotionHint);
             var before = motion.Position;
             await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
@@ -53,7 +53,7 @@ public sealed class TeachingTests
             Assert.Equal(before.Y, motion.Position.Y);
             Assert.Equal(7, motion.Position.Z);
 
-            await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.YPlus));
+            await WaitUntilAsync(() => teaching.IsJogYAllowed);
             var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.YPlus);
             try
             {
@@ -107,9 +107,9 @@ public sealed class TeachingTests
 
             teaching.SelectedPoint = points[TeachingTarget.SupplyPcb1Pick];
             Assert.Equal(PcbSupplyRotationState.Unrotated, supply.Rotation);
-            Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+            Assert.False(teaching.IsMoveToPointAllowed);
             teaching.SelectedPoint = points[TeachingTarget.SupplyHandoff];
-            await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
             await teaching.MoveToPointCommand.ExecuteAsync(null);
             Assert.Equal((20d, 15d, 7d), motion.Position);
             Assert.False(pneumaticCommanded);
@@ -125,7 +125,7 @@ public sealed class TeachingTests
                 teaching.SelectedPoint = points[target];
                 var before = motion.Position;
                 var destination = teaching.SelectedPoint.Coordinates!;
-                await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+                await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
                 Assert.Equal(target == TeachingTarget.SafeZ
                     ? (before.X, before.Y, destination.Z)
@@ -138,7 +138,7 @@ public sealed class TeachingTests
 
             settings.PcbSupply.Motion.HorizontalSpeed = 20;
             teaching.SelectedPoint = points[TeachingTarget.SupplyPcb1Pick];
-            await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
             var move = teaching.MoveToPointCommand.ExecuteAsync(null);
             try
             {
@@ -202,7 +202,7 @@ public sealed class TeachingTests
                     io.SetInputs((InputIo.PickupTableDown, false), (InputIo.PickupTableUp, false));
                 }
             };
-            await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
             await teaching.MoveToPointCommand.ExecuteAsync(null);
 
             Assert.Equal(duringDescent is not null, lost);
@@ -245,28 +245,28 @@ public sealed class TeachingTests
         try
         {
             await placement.SetLiftDownAsync(true);
-            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
+            await WaitUntilAsync(() => teaching.IsStepZPlusAllowed);
             Assert.Equal(StationCylinderState.Down, placement.Lift);
             foreach (var direction in new[] { TeachingDirection.XPlus, TeachingDirection.YPlus })
             {
-                Assert.False(teaching.JogCommand.CanExecute(direction));
-                Assert.False(teaching.StepCommand.CanExecute(direction));
+                Assert.False(direction == TeachingDirection.XPlus ? teaching.IsJogXAllowed : teaching.IsJogYAllowed);
+                Assert.False(teaching.IsStepAllowed(direction));
             }
-            Assert.False(teaching.MoveToHorizontalZCommand.CanExecute(null));
+            Assert.False(teaching.IsMoveToHorizontalZAllowed);
             foreach (var target in new[] { TeachingTarget.PlacementHandoff, TeachingTarget.PlacementReceiveZ })
             {
                 teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == target);
-                Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+                Assert.False(teaching.IsMoveToPointAllowed);
             }
 
             var before = placement.Motion.Feedback.Position;
             await teaching.StepCommand.ExecuteAsync(TeachingDirection.ZPlus);
             Assert.Equal(before.Z + teaching.StepDistance, placement.Motion.Feedback.Position.Z, 6);
-            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.ZMinus));
+            await WaitUntilAsync(() => teaching.IsStepZMinusAllowed);
             await teaching.StepCommand.ExecuteAsync(TeachingDirection.ZMinus);
             Assert.Equal(before, placement.Motion.Feedback.Position);
 
-            await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.ZPlus));
+            await WaitUntilAsync(() => teaching.IsJogZAllowed);
             var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.ZPlus);
             try
             {
@@ -289,9 +289,9 @@ public sealed class TeachingTests
             await Assert.ThrowsAsync<MotionInterlockException>(
                 () => placement.PrepareReceiptAsync());
             await placement.SetLiftDownAsync(false);
-            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
-            Assert.True(teaching.MoveToHorizontalZCommand.CanExecute(null));
-            Assert.True(teaching.MoveToPointCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
+            Assert.True(teaching.IsMoveToHorizontalZAllowed);
+            Assert.True(teaching.IsMoveToPointAllowed);
         }
         finally
         {
@@ -320,7 +320,7 @@ public sealed class TeachingTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         await gantry.MoveToAsync(new() { X = 10, Y = 7 }, 10_000);
-        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsHomeAllowed);
 
         var home = teaching.HomeCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => gantry.Motion.Feedback.IsMoving);
@@ -340,7 +340,7 @@ public sealed class TeachingTests
 
         settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 10_000;
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
-        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsHomeAllowed);
         await teaching.HomeCommand.ExecuteAsync(null);
         Assert.True(gantry.Motion.Feedback.GetAxisState(MotionAxis.X).Homed);
         Assert.True(gantry.Motion.Feedback.GetAxisState(MotionAxis.Y).Homed);
@@ -353,7 +353,7 @@ public sealed class TeachingTests
         Assert.True(homeStarted);
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.Equal((0, 0, 0), gantry.Motion.Feedback.Position);
-        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsHomeAllowed);
     }
 
     [Theory]
@@ -383,7 +383,7 @@ public sealed class TeachingTests
         services.GetRequiredService<VirtualIoService>().OutputChanged += (output, _) => outputs.Enqueue(output);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = unit;
-        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsHomeAllowed);
 
         await teaching.HomeCommand.ExecuteAsync(null);
 
@@ -448,7 +448,7 @@ public sealed class TeachingTests
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.NgCarrierPickup);
         Assert.False(teaching.SelectedPoint.Position.HasPosition);
-        Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+        Assert.False(teaching.IsMoveToPointAllowed);
 
         foreach (var target in teachingTargets)
         {
@@ -458,7 +458,7 @@ public sealed class TeachingTests
             var x = (point.Coordinates?.X ?? 0) + 1;
             var y = (point.Coordinates?.Y ?? 0) + 2;
             await gantry.MoveToAsync(new() { X = x, Y = y }, 10_000);
-            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             var saved = services.GetRequiredService<MachineStore>().LoadSettings().Get<NgCarrierTransferSettings>();
             var position = point.Position.Target switch
@@ -471,7 +471,7 @@ public sealed class TeachingTests
             Assert.Equal(y, position.Y);
 
             await gantry.MoveToAsync(new() { X = x + 5, Y = y + 5 }, 10_000);
-            await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
             feedback.AxisMoves.Clear();
             await teaching.MoveToPointCommand.ExecuteAsync(null);
             Assert.Equal((x, y, 0), gantry.Motion.Feedback.Position);
@@ -481,14 +481,14 @@ public sealed class TeachingTests
 
         var beforeStep = gantry.Motion.Feedback.Position;
         teaching.StepDistance = 0.1;
-        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
         await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
         Assert.Equal(teaching.JogSpeed, feedback.LastMoveVelocity);
         Assert.Equal(beforeStep.X + 0.1, gantry.Motion.Feedback.Position.X, 6);
         Assert.Equal(beforeStep.Y, gantry.Motion.Feedback.Position.Y);
 
         var shuttle = TeachingRows(teaching)[OutputIo.NgShuttleDown];
-        await WaitUntilAsync(() => shuttle.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => shuttle.IsToggleOutputAllowed);
         await shuttle.ToggleOutputCommand.ExecuteAsync(null);
         Assert.True(io.GetInput(InputIo.NgShuttleDown));
         await shuttle.ToggleOutputCommand.ExecuteAsync(null);
@@ -515,7 +515,7 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
-        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         var point = teaching.SelectedPoint;
         Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
         var before = (point.Coordinates?.X, point.Coordinates?.Y, point.Coordinates?.Z);
@@ -552,7 +552,7 @@ public sealed class TeachingTests
         var point = teaching.SelectedPoint;
         point.Teach(1, 2, 0);
         await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 3, Y = 4 }, 10_000);
-        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         var stopped = false;
         feedback.BeforePositionRead = () =>
         {
@@ -590,7 +590,7 @@ public sealed class TeachingTests
                 MotionAxis.Z, services.GetRequiredService<PcbPlacementHandlerSettings>().HandoffPosition.Z);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = unit;
-        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsJogXAllowed);
         var before = teaching.Motion.Feedback.Position;
         io.AutoResponseEnabled = false;
         void LoseCylinderFeedbackAfterAdmission()
@@ -665,7 +665,7 @@ public sealed class TeachingTests
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
-        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsJogXAllowed);
         if (action == TeachingStopAction.Close)
         {
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
@@ -734,7 +734,7 @@ public sealed class TeachingTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         await gantry.MoveToAsync(new() { X = 10, Y = 20 }, 10_000);
         teaching.StepDistance = 0.1;
-        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(direction));
+        await WaitUntilAsync(() => teaching.IsStepAllowed(direction));
 
         await teaching.StepCommand.ExecuteAsync(direction);
 
@@ -743,7 +743,7 @@ public sealed class TeachingTests
 
         await services.GetRequiredService<IIoService>()
             .SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
-        await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(direction));
+        await WaitUntilAsync(() => !teaching.IsStepAllowed(direction));
         await Assert.ThrowsAsync<MotionInterlockException>(
             () => gantry.MoveAxisAsync(MotionAxis.X, 30, 1_000));
         Assert.Equal((x, y, 0), gantry.Motion.Feedback.Position);
@@ -787,7 +787,7 @@ public sealed class TeachingTests
         ];
         foreach (var stop in stops)
         {
-            await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+            await WaitUntilAsync(() => teaching.IsJogXAllowed);
             var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
             try
             {
@@ -856,7 +856,7 @@ public sealed class TeachingTests
         Assert.Same(bolt, Assert.Single(teaching.Recipes.Current.Pcb.BoltPoints));
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == bolt);
         await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 110, Y = 220 });
-        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
         Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
@@ -870,10 +870,10 @@ public sealed class TeachingTests
         Assert.Same(bolt, position.Position.Bolt);
         Assert.True(position.Position.HasPosition);
         Assert.Equal((expectedX, expectedY, expectedZ), (position.Coordinates!.X, position.Coordinates.Y, position.Coordinates.Z));
-        Assert.False(teaching.AddBoltPointCommand.CanExecute(null));
-        Assert.False(teaching.RemoveBoltPointCommand.CanExecute(null));
+        Assert.False(teaching.IsAddBoltPointAllowed);
+        Assert.False(teaching.IsRemoveBoltPointAllowed);
 
-        await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
         await teaching.MoveToPointCommand.ExecuteAsync(null);
         var fastening = services.GetRequiredService<BoltFasteningStation>();
         Assert.Equal((expectedX, expectedY, expectedZ), fastening.Motion.Feedback.Position);
@@ -882,7 +882,7 @@ public sealed class TeachingTests
         expectedY -= 0.5;
         await fastening.MoveToXYAsync(expectedX, expectedY);
         position.FasteningZOffset = -0.75;
-        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
         Assert.Equal(expectedZ, settings.BoltFastening.GetHead(head).FasteningZ);
@@ -924,7 +924,7 @@ public sealed class TeachingTests
         settings.CarrierReference.UpperLeftLocatingPin = null;
         settings.CarrierReference.LowerRightLocatingPin = null;
         await teaching.Inspection.MoveToAsync(new() { X = 120, Y = 230 });
-        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
         Assert.NotSame(previousImage, RecordedImage(teaching));
@@ -937,12 +937,12 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         var independent = teaching.SelectedPoint!;
         Assert.Equal((expectedX, expectedY, expectedZ), (independent.Coordinates!.X, independent.Coordinates.Y, independent.Coordinates.Z));
-        await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
         await teaching.MoveToPointCommand.ExecuteAsync(null);
         Assert.Equal((expectedX, expectedY, expectedZ), fastening.Motion.Feedback.Position);
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
-        await WaitUntilAsync(() => teaching.RemoveBoltPointCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsRemoveBoltPointAllowed);
         teaching.RemoveBoltPointCommand.Execute(null);
         Assert.Empty(recipes.Current.Pcb.BoltPoints);
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
@@ -966,9 +966,9 @@ public sealed class TeachingTests
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
         else
             teaching.AddBoltPointCommand.Execute(null);
-        Assert.False(teaching.GrabCommand.CanExecute(null));
+        Assert.False(teaching.IsGrabAllowed);
         await teaching.Inspection.MoveToAsync(new() { X = 17, Y = 29 });
-        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         var original = RecordedImage(teaching)!;
         var editor = services.GetRequiredService<InspectionTeachingViewModel>();
@@ -988,7 +988,7 @@ public sealed class TeachingTests
         Assert.Equal(recipeBeforePreview, JsonSerializer.Serialize(teaching.Recipes.Current));
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
 
-        await WaitUntilAsync(() => teaching.GrabCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsGrabAllowed);
         await teaching.GrabCommand.ExecuteAsync(null);
 
         Assert.Null(teaching.CameraError);
@@ -1035,8 +1035,8 @@ public sealed class TeachingTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         Assert.Equal(shooting1.Id, teaching.SelectedPoint!.Position.Bolt!.Id);
-        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
-        Assert.True(teaching.MoveFasteningLaterCommand.CanExecute(null));
+        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.True(teaching.IsMoveFasteningLaterAllowed);
         var earlierUpdates = 0;
         var laterUpdates = 0;
         teaching.MoveFasteningEarlierCommand.CanExecuteChanged += (sender, args) => earlierUpdates++;
@@ -1052,21 +1052,21 @@ public sealed class TeachingTests
         Assert.True(string.IsNullOrEmpty(shooting2.Name));
         Assert.Equal(new[] { shooting2.Id, shooting1.Id, pickup1.Id, pickup2.Id },
             teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
-        Assert.True(teaching.MoveFasteningEarlierCommand.CanExecute(null));
-        Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null)); // End of this PCB's shooting group.
+        Assert.True(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.False(teaching.IsMoveFasteningLaterAllowed); // End of this PCB's shooting group.
         teaching.MoveFasteningLaterCommand.Execute(null);
         Assert.Equal(new[] { shooting2.Id, shooting1.Id, otherShooting.Id, pickup1.Id, pickup2.Id, otherPickup.Id },
             recipes.Current.Pcb.FasteningOrder);
 
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SafeZ);
-        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
-        Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
+        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.False(teaching.IsMoveFasteningLaterAllowed);
         teaching.MoveFasteningLaterCommand.Execute(null);
         Assert.Equal(new[] { shooting2.Id, shooting1.Id, otherShooting.Id, pickup1.Id, pickup2.Id, otherPickup.Id },
             recipes.Current.Pcb.FasteningOrder);
 
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == pickup1);
-        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
+        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == pickup2);
         Assert.Equal(pickup2.Id, teaching.SelectedPoint.Position.Bolt!.Id);
         teaching.MoveFasteningEarlierCommand.Execute(null);
@@ -1076,12 +1076,12 @@ public sealed class TeachingTests
         teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
         Assert.Equal(new[] { otherShooting.Id, otherPickup.Id },
             teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
-        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
-        Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
+        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.False(teaching.IsMoveFasteningLaterAllowed);
         teaching.MoveFasteningEarlierCommand.Execute(null); // Cannot cross the PCB boundary.
         teaching.SelectedPoint = teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Last();
-        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
-        Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
+        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.False(teaching.IsMoveFasteningLaterAllowed);
         teaching.MoveFasteningEarlierCommand.Execute(null);
         Assert.Equal(new[] { shooting2.Id, shooting1.Id, otherShooting.Id, pickup2.Id, pickup1.Id, otherPickup.Id },
             recipes.Current.Pcb.FasteningOrder);
@@ -1099,9 +1099,9 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt?.Id == shooting1.Id);
         Assert.Equal("Selected shooting bolt", teaching.SelectedPoint.BoltName);
-        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
-        Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
-        Assert.True(teaching.RemoveBoltPointCommand.CanExecute(null));
+        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.False(teaching.IsMoveFasteningLaterAllowed);
+        Assert.True(teaching.IsRemoveBoltPointAllowed);
         teaching.RemoveBoltPointCommand.Execute(null);
         Assert.DoesNotContain(shooting1.Id, recipes.Current.Pcb.FasteningOrder);
         teaching.NewFasteningHead = FasteningHead.Shooting;
@@ -1135,8 +1135,8 @@ public sealed class TeachingTests
         }
         Assert.DoesNotContain(teaching.FilteredPoints, point => point.Position.Bolt is not null);
         Assert.Null(teaching.SelectedPoint?.Position.Bolt);
-        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
-        Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
+        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.False(teaching.IsMoveFasteningLaterAllowed);
         Assert.True(await teaching.RecipeEditor.SaveAsync());
         await teaching.RecipeEditor.LoadCommand.ExecuteAsync(name);
         Assert.Null(teaching.RecipeEditor.Error);
@@ -1148,8 +1148,8 @@ public sealed class TeachingTests
         Assert.Same(recreated, teaching.SelectedPoint);
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         Assert.Same(recreated.Position.Bolt, teaching.SelectedPoint!.Position.Bolt);
-        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
-        Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
+        Assert.False(teaching.IsMoveFasteningEarlierAllowed);
+        Assert.False(teaching.IsMoveFasteningLaterAllowed);
         await services.GetRequiredService<MachineController>().ShutdownAsync();
     }
 
@@ -1164,7 +1164,7 @@ public sealed class TeachingTests
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.AddBoltPointCommand.Execute(null);
-        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         var original = RecordedImage(teaching)!;
         var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
@@ -1231,7 +1231,7 @@ public sealed class TeachingTests
             teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
             teaching.SelectedPoint = teaching.FilteredPoints.Single(
                 point => point.Position.Target == TeachingTarget.NgShuttlePlace);
-            await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
 
             var axesMovedTogether = false;
             void ObserveShuttleMove(double x, double y, double z)
@@ -1292,7 +1292,7 @@ public sealed class TeachingTests
                 fov.Region = region;
                 var recipeBefore = JsonSerializer.Serialize(recipe);
                 await gantry.MoveToAsync(new() { X = 1, Y = 2 });
-                await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+                await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
                 Assert.Equal((recipe.GetInspectionPosition(fov).X, recipe.GetInspectionPosition(fov).Y), (teaching.SelectedPoint.Coordinates!.X, teaching.SelectedPoint.Coordinates!.Y));
                 Assert.DoesNotContain("Not taught", teaching.SelectedPoint.PositionLabel);
                 Assert.False(machine.TeachingReady);
@@ -1307,7 +1307,7 @@ public sealed class TeachingTests
             Assert.True(machine.TeachingReady);
 
             await gantry.SetLiftUpAsync(false);
-            Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+            Assert.False(teaching.IsMoveToPointAllowed);
             await Assert.ThrowsAsync<MotionInterlockException>(() => barcode
                 ? teaching.Inspection.MoveToBarcodeAsync(HeatSinkSlot.HeatSink1)
                 : teaching.Inspection.MoveToBoltAsync(bolt));
@@ -1315,11 +1315,11 @@ public sealed class TeachingTests
 
             recipe.CarrierImages.Remove(fov);
             Assert.False(machine.TeachingReady);
-            Assert.False(teaching.GrabCommand.CanExecute(null));
+            Assert.False(teaching.IsGrabAllowed);
             if (barcode)
             {
                 Assert.False(teaching.SelectedPoint.Position.HasPosition);
-                Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+                Assert.False(teaching.IsMoveToPointAllowed);
                 await Assert.ThrowsAsync<InvalidOperationException>(() =>
                     teaching.Inspection.MoveToBarcodeAsync(HeatSinkSlot.HeatSink1));
             }
@@ -1327,9 +1327,9 @@ public sealed class TeachingTests
             {
                 Assert.True(teaching.SelectedPoint.Position.HasPosition);
                 Assert.Contains("No reference image", teaching.SelectedPoint.PositionLabel);
-                Assert.True(teaching.MoveToPointCommand.CanExecute(null));
+                Assert.True(teaching.IsMoveToPointAllowed);
                 await gantry.MoveToAsync(new() { X = 1, Y = 2 });
-                await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+                await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
                 Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, bolt.InspectionPosition!));
 
@@ -1411,7 +1411,7 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         Assert.All(teaching.FilteredPoints, point => Assert.Equal(MotionGroup.PcbSupply, point.Position.MotionGroup));
         teaching.JogSpeed = 1;
-        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsJogXAllowed);
         var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
         Assert.True(supply.Motion.Feedback.IsMoving);
 
@@ -1423,7 +1423,7 @@ public sealed class TeachingTests
         Assert.Same(supply.Motion.Feedback, teaching.Motion.Feedback);
         Assert.Contains(OutputIo.PcbSupplyGripperClosed, TeachingRows(teaching).Keys);
 
-        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsJogXAllowed);
         jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
         Assert.True(supply.Motion.Feedback.IsMoving);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
@@ -1465,7 +1465,7 @@ public sealed class TeachingTests
             Assert.Equal(TeachingStorage.Machine, point.Storage);
             teaching.SelectedPoint = point;
             await station.MoveZAsync(9);
-            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Null(teaching.SaveError);
             var saved = services.GetRequiredService<MachineStore>().LoadSettings().Get<BoltFasteningSettings>();
@@ -1501,7 +1501,7 @@ public sealed class TeachingTests
         var originalZ = settings.PcbPlacementHandler.HandoffPosition.Z;
         try
         {
-            Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
+            Assert.False(teaching.IsTeachCurrentPositionAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(originalZ, settings.PcbPlacementHandler.HandoffPosition.Z);
 
@@ -1509,14 +1509,14 @@ public sealed class TeachingTests
             Assert.True(await placement.HomeAxisAsync(MotionAxis.Z));
             Assert.False(placement.Motion.Feedback.GetAxisState(MotionAxis.X).Homed);
             await placement.MoveAxisAsync(MotionAxis.Z, 7);
-            Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
+            Assert.False(teaching.IsTeachCurrentPositionAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(originalZ, handoff.Coordinates!.Z);
 
             var receive = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementReceiveZ);
             teaching.SelectedPoint = receive;
             Assert.False(receive.Position.HasPosition);
-            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(7, settings.PcbPlacementHandler.ReceiveZ);
             Assert.Equal(7, services.GetRequiredService<MachineStore>().LoadSettings()
@@ -1527,7 +1527,7 @@ public sealed class TeachingTests
             await placement.MoveAxisAsync(MotionAxis.Z, settings.PcbPlacementHandler.HandoffPosition.Z);
             Assert.True(await placement.HomeHorizontalAsync());
             await placement.MoveAxisAsync(MotionAxis.Z, 7);
-            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(7, handoff.Coordinates!.Z);
             Assert.Equal(7, settings.PcbPlacementHandler.HandoffPosition.Z);
@@ -1539,7 +1539,7 @@ public sealed class TeachingTests
             Assert.Null(teaching.SaveError);
 
             await placement.MoveAxisAsync(MotionAxis.Z, 9);
-            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
             probe.OverrideState = (_, state) => state with { Homed = false };
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
 
@@ -1572,7 +1572,7 @@ public sealed class TeachingTests
         Assert.All(group.Sensors, row => Assert.Same(signals.Inputs[row.Signal], row));
         Assert.All(group.Outputs.SelectMany(row => row.Io.Feedback),
             row => Assert.DoesNotContain(row, group.Sensors));
-        await WaitUntilAsync(() => !gripper.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => !gripper.IsToggleOutputAllowed);
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var handler = services.GetRequiredService<PcbSupplier>();
@@ -1580,34 +1580,34 @@ public sealed class TeachingTests
         var rotation = TeachingRows(teaching)[OutputIo.PcbSupplyRotate];
         var wasRotated = io.GetOutput(OutputIo.PcbSupplyRotate);
         await handler.MoveAxisAsync(MotionAxis.Z, 5);
-        Assert.False(rotation.ToggleOutputCommand.CanExecute(null));
+        Assert.False(rotation.IsToggleOutputAllowed);
         Assert.Equal(OutputBlockReason.SupplyNotAtHandoff, machine.ToggleDiagnosticOutput(OutputIo.PcbSupplyRotate));
         var handoff = services.GetRequiredService<PcbSupplySettings>().HandoffPosition;
         await handler.MoveToTeachingPositionAsync(
             new(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full), handoff);
-        await WaitUntilAsync(() => rotation.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => rotation.IsToggleOutputAllowed);
         await rotation.ToggleOutputCommand.ExecuteAsync(null);
         Assert.True(MotionServiceBase.IsHoldingPosition(handler.Motion.Feedback, handoff));
         Assert.Equal(wasRotated ? PcbSupplyRotationState.Unrotated : PcbSupplyRotationState.Rotated, handler.Rotation);
         await rotation.ToggleOutputCommand.ExecuteAsync(null);
         await handler.MoveAxisAsync(MotionAxis.X, handoff.X + 80);
-        Assert.False(rotation.ToggleOutputCommand.CanExecute(null));
-        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
+        Assert.False(rotation.IsToggleOutputAllowed);
+        await WaitUntilAsync(() => teaching.IsStepZPlusAllowed);
         await handler.MoveAxisAsync(MotionAxis.X, handoff.X);
         io.AutoResponseEnabled = false;
-        await WaitUntilAsync(() => gripper.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => gripper.IsToggleOutputAllowed);
 
         var pending = gripper.ToggleOutputCommand.ExecuteAsync(null);
         Assert.True(io.GetOutput(gripper.Io.Signal));
         Assert.False(pending.IsCompleted);
-        await WaitUntilAsync(() => !gripper.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => !gripper.IsToggleOutputAllowed);
         Assert.True(state.IsRunning); // The feedback wait owns a machine operation.
         var feedback = io.GetOutputFeedback(gripper.Io.Signal)!;
         io.SetInput(feedback.OnInput, true);
         Assert.False(pending.IsCompleted); // Both inputs ON is not completion.
         io.SetInput(feedback.OffInput!.Value, false);
         await pending.WaitAsync(TimeSpan.FromSeconds(2));
-        await WaitUntilAsync(() => gripper.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => gripper.IsToggleOutputAllowed);
 
         var beforeSelection = handler.Motion.Feedback.Position;
         var releasing = gripper.ToggleOutputCommand.ExecuteAsync(null);
@@ -1619,11 +1619,11 @@ public sealed class TeachingTests
         Assert.False(io.GetOutput(gripper.Io.Signal));
         Assert.True(io.GetInput(feedback.OnInput));
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        await WaitUntilAsync(() => !gripper.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => !gripper.IsToggleOutputAllowed);
 
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         Assert.Same(gripper, TeachingRows(teaching)[OutputIo.PcbSupplyGripperClosed]);
-        await WaitUntilAsync(() => gripper.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => gripper.IsToggleOutputAllowed);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         var lift = TeachingRows(teaching)[OutputIo.PcbPlacementHandlerDown];
         var lowering = lift.ToggleOutputCommand.ExecuteAsync(null);
@@ -1690,13 +1690,13 @@ public sealed class TeachingTests
         try
         {
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, false);
-            await WaitUntilAsync(() => table.ToggleOutputCommand.CanExecute(null));
+            await WaitUntilAsync(() => table.IsToggleOutputAllowed);
             await table.ToggleOutputCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(OutputIo.PickupTableDown));
             Assert.Equal(StationCylinderState.Down, station.PickupTablePosition);
 
             io.AutoResponseEnabled = false;
-            await WaitUntilAsync(() => table.ToggleOutputCommand.CanExecute(null));
+            await WaitUntilAsync(() => table.IsToggleOutputAllowed);
             var raising = table.ToggleOutputCommand.ExecuteAsync(null);
             Assert.False(io.GetOutput(OutputIo.PickupTableDown));
             Assert.False(raising.IsCompleted);
@@ -1707,7 +1707,7 @@ public sealed class TeachingTests
             await raising.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal(StationCylinderState.Up, station.PickupTablePosition);
 
-            await WaitUntilAsync(() => table.ToggleOutputCommand.CanExecute(null));
+            await WaitUntilAsync(() => table.IsToggleOutputAllowed);
             var lowering = table.ToggleOutputCommand.ExecuteAsync(null);
             Assert.False(lowering.IsCompleted);
             teaching.JogStopCommand.Execute(null);
@@ -1742,13 +1742,13 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         var lift = TeachingRows(teaching)[OutputIo.PcbPlacementHandlerDown];
         await lift.ToggleOutputCommand.ExecuteAsync(null);
-        await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => !teaching.IsStepXPlusAllowed);
         Assert.DoesNotContain(OutputIo.PcbPlacementHandlerRotate, TeachingRows(teaching).Keys);
         await lift.ToggleOutputCommand.ExecuteAsync(null);
-        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
         var ipm = TeachingRows(teaching)[OutputIo.PcbPlacementIpmDown];
         await ipm.ToggleOutputCommand.ExecuteAsync(null);
-        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
 
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         Assert.Contains(OutputIo.ShootBolt, TeachingRows(teaching).Keys);
@@ -1756,7 +1756,7 @@ public sealed class TeachingTests
         var directStart = teaching.TeachingIoGroups.SelectMany(group => group.Outputs)
             .Single(row => row.Io.Signal == OutputIo.PickupBoltStart);
         Assert.False(directStart.IsSupported);
-        Assert.False(directStart.ToggleOutputCommand.CanExecute(null));
+        Assert.False(directStart.IsToggleOutputAllowed);
         await directStart.ToggleOutputCommand.ExecuteAsync(null);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         foreach (var output in new[] { OutputIo.PickupHeadDown, OutputIo.ShootingHeadDown })
@@ -1765,7 +1765,7 @@ public sealed class TeachingTests
             await head.ToggleOutputCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(output));
             Assert.False(services.GetRequiredService<BoltFasteningStation>().IsHorizontalMoveAllowed);
-            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+            await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
             await head.ToggleOutputCommand.ExecuteAsync(null);
             Assert.False(io.GetOutput(output));
             Assert.True(services.GetRequiredService<BoltFasteningStation>().IsHorizontalMoveAllowed);
@@ -1782,7 +1782,7 @@ public sealed class TeachingTests
 
         var ngLift = TeachingRows(teaching)[OutputIo.NgCarrierPickupDown];
         settings.Units.Inspection = false;
-        await WaitUntilAsync(() => ngLift.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => ngLift.IsToggleOutputAllowed);
         settings.Units.Inspection = true;
         io.AutoResponseEnabled = false;
         var pending = ngLift.ToggleOutputCommand.ExecuteAsync(null);
@@ -1808,20 +1808,20 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         await machine.InitializeAsync();
         await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.HomeRequired);
-        Assert.False(teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
-        Assert.True(teaching.HomeCommand.CanExecute(null));
+        Assert.False(teaching.IsJogXAllowed);
+        Assert.True(teaching.IsHomeAllowed);
 
         io.SetInput(InputIo.Door1Open, false);
         Assert.True(services.GetRequiredService<MachineState>().DoorInterlockReady);
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
-        Assert.True(teaching.HomeCommand.CanExecute(null));
+        Assert.True(teaching.IsHomeAllowed);
         io.SetInput(InputIo.Door1Open, true);
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
 
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler);
         motion.SetServo(MotionAxis.Z, false);
         await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.ServoOff);
-        Assert.False(teaching.HomeCommand.CanExecute(null));
+        Assert.False(teaching.IsHomeAllowed);
 
         settings.Units.PcbPlacement = false;
         Assert.Equal(HomeBlockReason.UnitDisabled, teaching.HomeBlock);
@@ -1829,7 +1829,7 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
         Assert.Equal(TeachingMotionHint.HomeRequired, teaching.MotionHint);
-        Assert.True(teaching.HomeCommand.CanExecute(null));
+        Assert.True(teaching.IsHomeAllowed);
     }
 
     [Fact]
@@ -1857,7 +1857,7 @@ public sealed class TeachingTests
             var stopper = TeachingRows(teaching)[output];
             Assert.Contains(teaching.TeachingIoGroups.SelectMany(group => group.Outputs),
                 row => row == stopper);
-            await WaitUntilAsync(() => stopper.ToggleOutputCommand.CanExecute(null));
+            await WaitUntilAsync(() => stopper.IsToggleOutputAllowed);
             await stopper.ToggleOutputCommand.ExecuteAsync(null);
             Assert.False(io.GetInput(down));
             Assert.True(io.GetInput(up));
@@ -1898,7 +1898,7 @@ public sealed class TeachingTests
             foreach (var group in new[] { HardwareArea.PcbSupply, HardwareArea.PcbPlacementHandler })
             {
                 teaching.SelectedTeachingUnit = group;
-                await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+                await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
                 var feedback = group == HardwareArea.PcbSupply ? supply.Motion.Feedback : placement.Motion.Feedback;
                 var expectedX = feedback.Position.X + teaching.StepDistance;
 
@@ -1912,11 +1912,11 @@ public sealed class TeachingTests
             var manual = services.GetRequiredService<MotionDiagnosticsViewModel>();
             var placementX = manual.Axes.Single(
                 row => row.Group == MotionGroup.PcbPlacementHandler && row.Axis == MotionAxis.X);
-            await WaitUntilAsync(() => placementX.HomeCommand.CanExecute(null));
+            await WaitUntilAsync(() => placementX.IsHomeAllowed);
             await placementX.HomeCommand.ExecuteAsync(null);
             Assert.Equal(0, placement.Motion.Feedback.Position.X);
 
-            await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsHomeAllowed);
             await teaching.HomeCommand.ExecuteAsync(null);
             Assert.Equal((0, 0, 0), placement.Motion.Feedback.Position);
             Assert.All(placement.Motion.Feedback.Axes, axis => Assert.True(placement.Motion.Feedback.GetAxisState(axis).Homed));
@@ -1969,7 +1969,7 @@ public sealed class TeachingTests
             teaching.SelectedTeachingUnit = group;
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == target);
             var plate = TeachingRows(teaching)[output];
-            await WaitUntilAsync(() => plate.ToggleOutputCommand.CanExecute(null));
+            await WaitUntilAsync(() => plate.IsToggleOutputAllowed);
             await plate.ToggleOutputCommand.ExecuteAsync(null);
             Assert.True(io.GetInput(up));
             Assert.False(io.GetInput(down));
@@ -1991,16 +1991,16 @@ public sealed class TeachingTests
         await supply.MoveAxisAsync(MotionAxis.X, settings.PcbSupply.HandoffPosition.X, 1_000);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         Assert.Equal(settings.PcbSupply.HandoffPosition.X, supply.Position.X);
-        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsJogXAllowed);
         var placementPlate = TeachingRows(teaching)[OutputIo.PcbPlacementBackupPlateUp];
-        await WaitUntilAsync(() => placementPlate.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => placementPlate.IsToggleOutputAllowed);
         await placementPlate.ToggleOutputCommand.ExecuteAsync(null);
         await placementPlate.ToggleOutputCommand.ExecuteAsync(null);
         supply.SetServo(MotionAxis.X, false);
         Assert.False(machine.IsManualMotionReady(MotionGroup.PcbSupply));
-        await WaitUntilAsync(() => placementPlate.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => placementPlate.IsToggleOutputAllowed);
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => !placementPlate.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => !placementPlate.IsToggleOutputAllowed);
         io.SetInput(InputIo.AutoMode, true);
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
@@ -2025,7 +2025,7 @@ public sealed class TeachingTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsSaveAllowed);
         var supplyMotion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
         await supplyMotion.MoveToXYAsync(70, 20, settings.PcbSupply.Motion.HorizontalSpeed);
         await supplyMotion.MoveAxisAsync(MotionAxis.Z, 4, settings.PcbSupply.Motion.ZSpeed);
@@ -2053,7 +2053,7 @@ public sealed class TeachingTests
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.BoltInspection.LightLevel = 123;
         teaching.RecipeEditor.Name = " ";
-        Assert.False(teaching.SaveCommand.CanExecute(null));
+        Assert.False(teaching.IsSaveAllowed);
         await teaching.SaveCommand.ExecuteAsync(null);
         Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
         Assert.Empty(store.RecipeNames);
@@ -2071,20 +2071,20 @@ public sealed class TeachingTests
 
         using (services.GetRequiredService<OperationCancellation>().Link())
         {
-            await WaitUntilAsync(() => !teaching.SaveCommand.CanExecute(null));
+            await WaitUntilAsync(() => !teaching.IsSaveAllowed);
             await teaching.SaveCommand.ExecuteAsync(null);
             Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
         }
 
-        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsSaveAllowed);
 
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => !teaching.SaveCommand.CanExecute(null));
+        await WaitUntilAsync(() => !teaching.IsSaveAllowed);
         await teaching.SaveCommand.ExecuteAsync(null);
         Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
 
         io.SetInput(InputIo.AutoMode, true);
-        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsSaveAllowed);
         settings.Units.PcbSupply = false;
         await teaching.SaveCommand.ExecuteAsync(null);
 
@@ -2134,7 +2134,7 @@ public sealed class TeachingTests
         Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
         Assert.Equal(70, store.LoadSettings().Get<PcbSupplySettings>().HandoffPosition.X);
         Assert.Contains("cancelled", teaching.SaveError);
-        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsSaveAllowed);
         await teaching.SaveCommand.ExecuteAsync(null);
         Assert.Null(teaching.SaveError);
         Assert.Equal(80, store.LoadSettings().Get<PcbSupplySettings>().HandoffPosition.X);
@@ -2181,7 +2181,7 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SafeZ);
         await motion.MoveAxisAsync(MotionAxis.Z, 8, 10_000);
-        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
         connection.Open();
         using var command = connection.CreateCommand();
@@ -2197,7 +2197,7 @@ public sealed class TeachingTests
         command.ExecuteNonQuery();
         // Saving retries the recorded value, even after the physical axis has moved elsewhere.
         await motion.MoveAxisAsync(MotionAxis.Z, 12, 10_000);
-        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsSaveAllowed);
         await teaching.SaveCommand.ExecuteAsync(null);
 
         Assert.Null(teaching.SaveError);
@@ -2221,7 +2221,7 @@ public sealed class TeachingTests
         var operations = services.GetRequiredService<OperationCancellation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsSaveAllowed);
         teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff)
             .Teach(70, 0, 0);
 
@@ -2269,10 +2269,10 @@ public sealed class TeachingTests
             point => point.Position.Target == TeachingTarget.BoltPickup);
         teaching.JogSpeed = 1;
         teaching.StepDistance = 0.1;
-        await WaitUntilAsync(() => !teaching.MoveToPointCommand.CanExecute(null));
-        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await WaitUntilAsync(() => !teaching.IsMoveToPointAllowed);
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         Assert.Equal(HomeBlockReason.FasteningNotRaised, machine.GetHomeBlock(requireRaised: true));
-        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
 
         await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
         await teaching.StepCommand.ExecuteAsync(TeachingDirection.YMinus);
@@ -2310,10 +2310,10 @@ public sealed class TeachingTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => beyondOldMaximum);
         Assert.Equal(stopped.Y, gantry.Motion.Feedback.Position.Y);
         Assert.Equal(stopped.Z, gantry.Motion.Feedback.Position.Z);
-        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
 
         await gantry.RaiseCylindersAsync();
-        await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
         MotionCommand positioning = MotionCommand.None;
         gantry.Motion.Feedback.MovingChanged += moving =>
         {
@@ -2324,7 +2324,7 @@ public sealed class TeachingTests
         Assert.Equal(MotionCommand.Positioning, positioning);
         Assert.Equal(MotionCommand.None, gantry.Motion.Feedback.Command);
 
-        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XMinus));
+        await WaitUntilAsync(() => teaching.IsJogXAllowed);
         var fail = true;
         gantry.Motion.Feedback.PositionChanged += (_, _, _) =>
         {

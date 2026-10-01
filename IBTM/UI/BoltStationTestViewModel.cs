@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
@@ -50,10 +49,10 @@ public partial class BoltStationTestViewModel : ObservableObject
         _station = station;
         _log = log;
         Bolts = new();
-        RunCommand = new AsyncRelayCommand(RunAsync, () => IsRunAllowed);
+        RunCommand = new AsyncRelayCommand(RunAsync);
         StopCommand = new AsyncRelayCommand(StopAsync);
-        SelectAllCommand = new RelayCommand(SelectAll, () => !RunCommand.IsRunning && !IsClosing);
-        ClearSelectionCommand = new RelayCommand(ClearSelection, () => !RunCommand.IsRunning && !IsClosing);
+        SelectAllCommand = new RelayCommand(SelectAll);
+        ClearSelectionCommand = new RelayCommand(ClearSelection);
         Message = string.Empty;
     }
 
@@ -137,12 +136,16 @@ public partial class BoltStationTestViewModel : ObservableObject
 
     private void SelectAll()
     {
+        if (RunCommand.IsRunning || IsClosing)
+            return;
         foreach (var row in Bolts)
             row.IsSelected = true;
     }
 
     private void ClearSelection()
     {
+        if (RunCommand.IsRunning || IsClosing)
+            return;
         foreach (var row in Bolts)
             row.IsSelected = false;
     }
@@ -161,12 +164,6 @@ public partial class BoltStationTestViewModel : ObservableObject
 
     private void Refresh()
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-        {
-            dispatcher.BeginInvoke(Refresh);
-            return;
-        }
         if (RunCommand.IsRunning && _station.ActiveBolt is { } active)
         {
             var row = Bolts.FirstOrDefault(item => item.Bolt.Id == active.Id);
@@ -175,19 +172,11 @@ public partial class BoltStationTestViewModel : ObservableObject
         }
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(Readiness));
-        RunCommand.NotifyCanExecuteChanged();
-        SelectAllCommand.NotifyCanExecuteChanged();
-        ClearSelectionCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsRunAllowed));
     }
 
     private void OnResultReceived(BoltPoint bolt, BoltResult result)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-        {
-            dispatcher.BeginInvoke(() => OnResultReceived(bolt, result));
-            return;
-        }
         var row = Bolts.FirstOrDefault(item => item.Bolt.Id == bolt.Id);
         if (row is null)
             return;
@@ -197,6 +186,8 @@ public partial class BoltStationTestViewModel : ObservableObject
 
     private async Task RunAsync(CancellationToken cancellationToken)
     {
+        if (!IsRunAllowed)
+            return;
         var selected = Bolts.Where(row => row.IsSelected).ToArray();
         Error = null;
         TotalRunSeconds = null;

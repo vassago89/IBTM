@@ -112,6 +112,8 @@ public sealed class UiBindingTests
             teaching.Activate();
             var jog = new Button { Command = teaching.JogCommand, CommandParameter = TeachingDirection.XPlus };
             var step = new Button { Command = teaching.StepCommand, CommandParameter = TeachingDirection.XPlus };
+            jog.SetBinding(UIElement.IsEnabledProperty, new Binding(nameof(TeachingViewModel.IsJogXAllowed)) { Source = teaching });
+            step.SetBinding(UIElement.IsEnabledProperty, new Binding(nameof(TeachingViewModel.IsStepXPlusAllowed)) { Source = teaching });
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => teaching.Motion.Position.Z == 9 && jog.IsEnabled && step.IsEnabled,
                 TimeSpan.FromSeconds(2)));
@@ -119,7 +121,7 @@ public sealed class UiBindingTests
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => jog.IsEnabled && step.IsEnabled, TimeSpan.FromSeconds(2)),
                 $"Position={teaching.Motion.Position}; hint={teaching.MotionHint}; busy={state.IsRunning}; "
-                + $"predicate={teaching.JogCommand.CanExecute(TeachingDirection.XPlus)}");
+                + $"predicate={teaching.IsJogXAllowed}");
 
             teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
             z.SetValue(unrelated, 9d);
@@ -140,7 +142,7 @@ public sealed class UiBindingTests
             unrelated.SetServo(MotionAxis.X, false);
             state.SetError(MachineAlarm.MotionUnavailable, new IOException("Supply axis alarm."));
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => teaching.StepCommand.CanExecute(TeachingDirection.XPlus),
+                () => teaching.IsStepXPlusAllowed,
                 TimeSpan.FromSeconds(2)));
             var before = inspection.Position;
             await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
@@ -167,7 +169,7 @@ public sealed class UiBindingTests
                 motionWindow.Close();
             }
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => axis.HomeCommand.CanExecute(null), TimeSpan.FromSeconds(2)));
+                () => axis.IsHomeAllowed, TimeSpan.FromSeconds(2)));
             await axis.HomeCommand.ExecuteAsync(null);
             Assert.True(inspection.GetAxisState(MotionAxis.X).Homed);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
@@ -179,15 +181,15 @@ public sealed class UiBindingTests
                 point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
             var taughtPoint = teaching.SelectedPoint;
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => !teaching.StepCommand.CanExecute(TeachingDirection.XPlus),
+                () => !teaching.IsStepXPlusAllowed,
                 TimeSpan.FromSeconds(2)));
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => teaching.TeachCurrentPositionCommand.CanExecute(null),
+                () => teaching.IsTeachCurrentPositionAllowed,
                 TimeSpan.FromSeconds(2)));
-            Assert.False(teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+            Assert.False(teaching.IsStepXPlusAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(inspection.Position.X, taughtPoint.Coordinates!.X, 3);
-            Assert.True(teaching.ToggleLiveViewCommand.CanExecute(null));
+            Assert.True(teaching.IsToggleLiveViewAllowed);
         }
         finally
         {
@@ -894,7 +896,7 @@ public sealed class UiBindingTests
             Assert.Equal(AppPage.Teaching, main.SelectedPage);
             Assert.False(page.IsEnabled);
             Assert.False(main.RecipeEditingEnabled);
-            Assert.False(main.NavigateCommand.CanExecute(AppPage.Settings));
+            Assert.False(main.IsNavigateAllowed(AppPage.Settings));
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => preview.Source is null,
                 TimeSpan.FromSeconds(2)));
@@ -1015,7 +1017,7 @@ public sealed class UiBindingTests
             var scan = teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             await scanStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(liveButton.IsEnabled);
-            Assert.False(teaching.ToggleLiveViewCommand.CanExecute(null));
+            Assert.False(teaching.IsToggleLiveViewAllowed);
             Assert.False(teaching.Inspection.IsLiveView);
             teaching.TeachCurrentPositionCommand.Cancel();
             releaseStop.Set();
@@ -1128,7 +1130,7 @@ public sealed class UiBindingTests
                 io.SetInput(InputIo.AutoMode, true);
                 teaching.Activate();
                 Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                    () => teaching.CarrierImages.Count == 4 && teaching.TeachCurrentPositionCommand.CanExecute(null),
+                    () => teaching.CarrierImages.Count == 4 && teaching.IsTeachCurrentPositionAllowed,
                     TimeSpan.FromSeconds(2)));
             }
             var originalRecipe = services.GetRequiredService<MachineStore>().LoadRecipe(originalName);

@@ -1,10 +1,8 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -18,9 +16,7 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
     private readonly ILogger<MotionDiagnosticsViewModel>? _log;
     private readonly MachineController _machine;
     private readonly MachineState _state;
-    private Dispatcher? _dispatcher;
     private bool _active;
-    private int _refreshQueued;
     [ObservableProperty]
     public partial bool IsClosing { get; set; }
     [ObservableProperty]
@@ -52,7 +48,8 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
                             state,
                             settings.Units)))
             .ToArray();
-        View = new ListCollectionView(Axes);
+        View = new ListCollectionView(Axes) { IsLiveFiltering = true };
+        View.LiveFilteringProperties.Add(nameof(MotionAxisViewModel.Enabled));
         View.GroupDescriptions.Add(new PropertyGroupDescription(nameof(MotionAxisViewModel.Group)));
         View.Filter = item =>
             item is MotionAxisViewModel row
@@ -64,7 +61,7 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
     }
 
     public MotionAxisViewModel[] Axes { get; }
-    public ICollectionView View { get; }
+    public ListCollectionView View { get; }
 
     public string ControlStatus
     {
@@ -114,15 +111,8 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
 
     public void Refresh()
     {
-        var enabledChanged = false;
         foreach (var row in Axes)
-        {
-            enabledChanged |= row.Refresh();
-        }
-
-        // Do not reset the list/scroll position on every feedback scan.
-        if (enabledChanged)
-            View.Refresh();
+            row.Refresh();
         OnPropertyChanged(nameof(ControlStatus));
     }
 
@@ -130,7 +120,6 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
     {
         if (_active)
             return;
-        _dispatcher = Dispatcher.CurrentDispatcher;
         IsClosing = false;
         _active = true;
         _state.PropertyChanged += OnDisplayChanged;
@@ -156,14 +145,9 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
     private void OnDisplayChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (sender is AxisStatus && e.PropertyName != nameof(AxisStatus.State)
-            || !_active || Interlocked.Exchange(ref _refreshQueued, 1) != 0)
+            || !_active || IsClosing)
             return;
-        _dispatcher!.BeginInvoke(() =>
-        {
-            Interlocked.Exchange(ref _refreshQueued, 0);
-            if (_active && !IsClosing)
-                Refresh();
-        });
+        Refresh();
     }
 
     public async Task<bool> TryCloseAsync()

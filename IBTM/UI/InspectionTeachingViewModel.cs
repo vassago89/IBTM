@@ -42,12 +42,12 @@ public partial class InspectionTeachingViewModel : ObservableObject
         LoadRecipeCommand = new AsyncRelayCommand(LoadRecipeAsync);
         RefreshImagesCommand = new AsyncRelayCommand(RefreshImagesAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
-        InspectCommand = new AsyncRelayCommand(InspectAsync, () => IsInspectAllowed);
+        InspectCommand = new AsyncRelayCommand(InspectAsync);
         RefreshHistoryCommand = new AsyncRelayCommand(RefreshHistoryAsync);
         LoadOlderCommand = new AsyncRelayCommand(LoadOlderAsync);
         LoadRecordCommand = new AsyncRelayCommand(LoadRecordAsync);
-        DrawRegionCommand = new RelayCommand<Rect>(DrawRegion, _ => IsDrawRegionAllowed);
-        UseHistoryImageCommand = new RelayCommand(UseHistoryImage, () => HistoryImageTarget is not null);
+        DrawRegionCommand = new RelayCommand<Rect>(DrawRegion);
+        UseHistoryImageCommand = new RelayCommand(UseHistoryImage);
         ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
         _commands = [RefreshRecipesCommand, LoadRecipeCommand, RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
         foreach (var command in _commands)
@@ -85,7 +85,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     [ObservableProperty] public partial PcbRecord? LoadedRecord { get; private set; }
     [ObservableProperty] public partial IReadOnlyList<PcbInspectionImageItem> HistoryImages { get; private set; }
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UseHistoryImageCommand))]
+    [NotifyPropertyChangedFor(nameof(HistoryImageTarget))]
     public partial PcbInspectionImageItem? SelectedHistoryImage { get; set; }
 
     public bool IsBusy => _commands.Any(command => command.IsRunning);
@@ -158,6 +158,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(IsBusy));
             OnPropertyChanged(nameof(IsIdle));
+            OnPropertyChanged(nameof(IsDrawRegionAllowed));
         }
     }
 
@@ -216,7 +217,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         ShowRecipeImage();
         OnPropertyChanged(nameof(IsDataMatrixSelected));
         OnPropertyChanged(nameof(DataMatrix));
-        UseHistoryImageCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(HistoryImageTarget));
     }
 
     private void ShowRecipeImage()
@@ -246,16 +247,18 @@ public partial class InspectionTeachingViewModel : ObservableObject
             }
             ImageSource = UiText.Format($"Recipe · {Preview.Recipe.Name} · {point.Title}");
         }
-        InspectCommand.NotifyCanExecuteChanged();
-        DrawRegionCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsInspectAllowed));
+        OnPropertyChanged(nameof(IsDrawRegionAllowed));
     }
 
-    private bool IsInspectAllowed => Preview.HasImage && SelectedPoint?.Metadata is not null;
+    public bool IsInspectAllowed => Preview.HasImage && SelectedPoint?.Metadata is not null;
 
-    private bool IsDrawRegionAllowed => !IsBusy && IsInspectAllowed;
+    public bool IsDrawRegionAllowed => !IsBusy && IsInspectAllowed;
 
     private void DrawRegion(Rect bounds)
     {
+        if (!IsDrawRegionAllowed)
+            return;
         if (Preview.Image is not { } image || SelectedPoint?.Metadata is not { } metadata || bounds.IsEmpty)
             return;
         var region = PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight, (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
@@ -383,7 +386,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
     }
 
-    private InspectionPoint? HistoryImageTarget
+    public InspectionPoint? HistoryImageTarget
     {
         get
         {

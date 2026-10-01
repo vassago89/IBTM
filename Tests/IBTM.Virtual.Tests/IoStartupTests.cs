@@ -1990,12 +1990,12 @@ public sealed class IoStartupTests
             Assert.Equal(
                 group == HardwareArea.InspectionGantry ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable,
                 station.MotionHint);
-            Assert.False(station.TeachCurrentPositionCommand.CanExecute(null));
+            Assert.False(station.IsTeachCurrentPositionAllowed);
             foreach (var point in station.FilteredPoints.Where(point => point.Storage == TeachingStorage.Handoff))
             {
                 station.SelectedPoint = point;
                 Assert.Equal(TeachingMotionHint.MotionUnavailable, station.MotionHint);
-                Assert.False(station.TeachCurrentPositionCommand.CanExecute(null));
+                Assert.False(station.IsTeachCurrentPositionAllowed);
             }
         }
         Assert.Equal(0, io.ReadsWhileUnavailable);

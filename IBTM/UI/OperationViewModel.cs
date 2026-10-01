@@ -67,7 +67,7 @@ public partial class OperationViewModel : ObservableObject
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
-        LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync, () => HasOlderPcbs);
+        LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync);
         RetryPcbSaveCommand = new AsyncRelayCommand(RetryPcbSaveAsync);
         PcbRecords = new();
         _pcbHistoryLimit = PcbHistoryPageSize;
@@ -1146,7 +1146,6 @@ public partial class OperationViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(LoadOlderPcbsCommand))]
     public partial bool HasOlderPcbs { get; private set; }
 
     private async Task LoadOlderPcbsAsync(CancellationToken cancellationToken)

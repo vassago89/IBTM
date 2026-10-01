@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -91,7 +90,6 @@ public partial class TeachingViewModel : ObservableObject
     private readonly InspectionImageLoader _images;
     private CancellationTokenSource _viewCancellation;
     private readonly IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]> _teachingIoGroups;
-    private int _manualCommandRefreshQueued;
     private readonly object _liveImageGate;
     private ImageFrame? _pendingLiveFrame;
     private bool _liveImageUpdateQueued;
@@ -152,24 +150,23 @@ public partial class TeachingViewModel : ObservableObject
         _store = store;
         _images = images;
 
-        TeachCurrentPositionCommand = new AsyncRelayCommand(TeachCurrentPositionAsync, () => IsTeachCurrentPositionAllowed);
-        MoveToPointCommand = new AsyncRelayCommand(MoveToPointAsync, () => IsMoveToPointAllowed);
-        JogCommand = new AsyncRelayCommand<TeachingDirection>(
-            JogAsync, direction => IsJogAllowed(Resolve(direction).Axis));
-        StepCommand = new AsyncRelayCommand<TeachingDirection>(StepAsync, IsStepAllowed);
+        TeachCurrentPositionCommand = new AsyncRelayCommand(TeachCurrentPositionAsync);
+        MoveToPointCommand = new AsyncRelayCommand(MoveToPointAsync);
+        JogCommand = new AsyncRelayCommand<TeachingDirection>(JogAsync);
+        StepCommand = new AsyncRelayCommand<TeachingDirection>(StepAsync);
         JogStopCommand = new RelayCommand(JogStop);
-        HomeCommand = new AsyncRelayCommand(HomeAsync, () => Machine.IsManualHomeAllowed(ActiveMotionGroup));
-        MoveToHorizontalZCommand = new AsyncRelayCommand(MoveToHorizontalZAsync, () => IsMoveToHorizontalZAllowed);
+        HomeCommand = new AsyncRelayCommand(HomeAsync);
+        MoveToHorizontalZCommand = new AsyncRelayCommand(MoveToHorizontalZAsync);
 
-        ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, () => IsToggleLiveViewAllowed);
-        GrabCommand = new AsyncRelayCommand(GrabAsync, () => IsGrabAllowed);
-        ApplyLightCommand = new AsyncRelayCommand(ApplyLightAsync, () => IsApplyLightAllowed);
-        AddBoltPointCommand = new RelayCommand(AddBoltPoint, () => IsAddBoltPointAllowed);
-        RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint, () => IsRemoveBoltPointAllowed);
-        MoveFasteningEarlierCommand = new RelayCommand(MoveFasteningEarlier, () => IsFasteningMoveAllowed(-1));
-        MoveFasteningLaterCommand = new RelayCommand(MoveFasteningLater, () => IsFasteningMoveAllowed(1));
-        SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsSaveAllowed);
-        ReturnFromPickupCommand = new AsyncRelayCommand(ReturnFromPickupAsync, () => IsReturnFromPickupAllowed);
+        ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync);
+        GrabCommand = new AsyncRelayCommand(GrabAsync);
+        ApplyLightCommand = new AsyncRelayCommand(ApplyLightAsync);
+        AddBoltPointCommand = new RelayCommand(AddBoltPoint);
+        RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint);
+        MoveFasteningEarlierCommand = new RelayCommand(MoveFasteningEarlier);
+        MoveFasteningLaterCommand = new RelayCommand(MoveFasteningLater);
+        SaveCommand = new AsyncRelayCommand(SaveAsync);
+        ReturnFromPickupCommand = new AsyncRelayCommand(ReturnFromPickupAsync);
 
         _commands = [
             ToggleLiveViewCommand,
@@ -210,11 +207,11 @@ public partial class TeachingViewModel : ObservableObject
     private void OnRecipeEditorChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(RecipeEditor.IsSaveAllowed) or nameof(IAsyncRelayCommand.IsRunning))
-            SaveCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(IsSaveAllowed));
         if (e.PropertyName != nameof(RecipeEditor.IsSaveAllowed))
             return;
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        GrabCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsTeachCurrentPositionAllowed));
+        OnPropertyChanged(nameof(IsGrabAllowed));
     }
 
     [ObservableProperty]
@@ -258,7 +255,7 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(MoveToHorizontalZLabel));
         OnPropertyChanged(nameof(BoltPointEditorVisible));
         OnPropertyChanged(nameof(IsFasteningSelected));
-        NotifyManualTeachingCommands();
+        RefreshManualControls();
     }
 
     public void Activate()
@@ -278,7 +275,7 @@ public partial class TeachingViewModel : ObservableObject
         PositionUpdatesActive = true;
         OnPropertyChanged(nameof(Motion));
         ShowRecipeImages();
-        NotifyManualTeachingCommands();
+        RefreshManualControls();
         _logger.LogInformation("Teaching open: activation finished, elapsed={ElapsedMs:F1} ms; image loading may continue.",
             Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
@@ -394,20 +391,20 @@ public partial class TeachingViewModel : ObservableObject
             foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
             {
                 row.ViewCancellation = _viewCancellation.Token;
-                row.ToggleOutputCommand.NotifyCanExecuteChanged();
+                row.Refresh();
             }
         }
     }
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        QueueManualCommandRefresh();
+        RefreshManualControls();
     }
 
     private void OnTeachingMotionChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(MotionStatus.Position) or nameof(AxisStatus.State))
-            QueueManualCommandRefresh();
+            RefreshManualControls();
     }
 
     private void SubscribeMotionChanges()
@@ -424,37 +421,20 @@ public partial class TeachingViewModel : ObservableObject
             axis.PropertyChanged -= OnTeachingMotionChanged;
     }
 
-    private void QueueManualCommandRefresh()
-    {
-        if (!PositionUpdatesActive
-            || Interlocked.Exchange(ref _manualCommandRefreshQueued, 1) != 0)
-        {
-            return;
-        }
-
-        Application.Current.Dispatcher.BeginInvoke(
-            () =>
-            {
-                Interlocked.Exchange(ref _manualCommandRefreshQueued, 0);
-                if (PositionUpdatesActive)
-                {
-                    NotifyManualTeachingCommands();
-                }
-            });
-    }
-
     private void OnCommandChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
             return;
         OnPropertyChanged(nameof(IsBusy));
-        ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        GrabCommand.NotifyCanExecuteChanged();
-        ApplyLightCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsToggleLiveViewAllowed));
+        OnPropertyChanged(nameof(IsGrabAllowed));
+        OnPropertyChanged(nameof(IsApplyLightAllowed));
     }
 
-    private void NotifyManualTeachingCommands()
+    private void RefreshManualControls()
     {
+        if (!PositionUpdatesActive)
+            return;
         OnPropertyChanged(nameof(HomeBlock));
         if (!State.ManualMode
             && (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning))
@@ -462,25 +442,32 @@ public partial class TeachingViewModel : ObservableObject
             _ = RequestCameraStopAsync();
         }
 
-        HomeCommand.NotifyCanExecuteChanged();
-        JogCommand.NotifyCanExecuteChanged();
-        StepCommand.NotifyCanExecuteChanged();
-        MoveToHorizontalZCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsHomeAllowed));
+        OnPropertyChanged(nameof(IsJogXAllowed));
+        OnPropertyChanged(nameof(IsJogYAllowed));
+        OnPropertyChanged(nameof(IsJogZAllowed));
+        OnPropertyChanged(nameof(IsStepXMinusAllowed));
+        OnPropertyChanged(nameof(IsStepXPlusAllowed));
+        OnPropertyChanged(nameof(IsStepYMinusAllowed));
+        OnPropertyChanged(nameof(IsStepYPlusAllowed));
+        OnPropertyChanged(nameof(IsStepZMinusAllowed));
+        OnPropertyChanged(nameof(IsStepZPlusAllowed));
+        OnPropertyChanged(nameof(IsMoveToHorizontalZAllowed));
         foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
-            row.ToggleOutputCommand.NotifyCanExecuteChanged();
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        MoveToPointCommand.NotifyCanExecuteChanged();
+            row.Refresh();
+        OnPropertyChanged(nameof(IsTeachCurrentPositionAllowed));
+        OnPropertyChanged(nameof(IsMoveToPointAllowed));
         OnPropertyChanged(nameof(ManualBlock));
         OnPropertyChanged(nameof(MotionHint));
-        SaveCommand.NotifyCanExecuteChanged();
-        ReturnFromPickupCommand.NotifyCanExecuteChanged();
-        ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        GrabCommand.NotifyCanExecuteChanged();
-        ApplyLightCommand.NotifyCanExecuteChanged();
-        AddBoltPointCommand.NotifyCanExecuteChanged();
-        RemoveBoltPointCommand.NotifyCanExecuteChanged();
-        MoveFasteningEarlierCommand.NotifyCanExecuteChanged();
-        MoveFasteningLaterCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsSaveAllowed));
+        OnPropertyChanged(nameof(IsReturnFromPickupAllowed));
+        OnPropertyChanged(nameof(IsToggleLiveViewAllowed));
+        OnPropertyChanged(nameof(IsGrabAllowed));
+        OnPropertyChanged(nameof(IsApplyLightAllowed));
+        OnPropertyChanged(nameof(IsAddBoltPointAllowed));
+        OnPropertyChanged(nameof(IsRemoveBoltPointAllowed));
+        OnPropertyChanged(nameof(IsMoveFasteningEarlierAllowed));
+        OnPropertyChanged(nameof(IsMoveFasteningLaterAllowed));
     }
 
     [ObservableProperty]
@@ -492,7 +479,7 @@ public partial class TeachingViewModel : ObservableObject
     partial void OnSelectedPcbChanged(HeatSinkSlot value)
     {
         RefreshTeachingPoints();
-        NotifyManualTeachingCommands();
+        RefreshManualControls();
     }
 
     [ObservableProperty]
@@ -511,7 +498,7 @@ public partial class TeachingViewModel : ObservableObject
             ?? Recipes.Current.BoltInspection.LightLevel;
         OnPropertyChanged(nameof(CameraImage));
         OnPropertyChanged(nameof(CameraError));
-        NotifyManualTeachingCommands();
+        RefreshManualControls();
         OnPropertyChanged(nameof(SelectedBarcode));
         OnPropertyChanged(nameof(IsDataMatrixSelected));
     }
@@ -669,6 +656,8 @@ public partial class TeachingViewModel : ObservableObject
 
     private void AddBoltPoint()
     {
+        if (!IsAddBoltPointAllowed)
+            return;
         var bolt = new BoltPoint
         {
             HeatSink = SelectedPcb,
@@ -683,12 +672,14 @@ public partial class TeachingViewModel : ObservableObject
                 && ReferenceEquals(point.Position.Bolt, bolt));
     }
 
-    private bool IsAddBoltPointAllowed => State.SetupEditingEnabled && IsInspectionSelected;
+    public bool IsAddBoltPointAllowed => State.SetupEditingEnabled && IsInspectionSelected;
 
     public IRelayCommand RemoveBoltPointCommand { get; }
 
     private void RemoveBoltPoint()
     {
+        if (!IsRemoveBoltPointAllowed)
+            return;
         if (SelectedPoint?.Position.Bolt is not { } selectedBolt)
             return;
         var boltId = selectedBolt.Id;
@@ -702,7 +693,7 @@ public partial class TeachingViewModel : ObservableObject
         RefreshTeachingPoints();
     }
 
-    private bool IsRemoveBoltPointAllowed
+    public bool IsRemoveBoltPointAllowed
     {
         get
         {
@@ -754,7 +745,7 @@ public partial class TeachingViewModel : ObservableObject
                         SelectedPoint = FilteredPoints.First(
                             candidate => candidate.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
                     }
-                    NotifyManualTeachingCommands();
+                    RefreshManualControls();
                     break;
                 case { Position.Mode: not TeachMode.Image }:
                     SaveError = UiText.Get("Home the selected axes and wait for them to stop.");
@@ -772,7 +763,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsTeachCurrentPositionAllowed
+    public bool IsTeachCurrentPositionAllowed
     {
         get
         {
@@ -826,7 +817,7 @@ public partial class TeachingViewModel : ObservableObject
                 SaveError = UiText.Get("Settings saved; recipe was not saved. ")
                     + (RecipeEditor.Error ?? UiText.Get("Save cancelled. Retry Save."));
             }
-            NotifyManualTeachingCommands();
+            RefreshManualControls();
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
             || viewToken.IsCancellationRequested
@@ -839,7 +830,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsSaveAllowed => State.SetupEditingEnabled && RecipeEditor.IsSaveAllowed && !RecipeEditor.LoadCommand.IsRunning;
+    public bool IsSaveAllowed => State.SetupEditingEnabled && RecipeEditor.IsSaveAllowed && !RecipeEditor.LoadCommand.IsRunning;
 
     private async Task<bool> SaveSettingsAsync(
         CancellationToken cancellationToken,
@@ -872,7 +863,7 @@ public partial class TeachingViewModel : ObservableObject
     public partial double JogSpeed { get; set; } = 10.0;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(StepCommand))]
+    [NotifyPropertyChangedFor(nameof(IsStepXMinusAllowed), nameof(IsStepXPlusAllowed), nameof(IsStepYMinusAllowed), nameof(IsStepYPlusAllowed), nameof(IsStepZMinusAllowed), nameof(IsStepZPlusAllowed))]
     public partial double StepDistance { get; set; } = 0.1;
 
     [ObservableProperty]
@@ -982,6 +973,22 @@ public partial class TeachingViewModel : ObservableObject
             };
     }
 
+    public bool IsHomeAllowed => Machine.IsManualHomeAllowed(ActiveMotionGroup);
+
+    public bool IsJogXAllowed => IsJogAllowed(MotionAxis.X);
+    public bool IsJogYAllowed => IsJogAllowed(MotionAxis.Y);
+    public bool IsJogZAllowed => IsJogAllowed(MotionAxis.Z);
+
+    public bool IsStepXMinusAllowed => IsStepAllowed(TeachingDirection.XMinus);
+    public bool IsStepXPlusAllowed => IsStepAllowed(TeachingDirection.XPlus);
+    public bool IsStepYMinusAllowed => IsStepAllowed(TeachingDirection.YMinus);
+    public bool IsStepYPlusAllowed => IsStepAllowed(TeachingDirection.YPlus);
+    public bool IsStepZMinusAllowed => IsStepAllowed(TeachingDirection.ZMinus);
+    public bool IsStepZPlusAllowed => IsStepAllowed(TeachingDirection.ZPlus);
+
+    public bool IsMoveFasteningEarlierAllowed => IsFasteningMoveAllowed(-1);
+    public bool IsMoveFasteningLaterAllowed => IsFasteningMoveAllowed(1);
+
     public IAsyncRelayCommand<TeachingDirection> JogCommand { get; }
 
     private async Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
@@ -1045,7 +1052,7 @@ public partial class TeachingViewModel : ObservableObject
         CancelTeaching();
     }
 
-    private bool IsMoveToHorizontalZAllowed
+    public bool IsMoveToHorizontalZAllowed
     {
         get
         {
@@ -1110,7 +1117,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsStepAllowed(TeachingDirection direction)
+    public bool IsStepAllowed(TeachingDirection direction)
     {
         var (axis, sign) = Resolve(direction);
         if (!IsJogAllowed(axis))
@@ -1251,7 +1258,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsReturnFromPickupAllowed
+    public bool IsReturnFromPickupAllowed
     {
         get
         {
@@ -1326,7 +1333,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsMoveToPointAllowed
+    public bool IsMoveToPointAllowed
     {
         get
         {
@@ -1383,7 +1390,7 @@ public partial class TeachingViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CameraImage))]
     [NotifyPropertyChangedFor(nameof(CameraError))]
-    [NotifyCanExecuteChangedFor(nameof(GrabCommand))]
+    [NotifyPropertyChangedFor(nameof(IsGrabAllowed))]
     public partial IReadOnlyList<RecipeImageItem> CarrierImages { get; set; }
 
     public string? CameraError
@@ -1409,7 +1416,7 @@ public partial class TeachingViewModel : ObservableObject
             await CaptureTeachingImageAsync(recordPosition: false, cancellationToken);
     }
 
-    private bool IsGrabAllowed
+    public bool IsGrabAllowed
     {
         get
         {
@@ -1440,12 +1447,14 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsApplyLightAllowed => IsInspectionSelected && State.SetupEditingEnabled && Inspection.IsLiveView;
+    public bool IsApplyLightAllowed => IsInspectionSelected && State.SetupEditingEnabled && Inspection.IsLiveView;
 
     public IAsyncRelayCommand ToggleLiveViewCommand { get; }
 
     private async Task ToggleLiveViewAsync(CancellationToken cancellationToken)
     {
+        if (!IsToggleLiveViewAllowed)
+            return;
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, _viewCancellation.Token);
         try
@@ -1473,7 +1482,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsToggleLiveViewAllowed
+    public bool IsToggleLiveViewAllowed
     {
         get
         {
@@ -1700,7 +1709,7 @@ public partial class TeachingViewModel : ObservableObject
     {
         if (!PositionUpdatesActive)
             return;
-        Application.Current.Dispatcher.BeginInvoke(RefreshLiveView);
+        RefreshLiveView();
     }
 
     private void RefreshLiveView()
@@ -1716,10 +1725,10 @@ public partial class TeachingViewModel : ObservableObject
             }
         }
 
-        ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        GrabCommand.NotifyCanExecuteChanged();
-        ApplyLightCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsToggleLiveViewAllowed));
+        OnPropertyChanged(nameof(IsTeachCurrentPositionAllowed));
+        OnPropertyChanged(nameof(IsGrabAllowed));
+        OnPropertyChanged(nameof(IsApplyLightAllowed));
         OnPropertyChanged(nameof(CameraImage));
     }
 
@@ -1785,8 +1794,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            await Application.Current.Dispatcher.InvokeAsync(
-                () => HandlePreviewFailureAsync(exception)).Task.Unwrap();
+            await HandlePreviewFailureAsync(exception);
         }
     }
 }

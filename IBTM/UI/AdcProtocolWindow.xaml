@@ -67,7 +67,7 @@
                     ItemsSource="{Binding PortNames}"
                     SelectedItem="{Binding SelectedPort, Mode=TwoWay}" IsEnabled="{Binding PortSelectionEnabled}"/>
                 <Button Grid.Column="2" Content="{ui:Text 'Refresh Ports'}" Padding="12,5"
-                    Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshPortsCommand}"/>
+                    Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshPortsCommand}" IsEnabled="{Binding PortSelectionEnabled}"/>
 
                 <ComboBox IsEnabled="{Binding PortSelectionEnabled}" SelectedItem="{Binding SelectedBaudRate, Mode=TwoWay}" Grid.Column="3" Margin="16,0,0,0" ItemsSource="{Binding BaudRates}"/>
 
@@ -77,7 +77,7 @@
 
                 <Button x:Name="ConnectButton" Grid.Column="6" Margin="16,0,0,0"
                     Content="{Binding ConnectionAction}" Width="110"
-                    Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ToggleConnectionCommand}"/>
+                    Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ToggleConnectionCommand}" IsEnabled="{Binding IsConnectAllowed}"/>
                 <TextBlock Grid.Column="7" Margin="16,0,0,0"
                     Text="{Binding ConnectionStatus}"
                     VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
@@ -99,10 +99,18 @@
                             <ui:HoldButton Content="{ui:Text 'Loosen (hold)'}" Margin="0,0,8,0"
                                 PressCommand="{Binding ReverseCommand}"
                                 ReleaseCommand="{Binding ReleaseReverseCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}"
                                 ToolTipService.ShowOnDisabled="True"
-                                ToolTip="{ui:Text 'Release or STOP to stop rotation.'}"/>
-                            <Button Content="{ui:Text 'Stop'}" Style="{StaticResource DangerButtonStyle}" Command="{Binding StopCommand}"/>
+                                ToolTip="{ui:Text 'Release or STOP to stop rotation.'}">
+                                <ui:HoldButton.Style>
+                                    <Style TargetType="ui:HoldButton" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="IsEnabled" Value="{Binding IsTestBoltHeadAllowed}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ReverseCommand.IsRunning}" Value="True"><Setter Property="IsEnabled" Value="True"/></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:HoldButton.Style>
+                            </ui:HoldButton>
+                            <Button Content="{ui:Text 'Stop'}" Style="{StaticResource DangerButtonStyle}" Command="{Binding StopCommand}" IsEnabled="{Binding IsStopAllowed}"/>
                         </StackPanel>
                     </Grid>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -115,7 +123,7 @@
                                 <Button Content="{ui:Text 'Start Fastening'}" Margin="0,0,8,8"
                                     ToolTipService.ShowOnDisabled="True"
                                     ToolTip="{ui:Text 'Clear interrupted work, then RESET.'}"
-                                    Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartCommand}"/>
+                                    Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartCommand}" IsEnabled="{Binding IsTestBoltHeadAllowed}"/>
                                 <Button Content="{ui:Text 'Alarm Reset'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding ResetAlarmCommand}"/>
                                 <Button Content="{ui:Text 'Read Last Result'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"

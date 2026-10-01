@@ -779,7 +779,7 @@ public sealed partial class MachineLifecycleTests
         var shoot = TeachingRows(teaching)[OutputIo.ShootBolt];
         var outputs = new List<OutputIo>();
         io.OutputChanged += (output, _) => outputs.Add(output);
-        await WaitUntilAsync(() => shoot.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => shoot.IsToggleOutputAllowed);
         await shoot.ToggleOutputCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
         Assert.True(io.GetOutput(OutputIo.ShootBolt));
         Assert.True(state.ManualSetupEnabled);
@@ -791,22 +791,22 @@ public sealed partial class MachineLifecycleTests
         Assert.Single(outputs);
 
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
-        await WaitUntilAsync(() => shoot.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => shoot.IsToggleOutputAllowed);
         await shoot.ToggleOutputCommand.ExecuteAsync(null);
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
         Assert.All(outputs, output => Assert.Equal(OutputIo.ShootBolt, output));
 
-        await WaitUntilAsync(() => shoot.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => shoot.IsToggleOutputAllowed);
         await shoot.ToggleOutputCommand.ExecuteAsync(null);
         machine.Stop();
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
 
-        await WaitUntilAsync(() => shoot.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => shoot.IsToggleOutputAllowed);
         await shoot.ToggleOutputCommand.ExecuteAsync(null);
         io.SetInput(InputIo.AutoMode, false);
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        await WaitUntilAsync(() => !shoot.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => !shoot.IsToggleOutputAllowed);
     }
 
     [Fact]
@@ -2270,7 +2270,7 @@ public sealed partial class MachineLifecycleTests
 
         motion.StateChanged += FailOnce;
 
-        Assert.True(row.ToggleServoCommand.CanExecute(null));
+        Assert.True(row.IsToggleServoAllowed);
         row.ToggleServoCommand.Execute(null);
         Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.MotionUnavailable, state.Alarm);
         Assert.Contains("Servo feedback failed", state.AlarmDetail);
@@ -3887,10 +3887,10 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.All(viewModel.Bolts, row => Assert.True(row.IsSelected));
-            Assert.False(viewModel.RunCommand.CanExecute(null)); // PCB 2 is absent.
+            Assert.False(viewModel.IsRunAllowed); // PCB 2 is absent.
             foreach (var row in viewModel.Bolts.Where(row => row.Bolt == pickup || row.Bolt == absent))
                 row.IsSelected = false;
-            Assert.True(viewModel.RunCommand.CanExecute(null));
+            Assert.True(viewModel.IsRunAllowed);
             await viewModel.RunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
 
             Assert.Null(viewModel.Error);
@@ -4596,7 +4596,7 @@ public sealed partial class MachineLifecycleTests
         };
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
-        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.IsJogXAllowed);
         await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus)
             .WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
@@ -4778,7 +4778,7 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.BoltPickup);
-        await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
 
         // Hold the table feedback; both heads must remain raised throughout pickup.
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, false);
@@ -4816,7 +4816,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(gantry.Motion.Feedback.IsMoving);
         Assert.True(io.GetOutput(OutputIo.PickupTableDown)); // Stop keeps pneumatic outputs.
 
-        await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
         var retry = teaching.MoveToPointCommand.ExecuteAsync(null);
         Assert.False(retry.IsCompleted);
         io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, true));
@@ -4824,7 +4824,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal((40, 30, 12), gantry.Motion.Feedback.Position);
         Assert.Equal(StationCylinderState.Up, gantry.PickupHeadPosition);
         Assert.Equal(StationCylinderState.Up, gantry.ShootingHeadPosition);
-        await WaitUntilAsync(() => teaching.ReturnFromPickupCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsReturnFromPickupAllowed);
         var stopAtSafeZ = true;
         gantry.Motion.Feedback.PositionChanged += (_, _, z) =>
         {
@@ -4845,7 +4845,7 @@ public sealed partial class MachineLifecycleTests
         await returning.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal((40, 30, 5), gantry.Motion.Feedback.Position);
         Assert.True(gantry.IsHorizontalMoveAllowed);
-        await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
         Assert.True(io.GetOutput(OutputIo.PickupHeadVacuumPump));
         Assert.False(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
         Assert.False(vacuumChanged);
@@ -5034,7 +5034,7 @@ public sealed partial class MachineLifecycleTests
             var teaching = services.GetRequiredService<TeachingViewModel>();
             teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
             teaching.StepDistance = 0.1;
-            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+            await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
             var before = probes[group].Motion.Position;
             await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
             Assert.Equal(before.X + 0.1, probes[group].Motion.Position.X, precision: 6);
@@ -5049,8 +5049,8 @@ public sealed partial class MachineLifecycleTests
 
         foreach (var row in manual.Axes.Where(row => row.Group != group))
         {
-            Assert.False(row.ToggleServoCommand.CanExecute(null));
-            Assert.False(row.HomeCommand.CanExecute(null));
+            Assert.False(row.IsToggleServoAllowed);
+            Assert.False(row.IsHomeAllowed);
             Assert.Null(row.Diagnostics.Sample.State);
             // Bypassing CanExecute still must not command a disabled drive.
             row.ToggleServoCommand.Execute(null);

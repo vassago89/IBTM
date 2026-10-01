@@ -96,6 +96,7 @@
             <Button x:Name="SaveSettingsButton" DockPanel.Dock="Right" Command="{Binding SaveSettingsCommand}" MinWidth="140" HorizontalAlignment="Right">
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                        <Setter Property="IsEnabled" Value="{Binding IsSettingsEditAllowed}"/>
                         <Setter Property="Content" Value="{ui:Text 'Save Settings'}"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ElementName=SettingsRoot, Path=(Validation.HasError)}" Value="True">
@@ -817,9 +818,9 @@
                                             Grid.Column="1"/>
                                     </Grid>
                                     <UniformGrid Columns="2">
-                                        <Button Content="{ui:Text 'Light ON'}" Command="{Binding TestLightCommand}"
+                                        <Button Content="{ui:Text 'Light ON'}" Command="{Binding TestLightCommand}" IsEnabled="{Binding IsTestLightAllowed}"
                                             Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,4,0"/>
-                                        <Button Content="{ui:Text 'Light OFF'}" Command="{Binding OffTestLightCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                        <Button Content="{ui:Text 'Light OFF'}" Command="{Binding OffTestLightCommand}" IsEnabled="{Binding IsOffTestLightAllowed}" Style="{StaticResource SecondaryButtonStyle}"
                                             MinWidth="100" Margin="4,0,0,0"/>
                                     </UniformGrid>
                                     <ScrollViewer Height="40" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"
@@ -847,7 +848,7 @@
                                     <TextBlock Text="{ui:Text 'PCB result database'}" Style="{StaticResource SettingSectionTitle}"/>
                                     <TextBlock Text="{ui:Text 'Database folder'}" Style="{StaticResource SettingFieldLabel}"/>
                                     <DockPanel>
-                                        <Button Content="{ui:Text 'Browse...'}" Command="{Binding BrowsePcbResultsFolderCommand}"
+                                        <Button Content="{ui:Text 'Browse...'}" Command="{Binding BrowsePcbResultsFolderCommand}" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Style="{StaticResource SecondaryButtonStyle}" DockPanel.Dock="Right" Margin="8,0,0,0"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding PcbResultsDirectory, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" VerticalAlignment="Center"/>
@@ -861,7 +862,7 @@
                                     <TextBlock Text="{ui:Text 'Machine &amp; communication logs'}" Style="{StaticResource SettingSectionTitle}"/>
                                     <TextBlock Text="{ui:Text 'Log folder'}" Style="{StaticResource SettingFieldLabel}"/>
                                     <DockPanel>
-                                        <Button Content="{ui:Text 'Browse...'}" Command="{Binding BrowseLogFolderCommand}"
+                                        <Button Content="{ui:Text 'Browse...'}" Command="{Binding BrowseLogFolderCommand}" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Style="{StaticResource SecondaryButtonStyle}" DockPanel.Dock="Right" Margin="8,0,0,0"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding LogDirectory, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" VerticalAlignment="Center"/>

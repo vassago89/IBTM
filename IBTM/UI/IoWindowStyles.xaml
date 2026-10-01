@@ -211,7 +211,7 @@
                             Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource IoOutputStateStyle}"/>
                         <Button x:Name="ToggleOutput"
-                            Command="{Binding ToggleOutputCommand}"
+                            Command="{Binding ToggleOutputCommand}" IsEnabled="{Binding IsToggleOutputAllowed}"
                             Tag="{Binding Io.IsOn}"
                             Content="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}">
                             <Button.Style>

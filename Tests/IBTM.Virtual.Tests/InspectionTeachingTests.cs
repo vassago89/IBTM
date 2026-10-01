@@ -50,7 +50,7 @@ public sealed class InspectionTeachingTests
             inspection.SelectedPoint = point;
             Assert.False(inspection.Preview.HasImage);
             Assert.NotNull(inspection.Error);
-            Assert.False(inspection.InspectCommand.CanExecute(null));
+            Assert.False(inspection.IsInspectAllowed);
         }
         inspection.SelectedPoint = inspection.Points.First();
         inspection.DataMatrix!.BinaryThreshold = 73;
@@ -115,8 +115,8 @@ public sealed class InspectionTeachingTests
         Assert.Equal("Connector bolt", editor.SelectedPoint.Name);
         Assert.Equal(91, editor.Preview.BrightnessThreshold);
         Assert.False(editor.Preview.HasImage);
-        Assert.False(editor.InspectCommand.CanExecute(null));
-        Assert.False(editor.DrawRegionCommand.CanExecute(new Rect(0, 0, 8, 8)));
+        Assert.False(editor.IsInspectAllowed);
+        Assert.False(editor.IsDrawRegionAllowed);
         Assert.Single(editor.Points, point => point.Metadata is not null);
         Assert.False(string.IsNullOrWhiteSpace(editor.Message));
         await editor.InspectCommand.ExecuteAsync(null);
@@ -137,8 +137,8 @@ public sealed class InspectionTeachingTests
         Assert.Equal(InspectionPreviewViewModel.CreateFrame(teaching.Inspection!.FindImage(loadedImages)!.Image!).Pixels,
             InspectionPreviewViewModel.CreateFrame(editor.Preview.Image!).Pixels);
         Assert.NotNull(editor.Preview.Overlay);
-        Assert.True(editor.InspectCommand.CanExecute(null));
-        Assert.True(editor.DrawRegionCommand.CanExecute(new Rect(0, 0, 8, 8)));
+        Assert.True(editor.IsInspectAllowed);
+        Assert.True(editor.IsDrawRegionAllowed);
         Assert.Null(store.LoadRecipe("Inspection").CarrierImages.Single(tile => tile.Number == 2).BoltId);
     }
 
@@ -644,7 +644,7 @@ public sealed class InspectionTeachingTests
         editor.SelectedRecord = Assert.Single(editor.Records);
         await editor.LoadRecordCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
-        Assert.True(editor.UseHistoryImageCommand.CanExecute(null));
+        Assert.NotNull(editor.HistoryImageTarget);
         editor.UseHistoryImageCommand.Execute(null);
         Assert.Equal(VirtualTestSupport.BoltId(1), editor.SelectedPoint!.Bolt?.Id);
         Assert.Contains("PCB 7", editor.ImageSource);
@@ -665,13 +665,13 @@ public sealed class InspectionTeachingTests
         Assert.Equal(png, savedImage.Png);
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 2));
         editor.Preview.Recipe.Name = "Other";
-        Assert.False(editor.UseHistoryImageCommand.CanExecute(null));
+        Assert.Null(editor.HistoryImageTarget);
 
         editor.Preview.Recipe.Name = "Inspection";
         store.SavePcbImage(databaseFile, record.Number, image with { Png = [1, 2, 3] });
         await editor.LoadRecordCommand.ExecuteAsync(null);
         Assert.NotNull(editor.SelectedHistoryImage!.Error);
-        Assert.False(editor.UseHistoryImageCommand.CanExecute(null));
+        Assert.Null(editor.HistoryImageTarget);
 
         editor.SelectedRecord = editor.SelectedRecord! with { DatabaseFile = Path.Combine(directory, "missing.db") };
         await editor.LoadRecordCommand.ExecuteAsync(null);
@@ -679,7 +679,7 @@ public sealed class InspectionTeachingTests
         Assert.Null(editor.LoadedRecord);
         Assert.Empty(editor.HistoryImages);
         Assert.Null(editor.SelectedHistoryImage);
-        Assert.False(editor.UseHistoryImageCommand.CanExecute(null));
+        Assert.Null(editor.HistoryImageTarget);
     }
 
     [Fact]
@@ -859,7 +859,7 @@ public sealed class InspectionTeachingTests
         {
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => context.HasPending, TimeSpan.FromSeconds(2)));
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == bolt);
-            Assert.True(teaching.RemoveBoltPointCommand.CanExecute(null));
+            Assert.True(teaching.IsRemoveBoltPointAllowed);
             teaching.RemoveBoltPointCommand.Execute(null);
             var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             teaching.PropertyChanged += (sender, args) =>

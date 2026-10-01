@@ -1,11 +1,12 @@
 using System.Threading;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Device;
 
 namespace IBTM.UI;
 
-public sealed class TeachingOutputRow
+public sealed class TeachingOutputRow : ObservableObject
 {
     private readonly MachineController _machine;
 
@@ -13,7 +14,7 @@ public sealed class TeachingOutputRow
         IoOutputStatus io,
         MachineController machine)
     {
-        ToggleOutputCommand = new AsyncRelayCommand(ToggleOutputAsync, () => IsToggleOutputAllowed);
+        ToggleOutputCommand = new AsyncRelayCommand(ToggleOutputAsync);
 
         _machine = machine;
         Io = io;
@@ -23,13 +24,18 @@ public sealed class TeachingOutputRow
     public bool IsSupported => MachineController.IsTeachingOutputSupported(Io.Signal);
     internal CancellationToken ViewCancellation { get; set; }
 
-    private bool IsToggleOutputAllowed
+    public bool IsToggleOutputAllowed
     {
         get
         {
             return !ViewCancellation.IsCancellationRequested
                 && _machine.IsSetTeachingOutputAllowed(Io);
         }
+    }
+
+    internal void Refresh()
+    {
+        OnPropertyChanged(nameof(IsToggleOutputAllowed));
     }
 
     public IAsyncRelayCommand ToggleOutputCommand { get; }

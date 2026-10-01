@@ -181,7 +181,7 @@
                             Text="{Binding Diagnostics.Sample.Faulted, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionFaultBit}" ToolTip="{ui:Text 'Alarm / E-stop'}"/>
                         <StackPanel Grid.Column="10" Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Width="96" Padding="8,7" Margin="8,0,6,0" Command="{Binding ToggleServoCommand}">
+                            <Button Width="96" Padding="8,7" Margin="8,0,6,0" Command="{Binding ToggleServoCommand}" IsEnabled="{Binding IsToggleServoAllowed}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Setter Property="Content" Value="{ui:Text 'Servo ON'}"/>
@@ -194,7 +194,7 @@
                                 </Button.Style>
                             </Button>
                             <Button Content="{ui:Text 'Home'}" Width="80" Padding="8,7" Style="{StaticResource SecondaryButtonStyle}"
-                                Command="{Binding HomeCommand}"/>
+                                Command="{Binding HomeCommand}" IsEnabled="{Binding IsHomeAllowed}"/>
                         </StackPanel>
                     </Grid>
                 </DataTemplate>

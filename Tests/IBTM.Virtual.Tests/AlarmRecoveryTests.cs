@@ -507,7 +507,7 @@ public sealed class AlarmRecoveryTests
             Assert.False(state.ManualMode);
             Assert.False(state.ManualSetupEnabled);
             Assert.True(view.IsSettingsEditAllowed);
-            Assert.False(view.TestLightCommand.CanExecute(null));
+            Assert.False(view.IsTestLightAllowed);
             // Even when safety checks are bypassed, missing selector feedback is not MANUAL.
             var options = services.GetRequiredService<MachineOptions>();
             options.UseEmergencyStop = false;
@@ -515,7 +515,7 @@ public sealed class AlarmRecoveryTests
             Assert.False(machine.IsUseAdcProtocolAllowed);
             var teaching = services.GetRequiredService<TeachingViewModel>();
             teaching.RecipeEditor.Name = "Offline recipe";
-            Assert.True(teaching.SaveCommand.CanExecute(null));
+            Assert.True(teaching.IsSaveAllowed);
             await teaching.SaveCommand.ExecuteAsync(null);
             Assert.Null(teaching.SaveError);
             Assert.Contains("Offline recipe", services.GetRequiredService<MachineStore>().RecipeNames);
@@ -545,12 +545,12 @@ public sealed class AlarmRecoveryTests
             Assert.False(state.IsRunning);
             Assert.True(state.AutoMode);
             Assert.False(view.IsSettingsEditAllowed);
-            Assert.False(view.SaveSettingsCommand.CanExecute(null));
+            Assert.False(view.IsSettingsEditAllowed);
             Assert.False(services.GetRequiredService<MachineStore>().HasData);
 
             io.SetInput(InputIo.AutoMode, true);
             Assert.True(view.IsSettingsEditAllowed);
-            Assert.True(view.SaveSettingsCommand.CanExecute(null));
+            Assert.True(view.IsSettingsEditAllowed);
             Assert.True(state.ManualSetupEnabled);
             Assert.False(machine.IsStartAllowed);
             Assert.False(machine.IsHomeAllowed);
@@ -700,11 +700,11 @@ public sealed class AlarmRecoveryTests
             using (services.GetRequiredService<OperationCancellation>().Link())
             {
                 Assert.False(view.IsSettingsEditAllowed);
-                Assert.False(view.SaveSettingsCommand.CanExecute(null));
+                Assert.False(view.IsSettingsEditAllowed);
             }
 
             Assert.True(view.IsSettingsEditAllowed);
-            Assert.True(view.SaveSettingsCommand.CanExecute(null));
+            Assert.True(view.IsSettingsEditAllowed);
         }
         finally
         {
@@ -712,7 +712,7 @@ public sealed class AlarmRecoveryTests
         }
 
         Assert.False(view.IsSettingsEditAllowed);
-        Assert.False(view.SaveSettingsCommand.CanExecute(null));
+        Assert.False(view.IsSettingsEditAllowed);
     }
 
     [Fact]

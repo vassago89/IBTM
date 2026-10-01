@@ -24,8 +24,8 @@ public sealed class MotionAxisViewModel : ObservableObject
     {
         _machine = machine;
 
-        ToggleServoCommand = new RelayCommand(ToggleServo, () => IsToggleServoAllowed);
-        HomeCommand = new AsyncRelayCommand(HomeAsync, () => _machine.IsManualHomeAllowed(Group, Axis));
+        ToggleServoCommand = new RelayCommand(ToggleServo);
+        HomeCommand = new AsyncRelayCommand(HomeAsync);
 
         _units = units;
         _lastEnabled = _units.IsMotionEnabled(group);
@@ -51,7 +51,7 @@ public sealed class MotionAxisViewModel : ObservableObject
         _machine.ToggleServo(Group, Axis);
     }
 
-    private bool IsToggleServoAllowed
+    public bool IsToggleServoAllowed
     {
         get
         {
@@ -60,6 +60,8 @@ public sealed class MotionAxisViewModel : ObservableObject
         }
     }
 
+    public bool IsHomeAllowed => _machine.IsManualHomeAllowed(Group, Axis);
+
     public IAsyncRelayCommand HomeCommand { get; }
 
     private Task HomeAsync(CancellationToken cancellationToken)
@@ -67,11 +69,10 @@ public sealed class MotionAxisViewModel : ObservableObject
         return _machine.HomeAsync(Group, cancellationToken, Axis);
     }
 
-    internal bool Refresh()
+    internal void Refresh()
     {
-        var changed = SetProperty(ref _lastEnabled, Enabled, nameof(Enabled));
-        ToggleServoCommand.NotifyCanExecuteChanged();
-        HomeCommand.NotifyCanExecuteChanged();
-        return changed;
+        SetProperty(ref _lastEnabled, Enabled, nameof(Enabled));
+        OnPropertyChanged(nameof(IsToggleServoAllowed));
+        OnPropertyChanged(nameof(IsHomeAllowed));
     }
 }

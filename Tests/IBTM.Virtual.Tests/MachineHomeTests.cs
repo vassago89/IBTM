@@ -46,7 +46,7 @@ public sealed class MachineHomeTests
         try
         {
             settings.PcbPlacementHandler.Motion.HorizontalHome.SearchSpeed = 0;
-            await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsHomeAllowed);
 
             if (allUnits)
                 await machine.HomeAsync(CancellationToken.None);
@@ -378,7 +378,7 @@ public sealed class MachineHomeTests
             settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 1;
             var axis = monitor.Axes.Single(
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
-            await WaitUntilAsync(() => axis.HomeCommand.CanExecute(null));
+            await WaitUntilAsync(() => axis.IsHomeAllowed);
             var homing = axis.HomeCommand.ExecuteAsync(null);
             await WaitUntilAsync(() => motion.IsMoving);
 
@@ -456,9 +456,9 @@ public sealed class MachineHomeTests
         io.SetInput(InputIo.NgShuttleDown, true);
         Assert.True(machine.IsHomeAllowed);
         services.GetRequiredService<MachineState>().Refresh();
-        await WaitUntilAsync(() => manual.Axes[9].HomeCommand.CanExecute(null));
-        Assert.False(manual.Axes[3].HomeCommand.CanExecute(null));
-        Assert.True(manual.Axes[9].HomeCommand.CanExecute(null));
+        await WaitUntilAsync(() => manual.Axes[9].IsHomeAllowed);
+        Assert.False(manual.Axes[3].IsHomeAllowed);
+        Assert.True(manual.Axes[9].IsHomeAllowed);
     }
 
     [Theory]
@@ -484,7 +484,7 @@ public sealed class MachineHomeTests
             Assert.True(machine.IsHomeAllowed);
             var axis = manual.Axes.Single(
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
-            await WaitUntilAsync(() => axis.HomeCommand.CanExecute(null));
+            await WaitUntilAsync(() => axis.IsHomeAllowed);
             var moved = false;
             gantry.Motion.Feedback.MovingChanged += moving =>
             {
@@ -539,7 +539,7 @@ public sealed class MachineHomeTests
             var ngMoved = false;
             gantry.Motion.Feedback.MovingChanged += moving => ngMoved |= moving;
             teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
-            await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsHomeAllowed);
 
             await teaching.HomeCommand.ExecuteAsync(null);
 
@@ -856,7 +856,7 @@ public sealed class MachineHomeTests
                 .MoveAxisAsync(MotionAxis.Z, 50, 10_000));
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.IsHomeAllowed);
         var homing = teachingHome
             ? teaching.HomeCommand.ExecuteAsync(null)
             : machine.HomeAsync(CancellationToken.None);
@@ -874,7 +874,7 @@ public sealed class MachineHomeTests
         await WaitUntilAsync(() => machine.IsHomeAllowed);
         if (teachingHome)
         {
-            await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.IsHomeAllowed);
         }
     }
 
@@ -1057,7 +1057,7 @@ public sealed class MachineHomeTests
                 Assert.Contains("Home command failed.", state.AlarmDetail);
             await WaitUntilAsync(() => state.Alarm == expectedAlarm && !state.IsRunning);
             // A latched home failure does not block a retry while the axis feedback remains healthy.
-            Assert.Equal(!safetyStop, axisRow.HomeCommand.CanExecute(null));
+            Assert.Equal(!safetyStop, axisRow.IsHomeAllowed);
             Assert.False(state.IsHoming);
             Assert.False(placement.IsMoving);
             Assert.False(supply.IsMoving);

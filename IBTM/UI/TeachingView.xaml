@@ -54,6 +54,7 @@
                 <Button Command="{Binding SaveCommand}" MinWidth="100">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                            <Setter Property="IsEnabled" Value="{Binding IsSaveAllowed}"/>
                             <Setter Property="Content" Value="{ui:Text 'Save'}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
@@ -154,9 +155,9 @@
                     </ui:TeachingPointListBox>
                     <UniformGrid Grid.Row="2" Columns="2" Margin="0,8,0,0"
                         Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}">
-                        <Button Content="{ui:Text '↑ Earlier'}" Command="{Binding MoveFasteningEarlierCommand}"
+                        <Button Content="{ui:Text '↑ Earlier'}" Command="{Binding MoveFasteningEarlierCommand}" IsEnabled="{Binding IsMoveFasteningEarlierAllowed}"
                             Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="0,0,3,0"/>
-                        <Button Content="{ui:Text '↓ Later'}" Command="{Binding MoveFasteningLaterCommand}"
+                        <Button Content="{ui:Text '↓ Later'}" Command="{Binding MoveFasteningLaterCommand}" IsEnabled="{Binding IsMoveFasteningLaterAllowed}"
                             Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="3,0,0,0"/>
                     </UniformGrid>
                 </Grid>
@@ -217,13 +218,13 @@
                                 <WrapPanel Margin="0,0,0,4">
                                     <ComboBox ItemsSource="{Binding FasteningHeads}" Width="180" Margin="0,0,8,4"
                                         SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <Button Content="{ui:Text 'Add Bolt'}" Command="{Binding AddBoltPointCommand}"
+                                    <Button Content="{ui:Text 'Add Bolt'}" Command="{Binding AddBoltPointCommand}" IsEnabled="{Binding IsAddBoltPointAllowed}"
                                         Style="{StaticResource PrimaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
-                                    <Button Content="{ui:Text 'Remove Bolt'}" Command="{Binding RemoveBoltPointCommand}"
+                                    <Button Content="{ui:Text 'Remove Bolt'}" Command="{Binding RemoveBoltPointCommand}" IsEnabled="{Binding IsRemoveBoltPointAllowed}"
                                         Style="{StaticResource DangerButtonStyle}" Padding="12,7" Margin="0,0,0,4"/>
                                 </WrapPanel>
                                 <WrapPanel Grid.Row="1" Margin="0,0,0,4">
-                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" Width="96" Padding="12,7">
+                                    <Button Command="{Binding ToggleLiveViewCommand}" IsEnabled="{Binding IsToggleLiveViewAllowed}" Margin="0,0,8,4" Width="96" Padding="12,7">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                                 <Setter Property="Content" Value="{ui:Text 'Start Live'}"/>
@@ -235,13 +236,13 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="{ui:Text 'Update Image + Light'}" Command="{Binding GrabCommand}" Margin="0,0,12,4" Padding="12,7"
+                                    <Button Content="{ui:Text 'Update Image + Light'}" Command="{Binding GrabCommand}" IsEnabled="{Binding IsGrabAllowed}" Margin="0,0,12,4" Padding="12,7"
                                         Style="{StaticResource SecondaryButtonStyle}"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding State.SetupEditingEnabled}">
                                         <TextBlock Text="{ui:Text 'Light (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                         <TextBox Width="55" Margin="0,0,8,0"
                                             Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                        <Button Content="{ui:Text 'Apply Light'}" Command="{Binding ApplyLightCommand}"
+                                        <Button Content="{ui:Text 'Apply Light'}" Command="{Binding ApplyLightCommand}" IsEnabled="{Binding IsApplyLightAllowed}"
                                             Style="{StaticResource SecondaryButtonStyle}" Padding="12,7"/>
                                     </StackPanel>
                                 </WrapPanel>
@@ -290,6 +291,7 @@
                             MinWidth="150" Padding="12,8" Margin="0,0,8,0">
                             <ui:RecordPositionButton.Style>
                                 <Style TargetType="ui:RecordPositionButton" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                    <Setter Property="IsEnabled" Value="{Binding IsTeachCurrentPositionAllowed}"/>
                                     <Setter Property="Content" Value="{ui:Text 'Record Position'}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.Full}">
@@ -308,7 +310,7 @@
                                 </Style>
                             </ui:RecordPositionButton.Style>
                         </ui:RecordPositionButton>
-                        <ui:MoveToPositionButton Content="{ui:Text 'Move to Selected Point'}" Command="{Binding MoveToPointCommand}"
+                        <ui:MoveToPositionButton Content="{ui:Text 'Move to Selected Point'}" Command="{Binding MoveToPointCommand}" IsEnabled="{Binding IsMoveToPointAllowed}"
                             Style="{StaticResource SecondaryButtonStyle}" MinWidth="150" Padding="12,8"/>
                     </StackPanel>
                 </Grid>
@@ -323,7 +325,7 @@
                         <StackPanel>
                             <TextBlock Text="{ui:Text 'Motion'}" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,10"/>
                             <ui:TeachingMotionView/>
-                            <Button Content="{ui:Text 'Safe Z → Raise Pickup Head'}" Command="{Binding ReturnFromPickupCommand}"
+                            <Button Content="{ui:Text 'Safe Z → Raise Pickup Head'}" Command="{Binding ReturnFromPickupCommand}" IsEnabled="{Binding IsReturnFromPickupAllowed}"
                                 Margin="0,8,0,0" Style="{StaticResource SecondaryButtonStyle}"
                                 Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>

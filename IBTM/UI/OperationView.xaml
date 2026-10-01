@@ -335,7 +335,7 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Width="120" Padding="12,2" MinHeight="24" Command="{Binding LoadOlderPcbsCommand}">
+                                    <Button Width="120" Padding="12,2" MinHeight="24" Command="{Binding LoadOlderPcbsCommand}" IsEnabled="{Binding HasOlderPcbs}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                                 <Setter Property="Content" Value="{ui:Text 'Retry loading'}"/>

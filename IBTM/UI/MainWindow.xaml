@@ -96,6 +96,8 @@
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Operation.State.AutomaticRunning}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+
                                     <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.ManualHardware}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
@@ -111,6 +113,9 @@
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Operation.State.AutomaticRunning}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                    <DataTrigger Binding="{Binding Operation.State.AutoMode}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+
                                     <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.Teaching}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
@@ -137,6 +142,8 @@
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Operation.State.AutomaticRunning}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+
                                     <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.Settings}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
@@ -150,7 +157,7 @@
 
                     <Button Content="{ui:Text 'OUTPUTS'}" Style="{StaticResource SidebarToolButtonStyle}"
         ToolTip="{ui:Text 'Manual mode only'}" ToolTipService.ShowOnDisabled="True"
-        Command="{Binding OpenOutputsCommand}"/>
+        Command="{Binding OpenOutputsCommand}" IsEnabled="{Binding IsOpenOutputsAllowed}"/>
 
                     <Button Content="{ui:Text 'MOTION'}" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenMotionCommand}"/>
 
@@ -458,7 +465,7 @@
                             </Button>
                         </StackPanel>
                         <Button
-                            Command="{Binding ResetCommand}"
+                            Command="{Binding ResetCommand}" IsEnabled="{Binding IsResetAllowed}"
                             ToolTip="{ui:Text 'Silence buzzer / recover stopped hardware; servos may turn ON.'}"
                             ToolTipService.ShowOnDisabled="True" MinWidth="120" Height="48" Margin="0,0,8,0">
                             <Button.Style>

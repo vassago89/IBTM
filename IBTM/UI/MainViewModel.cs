@@ -2,7 +2,6 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -39,12 +38,11 @@ public partial class MainViewModel : ObservableObject
     private readonly ManualHardwareViewModel _manualHardwareViewModel;
     private readonly MachineState _state;
     private readonly MachineController _machine;
-    private int _stateRefreshQueued;
     private bool _shuttingDown;
     private readonly DiagnosticWindowManager _windows;
     private readonly ILogger<MainViewModel> _log;
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(OpenOutputsCommand))]
+    [NotifyPropertyChangedFor(nameof(IsOpenOutputsAllowed))]
     public partial bool IsClosing { get; set; }
     [ObservableProperty]
     public partial string? CloseError { get; set; }
@@ -70,13 +68,13 @@ public partial class MainViewModel : ObservableObject
         ILogger<MainViewModel> log)
     {
         OpenInputsCommand = new RelayCommand(windows.OpenInputs, () => IsOpenDiagnosticAllowed);
-        OpenOutputsCommand = new RelayCommand(windows.OpenOutputs, () => IsOpenOutputsAllowed);
+        OpenOutputsCommand = new RelayCommand(OpenOutputs);
         OpenMotionCommand = new RelayCommand(windows.OpenMotion, () => IsOpenDiagnosticAllowed);
         OpenAdcProtocolCommand = new RelayCommand(windows.OpenAdcProtocol, () => IsOpenAdcProtocolAllowed);
         OpenLogsCommand = new RelayCommand(windows.OpenLogs, () => IsOpenDiagnosticAllowed);
         ResetCommand = new AsyncRelayCommand(
-            ResetAsync, () => IsResetAllowed, AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        NavigateCommand = new AsyncRelayCommand<AppPage>(NavigateAsync, IsNavigateAllowed);
+            ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        NavigateCommand = new AsyncRelayCommand<AppPage>(NavigateAsync);
 
         Operation = operationViewModel;
         _teachingViewModel = teachingViewModel;
@@ -139,7 +137,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     // Window access follows selector mode only, not alarm/busy output admission.
-    private bool IsOpenOutputsAllowed => !_shuttingDown && !IsClosing && !_state.AutoMode;
+    public bool IsOpenOutputsAllowed => !_shuttingDown && !IsClosing && !_state.AutoMode;
 
     private bool IsOpenAdcProtocolAllowed => !_shuttingDown;
 
@@ -166,6 +164,12 @@ public partial class MainViewModel : ObservableObject
     public IRelayCommand OpenInputsCommand { get; }
 
     public IRelayCommand OpenOutputsCommand { get; }
+
+    private void OpenOutputs()
+    {
+        if (IsOpenOutputsAllowed)
+            _windows.OpenOutputs();
+    }
 
     public IRelayCommand OpenMotionCommand { get; }
 
@@ -222,7 +226,7 @@ public partial class MainViewModel : ObservableObject
     public Task ShutdownAsync()
     {
         _shuttingDown = true;
-        ResetCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsResetAllowed));
         _state.PropertyChanged -= OnMachineStateChanged;
         NavigateCommand.PropertyChanged -= OnRecipeEditingChanged;
         RecipeEditor.LoadCommand.PropertyChanged -= OnRecipeEditingChanged;
@@ -242,6 +246,8 @@ public partial class MainViewModel : ObservableObject
 
     private async Task ResetAsync()
     {
+        if (!IsResetAllowed)
+            return;
         // Acknowledge even when hardware recovery is blocked; the controller owns admission.
         ResetError = null;
         _log.LogInformation("On-screen RESET requested.");
@@ -256,13 +262,13 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool IsResetAllowed => !_shuttingDown;
+    public bool IsResetAllowed => !_shuttingDown;
 
     public IAsyncRelayCommand<AppPage> NavigateCommand { get; }
 
     private async Task NavigateAsync(AppPage page)
     {
-        if (page == SelectedPage)
+        if (page == SelectedPage || !IsNavigateAllowed(page))
             return;
 
         var started = Stopwatch.GetTimestamp();
@@ -309,7 +315,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool IsNavigateAllowed(AppPage page)
+    public bool IsNavigateAllowed(AppPage page)
     {
         return !_shuttingDown
             && (page is AppPage.Operation or AppPage.Inspection
@@ -352,38 +358,27 @@ public partial class MainViewModel : ObservableObject
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_shuttingDown || Interlocked.Exchange(ref _stateRefreshQueued, 1) != 0)
-        {
+        if (_shuttingDown)
             return;
-        }
+        OnPropertyChanged(nameof(CurrentPageEnabled));
+        OnPropertyChanged(nameof(RecipeEditingEnabled));
+        OnPropertyChanged(nameof(IsOpenOutputsAllowed));
+        if (SelectedPage == AppPage.Settings)
+            _settingsViewModel.RefreshCommands();
 
-        Application.Current.Dispatcher.BeginInvoke(
-            () =>
-            {
-                Interlocked.Exchange(ref _stateRefreshQueued, 0);
-                if (_shuttingDown)
-                {
-                    return;
-                }
-
-                OnPropertyChanged(nameof(CurrentPageEnabled));
-                OnPropertyChanged(nameof(RecipeEditingEnabled));
-                OpenOutputsCommand.NotifyCanExecuteChanged();
-                if (!IsOpenOutputsAllowed)
-                    _windows.CloseOutputs();
-                NavigateCommand.NotifyCanExecuteChanged();
-                var showOperation = _state.AutomaticRunning && SelectedPage is not (AppPage.Operation or AppPage.Inspection)
-                    || _state.AutoMode
-                        && SelectedPage == AppPage.Teaching;
-                if (showOperation
-                    && NavigationError is null
-                    && NavigateCommand.CanExecute(AppPage.Operation))
-                {
-                    NavigateCommand.Execute(AppPage.Operation);
-                }
-
-                if (SelectedPage == AppPage.Settings)
-                    _settingsViewModel.RefreshCommands();
-            });
+        if (e.PropertyName is not (nameof(MachineState.AutoMode) or nameof(MachineState.AutomaticRunning) or null))
+            return;
+        // Window closing and page activation own WPF views/collections.
+        Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            if (_shuttingDown)
+                return;
+            if (!IsOpenOutputsAllowed)
+                _windows.CloseOutputs();
+            var showOperation = _state.AutomaticRunning && SelectedPage is not (AppPage.Operation or AppPage.Inspection)
+                || _state.AutoMode && SelectedPage == AppPage.Teaching;
+            if (showOperation && NavigationError is null && NavigateCommand.CanExecute(AppPage.Operation))
+                NavigateCommand.Execute(AppPage.Operation);
+        });
     }
 }

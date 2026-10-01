@@ -251,7 +251,7 @@ public sealed class MotionStatusTests
                 {
                     Assert.NotNull(row.Diagnostics.Sample.State);
                     Assert.NotNull(row.Diagnostics.Sample.Position);
-                    Assert.False(row.HomeCommand.CanExecute(null));
+                    Assert.False(row.IsHomeAllowed);
                 });
             var x = Assert.Single(axes, row => row.Axis == MotionAxis.X);
             var y = Assert.Single(axes, row => row.Axis == MotionAxis.Y);
@@ -301,8 +301,8 @@ public sealed class MotionStatusTests
             var position = services.GetRequiredService<IBTM.Inspection.InspectionStation>().Motion;
             Assert.False(x.Enabled);
             Assert.NotNull(x.Diagnostics.Sample.State);
-            Assert.False(x.ToggleServoCommand.CanExecute(null));
-            Assert.False(x.HomeCommand.CanExecute(null));
+            Assert.False(x.IsToggleServoAllowed);
+            Assert.False(x.IsHomeAllowed);
             var reads = diagnostics.Reads;
             // Change raw state silently: no motion, input event, refresh request or monitor window.
             diagnostics.Position = 42;
@@ -368,10 +368,9 @@ public sealed class MotionStatusTests
             // or throw while WPF evaluates the RESET button.
             settings.Units.Inspection = true;
             Assert.True(x.Enabled);
-            Assert.True(x.Refresh());
-            Assert.False(x.Refresh());
+            x.Refresh();
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => state.FeedbackReadiness.Faulted && state.ReadError is not null && !y.ToggleServoCommand.CanExecute(null),
+                () => state.FeedbackReadiness.Faulted && state.ReadError is not null && !y.IsToggleServoAllowed,
                 TimeSpan.FromSeconds(2)));
             Assert.NotNull(state.ReadError); // Explicit failure without another throwing control read.
             diagnostics.FailX = false;
@@ -381,10 +380,10 @@ public sealed class MotionStatusTests
             Assert.NotNull(y.Diagnostics.Sample.State);
             Assert.NotNull(y.Diagnostics.Sample.Position);
             Assert.True(machine.IsResetAllowed);
-            Assert.False(y.ToggleServoCommand.CanExecute(null));
+            Assert.False(y.IsToggleServoAllowed);
             diagnostics.FailControl = false;
             settings.Units.Inspection = false;
-            Assert.True(x.Refresh());
+            x.Refresh();
             Assert.False(x.Enabled);
             // Control-I/O loss does not stop independent motion diagnostics or allow control.
             io.IsReady = false;
@@ -397,8 +396,8 @@ public sealed class MotionStatusTests
                         && x.Diagnostics.Sample.Faulted == false,
                     TimeSpan.FromSeconds(2)));
             Assert.Equal(44, position.Position.X);
-            Assert.False(x.ToggleServoCommand.CanExecute(null));
-            Assert.False(x.HomeCommand.CanExecute(null));
+            Assert.False(x.IsToggleServoAllowed);
+            Assert.False(x.IsHomeAllowed);
 
             io.IsReady = true;
             await machine.ShutdownAsync();

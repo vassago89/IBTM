@@ -38,11 +38,11 @@ public partial class SettingsViewModel : ObservableObject
     {
         Languages = Enum.GetValues<UiLanguage>();
 
-        SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => IsSettingsEditAllowed);
-        BrowsePcbResultsFolderCommand = new RelayCommand(BrowsePcbResultsFolder, () => IsSettingsEditAllowed);
-        BrowseLogFolderCommand = new RelayCommand(BrowseLogFolder, () => IsSettingsEditAllowed);
-        OffTestLightCommand = new AsyncRelayCommand(OffTestLightAsync, () => IsOffTestLightAllowed);
-        TestLightCommand = new AsyncRelayCommand(TestLightAsync, () => IsTestLightAllowed);
+        SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync);
+        BrowsePcbResultsFolderCommand = new RelayCommand(BrowsePcbResultsFolder);
+        BrowseLogFolderCommand = new RelayCommand(BrowseLogFolder);
+        OffTestLightCommand = new AsyncRelayCommand(OffTestLightAsync);
+        TestLightCommand = new AsyncRelayCommand(TestLightAsync);
 
         _state = state;
         _machine = machine;
@@ -131,6 +131,8 @@ public partial class SettingsViewModel : ObservableObject
 
     private void BrowseLogFolder()
     {
+        if (!IsSettingsEditAllowed)
+            return;
         var dialog = new OpenFolderDialog { Title = UiText.Get("Log folder") };
         if (Directory.Exists(LogDirectory))
             dialog.InitialDirectory = LogDirectory;
@@ -150,6 +152,8 @@ public partial class SettingsViewModel : ObservableObject
 
     private void BrowsePcbResultsFolder()
     {
+        if (!IsSettingsEditAllowed)
+            return;
         var dialog = new OpenFolderDialog { Title = UiText.Get("PCB results folder") };
         if (Directory.Exists(PcbResultsDirectory))
             dialog.InitialDirectory = PcbResultsDirectory;
@@ -159,6 +163,8 @@ public partial class SettingsViewModel : ObservableObject
 
     private async Task SaveSettingsAsync()
     {
+        if (!IsSettingsEditAllowed)
+            return;
         DatabaseMessage = UiText.Get("Saving settings...");
         try
         {
@@ -201,12 +207,9 @@ public partial class SettingsViewModel : ObservableObject
 
     public void RefreshCommands()
     {
-        SaveSettingsCommand.NotifyCanExecuteChanged();
-        TestLightCommand.NotifyCanExecuteChanged();
-        OffTestLightCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsTestLightAllowed));
+        OnPropertyChanged(nameof(IsOffTestLightAllowed));
         OnPropertyChanged(nameof(IsSettingsEditAllowed));
-        BrowsePcbResultsFolderCommand.NotifyCanExecuteChanged();
-        BrowseLogFolderCommand.NotifyCanExecuteChanged();
     }
 
     public async Task ShutdownAsync()
@@ -254,7 +257,7 @@ public partial class SettingsViewModel : ObservableObject
     public partial int LightTestLevel { get; set; } = 80;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(TestLightCommand), nameof(OffTestLightCommand))]
+    [NotifyPropertyChangedFor(nameof(IsTestLightAllowed), nameof(IsOffTestLightAllowed))]
     public partial int? PendingLightOffChannel { get; set; }
 
     [ObservableProperty]
@@ -262,7 +265,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public string ActiveLightConnection { get; }
 
-    private bool IsTestLightAllowed
+    public bool IsTestLightAllowed
     {
         get
         {
@@ -273,7 +276,7 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
-    private bool IsOffTestLightAllowed
+    public bool IsOffTestLightAllowed
     {
         get
         {
@@ -287,8 +290,8 @@ public partial class SettingsViewModel : ObservableObject
     {
         if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
             return;
-        TestLightCommand.NotifyCanExecuteChanged();
-        OffTestLightCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsTestLightAllowed));
+        OnPropertyChanged(nameof(IsOffTestLightAllowed));
     }
 
     public IAsyncRelayCommand OffTestLightCommand { get; }

@@ -445,7 +445,7 @@ public sealed class LightingTests
             await test.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal("off:2", light.Calls.Last());
             Assert.False(state.IsRunning);
-            Assert.False(settings.TestLightCommand.CanExecute(null));
+            Assert.False(settings.IsTestLightAllowed);
         }
         finally
         {
@@ -473,8 +473,8 @@ public sealed class LightingTests
             Assert.Contains("state is unknown", settings.LightTestMessage);
             Assert.False(services.GetRequiredService<MachineState>().IsRunning);
             Assert.Equal(2, settings.PendingLightOffChannel);
-            Assert.True(settings.OffTestLightCommand.CanExecute(null));
-            Assert.False(settings.TestLightCommand.CanExecute(null));
+            Assert.True(settings.IsOffTestLightAllowed);
+            Assert.False(settings.IsTestLightAllowed);
             var onWrites = light.Calls.Count(call => call.StartsWith("on:"));
             settings.LightTestChannel = 7;
             services.GetRequiredService<VirtualIoService>().SetInput(InputIo.AutoMode, false);
