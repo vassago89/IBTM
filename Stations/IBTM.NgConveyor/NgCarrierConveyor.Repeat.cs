@@ -96,6 +96,7 @@ public sealed partial class NgCarrierConveyor
         }
         finally
         {
+            _movement = Movement.None;
             _transfer!.Changed -= CheckPickup;
             EndRun(cancellationToken);
         }

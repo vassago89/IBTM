@@ -85,7 +85,7 @@ internal static class VirtualTestSupport
         units ??= new();
         var work = ConveyorStation.CreateInspection(io);
         var conveyor = new NgCarrierConveyor(io, new(), units);
-        return new(work, motion, new(motion), conveyor, operations, motionSettings, settings, io, units,
+        return new(work, motion, new(motion), conveyor, motionSettings, settings, io, units,
             new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(),
             new RecipeManager(OpenMachineStore(), new()));
     }

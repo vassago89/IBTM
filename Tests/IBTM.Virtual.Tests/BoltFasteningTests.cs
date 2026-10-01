@@ -1809,6 +1809,15 @@ public sealed class BoltFasteningTests
         Assert.Equal(!pickupAlreadyLoaded, visitedPickup);
         Assert.Single(assembly.PickupBoltResults);
         Assert.Equal(StationCylinderState.Up, station.PickupHeadPosition);
+        using var completedStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        station.StepChanged += () =>
+        {
+            if (station.Step is BoltFasteningState.Waiting or BoltFasteningState.PreparingCarrier)
+                completedStop.Cancel();
+        };
+        await station.RunAsync(completedStop.Token);
+        Assert.True(work.Completed);
+        Assert.Equal(5, starts.Count);
     }
 
     [Theory]

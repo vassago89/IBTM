@@ -43,9 +43,6 @@ public enum NgConveyorState
     [Description("Remove Carrier · EJECT Next / COMPLETE to Resume")]
     WaitingForEjectConfirmation,
 
-    [Description("Carrier Position Unknown")]
-    CarrierPositionUnknown,
-
     [Description("Returning carrier to shuttle")]
     ReturningToShuttle,
 

@@ -19,7 +19,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     private readonly ILogger<InspectionStation>? _log;
     private readonly IIoService _io;
     private readonly IXyMotion _motion;
-    private readonly OperationCancellation _operations;
     private readonly MotionSettings _motionSettings;
     private readonly NgCarrierTransferSettings _settings;
     private readonly NgCarrierConveyor _ngConveyor;
@@ -46,7 +45,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         IXyMotion motion,
         MotionStatus motionStatus,
         NgCarrierConveyor ngConveyor,
-        OperationCancellation operations,
         InspectionGantrySettings motionSettings,
         NgCarrierTransferSettings settings,
         IIoService io,
@@ -62,7 +60,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         Motion = motionStatus;
         _io = io;
         _motion = motion;
-        _operations = operations;
         _motionSettings = motionSettings.Motion;
         _settings = settings;
         _ngConveyor = ngConveyor;
@@ -291,8 +288,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         try
         {
             BeginRun();
-            if (_units.Inspection)
-                Station.Restart(Station.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (_inspectionOperation?.IsCancellationRequested == true
@@ -405,13 +400,11 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 case InspectionStationState.PreparingInspection:
                     EnterStep(state, workId: Station.CurrentJob.Id);
                     ClearInspectionOperation();
-                    var bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
-                    var targets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                     var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt)>();
-                    foreach (var pcb in targets)
+                    foreach (var pcb in Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent))
                     {
-                        var pcbBolts = bolts.Where(bolt => bolt.HeatSink == pcb).ToArray();
-                        if (pcbBolts.Length == 0)
+                        var pcbBolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => bolt.HeatSink == pcb);
+                        if (!pcbBolts.Any())
                             throw new InvalidOperationException(
                                 $"{pcb.GetDescription()} has no taught bolts. Complete bolt teaching before inspection.");
                         points.Add((pcb, null));
@@ -856,16 +849,14 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
-        using var operation = _operations.Link(cancellationToken);
-        EnsureCanMove(operation.Token);
-        return await _motion.HomeAsync(axis, _motionSettings.Home(axis).SearchSpeed, operation.Token);
+        EnsureCanMove(cancellationToken);
+        return await _motion.HomeAsync(axis, _motionSettings.Home(axis).SearchSpeed, cancellationToken);
     }
 
     public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
     {
-        using var operation = _operations.Link(cancellationToken);
-        EnsureCanMove(operation.Token);
-        return await _motion.HomeHorizontalAsync(_motionSettings.HorizontalHome.SearchSpeed, operation.Token);
+        EnsureCanMove(cancellationToken);
+        return await _motion.HomeHorizontalAsync(_motionSettings.HorizontalHome.SearchSpeed, cancellationToken);
     }
 
     public async Task MoveToCarrierAsync(

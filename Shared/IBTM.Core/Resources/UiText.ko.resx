@@ -366,9 +366,6 @@
   <data name="carrier placement (shuttle)" xml:space="preserve">
     <value>캐리어 안착 (셔틀)</value>
   </data>
-  <data name="carrier position unknown" xml:space="preserve">
-    <value>캐리어 위치 미확인</value>
-  </data>
   <data name="carrier presence sensor · not grip feedback" xml:space="preserve">
     <value>캐리어 감지 센서 · 파지 확인용 아님</value>
   </data>
@@ -3286,5 +3283,8 @@
   </data>
   <data name="move placement to handoff xy before lowering to receive z." xml:space="preserve">
     <value>안착기를 인계 X/Y 위치로 이동한 뒤 수취 Z로 내려가세요.</value>
+  </data>
+  <data name="remove pcb/bolts from handlers and heads" xml:space="preserve">
+    <value>공급·안착 핸들러의 PCB와 체결 헤드의 볼트를 제거하세요</value>
   </data>
 </root>

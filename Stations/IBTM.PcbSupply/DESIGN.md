@@ -135,7 +135,7 @@ either confirmed orientation and preserves it; a pickup point move requires Rota
 ## SMEMA and slot progress
 
 The local `PickStep` tracks PCB 1, PCB 2, and WaitingForCarrierExit for the current
-upstream carrier, including after STOP. Live holding and handoff feedback take priority.
+upstream carrier during the active run. A new START resets it to PCB 1.
 Ready stays ON through both pickup checks and the last pickup lift to Travel Z.
 It then falls to tell the upstream equipment that pickup is complete; Placement
 need not have received the last PCB yet.
@@ -145,7 +145,7 @@ last PCB is still being handed off. A stale ON cannot start another
 carrier. If availability disappears during a pickup, cancel that pickup; a late
 completion cannot advance a replacement carrier. If the gripper or fixer has not
 released, loss of availability stops with an error rather than selecting an empty
-pickup. STOP alone does not reset slot progress or bypass the required OFF edge.
+pickup. During one run, the next carrier still requires that OFF edge.
 In automatic mode, STOP
 preserves Ready while the upstream carrier remains available.
 
@@ -175,7 +175,7 @@ same withdrawal as normal production: rotate at handoff XYZ -> Travel Z -> picku
 XY. Repeat waits there with its gripper and fixer released. The slot remains the
 PCB just handled; the next return request selects the corresponding slot before
 receipt. Initial standby is Pickup 1 XY + Travel Z. A return request cannot bypass
-unfinished withdrawal, including after STOP. The next receipt approaches at
+unfinished withdrawal within the same run. The next receipt approaches at
 Travel Z and unrotates only after reaching handoff XYZ. When the last station
 finishes, the machine lets empty withdrawal complete before cancelling the
 forward units and reversing the main conveyor.
@@ -185,13 +185,10 @@ not wait for it or cancel when it is OFF. This path has no support-presence inpu
 release occurs at the taught pickup XYZ even if no physical support is present.
 The virtual model represents fixed supports at those pickup positions.
 
-STOP retains the selected slot and operation. An interrupted release or partial
-re-pickup can release again only at confirmed pickup XYZ. An interrupted reverse
-receipt may finish gripping only while Placement still confirms holding at its
-receive position. Grip loss during the pickup lift stops the operation. A PCB
-missing on re-pickup stops without advancing to another slot.
-After completed repeat handoffs, a normal start returns the empty handler to
-PCB 1 standby. An unfinished return operation must first finish in Repeat mode.
+After STOP, remove the PCB from Supply before START. Neither the selected slot
+nor an interrupted release is resumed. A new run moves empty to PCB 1 standby;
+Repeat then waits for Placement's return request. Grip loss during the pickup lift
+still stops the operation, and a missing returned PCB does not advance to another slot.
 
 See the [Repeat instructions](../../docs/STATION3_COMMISSIONING.md#repeat).
 

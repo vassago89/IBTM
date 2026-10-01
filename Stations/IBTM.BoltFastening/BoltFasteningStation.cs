@@ -199,7 +199,8 @@ public sealed class BoltFasteningStation : AutoUnit
                     && (selectedBolts is null || _recipes.Current.Pcb.BoltPoints.Any(
                         bolt => bolt.Head == FasteningHead.Shooting && selectedBolts.Contains(bolt.Id))))
                     _io.SetOutput(OutputIo.ShootingEscapeForward, false);
-                Station.Restart(Station.CurrentJob);
+                if (selectedBolts is not null)
+                    Station.Restart(Station.CurrentJob);
                 if (StandbyBolt is { IsFasteningPositionDefined: true } standby)
                 {
                     var position = _settings.GetBoltPosition(standby);
@@ -207,27 +208,12 @@ public sealed class BoltFasteningStation : AutoUnit
                         $"Startup: Z=0 -> X={position.X}, Y={position.Y} -> Safe Z={_settings.SafeZ}",
                         Station.CurrentJob.Id);
                     var startupStarted = Stopwatch.GetTimestamp();
-                    var started = startupStarted;
                     await RaiseCylindersAsync(cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: startup heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
-                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    started = Stopwatch.GetTimestamp();
                     await MoveZAsync(0, cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: startup Z=0 arrived, elapsed={ElapsedMs:F1} ms.",
-                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    started = Stopwatch.GetTimestamp();
                     await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: startup pickup table UP confirmed, elapsed={ElapsedMs:F1} ms.",
-                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    started = Stopwatch.GetTimestamp();
                     EnsureCanMoveHorizontal(cancellationToken);
                     await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: startup XY arrived, X={X}, Y={Y}, elapsed={ElapsedMs:F1} ms.",
-                        standby.Id, position.X, position.Y, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    started = Stopwatch.GetTimestamp();
                     await MoveZAsync(_settings.SafeZ, cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: startup Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
-                        standby.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                     _log?.LogInformation("Bolt timing {Bolt}: startup standby complete, total={ElapsedMs:F1} ms.",
                         standby.Id, Stopwatch.GetElapsedTime(startupStarted).TotalMilliseconds);
                 }
@@ -359,23 +345,11 @@ public sealed class BoltFasteningStation : AutoUnit
                     var standby = selectedBolt!;
                     var position = _settings.GetBoltPosition(standby);
                     var standbyStarted = Stopwatch.GetTimestamp();
-                    var started = standbyStarted;
                     await RaiseCylindersAsync(cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: standby heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
-                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    started = Stopwatch.GetTimestamp();
                     await MoveZAsync(_settings.SafeZ, cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: standby Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
-                        standby.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    started = Stopwatch.GetTimestamp();
                     await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: standby pickup table UP confirmed, elapsed={ElapsedMs:F1} ms.",
-                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    started = Stopwatch.GetTimestamp();
                     EnsureCanMoveHorizontal(cancellationToken);
                     await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: standby XY arrived, X={X}, Y={Y}, elapsed={ElapsedMs:F1} ms.",
-                        standby.Id, position.X, position.Y, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                     _log?.LogInformation("Bolt timing {Bolt}: standby complete, total={ElapsedMs:F1} ms.",
                         standby.Id, Stopwatch.GetElapsedTime(standbyStarted).TotalMilliseconds);
                     return true;
@@ -1088,14 +1062,8 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         var boltId = ActiveBolt?.Id;
         var returnStarted = Stopwatch.GetTimestamp();
-        var started = returnStarted;
         await MoveZAsync(_settings.SafeZ, cancellationToken);
-        _log?.LogInformation("Bolt timing {Bolt}: pickup return Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
-            boltId, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-        started = Stopwatch.GetTimestamp();
         await SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
-        _log?.LogInformation("Bolt timing {Bolt}: pickup return head UP confirmed, elapsed={ElapsedMs:F1} ms.",
-            boltId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         _log?.LogInformation("Bolt timing {Bolt}: return from feeder to common Safe Z, elapsed={ElapsedMs:F1} ms.",
             boltId, Stopwatch.GetElapsedTime(returnStarted).TotalMilliseconds);
     }

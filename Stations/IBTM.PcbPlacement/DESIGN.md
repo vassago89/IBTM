@@ -12,14 +12,13 @@ Handler Rotate output stays OFF during automatic, repeat and manual operation.
 6. Wait for Supply readiness before returning to receiving XY for the second PCB, then repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
 7. Complete the carrier after the final placement is raised and wait outside the handoff for the next Supply PCB.
 
-`Phase` retains unfinished handoff progress in this unit. `AutoUnit.Step` reports only
+`Phase` selects steps within the current run; START selects a fresh initial phase. `AutoUnit.Step` reports only
 the current execution/wait and becomes null after STOP. Both are updated through
 `EnterStep`; `GetNextStep` and `Handoff` only read state and feedback.
 Coordinates do not select stages or heat sinks. `MovingToHandoff` waits for Supply's
 `Holding` before approach; `ReturningToSupply` waits for `Released` for a Repeat return.
 Completed approach enters `ReceivingPcb` or `PresentingToSupply` directly, with no second
-Supply-wait stage at standby XYZ. STOP there retains the receipt stage, so restart does not
-repeat the XY approach. Live handoff/position checks remain in the receipt operation.
+Supply-wait stage at standby XYZ. Live handoff/position checks remain in the receipt operation.
 `ExecuteStepAsync` returns Z to standby followed by placement Y once Supply is `Released`. Placement publishes `Holding` while securing the PCB at the receiving
 position, and `Clear` after the Y departure settles. Internal placement/press stages
 are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
@@ -41,7 +40,7 @@ and relative handler positions do not gate this sequence.
 
 Placement and optional pressing run in `PlacingPcb`. Once the assembly is recorded,
 `Retracting` raises IPM, handler and Z before starting the next PCB or completing
-the carrier. STOP during that rise resumes only retraction, without placing or pressing again.
+the carrier. A new START does not resume the interrupted rise or placement.
 The placement feedback check requires PCB presence through completion; the sensor
 may clear during retraction. The operation uses its selected carrier and heat-sink target;
 it never guesses a heat sink from X/Y. Repeat uses the same switch in `PcbPlacer.cs` and
@@ -58,13 +57,11 @@ the same PCB without pressing. Supply then completes normal empty withdrawal to
 pickup XY and Travel Z before waiting for another return. Repeat keeps IPM Up during pickup, both handoff directions,
 travel and placement. Handoff feedback requires an unambiguous IPM endpoint;
 the sequence prepares Up for Repeat and Down for normal receipt.
-PCB detection and vacuum still confirm holding. Normal production retains the IPM press. If STOP interrupts release with the
-handler Down at the taught placement XYZ, resume finishes release on that support
-before retracting; it does not first lift a PCB whose vacuum is switching off.
+PCB detection and vacuum still confirm holding. Normal production retains the IPM press.
 Forward receipt and Repeat pickup both confirm PCB detection and vacuum after
 vacuum completes. Only then may Supply release, or Repeat enter `ReturningToSupply`.
 Return release also requires Placement to retain its confirmed receive position
-while vacuum is still ON; a stopped departure with vacuum already OFF may resume.
+before releasing vacuum.
 A missing PCB signal with vacuum ON stops at pickup instead of raising the handler
 and trying the pickup again.
 Supply returns each PCB to its corresponding pickup XYZ, releases it there and
@@ -82,5 +79,7 @@ false for those waits; it does not split axis moves or vacuum/IPM actions into
 separate state-machine ticks. Placement keeps the original job and cancels its
 remaining commands if carrier identity or seating changes.
 The Repeat argument controls IPM commands throughout the step; there is no second
-mode field. An unfinished Repeat cannot enter a normal run or publish a return
-request to Supply during that rejected start.
+mode field. After STOP, remove PCBs from the handler and clear vacuum before START.
+The new run starts at the first present heat sink; recorded assembly results do not
+select a resume point. A completed carrier stays complete. The original destination
+for a Repeat round trip is retained only while that run is active.

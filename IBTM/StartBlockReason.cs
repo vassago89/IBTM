@@ -34,6 +34,9 @@ public enum StartBlockReason
     [Description("Enable a unit in Settings")]
     NoUnitEnabled,
 
+    [Description("Remove PCB/bolts from handlers and heads")]
+    MaterialRemaining,
+
     [Description("Complete bolt teaching")]
     TeachingIncomplete,
 

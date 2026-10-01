@@ -96,13 +96,13 @@ sink Y before allowing Supply to rotate and withdraw.
 
 At the seated carrier, Placement moves X, lowers Z and the handler, releases
 vacuum, raises IPM and lowers IPM to press. After recording the assembly, the
-`Retracting` stage raises IPM, handler and Z. STOP during this rise resumes the
-rise without repeating placement. Only after the final rise is the carrier complete.
+`Retracting` stage raises IPM, handler and Z. Only after the final rise is the carrier
+complete; interrupted placement is not resumed on START.
 The handler rotation output stays OFF; there is no IPM gripper output.
 
 Automatic motion, HOME and Move To require Handler Up. Manual Z Jog/Step permits
 adjustment with the handler lowered. See [Placement](../Stations/IBTM.PcbPlacement/DESIGN.md)
-for normal and Repeat handoffs and retained carrier/slot ownership.
+for normal and Repeat handoffs and carrier/slot ownership during a run.
 
 ## Main carrier conveyor
 
@@ -189,14 +189,14 @@ discharge trigger. Rear wins when it is ready; a blocked Rear does not prevent a
 already-waiting Front carrier from entering. Front Ready and Rear Available are not
 advertised together. Outputs are commands, not state evidence.
 
-STOP alone does not block a new START or require the whole machine to be emptied.
-Normally seated carriers remain in place; the next run uses current feedback and work results.
+After STOP, remove PCBs from Supply/Placement and bolts from the fastening heads
+before START. Presence/vacuum feedback blocks START until that material is cleared;
+RESET does not override it. Supply starts at PCB 1, Placement at the first present
+heat sink, and incomplete fastening/inspection at the first configured point.
+Completed carriers retain their completion and results; their units do not restart work.
+Carriers on the main conveyor and NG shuttle/conveyor may remain. NG discharge
+continues from current sensors; there is no between-sensor recovery wait.
 RESET clears device alarms without changing support outputs or completing work.
-Interrupted transfers, PCB presses and repeat pickups do not create restart latches.
-Carrier/PCB presence and an NG pickup holding a carrier do not block START.
-Fastening first collects a confirmed pending result; otherwise a new START retries the
-same bolt/pass with current readiness, positioning and a fresh result. It does not
-supply another bolt for that retry. RESET never runs motion or creates results.
 
 The machine has three external SMEMA connections. Front 1 belongs to PCB Supply,
 Front 2 belongs to the main heat sink carrier conveyor, and Rear belongs to the

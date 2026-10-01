@@ -528,7 +528,6 @@ public sealed class NgHandoffTests
             motion,
             new MotionStatus(motion),
             conveyor,
-            operations,
             motionSettings,
             settings,
             io,

@@ -113,7 +113,7 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Fact]
-    public async Task StopPreservesCompletedUpstreamCarrierUntilAvailableTurnsOff()
+    public async Task RestartBeginsWithPcbOne()
     {
         using var rig = new HandoffRig();
         rig.Io.Initialize();
@@ -134,23 +134,19 @@ public sealed class PcbSupplyHandoffTests
         };
         await rig.Supplier.RunAsync(rig.Placement, stop.Token);
         Assert.Equal(PcbSupplyState.WaitingForCarrierExit, rig.Supplier.Phase);
-        var position = rig.Motion.Position;
-        using var resume = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var run = rig.Supplier.RunAsync(rig.Placement, resume.Token);
-        try
+        using var restart = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        double? pickedX = null;
+        rig.Supplier.StepChanged += () =>
         {
-            Assert.False(rig.Motion.IsMoving);
-            Assert.Equal(PcbSupplyState.WaitingForCarrierExit, rig.Supplier.Phase);
-            Assert.Equal(position, rig.Motion.Position);
-            Assert.False(rig.Io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
-        }
-        finally
-        {
-            resume.Cancel();
-            await run;
-        }
-        rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-        Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.GetNextStep(rig.Placement));
+            if (rig.Supplier.Step is PcbSupplyState.PickingPcb)
+            {
+                pickedX = rig.Motion.Position.X;
+                restart.Cancel();
+            }
+        };
+        await rig.Supplier.RunAsync(rig.Placement, restart.Token);
+        Assert.Equal(10, pickedX);
+        Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
     }
 
     [Fact]
@@ -162,7 +158,11 @@ public sealed class PcbSupplyHandoffTests
         await HomeAsync(rig.Motion, 2_000);
         rig.Io.SetInput(InputIo.AutoMode, false);
         rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
-        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.PickingPcb)
+                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        };
         rig.Recipes.Current.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 8 };
         var departed = false;
         rig.Io.InputChanged += (input, on) =>
@@ -185,11 +185,10 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Fact]
-    public async Task DisabledRunDoesNotReplaceTheSupplyHandoffPhase()
+    public async Task DisabledRunClearsThePreviousHandoff()
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
-        var phase = rig.Supplier.Phase;
         rig.Units.PcbSupply = false;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         rig.Supplier.Trace += message =>
@@ -205,35 +204,25 @@ public sealed class PcbSupplyHandoffTests
 
         Assert.Null(rig.Supplier.Step);
         rig.Units.PcbSupply = true;
-        Assert.Equal(phase, rig.Supplier.Phase);
-        Assert.Equal(phase, rig.Supplier.GetNextStep(rig.Placement));
-        Assert.Equal(PcbSupplyHandoff.Released, rig.Supplier.Handoff);
+        Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.Phase);
+        Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
     }
 
     [Fact]
-    public async Task RepeatForwardHoldingLossWhileWaitingDoesNotBecomeReturnReceipt()
+    public async Task NewRunRejectsHeldPcbWithoutMovingOrReleasing()
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
         rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token, repeat: true);
-        try
-        {
-            Assert.Equal(PcbSupplyState.HandingOff, rig.Supplier.Step);
-            rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, false);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
-            Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
-            Assert.False(rig.Motion.IsMoving);
-        }
-        finally
-        {
-            stop.Cancel();
-            if (!run.IsFaulted)
-                await run;
-        }
+        var commanded = false;
+        rig.Motion.MovingChanged += moving => commanded |= moving;
+        rig.Io.OutputChanged += (output, on) => commanded = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Supplier.RunAsync(rig.Placement));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Supplier.RunAsync(rig.Placement, repeat: true));
+        Assert.False(commanded);
+        Assert.True(rig.Supplier.PcbSecured);
     }
 
     [Fact]
@@ -342,23 +331,34 @@ public sealed class PcbSupplyHandoffTests
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
-        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
-        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+        rig.Io.SetInput(InputIo.AutoMode, false);
+        rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.PickingPcb)
+                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            if (rig.Supplier.Step is PcbSupplyState.HandingOff)
+                rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+        };
         if (duringRelease)
         {
             rig.Io.OutputChanged += (output, on) =>
             {
-                if (output == OutputIo.PcbSupplyIpmFixerForward && !on)
+                if (output == OutputIo.PcbSupplyIpmFixerForward && !on
+                    && rig.Supplier.Phase == PcbSupplyState.HandingOff)
                     rig.Motion.SetServo(MotionAxis.X, false);
             };
         }
         else
         {
-            // Restoring servo does not restore the invalidated completed handoff.
-            rig.Motion.SetServo(MotionAxis.X, false);
-            rig.Motion.SetServo(MotionAxis.X, true);
+            rig.Supplier.StepChanged += () =>
+            {
+                if (rig.Supplier.Step is PcbSupplyState.HandingOff)
+                {
+                    rig.Motion.SetServo(MotionAxis.X, false);
+                    rig.Motion.SetServo(MotionAxis.X, true);
+                }
+            };
         }
 
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -403,14 +403,27 @@ public sealed class PcbSupplyHandoffTests
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
-        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
-        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        rig.Io.SetInputs((InputIo.PcbSupplyRotated, true), (InputIo.PcbSupplyUnrotated, false));
-        rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+        rig.Io.SetInput(InputIo.AutoMode, false);
+        rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.PickingPcb)
+                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            if (rig.Supplier.Step is PcbSupplyState.HandingOff)
+                rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+        };
+        var lost = false;
         var commanded = false;
-        rig.Motion.MovingChanged += moving => commanded |= moving;
-        rig.Io.OutputChanged += (output, on) => commanded |= output is OutputIo.PcbSupplyRotate
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.HandingOff)
+            {
+                lost = true;
+                rig.Io.SetInputs((InputIo.PcbSupplyRotated, true), (InputIo.PcbSupplyUnrotated, false));
+            }
+        };
+        rig.Motion.MovingChanged += moving => commanded |= lost && moving;
+        rig.Io.OutputChanged += (output, on) => commanded |= lost && output is OutputIo.PcbSupplyRotate
             or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward;
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -421,6 +434,7 @@ public sealed class PcbSupplyHandoffTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => rig.Supplier.PrepareHandoffAsync(timeout.Token));
 
+        Assert.True(lost);
         Assert.False(commanded);
         Assert.True(rig.Supplier.PcbSecured);
         Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
@@ -431,13 +445,19 @@ public sealed class PcbSupplyHandoffTests
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
-        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
-        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+        rig.Io.SetInput(InputIo.AutoMode, false);
+        rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.PickingPcb)
+                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            if (rig.Supplier.Step is PcbSupplyState.HandingOff)
+                rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+        };
         rig.Io.OutputChanged += (output, on) =>
         {
-            if (output == OutputIo.PcbSupplyIpmFixerForward && !on)
+            if (output == OutputIo.PcbSupplyIpmFixerForward && !on
+                    && rig.Supplier.Phase == PcbSupplyState.HandingOff)
                 rig.Io.SetInput(InputIo.PcbSupplyRotated, true);
         };
 
@@ -574,6 +594,11 @@ public sealed class PcbSupplyHandoffTests
                 FeedbackProbe.ReportReady = true;
             }
             Recipes = new(OpenMachineStore(), new());
+            Recipes.Current.PcbSupply = new()
+            {
+                Pcb1PickPosition = new() { X = 10, Y = 10, Z = 8 },
+                Pcb2PickPosition = new() { X = 20, Y = 10, Z = 8 },
+            };
             Supplier = new PcbSupplier((IXyMotion)feedback, new MotionStatus(feedback),
                 Io,
                 Settings,

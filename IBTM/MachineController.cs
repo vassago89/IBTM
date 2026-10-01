@@ -331,6 +331,14 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 or InputIo.NgCarrierPickupDown)
             _state.Refresh();
 
+        if (input is InputIo.PcbSupplyPcbDetected or InputIo.PcbPlacementPcbDetected
+            or InputIo.PcbPlacementVacuumDetected or InputIo.PickupHeadVacuumDetected
+            or InputIo.ShootingHeadVacuumDetected or InputIo.ShootingTubeBoltDetected)
+        {
+            PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
+            PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
+        }
+
         if (input == InputIo.ResetButton && value && _options.UseResetButton)
         {
             _ = ResetAsync();
@@ -663,6 +671,13 @@ public sealed partial class MachineController : INotifyPropertyChanged
             return StartBlockReason.HomeRequired;
         if (_state.RepeatEnabled && !_state.ManualMode)
             return StartBlockReason.TeachingMode;
+        if (_io.GetInput(InputIo.PcbSupplyPcbDetected)
+            || _io.GetInput(InputIo.PcbPlacementPcbDetected)
+            || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
+            || _io.GetInput(InputIo.PickupHeadVacuumDetected)
+            || _io.GetInput(InputIo.ShootingHeadVacuumDetected)
+            || _io.GetInput(InputIo.ShootingTubeBoltDetected))
+            return StartBlockReason.MaterialRemaining;
         if (!TeachingReady)
             return StartBlockReason.TeachingIncomplete;
         return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;

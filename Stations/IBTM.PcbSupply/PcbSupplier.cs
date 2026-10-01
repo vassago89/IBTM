@@ -15,7 +15,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     private readonly PcbSupplySettings _settings;
     private readonly UnitSettings _units;
     private readonly RecipeManager _recipes;
-    // Retain slot progress across STOP until the upstream carrier leaves.
+    // Slot progress belongs only to the current run.
     private PickStep _pickStep;
     private bool _repeat;
     // Completed stage position, invalidated by motion/state changes; never proof of current readiness.
@@ -203,7 +203,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
     }
 
-    // Retained handoff phase; it is not proof of physical position or an active run.
+    // Current run phase; START always selects a fresh initial phase.
     public PcbSupplyState Phase { get; private set; }
 
     private void EnterStep(PcbSupplyState step, string? target = null)
@@ -228,28 +228,17 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         CancellationToken cancellationToken = default,
         bool repeat = false)
     {
-        if (!repeat && _units.PcbSupply
-            && Phase is PcbSupplyState.PreparingReturnReceipt or PcbSupplyState.WaitingForReturnedPcbGrip
-                or PcbSupplyState.ReceivingReturnedPcb or PcbSupplyState.WaitingForReturnClear
-                or PcbSupplyState.ReturningToPickup or PcbSupplyState.PlacingReturnedPcb or PcbSupplyState.PickingReturnedPcb)
-            throw new InvalidOperationException("Finish the returned PCB pickup in Repeat mode before starting normal supply.");
+        if (cancellationToken.IsCancellationRequested)
+            return;
+        if (_units.PcbSupply && Pcb != PcbSupplyPcbState.None)
+            throw new InvalidOperationException("Remove the Supply PCB before starting a new run.");
         Exception? failure = null;
         _repeat = repeat;
+        _pickStep = PickStep.Pcb1;
+        _handoffPosition = null;
+        Phase = PcbSupplyState.MovingToPickup;
         try
         {
-            var initialStep = Phase;
-            if (!repeat && _units.PcbSupply && Phase == PcbSupplyState.WaitingForReturnedPcb)
-            {
-                if (!PcbReleased)
-                    throw new InvalidOperationException("Supply must be released before leaving the repeat return wait.");
-                _pickStep = PickStep.Pcb1;
-                initialStep = PcbSupplyState.MovingToPickup;
-            }
-            if (repeat && _units.PcbSupply && _units.PcbPlacement && Phase == PcbSupplyState.HandingOff
-                && (!PcbSecured || placement.Handoff == PcbPlacementHandoff.Returning)
-                && placement.Handoff != PcbPlacementHandoff.Holding)
-                initialStep = PcbSupplyState.WaitingForReturnedPcb;
-            EnterStep(initialStep);
             BeginRun(_units.PcbSupply ? Phase : PcbSupplyState.Disabled);
             placement.Changed += WakeRun;
             while (!cancellationToken.IsCancellationRequested)
@@ -377,9 +366,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             Z = returnPosition.Z,
                         };
                         using var placing = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        // A stopped release may continue only while the PCB is still supported at pickup XYZ.
-                        var releasing = Rotation == PcbSupplyRotationState.Rotated
-                            && MotionServiceBase.IsHoldingPosition(_motion, support);
+                        var releasing = false;
                         void CheckReturnSupport()
                         {
                             if (!releasing && !PcbSecured
@@ -392,16 +379,13 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         {
                             CheckReturnSupport();
                             placing.Token.ThrowIfCancellationRequested();
-                            if (!releasing)
-                            {
-                                await MoveToPickupAsync(returnPosition, placing.Token);
-                                await MoveAxisAsync(MotionAxis.Z, returnPosition.Z, placing.Token);
-                                CheckReturnSupport();
-                                placing.Token.ThrowIfCancellationRequested();
-                                if (!MotionServiceBase.IsHoldingPosition(_motion, support))
-                                    throw new MotionInterlockException("Supply must reach pickup XYZ before releasing the returned PCB.");
-                                releasing = true;
-                            }
+                            await MoveToPickupAsync(returnPosition, placing.Token);
+                            await MoveAxisAsync(MotionAxis.Z, returnPosition.Z, placing.Token);
+                            CheckReturnSupport();
+                            placing.Token.ThrowIfCancellationRequested();
+                            if (!MotionServiceBase.IsHoldingPosition(_motion, support))
+                                throw new MotionInterlockException("Supply must reach pickup XYZ before releasing the returned PCB.");
+                            releasing = true;
                             await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, placing.Token);
                             await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, placing.Token);
                             placing.Token.ThrowIfCancellationRequested();
@@ -433,14 +417,6 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         var pickPosition = pickStep == PickStep.Pcb1
                             ? recipe.Pcb1PickPosition
                             : recipe.Pcb2PickPosition;
-                        if (step == PcbSupplyState.PickingReturnedPcb && !PcbReleased
-                            && !MotionServiceBase.IsHoldingPosition(_motion, new AxisPosition
-                            {
-                                X = pickPosition.X,
-                                Y = pickPosition.Y ?? throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply."),
-                                Z = pickPosition.Z,
-                            }))
-                            throw new MotionInterlockException("Supply must reach pickup XYZ before releasing the returned PCB.");
                         using var pickup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         var carrierChanged = false;
                         var holdingRequired = false;
@@ -597,6 +573,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         {
             placement.Changed -= WakeRun;
             _repeat = false;
+            _handoffPosition = null;
             try
             {
                 StopUpstream();

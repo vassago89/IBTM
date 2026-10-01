@@ -366,9 +366,6 @@ Operation failed. Check controller status.</value>
   <data name="carrier placement (shuttle)" xml:space="preserve">
     <value>Carrier Placement (Shuttle)</value>
   </data>
-  <data name="carrier position unknown" xml:space="preserve">
-    <value>Carrier Position Unknown</value>
-  </data>
   <data name="carrier presence sensor · not grip feedback" xml:space="preserve">
     <value>Carrier presence sensor · not grip feedback</value>
   </data>
@@ -3286,5 +3283,8 @@ See the application log for details.</value>
   </data>
   <data name="move placement to handoff xy before lowering to receive z." xml:space="preserve">
     <value>Move Placement to handoff XY before lowering to receive Z.</value>
+  </data>
+  <data name="remove pcb/bolts from handlers and heads" xml:space="preserve">
+    <value>Remove PCB/bolts from handlers and heads</value>
   </data>
 </root>

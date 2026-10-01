@@ -3022,7 +3022,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task MaterialInsideMachineDoesNotBlockStartOrAlarmReset()
+    public async Task HeldMaterialsBlockStartUntilManuallyRemoved()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgConveyor);
@@ -3031,56 +3031,52 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
-        Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
-        var run = machine.StartAsync();
         try
         {
-            await WaitUntilAsync(() => state.AutomaticRunning);
-            machine.Stop();
-            await run.WaitAsync(TimeSpan.FromSeconds(3));
-            Assert.Equal(StartBlockReason.None, machine.StartBlock);
-
-            io.SetInput(InputIo.NgCarrierDetected, true);
+            await machine.HomeAsync(CancellationToken.None);
+            // Carriers on their supports and feeder stock are normal waiting material.
             io.SetInputs(
                 (InputIo.PcbPlacementHeatSink1Present, true),
                 (InputIo.BoltFasteningHeatSink1Present, true),
                 (InputIo.InspectionHeatSink1Present, true),
+                (InputIo.NgShuttleCarrierDetected, true),
                 (InputIo.NgConveyorPosition1Occupied, true),
-                (InputIo.PcbPlacementPcbDetected, true),
-                (InputIo.PcbPlacementVacuumDetected, true));
-            Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.True(machine.IsStartAllowed);
-
-            state.SetError(MachineAlarm.NgCarrierTransfer);
+                (InputIo.PickupFeederBoltDetected, true),
+                (InputIo.ShootingFeederBoltDetected, true));
+            Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
+            var writes = 0;
+            void CountWrite(OutputIo output, bool value)
+            {
+                writes++;
+            }
+            io.OutputChanged += CountWrite;
+            foreach (var input in new[]
+            {
+                InputIo.PcbSupplyPcbDetected, InputIo.PcbPlacementPcbDetected,
+                InputIo.PcbPlacementVacuumDetected, InputIo.PickupHeadVacuumDetected,
+                InputIo.ShootingHeadVacuumDetected, InputIo.ShootingTubeBoltDetected,
+            })
+            {
+                io.SetInput(input, true);
+                Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+                Assert.False(machine.IsStartAllowed);
+                await machine.StartAsync();
+                Assert.False(state.AutomaticRunning);
+                Assert.Equal(0, writes);
+                io.SetInput(input, false);
+                Assert.True(machine.IsStartAllowed, input.ToString());
+            }
+            io.OutputChanged -= CountWrite;
+            io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+            state.SetError(MachineAlarm.PcbPlacement);
             await machine.ResetAsync();
             Assert.False(state.IsError);
-            Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            // A waiting upstream carrier is normal material, not interrupted work.
-            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
-            Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
-            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-            Assert.False(state.AutomaticRunning);
-            Assert.True(machine.IsStartAllowed, state.AlarmDetail);
-
-            using var nextStop = new CancellationTokenSource();
-            run = machine.StartAsync(nextStop.Token);
-            await WaitUntilAsync(() => state.AutomaticRunning);
-            Assert.True(io.GetInput(InputIo.NgCarrierDetected));
-            Assert.True(io.GetInput(InputIo.PcbPlacementPcbDetected));
-            Assert.True(io.GetInput(InputIo.PcbPlacementVacuumDetected));
-            Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
-            Assert.True(io.GetInput(InputIo.BoltFasteningHeatSink1Present));
-            Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
-            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
-            Assert.Equal(MachineAlarm.None, state.Alarm);
-            nextStop.Cancel();
-            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+            io.SetInput(InputIo.PcbPlacementPcbDetected, false);
+            Assert.True(machine.IsStartAllowed);
         }
         finally
         {
-            machine.Stop();
-            await run.WaitAsync(TimeSpan.FromSeconds(3));
             await machine.ShutdownAsync();
         }
     }

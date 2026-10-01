@@ -79,7 +79,7 @@ public sealed class InspectionTests
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
         var carrier = ConveyorStation.CreateInspection(io);
         var station = new InspectionStation(carrier, motion, new(motion), new NgCarrierConveyor(io, new(), units),
-            operations, settings, transfer, io, units,
+            settings, transfer, io, units,
             new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes);
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
@@ -140,7 +140,6 @@ public sealed class InspectionTests
             motion,
             new MotionStatus(motion),
             new NgCarrierConveyor(io, new(), units),
-            operations,
             settings,
             transfer,
             io,
@@ -196,6 +195,20 @@ public sealed class InspectionTests
         Assert.Null(station.Step);
         Assert.Null(station.ActivePcb);
         Assert.Null(station.ActiveBolt);
+        visited.Clear();
+        using var completedStop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var restartedInspection = false;
+        station.StepChanged += () =>
+        {
+            if (station.Step is null)
+                return;
+            restartedInspection |= station.Step is InspectionStationState.PreparingInspection;
+            completedStop.Cancel();
+        };
+        await station.RunAsync(completedStop.Token);
+        Assert.True(work.Completed);
+        Assert.False(restartedInspection);
+        Assert.Empty(visited);
     }
 
     [Theory]
@@ -229,7 +242,7 @@ public sealed class InspectionTests
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
         var carrier = ConveyorStation.CreateInspection(io);
         var station = new InspectionStation(carrier, motion, new(motion), new NgCarrierConveyor(io, new(), units),
-            operations, settings, new() { WaitingPosition = new(), CarrierPickupPosition = new() }, io, units,
+            settings, new() { WaitingPosition = new(), CarrierPickupPosition = new() }, io, units,
             new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes);
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
@@ -290,7 +303,6 @@ public sealed class InspectionTests
             motion,
             new MotionStatus(motion),
             conveyor,
-            operations,
             settings,
             transfer,
             io,
@@ -441,7 +453,6 @@ public sealed class InspectionTests
             motion,
             new MotionStatus(motion),
             new NgCarrierConveyor(io, new(), units),
-            operations,
             settings,
             new(),
             io,
@@ -584,7 +595,6 @@ public sealed class InspectionTests
             motion,
             new MotionStatus(motion),
             conveyor,
-            operations,
             gantrySettings,
             transferSettings,
             io,
@@ -695,7 +705,6 @@ public sealed class InspectionTests
             motion,
             new MotionStatus(motion),
             new NgCarrierConveyor(io, new(), transferUnits),
-            operations,
             gantrySettings,
             transferSettings,
             io,

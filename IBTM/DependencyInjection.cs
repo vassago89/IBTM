@@ -208,7 +208,6 @@ public static class DependencyInjection
                     motion,
                     provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.InspectionGantry],
                     provider.GetRequiredService<NgCarrierConveyor>(),
-                    provider.GetRequiredService<OperationCancellation>(),
                     provider.GetRequiredService<InspectionGantrySettings>(),
                     provider.GetRequiredService<NgCarrierTransferSettings>(),
                     provider.GetRequiredService<IIoService>(),
