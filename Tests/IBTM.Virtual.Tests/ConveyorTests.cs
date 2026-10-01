@@ -1054,7 +1054,7 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public void StationCompletionBelongsToCurrentCarrierUntilReplacement()
+    public void StationCompletionSurvivesSensorEdgesUntilEmptyWorkIsCleared()
     {
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
@@ -1078,6 +1078,10 @@ public sealed class ConveyorTests
         virtualIo.SetInput(InputIo.PcbPlacementBackupPlateDown, false);
         VirtualTestSupport.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, false);
         Assert.False(placementWork.Completed);
+        VirtualTestSupport.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, true);
+        Assert.True(placementWork.Completed);
+        VirtualTestSupport.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, false);
+        placementWork.ClearJob();
         VirtualTestSupport.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, true);
         Assert.False(placementWork.Completed);
     }
@@ -1472,7 +1476,7 @@ public sealed class ConveyorTests
         Assert.Equal(originalJob.Id, destination.Station.CurrentJob.Id);
         Assert.Same(assembly, Assert.Single(destination.Station.Assemblies));
         Assert.False(destination.Station.Completed);
-        // Successful visual inspection after START must not erase the fastening NG.
+        // Subsequent result updates must not erase the fastening NG.
         foreach (var slot in Enum.GetValues<HeatSinkSlot>().Where(destination.Station.IsHeatSinkPresent))
         {
             var inspected = destination.Station.GetAssembly(slot);
@@ -1482,6 +1486,51 @@ public sealed class ConveyorTests
         destination.Station.Complete(destination.Station.CurrentJob);
         Assert.True(destination.HasNg);
         Assert.True(destination.RouteToNg);
+    }
+
+    [Fact]
+    public async Task LostAndRestoredArrivalDoesNotInheritDepartingResults()
+    {
+        var io = CreateIo();
+        var source = ConveyorStation.CreateBoltFastening(io);
+        var destination = CreateInspectionStation(io);
+        var conveyor = new MainConveyor(
+            io, new ConveyorSettings { CarrierStopDelaySeconds = 30 }, new OperationCancellation(),
+            ConveyorStation.CreatePcbPlacement(io), source, destination,
+            new UnitSettings { Inspection = true });
+        io.Initialize();
+        await SetSeatedCarrierAsync(
+            io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
+        var originalJob = source.CurrentJob;
+        var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
+        source.Complete(originalJob);
+        conveyor.Trace += message =>
+        {
+            if (!message.Contains("target=seating push", StringComparison.Ordinal))
+                return;
+            // Both edges occur before the transfer resumes its asynchronous wait.
+            io.SetInput(InputIo.InspectionHeatSink2Present, false);
+            io.SetInput(InputIo.InspectionHeatSink2Present, true);
+        };
+        var run = conveyor.RunAsync();
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            var arrivingJob = destination.Station.CurrentJob;
+            io.SetInput(InputIo.InspectionHeatSink2Present, true);
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => run.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.Same(arrivingJob, destination.Station.CurrentJob);
+            Assert.Empty(destination.Station.Assemblies);
+            Assert.False(destination.Station.Completed);
+            Assert.Same(assembly, Assert.Single(source.Assemblies));
+        }
+        finally
+        {
+            conveyor.Stop();
+        }
     }
 
     [Fact]

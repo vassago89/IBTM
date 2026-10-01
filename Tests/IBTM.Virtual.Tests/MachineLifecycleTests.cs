@@ -55,6 +55,8 @@ public sealed partial class MachineLifecycleTests
             (InputIo.NgCarrierDetected, true),
             (InputIo.PcbPlacementHeatSink1Present, false),
             (InputIo.PcbPlacementHeatSink2Present, true));
+        var placement = services.GetRequiredService<PcbPlacer>().Station;
+        placement.Complete(placement.CurrentJob);
         // Match the equipment case: HS2 only and the empty next station raised.
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true);
@@ -2555,83 +2557,6 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task InspectionStartRepeatsEveryPointFromTheFirstPcb(bool stopAfterCompletion)
-    {
-        var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.Inspection);
-        settings.PcbHistory.Directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"PCB-inspection-{Guid.NewGuid():N}");
-        await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<RecipeManager>().Current;
-        recipe.Pcb.BoltPoints = [
-            new() { Id = VirtualTestSupport.BoltId(4), HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 20 },
-            new() { Id = VirtualTestSupport.BoltId(3), HeatSink = HeatSinkSlot.HeatSink1, X = 10, Y = 20 },
-            new() { Id = VirtualTestSupport.BoltId(2), HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 10 },
-            new() { Id = VirtualTestSupport.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 10, Y = 10 },
-        ];
-        TeachInspectionFovs(recipe);
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var work = services.GetRequiredService<InspectionStation>();
-        var inspection = services.GetRequiredService<InspectionStation>();
-        await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
-        io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
-        await work.Station.PrepareToReceiveAsync(CancellationToken.None);
-        io.SetInput(InputIo.AutoMode, false);
-        var assembly = work.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBolt(FasteningHead.Shooting, VirtualTestSupport.BoltId(1), new(false, 0.5, Error: "Existing fastening NG"));
-        await machine.PcbHistory.FlushAsync();
-        var number = assembly.PcbNumber;
-        var captures = new ConcurrentQueue<(HeatSinkSlot Pcb, Guid? Bolt)>();
-        using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var firstRun = true;
-        inspection.InspectionCaptured += (image, pcb, bolt) =>
-        {
-            captures.Enqueue((pcb, bolt));
-            if (firstRun && !stopAfterCompletion && pcb == HeatSinkSlot.HeatSink2 && bolt is null)
-                firstStop.Cancel();
-        };
-        var run = machine.StartAsync(firstStop.Token);
-        if (stopAfterCompletion)
-        {
-            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => work.Station.Completed, TimeSpan.FromSeconds(3)));
-            firstStop.Cancel();
-        }
-        await run.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(stopAfterCompletion, work.Station.Completed);
-        Assert.Equal(2, assembly.BoltPresenceResults.Count);
-        Assert.Equal(MachineAlarm.None, state.Alarm);
-
-        firstRun = false;
-        captures.Clear();
-        using var secondStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        run = machine.StartAsync(secondStop.Token);
-        try
-        {
-            Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => captures.Count == 6 && work.Station.Completed, TimeSpan.FromSeconds(3)), state.AlarmDetail);
-            Assert.Equal(new (HeatSinkSlot, Guid?)[] {
-                (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTestSupport.BoltId(3)), (HeatSinkSlot.HeatSink1, VirtualTestSupport.BoltId(1)),
-                (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTestSupport.BoltId(4)), (HeatSinkSlot.HeatSink2, VirtualTestSupport.BoltId(2)),
-            }, captures);
-            Assert.Same(assembly, work.Station.GetAssembly(HeatSinkSlot.HeatSink1));
-            Assert.Equal(number, assembly.PcbNumber);
-            Assert.Equal("Existing fastening NG", assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
-            Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
-            Assert.Equal(MachineAlarm.None, state.Alarm);
-        }
-        finally
-        {
-            secondStop.Cancel();
-            await run.WaitAsync(TimeSpan.FromSeconds(2));
-            await machine.ShutdownAsync();
-        }
-    }
-
-    [Theory]
     [InlineData(false, true)]
     [InlineData(false, false)]
     [InlineData(true, true)]
@@ -2962,6 +2887,7 @@ public sealed partial class MachineLifecycleTests
             await work.SeatAsync(CancellationToken.None);
             var job = work.CurrentJob;
             var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+            work.Complete(job);
             var completed = work.Completed;
             if (stoppedAutomatically)
             {

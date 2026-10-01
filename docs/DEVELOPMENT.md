@@ -548,28 +548,28 @@ PCB 존재 확인은 완료 기록 전까지 해당 호출의 지역 변수로 �
 현재 캐리어 작업과 착좌·PCB·진공 피드백은 계속 확인한다. `RunAsync` 종료 시 Repeat PCB 왕복 단계와
 실행 대상을 버린다. 별도의 재시작 단계 선택은 없다.
 
-STOP 자체는 새 START를 차단하거나 전체 장비 비움을 요구하지 않는다.
-정상 착좌된 캐리어는 그대로 두고 현재 I/O·작업 완료·인터록으로 다음 동작을 판단한다.
-RESET은 캐리어가 착좌되어 있거나 부품이 감지되어도 장치 오류를 해제한다.
-재실·보유 부품 감지를 RESET 실패나 새 알람으로 처리하지 않으며, 지지 출력과 작업 결과를 유지한다.
-메인·NG 컨베이어와 PCB 안착에는 중단 이력에 따른 차단 플래그나 수동 확인 단계가 없다.
-캐리어·PCB 재실, NG 픽업 보유 입력, 중단 이력은 START 차단 조건이 아니다.
-STOP 뒤 새 START는 현재 센서·축 피드백과 해당 캐리어의 작업 결과로 동작을 선택한다.
-RESET은 장치 알람을 해제하며 운전이나 작업 완료 처리를 하지 않는다.
+START를 누를 때 현재 소재를 확인한다. Supply·Placement의 PCB·진공, 헤드 진공·슈팅 튜브 볼트가
+남아 있거나 S1/S2/S3에 미완료 캐리어가 있으면 초기화·출력·이동 전에 시작을 거절한다.
+캐리어 완료 여부와 작업 결과는 정지 중 센서 OFF→ON으로 지우지 않는다. 잠깐 들었다 놓아도
+미완료 캐리어는 다음 START에서 차단된다. START가 승인되면 비어 있는 스테이션의 작업만 비운다.
+완료 캐리어는 완료 상태를 유지하여 다음 스테이션으로 넘긴다. 신규 작업은 실제 컨베이어 반입 동작과
+단독 유닛 Repeat의 완료 후 다음 회차 시작에서 만든다. 셔틀·NG 컨베이어의 잔류 캐리어는 차단하지 않는다.
+소재 차단 안내는 센서 변화나 RESET으로 해제하지 않는다. 작업자가 제거한 뒤 START를 다시 누르면
+현재 센서로 재확인한다. START 버튼은 이 재확인을 위해 누를 수 있으며, 거절 시 장비는 움직이지 않는다.
+비상정지·도어·공압·모션 인터록의 운전 중 감시는 유지한다.
+RESET은 장치 알람을 해제하며 운전이나 작업 완료 처리를 하지 않는다. 지지 출력과 작업 결과를 유지한다.
 NG 픽업은 현재 보유·지지·목적지 피드백으로 다음 동작을 판단한다.
 복구창, `StartPreparation`, `PrepareRecovery`, 수동 완료 결과 생성은 제거했다.
 
-검사는 새 START마다 현재 대상 PCB의 첫 데이터 매트릭스부터 다시 촬영하고,
-PCB 1의 볼트 전체 → PCB 2의 데이터 매트릭스·볼트 전체 순서로 진행한다.
-저장된 바코드·볼트 결과로 다음 포인트를 선택하지 않는다. 결과와 PCB 번호는 같은 캐리어에 유지하며,
-현재 루프의 표시 대상은 실행 종료 시 버린다. 새 캐리어 입력이 새 작업을 만든다.
-체결은 새 START마다 첫 볼트부터 공급·체결한다. 완료 결과 딕셔너리는 품질 기록이며 실행할 볼트를 고르는 조건으로 쓰지 않는다.
-중단된 볼트 번호·픽업 시도·미수집 결과의 보관과 재수거 API는 없다. ADC 이벤트 번호와 RUN ON/OFF 관찰 이력은 현재 명령 안에서만 사용한다.
-픽업 차례에 현재 진공이 ON이면 픽업 위치 방문을 생략하고, OFF이면 픽업하러 간다. 별도 볼트 보유 플래그는 없다.
+새 캐리어 검사는 PCB 1의 데이터 매트릭스·볼트 전체 → PCB 2의 데이터 매트릭스·볼트 전체 순서로 진행한다.
+저장된 바코드·볼트 결과로 다음 포인트를 선택하지 않는다. 체결도 첫 볼트부터 공급·체결하며,
+완료 결과 딕셔너리는 품질 기록이다. 중단된 캐리어를 START로 재작업하지 않는다.
+중단된 볼트 번호·픽업 시도·미수집 결과의 보관과 재수거 API는 없다.
+ADC 이벤트 번호와 RUN ON/OFF 관찰 이력은 현재 명령 안에서만 사용한다.
 각 체결은 현재 위치, 컨트롤러 정지·준비와 프리셋, 새 하강 출력과 새 체결 결과를 확인한다.
 하강 출력 실패나 STOP으로 끝난 명령을 이전 ADC 결과로 OK 처리하지 않는다.
-수거한 품질 결과와 NG 판정은 같은 캐리어에 보존하며, 재시작 위치를 추정하거나 다른 캐리어에 적용하지 않는다.
-STOP이 끝난 뒤에는 중단 이력으로 수동 체결 테스트나 RESET을 차단하지 않는다.
+수거한 품질 결과와 NG 판정은 같은 캐리어에 보존하며 다른 캐리어에 적용하지 않는다.
+수동 체결 테스트와 RESET은 자동 START의 소재 확인과 별개다.
 
 NG 컨베이어의 목적지와 배출 버튼 확인 단계는 현재 실행에만 속한다.
 이송·배출 중 중단되면 실행 단계를 버린다. 새 START는 현재 센서로 동작을 선택한다.
@@ -601,10 +601,9 @@ S3를 올릴 때 메인은 `CarrierSeatingRequested`로 요청하고 검사 루�
 NG 픽업 XY 이동 완료 → 백업 플레이트 상승 → 스토퍼 하강을 순서대로 기다린다.
 좌표 비교로 상승을 허가하지 않으며 요청은 STOP 시 버린다. 검사 전 물류 대기와 검사 후 NG/후단 대기도 같은 순서다.
 Repeat의 S3 역인계도 캐리어를 든 채 픽업 XY로 복귀한 후 플레이트를 올리고 픽업을 내린다.
-착좌 중 STOP 뒤에도 RESET 없이 현재 상승·하강 피드백으로 새 START를 실행한다.
-집중 검사는 `InterruptedSeatingRestartsFromCurrentPresenceWithoutReset`, `InterruptedPlateRaiseUsesFeedbackOnRestartWithoutLoweringSupport`,
-`InterruptedTransferKeepsPendingResultsWithoutMovingThemOnLaterInput`, `ActiveTransferKeepsOriginalResultsWhenSourceGetsAnotherCarrier`,
-`InterruptedConveyorStartsWithCarrierStillPresentWithoutReset`, `ResetPreservesSeatedCarrierAndAllowsStartingItsTransfer`다.
+착좌 중 STOP된 미완료 캐리어는 제거한 뒤 START한다. 완료 캐리어는 지지를 유지하고 이송할 수 있다.
+집중 검사는 `StartChecksHeldMaterialsOnlyWhenPressed`, `StartRejectsUnfinishedCarrierEvenAfterRemovalAndReplacement`,
+`LostAndRestoredArrivalDoesNotInheritDepartingResults`, `ResetPreservesSeatedCarrierAndAllowsStartingItsTransfer`다.
 셔틀의 `_cycleReturnPending`은 제거했다. `CycleAsync`는 하강 완료 후 현재 캐리어와
 픽업 상승을 확인하고 상승한다. 중단된 상승을 별도로 기억해 이어가지 않는다.
 전체 Repeat도 저장 단계 분기 없이 정방향 → NG 반환/셔틀 왕복 → Station 3 → 입구 순서로 실행한다.
