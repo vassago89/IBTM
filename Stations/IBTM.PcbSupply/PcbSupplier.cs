@@ -15,7 +15,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     private readonly PcbSupplySettings _settings;
     private readonly UnitSettings _units;
     private readonly RecipeManager _recipes;
-    // Slot progress belongs only to the current run.
+    // Pickup scanning always starts from PCB 1 on START.
     private PickStep _pickStep;
     private bool _repeat;
     // Completed stage position, invalidated by motion/state changes; never proof of current readiness.
@@ -203,7 +203,10 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
     }
 
-    // Current run phase; START always selects a fresh initial phase.
+    public bool IsHandoffRestartAllowed => !_repeat && Phase == PcbSupplyState.HandingOff
+        && Handoff == PcbSupplyHandoff.Holding;
+
+    // START is fresh except for a secured PCB already waiting for Placement.
     public PcbSupplyState Phase { get; private set; }
 
     private void EnterStep(PcbSupplyState step, string? target = null)
@@ -230,13 +233,17 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         if (cancellationToken.IsCancellationRequested)
             return;
-        if (_units.PcbSupply && Pcb != PcbSupplyPcbState.None)
+        var continueHandoff = !repeat && IsHandoffRestartAllowed;
+        if (_units.PcbSupply && Pcb != PcbSupplyPcbState.None && !continueHandoff)
             throw new InvalidOperationException("Remove the Supply PCB before starting a new run.");
         Exception? failure = null;
         _repeat = repeat;
         _pickStep = PickStep.Pcb1;
-        _handoffPosition = null;
-        Phase = PcbSupplyState.MovingToPickup;
+        if (!continueHandoff)
+        {
+            _handoffPosition = null;
+            Phase = PcbSupplyState.MovingToPickup;
+        }
         try
         {
             BeginRun(_units.PcbSupply ? Phase : PcbSupplyState.Disabled);
@@ -572,8 +579,9 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         finally
         {
             placement.Changed -= WakeRun;
+            if (!IsHandoffRestartAllowed)
+                _handoffPosition = null;
             _repeat = false;
-            _handoffPosition = null;
             try
             {
                 StopUpstream();

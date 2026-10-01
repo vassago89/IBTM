@@ -249,11 +249,17 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _targetIndex = 0;
         _repeatTrip = null;
         _handoffPosition = null;
-        Phase = repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff;
+        Phase = _units.PcbPlacement ? PcbPlacementState.Retracting
+            : repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff;
         try
         {
             BeginRun(_units.PcbPlacement ? Phase : PcbPlacementState.Disabled);
             _supply.Changed += WakeRun;
+            if (_units.PcbPlacement)
+            {
+                await MoveToStandbyAsync(TargetHeatSink ?? HeatSinkSlot.HeatSink1, repeat, cancellationToken);
+                EnterStep(repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
+            }
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (!Station.CarrierPresent || Station.Completed)
@@ -469,7 +475,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     break;
                 }
                 case PcbPlacementState.PreparingPlacement:
-                    await PreparePlacementAsync(heatSink ?? HeatSinkSlot.HeatSink1, repeat, cancellationToken);
+                    await MoveToStandbyAsync(heatSink ?? HeatSinkSlot.HeatSink1, repeat, cancellationToken);
                     // Complete this handoff before the next move invalidates its departure position.
                     NotifyChanged();
                     while (true)
@@ -530,7 +536,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         _targetIndex++;
                         checkingPcbPresence = false;
                         _repeatTrip = null;
-                        // Complete the rise before marking the carrier complete.
+                        // Return to standby before allowing the carrier to leave.
                         EnterStep(PcbPlacementState.Retracting);
                     }
                     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -544,7 +550,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     break;
                 }
                 case PcbPlacementState.Retracting:
-                    await PreparePlacementAsync(null, repeat, cancellationToken);
+                    await MoveToStandbyAsync(null, repeat, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
                     var carrierComplete = TargetHeatSink is null;
                     if (carrierComplete)
@@ -571,7 +577,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         }
     }
 
-    private async Task PreparePlacementAsync(HeatSinkSlot? departure, bool repeat, CancellationToken cancellationToken)
+    private async Task MoveToStandbyAsync(HeatSinkSlot? departure, bool repeat, CancellationToken cancellationToken)
     {
         var carryingPcb = PcbSecured;
         using var preparation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -588,8 +594,11 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, carryingPcb && !repeat, preparation.Token);
             await SetLiftDownAsync(false, preparation.Token);
             await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, preparation.Token);
-            if (carryingPcb && departure is { } destination)
+            if (departure is { } destination)
                 await MoveAxisAsync(MotionAxis.Y, GetHeatSinkPosition(destination).Y, preparation.Token);
+            // After placement, keep the heat-sink Y and return only X at standby Z.
+            if (!carryingPcb)
+                await MoveAxisAsync(MotionAxis.X, _settings.HandoffPosition.X, preparation.Token);
             preparation.Token.ThrowIfCancellationRequested();
             var position = _motion.Position;
             _handoffPosition = new() { X = position.X, Y = position.Y, Z = position.Z };

@@ -698,6 +698,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
                 _startMaterialBlock = StartBlockReason.None;
                 if (_io.GetInput(InputIo.PcbSupplyPcbDetected)
+                        && (_state.RepeatEnabled || !_pcbSupply.IsHandoffRestartAllowed)
                     || _io.GetInput(InputIo.PcbPlacementPcbDetected)
                     || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
                     || _io.GetInput(InputIo.PickupHeadVacuumDetected)
