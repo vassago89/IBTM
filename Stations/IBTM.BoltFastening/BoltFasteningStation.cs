@@ -223,6 +223,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads raised.");
                     var completedJob = Station.CurrentJob;
                     await MoveZAsync(_settings.SafeZ, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
                     Station.StartRepeat(completedJob);
                 }
                 if (testJob is not null)

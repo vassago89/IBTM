@@ -2287,7 +2287,8 @@ public sealed class BoltFasteningTests
         await station.MoveZAsync(settings.SafeZ);
         motion.PositionChanged += (_, _, z) =>
             movedBelowTravelZ |= motion.IsMovingHorizontal
-                && Math.Abs(z - settings.SafeZ) > MotionServiceBase.PositionToleranceMillimeters;
+                // Startup travels at Z=0, above the normal Safe Z.
+                && z > settings.SafeZ + MotionServiceBase.PositionToleranceMillimeters;
         await station.CheckReadyAsync();
         shootingBus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
@@ -2380,7 +2381,7 @@ public sealed class BoltFasteningTests
             };
             await station.RunAsync(carrierChange.Token);
             Assert.True(carrierReplaced);
-            Assert.Empty(previousAssembly.ShootingBoltResults);
+            Assert.True(Assert.Single(previousAssembly.ShootingBoltResults).Value.Success);
             Assert.Empty(work.Assemblies);
             Assert.False(work.Completed);
         }

@@ -1087,8 +1087,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     var position = _motion.Position;
                     var center = new AxisPosition { X = position.X, Y = position.Y };
                     var frame = await CaptureWithLightAsync(lightLevel, cancellationToken, keepLiveView: true).ConfigureAwait(false);
-                    if (!MotionServiceBase.IsAt(_motion, center))
-                        throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);
                 },
                 cancellationToken).ConfigureAwait(false);
