@@ -42,7 +42,7 @@ public partial class MainViewModel : ObservableObject
     private readonly DiagnosticWindowManager _windows;
     private readonly ILogger<MainViewModel> _log;
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsOpenOutputsAllowed))]
+    [NotifyPropertyChangedFor(nameof(IsMaintenanceAccessAllowed))]
     public partial bool IsClosing { get; set; }
     [ObservableProperty]
     public partial string? CloseError { get; set; }
@@ -68,9 +68,9 @@ public partial class MainViewModel : ObservableObject
         ILogger<MainViewModel> log)
     {
         OpenInputsCommand = new RelayCommand(windows.OpenInputs, () => IsOpenDiagnosticAllowed);
-        OpenOutputsCommand = new RelayCommand(OpenOutputs);
+        OpenOutputsCommand = new RelayCommand(windows.OpenOutputs, () => IsOpenDiagnosticAllowed);
         OpenMotionCommand = new RelayCommand(windows.OpenMotion, () => IsOpenDiagnosticAllowed);
-        OpenAdcProtocolCommand = new RelayCommand(windows.OpenAdcProtocol, () => IsOpenAdcProtocolAllowed);
+        OpenAdcProtocolCommand = new RelayCommand(windows.OpenAdcProtocol, () => IsOpenDiagnosticAllowed);
         OpenLogsCommand = new RelayCommand(windows.OpenLogs, () => IsOpenDiagnosticAllowed);
         ResetCommand = new AsyncRelayCommand(
             ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -136,16 +136,18 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // Window access follows selector mode only, not alarm/busy output admission.
-    public bool IsOpenOutputsAllowed => !_shuttingDown && !IsClosing && !_state.AutoMode;
-
-    private bool IsOpenAdcProtocolAllowed => !_shuttingDown;
+    // Manual work may stay open during its own operations, but never during production.
+    public bool IsMaintenanceAccessAllowed
+    {
+        get => !_shuttingDown && !IsClosing && !_state.AutoMode && !_state.AutomaticRunning;
+    }
 
     public bool CurrentPageEnabled
     {
         get
         {
             return !NavigateCommand.IsRunning
+                && IsNavigateAllowed(SelectedPage)
                 && (SelectedPage is AppPage.Operation or AppPage.Inspection or AppPage.Settings or AppPage.ManualHardware
                     || !RecipeEditor.LoadCommand.IsRunning);
         }
@@ -164,12 +166,6 @@ public partial class MainViewModel : ObservableObject
     public IRelayCommand OpenInputsCommand { get; }
 
     public IRelayCommand OpenOutputsCommand { get; }
-
-    private void OpenOutputs()
-    {
-        if (IsOpenOutputsAllowed)
-            _windows.OpenOutputs();
-    }
 
     public IRelayCommand OpenMotionCommand { get; }
 
@@ -317,15 +313,13 @@ public partial class MainViewModel : ObservableObject
 
     public bool IsNavigateAllowed(AppPage page)
     {
-        return !_shuttingDown
-            && (page is AppPage.Operation or AppPage.Inspection
-                || !_state.AutomaticRunning
-                    && page switch
-                    {
-                        AppPage.Settings or AppPage.ManualHardware => true,
-                        AppPage.Teaching => !_state.AutoMode,
-                        _ => false,
-                    });
+        return !_shuttingDown && !IsClosing
+            && page switch
+            {
+                AppPage.Operation or AppPage.Inspection => true,
+                AppPage.Settings or AppPage.ManualHardware or AppPage.Teaching => IsMaintenanceAccessAllowed,
+                _ => false,
+            };
     }
 
     private void ActivateCurrentPage()
@@ -362,7 +356,7 @@ public partial class MainViewModel : ObservableObject
             return;
         OnPropertyChanged(nameof(CurrentPageEnabled));
         OnPropertyChanged(nameof(RecipeEditingEnabled));
-        OnPropertyChanged(nameof(IsOpenOutputsAllowed));
+        OnPropertyChanged(nameof(IsMaintenanceAccessAllowed));
         if (SelectedPage == AppPage.Settings)
             _settingsViewModel.RefreshCommands();
 
@@ -373,11 +367,9 @@ public partial class MainViewModel : ObservableObject
         {
             if (_shuttingDown)
                 return;
-            if (!IsOpenOutputsAllowed)
-                _windows.CloseOutputs();
-            var showOperation = _state.AutomaticRunning && SelectedPage is not (AppPage.Operation or AppPage.Inspection)
-                || _state.AutoMode && SelectedPage == AppPage.Teaching;
-            if (showOperation && NavigationError is null && NavigateCommand.CanExecute(AppPage.Operation))
+            if (!IsMaintenanceAccessAllowed)
+                _windows.CloseMaintenanceWindows();
+            if (!IsNavigateAllowed(SelectedPage) && NavigationError is null && NavigateCommand.CanExecute(AppPage.Operation))
                 NavigateCommand.Execute(AppPage.Operation);
         });
     }

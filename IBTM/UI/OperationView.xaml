@@ -14,18 +14,10 @@
             <StackPanel MinWidth="94" Margin="8,4">
                 <TextBlock Text="{Binding Number, StringFormat={ui:Text 'PCB {0}'}}" FontWeight="SemiBold"
                     Foreground="{StaticResource TextPrimaryBrush}"/>
-                <TextBlock x:Name="ResultText" Margin="0,4,0,0"
+                <TextBlock Margin="0,4,0,0"
                     Text="{Binding Result, Converter={StaticResource UiTextConverter}}"
-                    Foreground="{StaticResource TextMutedBrush}"/>
+                    Tag="{Binding Result}" Style="{StaticResource ResultValueStyle}"/>
             </StackPanel>
-            <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding Result}" Value="{x:Static core:AssemblyResult.Ok}">
-                    <Setter TargetName="ResultText" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Result}" Value="{x:Static core:AssemblyResult.Ng}">
-                    <Setter TargetName="ResultText" Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                </DataTrigger>
-            </DataTemplate.Triggers>
         </DataTemplate>
     </UserControl.Resources>
 
@@ -190,7 +182,6 @@
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding RecentFastening.Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Pending}">
                                                         <Setter Property="Text" Value="{ui:Text 'No measurement'}"/>
-                                                        <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -232,7 +223,7 @@
                     <ControlTemplate TargetType="ListBox">
                         <Grid>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="28"/>
+                                <RowDefinition Height="32"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <Grid>
@@ -242,7 +233,19 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{ui:Text 'PCB Results'}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{ui:Text 'PCB Results'}" FontWeight="SemiBold" VerticalAlignment="Center"
+                                        Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,24,0"/>
+                                    <TextBlock Text="{ui:Text 'Total'}" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="{Binding TotalCount, StringFormat=N0}" Margin="8,0,24,0" FontSize="22" FontWeight="SemiBold"
+                                        Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="OK" VerticalAlignment="Center" Foreground="{StaticResource AccentGreenBrush}"/>
+                                    <TextBlock Text="{Binding OkCount, StringFormat=N0}" Margin="8,0,24,0" FontSize="22" FontWeight="SemiBold"
+                                        Foreground="{StaticResource AccentGreenBrush}"/>
+                                    <TextBlock Text="NG" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}"/>
+                                    <TextBlock Text="{Binding NgCount, StringFormat=N0}" Margin="8,0,16,0" FontSize="22" FontWeight="SemiBold"
+                                        Foreground="{StaticResource AccentRedBrush}"/>
+                                    <Button Content="{ui:Text 'Clear counts'}" Command="{Binding ClearCountsCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" Padding="12,2" MinHeight="24" VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <TextBlock Grid.Column="1" Margin="20,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                     Foreground="{StaticResource AccentRedBrush}">

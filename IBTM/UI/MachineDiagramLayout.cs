@@ -29,7 +29,7 @@ public static class MachineDiagramLayout
     public const double StatusTop = 52;
     public const double DetailTop = 108;
     public const double InspectionWidth = 498;
-    public const double PlanHeight = 720;
+    public const double PlanHeight = 680;
     public const double NgConveyorTop = 132;
     public const double CarrierBorder = 2;
     public const double CarrierPadding = 9;

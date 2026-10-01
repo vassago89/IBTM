@@ -84,6 +84,8 @@ public sealed class DiagnosticWindowManager
 
     public void OpenOutputs()
     {
+        if (_state.AutoMode || _state.AutomaticRunning)
+            return;
         if (_output is not null)
         {
             _output.Activate();
@@ -94,13 +96,18 @@ public sealed class DiagnosticWindowManager
         ShowWindow(_output);
     }
 
-    public void CloseOutputs()
+    public void CloseMaintenanceWindows()
     {
         _output?.Close();
+        _motion?.Close();
+        _adc?.Close();
+        _boltTest?.Close();
     }
 
     public void OpenMotion()
     {
+        if (_state.AutoMode || _state.AutomaticRunning)
+            return;
         if (_motion is not null)
         {
             _motion.Activate();
@@ -118,6 +125,8 @@ public sealed class DiagnosticWindowManager
 
     public void OpenAdcProtocol()
     {
+        if (_state.AutoMode || _state.AutomaticRunning)
+            return;
         if (_adc is not null)
         {
             _adc.Activate();
@@ -152,13 +161,13 @@ public sealed class DiagnosticWindowManager
 
     public void OpenBoltStationTest()
     {
+        if (!_state.ManualMode || _state.AutomaticRunning)
+            return;
         if (_boltTest is not null)
         {
             _boltTest.Activate();
             return;
         }
-        if (!_state.ManualMode)
-            return;
         _boltTest = new(_boltTestViewModel);
         _boltTest.Closed += (_, _) => _boltTest = null;
         ShowWindow(_boltTest, modal: true);
@@ -190,6 +199,7 @@ public sealed class DiagnosticWindowManager
         try
         {
             window.Owner = Owner;
+            window.ShowInTaskbar = false;
             if (modal)
                 window.ShowDialog();
             else

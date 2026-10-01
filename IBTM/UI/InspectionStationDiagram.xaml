@@ -8,10 +8,31 @@
     d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
     Width="{x:Static ui:MachineDiagramLayout.InspectionWidth}"
     Height="{x:Static ui:MachineDiagramLayout.PlanHeight}">
+    <UserControl.Resources>
+        <Style x:Key="BarcodeResultStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="Text" Value="{ui:Text 'NG · Not Read'}">
+                    <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
     <Grid>
         <Canvas>
-            <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeaderTop}"
-                Text="{ui:Text 'Inspection Station'}" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
+            <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeaderTop}"
+                Width="458">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{ui:Text 'Inspection Station'}" Style="{StaticResource TitleStyle}" FontWeight="Bold"
+                    TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="CycleTime" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                    FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{Binding Inspection.Station.LastCycleSeconds, StringFormat='CT · {0:0.0} s',
+                        TargetNullValue='CT · —', FallbackValue='CT · —'}"/>
+            </Grid>
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}"
                 Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54"
                 Tag="{Binding InspectionDisplayState}"
@@ -81,7 +102,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{ui:Text 'PCB 1'}" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
                         <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
-                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Style="{StaticResource BarcodeResultStyle}"
                             Text="{Binding InspectionPcb1Barcode, TargetNullValue={ui:Text 'Not Read'}}"
                             ToolTip="{Binding InspectionPcb1Barcode}"/>
                     </Grid>
@@ -93,7 +114,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{ui:Text 'PCB 2'}" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
                         <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
-                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Style="{StaticResource BarcodeResultStyle}"
                             Text="{Binding InspectionPcb2Barcode, TargetNullValue={ui:Text 'Not Read'}}"
                             ToolTip="{Binding InspectionPcb2Barcode}"/>
                     </Grid>

@@ -161,35 +161,16 @@
                                         <TextBlock Grid.Column="1" Text="{Binding Label}" Style="{StaticResource TestCell}" FontWeight="SemiBold"
                                             TextTrimming="CharacterEllipsis" ToolTip="{Binding Label}"/>
                                         <TextBlock Grid.Column="2" Text="{Binding Bolt.Head, Converter={StaticResource UiTextConverter}}" Style="{StaticResource TestCell}"/>
-                                        <TextBlock Grid.Column="3" Text="{Binding Status, Converter={StaticResource UiTextConverter}}">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock" BasedOn="{StaticResource TestCell}">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Result.Success}" Value="True"><Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/></DataTrigger>
-                                                        <DataTrigger Binding="{Binding Result.Success}" Value="False"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="Dry run"><Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/></DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="Running"><Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/></DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                        <TextBlock Grid.Column="3" Text="{Binding Status, Converter={StaticResource UiTextConverter}}"
+                                            Tag="{Binding Status}" Style="{StaticResource ResultValueStyle}" VerticalAlignment="Center" Margin="8,0"/>
                                         <TextBlock Grid.Column="4" Style="{StaticResource TestCell}">
                                             <Run Text="{Binding Result.Torque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                             <Run Text=" / "/>
                                             <Run Text="{Binding Result.Controller.TargetTorque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                         </TextBlock>
                                         <StackPanel Grid.Column="5" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Result.TotalTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource TestCell}">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Ok}"><Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/></DataTrigger>
-                                                            <DataTrigger Binding="{Binding Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Ng}"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
-                                                            <DataTrigger Binding="{Binding Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Pending}"><Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/></DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                            <TextBlock Text="{Binding Result.TotalTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
+                                                Tag="{Binding Result.TurnsResult}" Style="{StaticResource ResultValueStyle}" VerticalAlignment="Center" Margin="8,0"/>
                                             <TextBlock Style="{StaticResource TestCell}" FontSize="11" Foreground="{StaticResource TextMutedBrush}">
                                                 <Run Text="{ui:Text 'Minimum '}"/>
                                                 <Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>

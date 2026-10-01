@@ -29,6 +29,7 @@ public sealed record RecentFasteningView(string BoltName, HeatSinkSlot HeatSink,
 public partial class OperationViewModel : ObservableObject
 {
     private readonly MachineOptions _options;
+    private readonly Lock _countGate;
     private readonly MachineDiagramMapper _map;
     private volatile bool _active;
     private const int PcbHistoryPageSize = 100;
@@ -60,6 +61,8 @@ public partial class OperationViewModel : ObservableObject
         DiagnosticWindowManager windows,
         ILogger<OperationViewModel> log)
     {
+        _countGate = new();
+        ClearCountsCommand = new RelayCommand(ClearCounts);
         OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest);
         StartCommand = new AsyncRelayCommand(StartAsync);
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
@@ -123,6 +126,7 @@ public partial class OperationViewModel : ObservableObject
         conveyor.Changed += OnMainConveyorChanged;
         conveyor.StepChanged += OnMainConveyorChanged;
         inspectionStation.InspectionCaptured += OnInspectionCaptured;
+        inspectionStation.InspectionCompleted += OnInspectionCompleted;
         ngConveyor.Changed += OnNgConveyorChanged;
         ngConveyor.StepChanged += OnNgConveyorChanged;
         inspectionStation.Changed += OnInspectionChanged;
@@ -411,6 +415,36 @@ public partial class OperationViewModel : ObservableObject
     }
 
     public IRelayCommand OpenBoltStationTestCommand { get; }
+
+    public IRelayCommand ClearCountsCommand { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TotalCount))]
+    public partial long OkCount { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TotalCount))]
+    public partial long NgCount { get; private set; }
+
+    public long TotalCount => OkCount + NgCount;
+
+    private void OnInspectionCompleted(int okCount, int ngCount)
+    {
+        lock (_countGate)
+        {
+            OkCount += okCount;
+            NgCount += ngCount;
+        }
+    }
+
+    private void ClearCounts()
+    {
+        lock (_countGate)
+        {
+            OkCount = 0;
+            NgCount = 0;
+        }
+    }
 
     public IAsyncRelayCommand StartCommand { get; }
 

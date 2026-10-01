@@ -540,6 +540,29 @@ public sealed class UiBindingTests
         operationView.Arrange(new Rect(0, 0, 1600, 900));
         operationView.UpdateLayout();
 
+        foreach (var (diagram, station) in new (UserControl, ConveyorStation)[]
+        {
+            (new PcbTransferDiagram(), operation.Placement.Station),
+            (new BoltFasteningDiagram(), operation.Fastening.Station),
+            (new InspectionStationDiagram(), operation.Inspection.Station),
+        })
+        {
+            diagram.DataContext = operation;
+            var cycleTime = (TextBlock)diagram.FindName("CycleTime");
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.Equal("CT · —", cycleTime.Text);
+            var job = station.CurrentJob;
+            station.Restart(job);
+            await Task.Run(() => station.Complete(job, TimeSpan.FromSeconds(12.3)));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => cycleTime.Text == "CT · 12.3 s", TimeSpan.FromSeconds(2)));
+            station.Restart(job);
+            await Task.Run(() => station.Complete(job));
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.Equal("CT · 12.3 s", cycleTime.Text);
+            station.Restart(job);
+        }
+
         io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
         var reviewLanguage = UiText.Culture.Name == "ko" ? UiLanguage.Korean : UiLanguage.English;
         UiText.Apply(UiLanguage.Korean);
@@ -688,6 +711,18 @@ public sealed class UiBindingTests
         }
 
         var diagnostics = services.GetRequiredService<DiagnosticWindowManager>();
+        var navigation = services.GetRequiredService<MainViewModel>();
+        var machineState = services.GetRequiredService<MachineState>();
+        var maintenanceButtons = new[]
+        {
+            navigation.OpenOutputsCommand, navigation.OpenMotionCommand, navigation.OpenAdcProtocolCommand,
+        }.Select(command =>
+        {
+            var button = new Button { Command = command };
+            button.SetBinding(UIElement.IsEnabledProperty,
+                new Binding(nameof(MainViewModel.IsMaintenanceAccessAllowed)) { Source = navigation });
+            return button;
+        }).ToArray();
         foreach (var (windowType, open) in new (Type Type, Action Open)[]
         {
             (typeof(InputWindow), diagnostics.OpenInputs),
@@ -733,7 +768,7 @@ public sealed class UiBindingTests
                     _ = Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                     {
                         reopened = Application.Current.Windows.Cast<Window>().Single(window => window.GetType() == windowType);
-                        reopened.Close();
+                        io.SetInput(InputIo.AutoMode, false);
                     }));
                 }
                 open();
@@ -741,13 +776,26 @@ public sealed class UiBindingTests
                 {
                     reopened = Application.Current.Windows.Cast<Window>().Single(window => window.GetType() == windowType);
                     Assert.True(reopened.IsVisible);
-                    reopened.Close();
+                    await Task.Run(() => io.SetInput(InputIo.AutoMode, false));
                 }
                 Assert.NotNull(reopened);
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                    () => maintenanceButtons.All(button => !button.IsEnabled), TimeSpan.FromSeconds(2)));
+                if (windowType == typeof(InputWindow) || windowType == typeof(LogWindow))
+                {
+                    Assert.True(reopened.IsVisible); // Read-only windows stay available in AUTO.
+                    reopened.Close();
+                }
                 Assert.True(await VirtualTestSupport.WaitUntilAsync(() => !reopened.IsVisible, TimeSpan.FromSeconds(2)));
+                if (windowType != typeof(InputWindow) && windowType != typeof(LogWindow))
+                {
+                    open(); // Direct calls must not bypass the sidebar restriction.
+                    Assert.DoesNotContain(Application.Current.Windows.Cast<Window>(), window => window.GetType() == windowType);
+                }
             }
             finally
             {
+                io.SetInput(InputIo.AutoMode, true);
                 diagnostics.Owner = null;
                 invalidOwner?.Close();
                 foreach (var window in Application.Current.Windows.Cast<Window>()
@@ -759,6 +807,44 @@ public sealed class UiBindingTests
                     resources[windowType] = previousStyle;
             }
         }
+
+        foreach (var maintenancePage in new[] { AppPage.ManualHardware, AppPage.Teaching, AppPage.Settings })
+        {
+            await navigation.NavigateCommand.ExecuteAsync(maintenancePage);
+            Assert.Equal(maintenancePage, navigation.SelectedPage);
+            await Task.Run(() => io.SetInput(InputIo.AutoMode, false));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => navigation.SelectedPage == AppPage.Operation && !navigation.NavigateCommand.IsRunning,
+                TimeSpan.FromSeconds(2)));
+            await navigation.NavigateCommand.ExecuteAsync(maintenancePage);
+            Assert.Equal(AppPage.Operation, navigation.SelectedPage);
+            await navigation.NavigateCommand.ExecuteAsync(AppPage.Inspection);
+            Assert.Equal(AppPage.Inspection, navigation.SelectedPage);
+            io.SetInput(InputIo.AutoMode, true);
+        }
+        try
+        {
+            // Repeat production can run while the selector remains in MANUAL.
+            await Task.Run(() => machineState.AutomaticRunning = true);
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => maintenanceButtons.All(button => !button.IsEnabled), TimeSpan.FromSeconds(2)));
+            Assert.True(navigation.IsNavigateAllowed(AppPage.Operation));
+            Assert.True(navigation.IsNavigateAllowed(AppPage.Inspection));
+            Assert.False(navigation.IsNavigateAllowed(AppPage.ManualHardware));
+            Assert.False(navigation.IsNavigateAllowed(AppPage.Teaching));
+            Assert.False(navigation.IsNavigateAllowed(AppPage.Settings));
+            foreach (var button in maintenanceButtons)
+                button.Command.Execute(null);
+            Assert.DoesNotContain(Application.Current.Windows.Cast<Window>(),
+                window => window is OutputWindow or MotionDiagnosticsWindow or AdcProtocolWindow);
+        }
+        finally
+        {
+            machineState.AutomaticRunning = false;
+        }
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(
+            () => maintenanceButtons.All(button => button.IsEnabled), TimeSpan.FromSeconds(2)));
+        await navigation.NavigateCommand.ExecuteAsync(AppPage.Operation);
 
         var conveyorEnabled = new CheckBox();
         conveyorEnabled.SetBinding(

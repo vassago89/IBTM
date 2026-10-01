@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +21,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private RepeatPcbTrip? _repeatTrip;
     private HeatSinkSlot[]? _runTargets;
     private int _targetIndex;
+    private long _cycleStartedAt;
     // Completed stage position, invalidated by motion/state changes; never proof of current readiness.
     private AxisPosition? _handoffPosition;
 
@@ -362,8 +364,11 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     ? "unfinished PCB handoff" : Station.Completed ? "carrier transfer" : "carrier seated");
             return false;
         }
-        if (Station.CarrierSeated && !Station.Completed)
-            _runTargets ??= Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
+        if (Station.CarrierSeated && !Station.Completed && _runTargets is null)
+        {
+            _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
+            _cycleStartedAt = Stopwatch.GetTimestamp();
+        }
         var job = _repeatTrip?.Job ?? Station.CurrentJob;
         var activePcb = IsRunning ? heatSink : null;
         var targetChanged = ActivePcb != activePcb;
@@ -580,9 +585,11 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     var carrierComplete = TargetHeatSink is null;
                     if (carrierComplete)
                     {
+                        var cycleTime = _runTargets is { Length: > 0 }
+                            ? Stopwatch.GetElapsedTime(_cycleStartedAt) : (TimeSpan?)null;
                         _runTargets = null;
                         _targetIndex = 0;
-                        Station.Complete(job);
+                        Station.Complete(job, cycleTime);
                     }
                     EnterStep(repeat && carrierComplete ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
                     break;

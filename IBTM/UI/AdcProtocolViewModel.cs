@@ -66,6 +66,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ResultMessage { get; set; }
     [ObservableProperty]
+    public partial bool? ResultSuccess { get; private set; }
+    [ObservableProperty]
     public partial string RegisterResult { get; set; } = "-";
     [ObservableProperty]
     public partial string[] PortNames { get; set; }
@@ -246,6 +248,11 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     {
         if (!_disposed)
             RefreshControls();
+    }
+
+    partial void OnResultMessageChanging(string value)
+    {
+        ResultSuccess = null;
     }
 
     public IAsyncRelayCommand ToggleConnectionCommand { get; }
@@ -485,6 +492,12 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                 + UiText.Format($"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n")
                 + UiText.Format($"Time {result.FasteningTimeMilliseconds} ms\n")
                 + UiText.Format($"Result error: {AdcControllerError.Describe(result.Error)}");
+            ResultSuccess = result.Status switch
+            {
+                AdcEventStatus.FasteningOk => true,
+                AdcEventStatus.FasteningNg or AdcEventStatus.Error => false,
+                _ => null,
+            };
         }
         catch (Exception exception)
         {
@@ -776,6 +789,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         ResultMessage = UiText.Format($"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}");
         if (result.Error is not null)
             ResultMessage += $"\n{result.Error}";
+        ResultSuccess = result.Success;
     }
 
     public IRelayCommand RefreshPortsCommand { get; }

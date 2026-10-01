@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -28,6 +29,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     // Selected work belongs only to this run; STOP starts again at the first point.
     private (HeatSinkSlot Pcb, BoltPoint? Bolt)[]? _runPoints;
     private int _pointIndex;
+    private long _cycleStartedAt;
     private ConveyorStation.Job? _runJob;
     private CancellationTokenSource? _inspectionOperation;
     // Scheduling ownership for this job only; never a physical position or restart checkpoint.
@@ -394,6 +396,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 case InspectionStationState.PreparingInspection:
                     EnterStep(state, workId: Station.CurrentJob.Id);
                     ClearInspectionOperation();
+                    _cycleStartedAt = Stopwatch.GetTimestamp();
                     var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt)>();
                     foreach (var pcb in Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent))
                     {
@@ -444,10 +447,26 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     Station.RequireCurrentJob(job);
                     await MoveToWaitingPositionAsync(token);
                     token.ThrowIfCancellationRequested();
+                    var okCount = 0;
+                    var ngCount = 0;
                     foreach (var point in _runPoints!)
-                        if (point.Bolt is null)
-                            Station.GetAssembly(job, point.Pcb).CompleteInspection();
-                    Station.Complete(job);
+                    {
+                        if (point.Bolt is not null)
+                            continue;
+                        var assembly = Station.GetAssembly(job, point.Pcb);
+                        assembly.CompleteInspection();
+                        switch (assembly.Result)
+                        {
+                            case AssemblyResult.Ok:
+                                okCount++;
+                                break;
+                            case AssemblyResult.Ng:
+                                ngCount++;
+                                break;
+                        }
+                    }
+                    Station.Complete(job, Stopwatch.GetElapsedTime(_cycleStartedAt));
+                    InspectionCompleted?.Invoke(okCount, ngCount);
                     ClearInspectionOperation();
                     return true;
                 }
@@ -896,6 +915,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     public event Action? LiveViewChanged;
 
     public event Action<ImageFrame, HeatSinkSlot, Guid?>? InspectionCaptured;
+
+    // Once per completed carrier, counted by individual PCB verdicts.
+    public event Action<int, int>? InspectionCompleted;
 
     public event Action<ImageFrame>? FrameReady
     {

@@ -149,7 +149,8 @@
                             </ScrollViewer>
                             <TextBlock Margin="0,10,0,0"
                                 Text="{Binding ResultMessage}"
-                                TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                Tag="{Binding ResultSuccess}" Style="{StaticResource ResultValueStyle}"
+                                TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas"/>
                         </StackPanel>
                     </ScrollViewer>
                 </DockPanel>

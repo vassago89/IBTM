@@ -104,7 +104,8 @@
                                     <DataTemplate DataType="{x:Type storage:PcbRecord}">
                                         <StackPanel Margin="4,5">
                                             <DockPanel>
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding InspectionResult, Converter={StaticResource UiTextConverter}}" FontSize="12" Margin="6,0,0,0"/>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding InspectionResult, Converter={StaticResource UiTextConverter}}"
+                                                    Tag="{Binding InspectionResult}" Style="{StaticResource ResultValueStyle}" FontSize="12" Margin="6,0,0,0"/>
                                                 <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
                                                     <Run Text="PCB "/><Run Text="{Binding Number, Mode=OneWay}"/>
                                                     <Run Text=" · "/><Run Text="{Binding HeatSink, Mode=OneWay, Converter={StaticResource UiTextConverter}}"/>
@@ -137,7 +138,8 @@
                                             <Image Source="{Binding Image}" Width="48" Height="40" Stretch="Uniform"/>
                                             <StackPanel Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center">
                                                 <DockPanel>
-                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Verdict}" FontWeight="SemiBold" Margin="8,0,4,0"/>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Verdict}" Tag="{Binding Record.Success}"
+                                                        Style="{StaticResource ResultValueStyle}" Margin="8,0,4,0"/>
                                                     <TextBlock Text="{Binding Title}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}"/>
                                                 </DockPanel>
                                                 <TextBlock Text="{Binding Details}" Height="30" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Details}"
@@ -183,7 +185,7 @@
                         </WrapPanel>
                         <TextBlock Text="{Binding ImageSource}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding ImageSource}"/>
                         <TextBlock Text="{Binding OriginalResult}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding OriginalResult}"
-                            Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
+                            Tag="{Binding OriginalImage.Record.Success}" Style="{StaticResource ResultValueStyle}" Margin="0,3,0,0"/>
                         <StackPanel IsEnabled="{Binding IsIdle}" Margin="0,8,0,0">
                             <TextBlock Text="{ui:Text 'Reference image unavailable'}" Height="18" Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,0,6">
                                 <TextBlock.Style>
@@ -256,6 +258,7 @@
                         </Border>
                     </Grid>
                     <TextBlock Grid.Row="2" Height="26" Margin="0,8,0,0" Text="{Binding Preview.Result}" FontWeight="SemiBold" FontSize="17"
+                        Tag="{Binding Preview.Success}" Style="{StaticResource ResultValueStyle}"
                         TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Preview.Result}"/>
                 </Grid>
             </Border>

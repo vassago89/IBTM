@@ -22,6 +22,50 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbHistoryTests
 {
     [Fact]
+    public async Task ProductionCountsClearWithoutChangingPcbHistory()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-counts-{Guid.NewGuid():N}");
+        await using var services = new ServiceCollection().AddSingleton(store)
+            .AddVirtualApplication(settings).BuildServiceProvider();
+        var view = services.GetRequiredService<OperationViewModel>();
+        var inspection = services.GetRequiredService<InspectionStation>();
+        var history = services.GetRequiredService<PcbHistoryWriter>();
+        var assembly = inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.PcbBarcode = null;
+        await history.FlushAsync();
+        Assert.Single(view.PcbRecords);
+        Assert.Equal(0, view.TotalCount); // A partial NG result is not a completed PCB.
+
+        // Publish the same completion event as the inspection sequence, without moving equipment.
+        var completed = (Action<int, int>)typeof(InspectionStation)
+            .GetField(nameof(InspectionStation.InspectionCompleted),
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(inspection)!;
+        await Task.Run(() => completed(1, 2));
+        Assert.Equal(3, view.TotalCount);
+        Assert.Equal(1, view.OkCount);
+        Assert.Equal(2, view.NgCount);
+        assembly.RecordBoltPresence(Guid.NewGuid(), false);
+        await history.FlushAsync();
+        Assert.Equal(3, view.TotalCount);
+
+        var record = Assert.Single(view.PcbRecords);
+        view.ClearCountsCommand.Execute(null);
+        Assert.Equal(0, view.TotalCount);
+        Assert.Equal(0, view.OkCount);
+        Assert.Equal(0, view.NgCount);
+        Assert.Equal(record, Assert.Single(view.PcbRecords));
+        Assert.Equal(record.Number, Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).Number);
+
+        await Task.Run(() => completed(2, 0));
+        Assert.Equal(2, view.TotalCount);
+        Assert.Equal(2, view.OkCount);
+        Assert.Equal(0, view.NgCount);
+    }
+
+    [Fact]
     public void EmptyBoltGuidCannotOverwriteSavedDataMatrixImage()
     {
         var store = VirtualTestSupport.OpenMachineStore();

@@ -21,7 +21,7 @@ public enum StationCylinderState
     Down,
 }
 
-public sealed class ConveyorStation
+public sealed class ConveyorStation : INotifyPropertyChanged
 {
     private readonly IIoService _io;
     private readonly InputIo _backupPlateUp;
@@ -67,6 +67,7 @@ public sealed class ConveyorStation
     public InputIo HeatSink2Input { get; }
 
     public event Action? Changed;
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     public bool CarrierPresent => _io.GetInput(_heatSink1) || _io.GetInput(HeatSink2Input);
 
@@ -226,6 +227,8 @@ public sealed class ConveyorStation
 
     public bool Completed => CarrierPresent && _job.Completed;
 
+    public double? LastCycleSeconds { get; private set; }
+
     public bool IsRestartAllowed => CarrierPresent && _job.RestartAllowed;
 
     public IEnumerable<HeatSinkAssembly> Assemblies => _job.Assemblies.Values;
@@ -292,7 +295,7 @@ public sealed class ConveyorStation
         Changed?.Invoke();
     }
 
-    public void Complete(Job? job = null)
+    public void Complete(Job? job = null, TimeSpan? cycleTime = null)
     {
         lock (s_jobGate)
         {
@@ -301,9 +304,13 @@ public sealed class ConveyorStation
             RequireCurrentJob(job);
             if (job.Completed)
                 return;
+            if (cycleTime is { } duration)
+                LastCycleSeconds = duration.TotalSeconds;
             job.Completed = true;
             job.RestartAllowed = false;
         }
+        if (cycleTime is not null)
+            PropertyChanged?.Invoke(this, new(nameof(LastCycleSeconds)));
         Changed?.Invoke();
     }
 

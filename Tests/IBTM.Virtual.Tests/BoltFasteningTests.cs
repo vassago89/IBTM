@@ -318,6 +318,7 @@ public sealed class BoltFasteningTests
             new HantasSettings { FasteningTimeoutMilliseconds = 100, StatusPollMilliseconds = 10 }, 1, "Virtual", 115200);
         var units = new UnitSettings();
         var work = ConveyorStation.CreateBoltFastening(io);
+        Assert.Null(work.LastCycleSeconds);
         var layout = new PcbLayout
         {
             BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 30, 40)],
@@ -358,6 +359,7 @@ public sealed class BoltFasteningTests
         {
             Assert.True(await WaitUntilAsync(() => work.Completed || run.IsCompleted, TimeSpan.FromSeconds(4)));
             Assert.True(work.Completed, run.Exception?.ToString());
+            Assert.True(work.LastCycleSeconds > 0);
             Assert.True(raisedAfterTimeout);
             Assert.Equal(2, bus.StartWrites);
             var failed = assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)];

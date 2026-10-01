@@ -3428,4 +3428,10 @@ See the application log for details.</value>
   <data name="ready to rework" xml:space="preserve">
     <value>Ready to rework</value>
   </data>
+  <data name="total" xml:space="preserve">
+    <value>Total</value>
+  </data>
+  <data name="clear counts" xml:space="preserve">
+    <value>Clear</value>
+  </data>
 </root>

@@ -25,6 +25,8 @@ public partial class InspectionPreviewViewModel : ObservableObject
     public partial BitmapSource? Overlay { get; set; }
     [ObservableProperty]
     public partial string? Result { get; set; }
+    [ObservableProperty]
+    public partial bool? Success { get; private set; }
 
     public InspectionPreviewViewModel(Recipe recipe)
     {
@@ -134,6 +136,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         if (_dataMatrixHeatSink is null && _bolt is null)
             throw new InvalidOperationException(UiText.Get("Select an image linked to a Data Matrix or bolt before inspecting."));
         Result = null;
+        Success = null;
         var frame = _frame!;
         var region = _sourceRegion ?? throw new InvalidOperationException(UiText.Get("Draw the FOV ROI before inspecting."));
         if (_dataMatrixHeatSink is { } heatSink)
@@ -142,6 +145,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
             var text = await Task.Run(() => DataMatrixReader.Read(frame, region, settings), token);
             token.ThrowIfCancellationRequested();
             Result = string.IsNullOrEmpty(text) ? UiText.Get("Not Read") : text;
+            Success = !string.IsNullOrEmpty(text);
             return;
         }
 
@@ -163,6 +167,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         _brightRatio = null;
         Overlay = null;
         Result = null;
+        Success = null;
     }
 
     private void RefreshBinaryImage()
@@ -192,6 +197,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
             return;
         var minimum = _bolt?.MinimumBrightRatio ?? Recipe.BoltInspection.MinimumBrightRatio;
         Result = UiText.Format($"{(ratio >= minimum ? "OK" : "NG")} · Bright {ratio * 100:0.###}%");
+        Success = ratio >= minimum;
     }
 
     public static BitmapSource CreateBitmap(ImageFrame frame)

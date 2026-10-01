@@ -152,6 +152,7 @@ public sealed class PcbPlacementStateSafetyTests
     public async Task PlacementCompletesOnlyAfterReturningXAtStandbyZ(bool cancelReturn)
     {
         using var rig = new PlacementRig();
+        Assert.Null(rig.Work.LastCycleSeconds);
         await rig.InitializeAsync();
         await rig.ReceiveAsync();
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -162,6 +163,7 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.Single(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
         Assert.Equal(PcbPlacementState.Retracting, rig.Placer.Phase);
+        Assert.Null(rig.Work.LastCycleSeconds);
         var returningX = false;
         var completedBeforeArrival = false;
         rig.Work.Changed += () => completedBeforeArrival |= rig.Work.Completed
@@ -189,6 +191,10 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.True(returningX);
         Assert.False(completedBeforeArrival);
         Assert.Equal(!cancelReturn, rig.Work.Completed);
+        if (cancelReturn)
+            Assert.Null(rig.Work.LastCycleSeconds);
+        else
+            Assert.True(rig.Work.LastCycleSeconds > 0);
         Assert.Equal(rig.Position.Y, rig.Motion.Position.Y);
         Assert.Equal(rig.Settings.HandoffPosition.Z, rig.Motion.Position.Z);
         if (!cancelReturn)

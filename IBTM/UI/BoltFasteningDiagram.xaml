@@ -59,10 +59,18 @@
         <Canvas>
             <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}"
                 Canvas.Top="{x:Static ui:MachineDiagramLayout.HeaderTop}"
-                Width="{x:Static ui:MachineDiagramLayout.PlateWidth}">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                Width="388">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
                 <TextBlock Text="{ui:Text 'Bolt Fastening'}" Style="{StaticResource TitleStyle}" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                <Button Grid.Column="1" Content="{ui:Text 'Test bolts'}" Command="{Binding OpenBoltStationTestCommand}"
+                <TextBlock x:Name="CycleTime" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                    FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{Binding Fastening.Station.LastCycleSeconds, StringFormat='CT · {0:0.0} s',
+                        TargetNullValue='CT · —', FallbackValue='CT · —'}"/>
+                <Button Grid.Column="2" Margin="10,0,0,0" Content="{ui:Text 'Test bolts'}" Command="{Binding OpenBoltStationTestCommand}"
                     Visibility="{Binding State.ManualMode, Converter={StaticResource BoolToVis}}"
                     Style="{StaticResource SecondaryButtonStyle}" Padding="10,5" FontSize="13"/>
             </Grid>

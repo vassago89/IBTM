@@ -77,7 +77,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
     [ObservableProperty] public partial string? Error { get; private set; }
     [ObservableProperty] public partial string? Message { get; private set; }
     [ObservableProperty] public partial string? ImageSource { get; private set; }
-    [ObservableProperty] public partial string? OriginalResult { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OriginalResult))]
+    public partial PcbInspectionImageItem? OriginalImage { get; private set; }
     [ObservableProperty] public partial bool IsLoaded { get; private set; }
     [ObservableProperty] public partial string HistoryDirectory { get; set; }
     [ObservableProperty] public partial bool HasOlder { get; private set; } = true;
@@ -91,6 +93,11 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public bool IsBusy => _commands.Any(command => command.IsRunning);
     public bool IsIdle => !IsBusy;
     public bool IsDataMatrixSelected => SelectedPoint?.IsDataMatrix == true;
+
+    public string? OriginalResult
+    {
+        get => OriginalImage is { } saved ? UiText.Format($"Recorded {saved.Verdict} · {saved.Details}") : null;
+    }
 
     public DataMatrixInspectionRecipe? DataMatrix
     {
@@ -225,7 +232,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         InspectCommand.Cancel();
         Error = null;
         ImageSource = null;
-        OriginalResult = null;
+        OriginalImage = null;
         Preview.Clear(IsDataMatrixSelected ? SelectedPoint!.HeatSink : null, SelectedPoint?.Bolt);
         if (SelectedPoint is { } point)
         {
@@ -423,6 +430,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
             return;
         }
         ImageSource = $"PCB {LoadedRecord!.Number} · {saved.Title} · {saved.Record.CapturedAt:yyyy-MM-dd HH:mm:ss}";
-        OriginalResult = UiText.Format($"Recorded {saved.Verdict} · {saved.Details}");
+        OriginalImage = saved;
     }
 }

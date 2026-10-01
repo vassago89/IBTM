@@ -26,6 +26,7 @@ public sealed class BoltFasteningStation : AutoUnit
     // Selected work belongs only to this run; STOP discards it.
     private BoltPoint[]? _runBolts;
     private int _boltIndex;
+    private long _cycleStartedAt;
     private ConveyorStation.Job? _runJob;
     private CancellationTokenSource? _carrierOperation;
     // A supply operation for the next selected bolt, owned only by the current carrier run.
@@ -371,6 +372,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     return false;
                 case BoltFasteningState.PreparingCarrier:
                     await ClearCarrierOperationAsync();
+                    _cycleStartedAt = Stopwatch.GetTimestamp();
                     _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                     foreach (var heatSink in _runTargets)
                     {
@@ -403,7 +405,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     _log?.LogInformation("Bolt timing {Job}: completion Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
                         job.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                     token.ThrowIfCancellationRequested();
-                    Station.Complete(job);
+                    Station.Complete(job, Stopwatch.GetElapsedTime(_cycleStartedAt));
                     await ClearCarrierOperationAsync();
                     _log?.LogInformation("Bolt timing {Job}: carrier completion complete, total={ElapsedMs:F1} ms.",
                         job.Id, Stopwatch.GetElapsedTime(completionStarted).TotalMilliseconds);

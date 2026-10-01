@@ -3428,4 +3428,10 @@
   <data name="ready to rework" xml:space="preserve">
     <value>재작업 대기</value>
   </data>
+  <data name="total" xml:space="preserve">
+    <value>합계</value>
+  </data>
+  <data name="clear counts" xml:space="preserve">
+    <value>초기화</value>
+  </data>
 </root>
