@@ -13,7 +13,7 @@
     Height="980"
     MinWidth="960"
     MinHeight="680"
-    WindowStartupLocation="CenterOwner"
+    FontSize="14" WindowStartupLocation="CenterOwner"
     Background="{StaticResource AppBgBrush}">
     <Grid Margin="24,20">
         <Grid.RowDefinitions>
@@ -217,7 +217,7 @@
                 <ui:LogTextBox x:Name="FrameLogBox" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="1" Margin="0,8,0,0"
                     Text="{Binding FrameLogText, Mode=OneWay}"
                     IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
-                    SelectionText="{Binding SelectedLogText, Mode=TwoWay}" IsPaused="{Binding IsLogPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap"
+                    SelectionText="{Binding SelectedLogText, Mode=TwoWay}" IsPaused="{Binding IsLogPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="13" TextWrapping="NoWrap"
                     Padding="8" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
                 <TextBlock Grid.Row="2" Text="{Binding ClipboardError}" Height="20" Foreground="{StaticResource AccentRedBrush}"
                     TextTrimming="CharacterEllipsis" ToolTip="{Binding ClipboardError}"/>
@@ -232,9 +232,9 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="2" Text="{Binding Source={x:Static hantas:AdcControllerError.ReferenceNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
-                    Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,0"/>
+                    Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,8,0,0"/>
                 <TextBlock Text="{Binding Source={x:Static hantas:AdcControllerError.OperationNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
-                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,8"/>
+                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="13" Margin="0,0,0,8"/>
                 <DataGrid Grid.Row="1" ItemsSource="{x:Static hantas:AdcControllerError.All}" IsReadOnly="True"
                     AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                     HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0"

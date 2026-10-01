@@ -12,7 +12,7 @@
     Height="720"
     MinWidth="620"
     MinHeight="480"
-    WindowStartupLocation="CenterOwner"
+    FontSize="14" WindowStartupLocation="CenterOwner"
     Background="{StaticResource AppBgBrush}">
     <Grid Margin="24,20">
         <Grid.RowDefinitions>
@@ -93,7 +93,7 @@
                             <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Signal, Converter={StaticResource UiTextConverter}}"
                                     Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
-                                <TextBlock x:Name="SelectorHint" Text="{ui:Text 'ON = MANUAL / OFF = AUTO'}" FontSize="11"
+                                <TextBlock x:Name="SelectorHint" Text="{ui:Text 'ON = MANUAL / OFF = AUTO'}" FontSize="12"
                                     Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"
                                     Visibility="Collapsed"/>
                             </StackPanel>

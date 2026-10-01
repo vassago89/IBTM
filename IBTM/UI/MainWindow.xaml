@@ -12,7 +12,7 @@
     Icon="{StaticResource AppIcon}"
     ResizeMode="CanResize"
     WindowState="Maximized"
-    WindowStartupLocation="CenterScreen"
+    FontSize="14" WindowStartupLocation="CenterScreen"
     UseLayoutRounding="True"
     SnapsToDevicePixels="True"
     TextOptions.TextFormattingMode="Display"

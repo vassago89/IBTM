@@ -11,7 +11,7 @@
     Height="720"
     MinWidth="900"
     MinHeight="480"
-    WindowStartupLocation="CenterOwner"
+    FontSize="14" WindowStartupLocation="CenterOwner"
     Background="{StaticResource AppBgBrush}">
     <Grid Margin="24,20">
         <Grid.RowDefinitions>

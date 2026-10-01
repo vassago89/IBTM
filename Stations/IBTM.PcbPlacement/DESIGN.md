@@ -7,6 +7,8 @@ handoff X. After placement, keep that heat sink's Y and return Z followed by X.
 This Z is also the XY travel height. `HandoffPosition.Y` is used only for receiving
 or returning a PCB. `ReceiveZ` is taught separately at the same handoff X/Y.
 Handler Rotate output stays OFF during automatic, repeat and manual operation.
+Unit HOME and HOME ALL home Placement in Z -> Y -> X order. Each axis must
+finish successfully before the next starts; HOME ALL then starts the other units.
 
 1. Wait outside the handoff until Supply reports `Holding`: settled at its give XYZ, Unrotated, and securing the PCB. Then raise the handler, reach standby Z, prepare the IPM and move to standby X followed by Y. Loss of Supply readiness during this approach stops movement.
 2. Confirm actual handoff X/Y and settled axes before lowering Z to `ReceiveZ`, including after STOP. Keep the handler cylinder Up, detect the PCB and confirm vacuum holding.

@@ -73,7 +73,7 @@
                 <Grid Grid.Row="3" Margin="0,14,0,8">
                     <TextBlock Text="{ui:Text 'Latest fastening'}" FontSize="16" FontWeight="SemiBold"
                         Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11"
+                    <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12"
                         Foreground="{StaticResource TextMutedBrush}"
                         Text="{Binding RecentFastening.Result.RecordedAt, StringFormat=HH:mm:ss, TargetNullValue=—, FallbackValue=—}"/>
                 </Grid>
@@ -122,7 +122,7 @@
                                 <TextBlock Text="{Binding RecentFastening.BoltName}" FontSize="15" FontWeight="SemiBold"
                                     TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="42"
                                     ToolTip="{Binding RecentFastening.BoltName}" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Margin="0,4,0,8" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                                <TextBlock Margin="0,4,0,8" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}">
                                     <Run Text="{Binding RecentFastening.HeatSink, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                                     <Run Text=" · "/><Run Text="{Binding RecentFastening.Head, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                                 </TextBlock>
@@ -148,7 +148,7 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Text="{ui:Text 'TURNS'}" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{ui:Text 'TURNS'}" FontSize="13" Foreground="{StaticResource TextMutedBrush}"/>
                                 <TextBlock Text="{Binding RecentFastening.Result.TotalTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
                                     FontSize="36" FontWeight="SemiBold" FontFamily="Cascadia Mono, Consolas">
                                     <TextBlock.Style>
@@ -163,7 +163,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <Grid>
-                                    <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
                                         <Run Text="{ui:Text 'Minimum '}"/><Run Text="{Binding RecentFastening.Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
                                     </TextBlock>
                                     <TextBlock HorizontalAlignment="Right" FontSize="13" FontWeight="SemiBold">
@@ -190,20 +190,20 @@
                                 </Grid>
                                 <UniformGrid Columns="2" Margin="0,10,0,6">
                                     <StackPanel>
-                                        <TextBlock Text="{ui:Text 'TORQUE / TARGET'}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="{ui:Text 'TORQUE / TARGET'}" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
                                         <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="14">
                                             <Run Text="{Binding RecentFastening.Result.Torque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                             <Run Text=" / "/><Run Text="{Binding RecentFastening.Result.Controller.TargetTorque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                         </TextBlock>
                                     </StackPanel>
                                     <StackPanel>
-                                        <TextBlock Text="{ui:Text 'FASTENING TIME (ms)'}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="{ui:Text 'FASTENING TIME (ms)'}" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
                                         <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="14"
                                             Text="{Binding RecentFastening.Result.Controller.FasteningTimeMilliseconds, TargetNullValue=—, FallbackValue=—}"/>
                                     </StackPanel>
                                 </UniformGrid>
                                 <TextBlock Text="{Binding RecentFastening.Result.Error}" ToolTip="{Binding RecentFastening.Result.Error}"
-                                    FontSize="12" TextWrapping="Wrap"
+                                    FontSize="13" TextWrapping="Wrap"
                                     Foreground="{StaticResource AccentRedBrush}"/>
                             </StackPanel>
                         </ScrollViewer>

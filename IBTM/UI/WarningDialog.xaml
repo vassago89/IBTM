@@ -7,7 +7,7 @@
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:WarningDialog, IsDesignTimeCreatable=False}"
     Title="{ui:Text 'Warning · Confirm action'}" Width="600" SizeToContent="Height"
-    ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+    ResizeMode="NoResize" FontSize="14" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
     Background="{StaticResource AppBgBrush}" Foreground="{StaticResource TextPrimaryBrush}"
     Loaded="OnDialogLoaded">
     <Border BorderBrush="{StaticResource AccentAmberBrush}" BorderThickness="1,6,1,1">

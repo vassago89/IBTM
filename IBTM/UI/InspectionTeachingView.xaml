@@ -49,7 +49,7 @@
             <TextBlock Text="{ui:Text 'Inspection Setup'}" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
         <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="280"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="300"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <Border Style="{StaticResource CardStyle}" Padding="10" Margin="0,0,10,0">
                 <TabControl Style="{StaticResource SectionTabs}" ItemContainerStyle="{StaticResource SectionTab}">
                     <TabItem Header="{ui:Text 'Taught points'}">
@@ -73,8 +73,8 @@
                                 </ListBox.GroupStyle>
                                 <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:InspectionPoint}">
                                     <StackPanel Margin="4,4"><TextBlock Text="{Binding Name}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
-                                        <TextBlock Text="{Binding PositionLabel}" Height="30" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding PositionLabel}"
-                                            Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" FontSize="11" Margin="0,3,0,0"/>
+                                        <TextBlock Text="{Binding PositionLabel}" Height="34" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding PositionLabel}"
+                                            Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" FontSize="12" Margin="0,3,0,0"/>
                                     </StackPanel>
                                 </DataTemplate></ListBox.ItemTemplate>
                             </ListBox>
@@ -105,14 +105,14 @@
                                         <StackPanel Margin="4,5">
                                             <DockPanel>
                                                 <TextBlock DockPanel.Dock="Right" Text="{Binding InspectionResult, Converter={StaticResource UiTextConverter}}"
-                                                    Tag="{Binding InspectionResult}" Style="{StaticResource ResultValueStyle}" FontSize="12" Margin="6,0,0,0"/>
+                                                    Tag="{Binding InspectionResult}" Style="{StaticResource ResultValueStyle}" FontSize="13" Margin="6,0,0,0"/>
                                                 <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
                                                     <Run Text="PCB "/><Run Text="{Binding Number, Mode=OneWay}"/>
                                                     <Run Text=" · "/><Run Text="{Binding HeatSink, Mode=OneWay, Converter={StaticResource UiTextConverter}}"/>
                                                 </TextBlock>
                                             </DockPanel>
                                             <TextBlock TextTrimming="CharacterEllipsis" ToolTip="{Binding RecipeName}"
-                                                Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,3,0,0">
+                                                Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,3,0,0">
                                                 <Run Text="{Binding CreatedAt, Mode=OneWay, StringFormat={}{0:MM-dd HH:mm:ss}}"/>
                                                 <Run Text=" · "/><Run Text="{Binding RecipeName, Mode=OneWay}"/>
                                             </TextBlock>
@@ -124,7 +124,7 @@
                                 <Button Content="{ui:Text 'Load PCB Images'}" Command="{Binding LoadRecordCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" Padding="8,5"/>
                                 <TextBlock Text="{Binding LoadedRecord.Number, StringFormat={ui:Text 'PCB {0} · images'}, TargetNullValue={ui:Text 'No PCB loaded'}, FallbackValue={ui:Text 'No PCB loaded'}}"
-                                    FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
+                                    FontSize="13" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
                             </StackPanel>
                             <ListBox Grid.Row="3" ItemsSource="{Binding HistoryImages}"
                                 SelectedItem="{Binding SelectedHistoryImage, BindingGroupName={x:Null}}"
@@ -142,9 +142,9 @@
                                                         Style="{StaticResource ResultValueStyle}" Margin="8,0,4,0"/>
                                                     <TextBlock Text="{Binding Title}" Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}"/>
                                                 </DockPanel>
-                                                <TextBlock Text="{Binding Details}" Height="30" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Details}"
-                                                    FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
-                                                <TextBlock Text="{Binding Error}" Height="16" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" FontSize="11" Foreground="{StaticResource AccentAmberBrush}"/>
+                                                <TextBlock Text="{Binding Details}" Height="34" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Details}"
+                                                    FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
+                                                <TextBlock Text="{Binding Error}" Height="16" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" FontSize="12" Foreground="{StaticResource AccentAmberBrush}"/>
                                             </StackPanel>
                                         </Grid>
                                     </DataTemplate>

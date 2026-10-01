@@ -18,7 +18,7 @@
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         <Style x:Key="SettingHelpText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,8,0,0"/>
@@ -39,7 +39,7 @@
         </Style>
         <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="Margin" Value="0,0,0,4"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="MinHeight" Value="28"/>

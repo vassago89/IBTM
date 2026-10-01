@@ -12,7 +12,7 @@
     Height="900"
     MinWidth="1120"
     MinHeight="480"
-    WindowStartupLocation="CenterOwner"
+    FontSize="14" WindowStartupLocation="CenterOwner"
     Background="{StaticResource AppBgBrush}">
     <Window.Style>
         <Style TargetType="Window">
@@ -29,7 +29,7 @@
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="MinWidth" Value="0"/>
             <Setter Property="Padding" Value="5,6"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
             <Style.Triggers>
                 <Trigger Property="Tag">
@@ -46,7 +46,7 @@
                     <Trigger.Value>
                         <sys:Boolean>True</sys:Boolean>
                     </Trigger.Value>
-                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Foreground" Value="{StaticResource AppBgBrush}"/>
                     <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
                 </Trigger>
             </Style.Triggers>

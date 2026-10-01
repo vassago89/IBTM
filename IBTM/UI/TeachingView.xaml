@@ -72,7 +72,7 @@
         </DockPanel>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.1*" MinWidth="240" MaxWidth="280"/>
+                <ColumnDefinition Width="1.1*" MinWidth="260" MaxWidth="300"/>
                 <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="3*" MinWidth="380"/>
                 <ColumnDefinition Width="10"/>
@@ -126,7 +126,7 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <TextBlock TextTrimming="CharacterEllipsis" FontFamily="Consolas" FontSize="11"
+                                    <TextBlock TextTrimming="CharacterEllipsis" FontFamily="Consolas" FontSize="12"
                                         Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">

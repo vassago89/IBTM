@@ -8,7 +8,7 @@
     d:DataContext="{d:DesignInstance Type=ui:PcbResultsViewModel, IsDesignTimeCreatable=False}"
     Title="{Binding Record.Number, StringFormat={ui:Text 'PCB {0} · Results'}}"
     Width="1600" Height="960" MinWidth="1000" MinHeight="700"
-    WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+    FontSize="14" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
     Background="{StaticResource AppBgBrush}" Foreground="{StaticResource TextPrimaryBrush}"
     KeyDown="OnWindowKeyDown">
     <Window.Resources>
@@ -24,13 +24,13 @@
         </Style>
         <Style x:Key="MetricValue" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontSize" Value="16"/>
             <Setter Property="Margin" Value="0,3,0,0"/>
             <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         </Style>
         <Style x:Key="MetricLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         </Style>
         <Style TargetType="DataGridColumnHeader">
@@ -38,7 +38,7 @@
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="13"/>
         </Style>
         <Style TargetType="DataGridCell">
             <Setter Property="BorderThickness" Value="0"/>
@@ -56,7 +56,7 @@
         </Style>
         <Style TargetType="DataGridRow">
             <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
-            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="MinHeight" Value="34"/>
         </Style>
     </Window.Resources>
     <Grid Margin="16,12">
@@ -81,11 +81,11 @@
                 </Border>
             </StackPanel>
             <StackPanel VerticalAlignment="Center">
-                <WrapPanel TextBlock.Foreground="{StaticResource TextSecondaryBrush}" TextBlock.FontSize="12">
+                <WrapPanel TextBlock.Foreground="{StaticResource TextSecondaryBrush}" TextBlock.FontSize="13">
                     <TextBlock Text="{Binding Record.RecipeName}" Margin="0,0,14,0"/>
                     <TextBlock Text="{Binding Record.HeatSink, Converter={StaticResource UiTextConverter}}"/>
                 </WrapPanel>
-                <WrapPanel TextBlock.Foreground="{StaticResource TextMutedBrush}" TextBlock.FontSize="11" Margin="0,3,0,0">
+                <WrapPanel TextBlock.Foreground="{StaticResource TextMutedBrush}" TextBlock.FontSize="13" Margin="0,3,0,0">
                     <TextBlock Text="{Binding Record.CreatedAt, StringFormat={ui:Text 'Created {0:yyyy-MM-dd HH:mm:ss}'}}" Margin="0,0,14,0"/>
                     <TextBlock Text="{Binding Record.UpdatedAt, StringFormat={ui:Text 'Updated {0:HH:mm:ss}'}}"/>
                 </WrapPanel>
@@ -124,7 +124,7 @@
                         <DockPanel Margin="0,4,0,0">
                             <TextBlock DockPanel.Dock="Left" Text="{ui:Text 'Data Matrix · '}" Style="{StaticResource MetricLabel}"/>
                             <TextBlock Text="{Binding Record.PcbBarcode, TargetNullValue={ui:Text 'Not read'}, FallbackValue={ui:Text 'Not read'}}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Record.PcbBarcode}"
-                                Tag="{Binding Record.PcbBarcodeResult}" Style="{StaticResource ResultValueStyle}" FontSize="11"/>
+                                Tag="{Binding Record.PcbBarcodeResult}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
                         </DockPanel>
                     </StackPanel>
                     <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}" CornerRadius="4" MinHeight="160">
@@ -144,7 +144,7 @@
                             <TextBlock Text="{Binding SelectedImage.Title, TargetNullValue={ui:Text 'Inspection capture'}, FallbackValue={ui:Text 'Inspection capture'}}" Height="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedImage.Title}"/>
                         </DockPanel>
                         <TextBlock Text="{Binding SelectedImage.Details}" Height="36" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedImage.Details}" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
-                        <DockPanel Height="16" TextBlock.FontSize="11" TextBlock.Foreground="{StaticResource TextMutedBrush}">
+                        <DockPanel Height="20" TextBlock.FontSize="13" TextBlock.Foreground="{StaticResource TextMutedBrush}">
                             <TextBlock Text="{Binding SelectedImage.Record.CapturedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}'}"/>
                             <TextBlock Text="{Binding SelectedImage.Resolution}" HorizontalAlignment="Right"/>
                         </DockPanel>
@@ -156,10 +156,10 @@
                         <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
                         <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbInspectionImageItem}">
                             <StackPanel Width="108" Margin="4,4,6,6" ToolTip="{Binding Title}"><Image Source="{Binding Image}" Height="56" Stretch="Uniform"/>
-                                <TextBlock Text="{Binding Error}" Height="14" FontSize="10" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" Foreground="{StaticResource AccentAmberBrush}"/>
+                                <TextBlock Text="{Binding Error}" Height="14" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" Foreground="{StaticResource AccentAmberBrush}"/>
                                 <DockPanel Margin="0,4,0,0">
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource ResultValueStyle}" FontSize="10" Margin="4,0,0,0"/>
-                                    <TextBlock Text="{Binding Title}" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource ResultValueStyle}" FontSize="12" Margin="4,0,0,0"/>
+                                    <TextBlock Text="{Binding Title}" FontSize="13" TextTrimming="CharacterEllipsis"/>
                                 </DockPanel>
                             </StackPanel>
                         </DataTemplate></ListBox.ItemTemplate>
@@ -171,8 +171,8 @@
                             <ItemsControl ItemsSource="{Binding InspectionOnlyResults}">
                                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbBoltPresenceView}">
-                                    <StackPanel Orientation="Horizontal" Margin="0,3,12,0"><TextBlock Text="{Binding BoltLabel, StringFormat='{}{0}: '}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
-                                        <TextBlock x:Name="Presence" Text="NG" Foreground="{StaticResource AccentRedBrush}" FontSize="11"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,12,0"><TextBlock Text="{Binding BoltLabel, StringFormat='{}{0}: '}" FontSize="13" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock x:Name="Presence" Text="NG" Foreground="{StaticResource AccentRedBrush}" FontSize="13"/>
                                     </StackPanel>
                                     <DataTemplate.Triggers><DataTrigger Binding="{Binding Present}" Value="True">
                                         <Setter TargetName="Presence" Property="Text" Value="OK"/><Setter TargetName="Presence" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
@@ -204,18 +204,18 @@
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="{ui:Text 'Head'}" Binding="{Binding HeadLabel, Mode=OneWay}" Width="108"/>
-                            <DataGridTemplateColumn Header="{ui:Text 'Fasten'}" Width="72"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource ResultValueStyle}" FontSize="11"/>
+                            <DataGridTextColumn Header="{ui:Text 'Fastening method'}" Binding="{Binding HeadLabel, Mode=OneWay}" Width="108"/>
+                            <DataGridTemplateColumn Header="{ui:Text 'Fasten'}" Width="90"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
+                                <TextBlock Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="{ui:Text 'VISION'}" Width="62"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock Text="{Binding VisionVerdict}" Tag="{Binding VisionVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="11"/>
+                                <TextBlock Text="{Binding VisionVerdict}" Tag="{Binding VisionVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="{ui:Text 'Turns'}" Width="66"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock Text="{Binding TurnsVerdict}" Tag="{Binding TurnsVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="11"/>
+                            <DataGridTemplateColumn Header="{ui:Text 'Turns'}" Width="90"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
+                                <TextBlock Text="{Binding TurnsVerdict}" Tag="{Binding TurnsVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="{ui:Text 'ACTUAL / MIN'}" Width="120"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock FontSize="11"><Run Text="{Binding Result.TotalTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
+                                <TextBlock FontSize="13"><Run Text="{Binding Result.TotalTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -251,7 +251,7 @@
                                 <StackPanel>
                                     <TextBlock Text="{Binding SelectedBolt.Title, TargetNullValue={ui:Text 'Controller details'}, FallbackValue={ui:Text 'Controller details'}}"
                                         ToolTip="{Binding SelectedBolt.Title}" Height="24" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="16"/>
-                                    <WrapPanel Margin="0,3,0,4" TextBlock.FontSize="11" TextBlock.Foreground="{StaticResource TextMutedBrush}">
+                                    <WrapPanel Margin="0,3,0,4" TextBlock.FontSize="13" TextBlock.Foreground="{StaticResource TextMutedBrush}">
                                         <TextBlock Text="{Binding SelectedBolt.Result.Source, Converter={StaticResource UiTextConverter}}" Margin="0,0,14,0"/>
                                         <TextBlock Text="{Binding SelectedBolt.Result.RecordedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}', TargetNullValue={ui:Text 'Time not recorded'}, FallbackValue={ui:Text 'Time not recorded'}}"/>
                                     </WrapPanel>
@@ -306,11 +306,11 @@
                                         </Grid.RowDefinitions>
                                         <DockPanel Margin="0,0,0,4">
                                             <TextBlock DockPanel.Dock="Left" Text="{ui:Text 'Error / message'}" Style="{StaticResource MetricLabel}" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding SelectedBolt.ControllerErrorDescription}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedBolt.ControllerErrorDescription}"/>
+                                            <TextBlock Text="{Binding SelectedBolt.ControllerErrorDescription}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedBolt.ControllerErrorDescription}"/>
                                         </DockPanel>
-                                        <TextBox Grid.Row="1" Text="{Binding SelectedBolt.Result.Error, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontSize="11" Padding="6" BorderThickness="0" Foreground="{StaticResource AccentRedBrush}"/>
+                                        <TextBox Grid.Row="1" Text="{Binding SelectedBolt.Result.Error, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontSize="13" Padding="6" BorderThickness="0" Foreground="{StaticResource AccentRedBrush}"/>
                                         <TextBlock Grid.Row="2" Text="{ui:Text 'ORIGINAL ADC REGISTERS · ADDRESS : HEX'}" Style="{StaticResource MetricLabel}" Margin="0,8,0,4"/>
-                                        <TextBox Grid.Row="3" Text="{Binding SelectedBolt.RegisterText, Mode=OneWay, TargetNullValue={ui:Text 'Not recorded'}, FallbackValue={ui:Text 'Not recorded'}}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="11" Padding="6" BorderThickness="0"/>
+                                        <TextBox Grid.Row="3" Text="{Binding SelectedBolt.RegisterText, Mode=OneWay, TargetNullValue={ui:Text 'Not recorded'}, FallbackValue={ui:Text 'Not recorded'}}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="13" Padding="6" BorderThickness="0"/>
                                     </Grid>
                                 </TabItem>
                             </TabControl>
@@ -321,7 +321,7 @@
         </Grid>
         <Grid Grid.Row="3" Margin="0,8,0,0" Height="24">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-            <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"
+            <TextBlock FontSize="13" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"
                 Text="{ui:Text 'Torque: controller unit'}"/>
             <TextBlock Grid.Column="1" Text="{Binding ExportMessage}" ToolTip="{Binding ExportMessage}"
                 Margin="16,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>

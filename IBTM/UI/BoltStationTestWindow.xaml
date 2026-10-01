@@ -7,7 +7,7 @@
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:BoltStationTestViewModel, IsDesignTimeCreatable=False}"
     Title="{ui:Text 'Bolt Station · Selected Bolt Test'}" Width="1080" Height="960"
-    MinWidth="940" MinHeight="600" WindowStartupLocation="CenterOwner"
+    MinWidth="940" MinHeight="600" FontSize="14" WindowStartupLocation="CenterOwner"
     Background="{StaticResource AppBgBrush}">
     <Window.Style>
         <Style TargetType="Window">
@@ -170,7 +170,7 @@
                                         <StackPanel Grid.Column="5" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Result.TotalTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
                                                 Tag="{Binding Result.TurnsResult}" Style="{StaticResource ResultValueStyle}" VerticalAlignment="Center" Margin="8,0"/>
-                                            <TextBlock Style="{StaticResource TestCell}" FontSize="11" Foreground="{StaticResource TextMutedBrush}">
+                                            <TextBlock Style="{StaticResource TestCell}" FontSize="12" Foreground="{StaticResource TextMutedBrush}">
                                                 <Run Text="{ui:Text 'Minimum '}"/>
                                                 <Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
                                             </TextBlock>

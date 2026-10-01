@@ -101,8 +101,10 @@ public sealed class MachineHomeTests
         }
     }
 
-    [Fact]
-    public async Task AllUnitsHomeFinishesPlacementFirstAndEndsWithoutMovingToWorkHeights()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementHomeRunsZThenYThenXBeforeOtherUnits(bool allUnits)
     {
         var settings = FlowSettings();
         settings.PcbPlacementHandler.HandoffPosition.Z = 8;
@@ -116,6 +118,15 @@ public sealed class MachineHomeTests
         services.GetRequiredService<VirtualIoService>().OutputChanged += (output, _) => outputs.Enqueue(output);
         var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
         var placement = motions[MotionGroup.PcbPlacementHandler];
+        var placementHomeOrder = new List<MotionAxis>();
+        placement.StateChanged += () =>
+        {
+            foreach (var axis in placement.Axes)
+            {
+                if (placement.GetAxisState(axis).Homed && !placementHomeOrder.Contains(axis))
+                    placementHomeOrder.Add(axis);
+            }
+        };
         var starts = new ConcurrentQueue<(MotionGroup Group, bool PlacementHomed)>();
         foreach (var (group, motion) in motions)
         {
@@ -128,16 +139,21 @@ public sealed class MachineHomeTests
         }
         try
         {
-            await machine.HomeAsync(default);
+            if (allUnits)
+                await machine.HomeAsync(default);
+            else
+                await machine.HomeAsync(MotionGroup.PcbPlacementHandler, default);
 
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.Empty(outputs);
-            Assert.Equal(motions.Count - 1, starts.Select(start => start.Group).Distinct().Count());
+            Assert.Equal(new[] { MotionAxis.Z, MotionAxis.Y, MotionAxis.X }, placementHomeOrder);
+            Assert.Equal(allUnits ? motions.Count - 1 : 0, starts.Select(start => start.Group).Distinct().Count());
             Assert.All(starts, start => Assert.True(start.PlacementHomed, $"{start.Group} started before Placement HOME completed."));
-            foreach (var motion in motions.Values)
+            foreach (var (group, motion) in motions)
             {
                 Assert.Equal((0, 0, 0), motion.Position);
-                Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).Homed));
+                Assert.All(motion.Axes, axis => Assert.Equal(
+                    allUnits || group == MotionGroup.PcbPlacementHandler, motion.GetAxisState(axis).Homed));
             }
             Assert.False(state.IsHoming);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
@@ -148,8 +164,10 @@ public sealed class MachineHomeTests
         }
     }
 
-    [Fact]
-    public async Task StopAtPlacementHomeCompletionPreventsRemainingHomeAndAllowsRestart()
+    [Theory]
+    [InlineData(MotionAxis.Y)]
+    [InlineData(MotionAxis.X)]
+    public async Task StopAfterPlacementHomeAxisPreventsFollowingHomeAndAllowsRestart(MotionAxis stopAfter)
     {
         await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
@@ -168,7 +186,7 @@ public sealed class MachineHomeTests
 
         void StopAfterPlacementHome()
         {
-            if (!placement.Axes.All(axis => placement.GetAxisState(axis).Homed))
+            if (!placement.GetAxisState(stopAfter).Homed)
                 return;
             placement.StateChanged -= StopAfterPlacementHome;
             machine.Stop();
@@ -179,7 +197,8 @@ public sealed class MachineHomeTests
         {
             await machine.HomeAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
 
-            Assert.Equal(new[] { MotionGroup.PcbPlacementHandler, MotionGroup.PcbPlacementHandler }, starts);
+            Assert.Equal(Enumerable.Repeat(MotionGroup.PcbPlacementHandler, stopAfter == MotionAxis.Y ? 2 : 3), starts);
+            Assert.Equal(stopAfter == MotionAxis.X, placement.GetAxisState(MotionAxis.X).Homed);
             Assert.False(state.IsHoming);
             Assert.False(operations.HasActiveOperations);
             Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -188,7 +207,7 @@ public sealed class MachineHomeTests
             await WaitUntilAsync(() => machine.IsHomeAllowed);
             await machine.HomeAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
 
-            Assert.Equal(new[] { MotionGroup.PcbPlacementHandler, MotionGroup.PcbPlacementHandler }, starts.Take(2));
+            Assert.Equal(Enumerable.Repeat(MotionGroup.PcbPlacementHandler, 3), starts.Take(3));
             foreach (var motion in motions.Values)
                 Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).Homed));
             Assert.False(state.IsHoming);
