@@ -191,8 +191,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
             AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.ReadInputRegisters, data),
             cancellationToken,
             expectedByteCount: AdcControllerStatus.RegisterCount * 2);
-        if (response.Rejection is not null)
-            return (null, response.Rejection);
+        response.RequireSuccess();
 
         var values = new ushort[AdcControllerStatus.RegisterCount];
         for (var index = 0; index < values.Length; index++)
@@ -208,8 +207,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
         int? captureMilliseconds = null,
         int? expectedByteCount = null)
     {
-        var responseTimeoutMilliseconds = _settings.ResponseTimeoutMilliseconds;
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeoutMilliseconds);
+        var responseTimeout = _settings.ResponseTimeoutMilliseconds;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeout);
+        var attempts = captureMilliseconds is null
+            && function is AdcFunctionCode.ReadInputRegisters or AdcFunctionCode.ReadHoldingRegisters
+                or AdcFunctionCode.RequestDeviceInformation
+                ? _settings.ReadAttempts : 1;
         var queuedAt = Stopwatch.GetTimestamp();
         await _exchange.WaitAsync(cancellationToken);
         var acquiredAt = Stopwatch.GetTimestamp();
@@ -218,103 +221,119 @@ public sealed class AdcBus : IAdcBus, IDisposable
             var port = _port;
             if (port?.IsOpen != true)
                 throw new InvalidOperationException("Hantas ADC is not connected. Open the configured COM port first.");
-            // Keep the bus owned between frames. 8N1 uses 10 bits per character;
-            // allow at least 3.5 characters, with a conservative 2 ms minimum at higher baud rates.
-            var frameGapMilliseconds = Math.Max(2, (int)Math.Ceiling(35_000.0 / port.BaudRate));
-            await Task.Delay(frameGapMilliseconds, cancellationToken);
-            // No unsolicited data is used. Start each request without leftovers from an expired exchange.
-            if (port.BytesToRead > 0)
+            for (var attempt = 1; ; attempt++)
             {
-                _logger.LogWarning("ADC [{Port}] discarding {Count} stale bytes before TX.", port.PortName, port.BytesToRead);
-                port.DiscardInBuffer();
-            }
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(responseTimeoutMilliseconds);
-            var started = Stopwatch.GetTimestamp();
-            var receivedBytes = new List<byte>();
-            var receivedChunks = 0;
-            long? writeStartedAt = null;
-            long? writeCompletedAt = null;
-            long? firstReceivedAt = null;
-            long? lastReceivedAt = null;
-            void OnReceived(byte[] bytes)
-            {
-                var now = Stopwatch.GetTimestamp();
-                firstReceivedAt ??= now;
-                lastReceivedAt = now;
-                receivedBytes.AddRange(bytes);
-                receivedChunks++;
-                FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes);
-                _logger.LogInformation("ADC [{Port}] RX RAW {Frame}", port.PortName, Convert.ToHexString(bytes));
-            }
-            AdcResponse response;
-            try
-            {
-                FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
-                _logger.LogInformation("ADC [{Port}] TX {Frame}", port.PortName, Convert.ToHexString(request));
-                writeStartedAt = Stopwatch.GetTimestamp();
-                await AwaitSerialIoAsync(
-                    port.BaseStream.WriteAsync(request, timeout.Token).AsTask(),
-                    port.DiscardOutBuffer,
-                    timeout.Token);
-                writeCompletedAt = Stopwatch.GetTimestamp();
-                if (captureMilliseconds is not null)
-                    timeout.CancelAfter(Timeout.Infinite);
-                response = await ReadResponseAsync(port.BaseStream, port.DiscardInBuffer, OnReceived,
-                    slaveAddress, function, timeout.Token, expectedByteCount, captureMilliseconds);
-                if (response.Rejection is { } rejection)
+                var frameStartedAt = Stopwatch.GetTimestamp();
+                // Keep the bus owned between frames. 8N1 uses 10 bits per character;
+                // allow at least 3.5 characters, with a conservative 2 ms minimum at higher baud rates.
+                var frameGapMilliseconds = Math.Max(2, (int)Math.Ceiling(35_000.0 / port.BaudRate));
+                await Task.Delay(frameGapMilliseconds, cancellationToken);
+                // No unsolicited data is used. Start each request without leftovers from an expired exchange.
+                if (port.BytesToRead > 0)
                 {
-                    var detail = $"ADC {port.PortName}/{slaveAddress}; baud={port.BaudRate}; "
+                    _logger.LogWarning("ADC [{Port}] discarding {Count} stale bytes before TX.", port.PortName, port.BytesToRead);
+                    port.DiscardInBuffer();
+                }
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(responseTimeout);
+                var started = Stopwatch.GetTimestamp();
+                var receivedBytes = new List<byte>();
+                var receivedChunks = 0;
+                long? writeStartedAt = null;
+                long? writeCompletedAt = null;
+                long? firstReceivedAt = null;
+                long? lastReceivedAt = null;
+                void OnReceived(byte[] bytes)
+                {
+                    var now = Stopwatch.GetTimestamp();
+                    firstReceivedAt ??= now;
+                    lastReceivedAt = now;
+                    receivedBytes.AddRange(bytes);
+                    receivedChunks++;
+                    FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes);
+                    _logger.LogInformation("ADC [{Port}] RX RAW {Frame}", port.PortName, Convert.ToHexString(bytes));
+                }
+                AdcResponse response;
+                try
+                {
+                    FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
+                    _logger.LogInformation("ADC [{Port}] TX {Frame}", port.PortName, Convert.ToHexString(request));
+                    writeStartedAt = Stopwatch.GetTimestamp();
+                    await AwaitSerialIoAsync(
+                        port.BaseStream.WriteAsync(request, timeout.Token).AsTask(),
+                        port.DiscardOutBuffer,
+                        timeout.Token);
+                    writeCompletedAt = Stopwatch.GetTimestamp();
+                    if (captureMilliseconds is not null)
+                        timeout.CancelAfter(Timeout.Infinite);
+                    response = await ReadResponseAsync(port.BaseStream, port.DiscardInBuffer, OnReceived,
+                        slaveAddress, function, timeout.Token, expectedByteCount, captureMilliseconds);
+                    if (response.Rejection is { } rejection)
+                    {
+                        var detail = $"ADC {port.PortName}/{slaveAddress}; attempt={attempt}/{attempts}; baud={port.BaudRate}; "
+                            + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
+                            + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
+                            + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
+                        _logger.LogWarning("ADC response rejected or unmatched. {Detail} {Rejection}", detail, rejection);
+                        response = response with { Rejection = $"{detail} {rejection}" };
+                        if (attempt < attempts)
+                        {
+                            Monitor.InvalidateSample(response.Rejection);
+                            continue;
+                        }
+                    }
+                    else if (captureMilliseconds is null)
+                        _logger.LogDebug("ADC {Port} RTU response in {Elapsed:F1} ms: {Interpretation}",
+                            port.PortName, Stopwatch.GetElapsedTime(started).TotalMilliseconds, DescribeResponse(response.Frame));
+                }
+                catch (Exception exception) when (
+                    exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                {
+                    var detail = $"ADC {port.PortName}/{slaveAddress}; attempt={attempt}/{attempts}; baud={port.BaudRate}; "
                         + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
                         + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
                         + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
-                    _logger.LogWarning("ADC response rejected or unmatched. {Detail} {Rejection}", detail, rejection);
-                    response = response with { Rejection = $"{detail} {rejection}" };
+                    if (attempt < attempts
+                        && exception is OperationCanceledException or TimeoutException or InvalidDataException)
+                    {
+                        Monitor.InvalidateSample($"{detail} {exception.Message}");
+                        _logger.LogWarning(exception, "ADC read failed; sending the same request again. {Detail}", detail);
+                        continue;
+                    }
+                    _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
+                    if (exception is InvalidDataException invalid)
+                        throw new InvalidDataException($"{detail} {invalid.Message}", invalid);
+                    if (exception is OperationCanceledException)
+                        throw new TimeoutException(
+                            $"{detail} Response timed out after {responseTimeout} ms.", exception);
+                    throw;
                 }
-                else if (captureMilliseconds is null)
-                    _logger.LogDebug("ADC {Port} RTU response in {Elapsed:F1} ms: {Interpretation}",
-                        port.PortName, Stopwatch.GetElapsedTime(started).TotalMilliseconds, DescribeResponse(response.Frame));
-            }
-            catch (Exception exception) when (
-                exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-            {
-                var detail = $"ADC {port.PortName}/{slaveAddress}; baud={port.BaudRate}; "
-                    + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
-                    + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
-                    + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
-                _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
-                if (exception is InvalidDataException invalid)
-                    throw new InvalidDataException($"{detail} {invalid.Message}", invalid);
-                if (exception is OperationCanceledException)
-                    throw new TimeoutException(
-                        $"{detail} Response timed out after {responseTimeoutMilliseconds} ms.", exception);
-                throw;
-            }
-            finally
-            {
-                var finishedAt = Stopwatch.GetTimestamp();
-                _logger.LogDebug(
-                    "ADC {Port}/{Slave} exchange timing: TX={Request}; gate wait={GateWait:F1} ms; "
-                        + "frame gap/setup={Setup:F1} ms; TX notification={Notification:F1} ms; write={Write:F1} ms; "
-                        + "write start to first RX={FirstRx:F1} ms; RX span={RxSpan:F1} ms; "
-                        + "post RX handling={PostRx:F1} ms; exchange={Exchange:F1} ms; chunks={Chunks}, bytes={Bytes}.",
-                    port.PortName, slaveAddress, Convert.ToHexString(request),
-                    Stopwatch.GetElapsedTime(queuedAt, acquiredAt).TotalMilliseconds,
-                    Stopwatch.GetElapsedTime(acquiredAt, started).TotalMilliseconds,
-                    writeStartedAt is { } writing
-                        ? Stopwatch.GetElapsedTime(started, writing).TotalMilliseconds : (double?)null,
-                    writeStartedAt is { } writeStart && writeCompletedAt is { } written
-                        ? Stopwatch.GetElapsedTime(writeStart, written).TotalMilliseconds : (double?)null,
-                    writeStartedAt is { } sent && firstReceivedAt is { } first
-                        ? Stopwatch.GetElapsedTime(sent, first).TotalMilliseconds : (double?)null,
-                    firstReceivedAt is { } firstRx && lastReceivedAt is { } lastRx
-                        ? Stopwatch.GetElapsedTime(firstRx, lastRx).TotalMilliseconds : (double?)null,
-                    lastReceivedAt is { } received
-                        ? Stopwatch.GetElapsedTime(received, finishedAt).TotalMilliseconds : (double?)null,
-                    Stopwatch.GetElapsedTime(started, finishedAt).TotalMilliseconds, receivedChunks, receivedBytes.Count);
-            }
+                finally
+                {
+                    var finishedAt = Stopwatch.GetTimestamp();
+                    _logger.LogDebug(
+                        "ADC {Port}/{Slave} exchange timing: TX={Request}; gate wait={GateWait:F1} ms; "
+                            + "frame gap/setup={Setup:F1} ms; TX notification={Notification:F1} ms; write={Write:F1} ms; "
+                            + "write start to first RX={FirstRx:F1} ms; RX span={RxSpan:F1} ms; "
+                            + "post RX handling={PostRx:F1} ms; exchange={Exchange:F1} ms; chunks={Chunks}, bytes={Bytes}.",
+                        port.PortName, slaveAddress, Convert.ToHexString(request),
+                        Stopwatch.GetElapsedTime(queuedAt, acquiredAt).TotalMilliseconds,
+                        Stopwatch.GetElapsedTime(frameStartedAt, started).TotalMilliseconds,
+                        writeStartedAt is { } writing
+                            ? Stopwatch.GetElapsedTime(started, writing).TotalMilliseconds : (double?)null,
+                        writeStartedAt is { } writeStart && writeCompletedAt is { } written
+                            ? Stopwatch.GetElapsedTime(writeStart, written).TotalMilliseconds : (double?)null,
+                        writeStartedAt is { } sent && firstReceivedAt is { } first
+                            ? Stopwatch.GetElapsedTime(sent, first).TotalMilliseconds : (double?)null,
+                        firstReceivedAt is { } firstRx && lastReceivedAt is { } lastRx
+                            ? Stopwatch.GetElapsedTime(firstRx, lastRx).TotalMilliseconds : (double?)null,
+                        lastReceivedAt is { } received
+                            ? Stopwatch.GetElapsedTime(received, finishedAt).TotalMilliseconds : (double?)null,
+                        Stopwatch.GetElapsedTime(started, finishedAt).TotalMilliseconds, receivedChunks, receivedBytes.Count);
+                }
 
-            return response;
+                return response;
+            }
         }
         finally
         {
@@ -533,7 +552,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
     }
 }
 
-// Valid RTU replies can reject a request without making a status poll throw.
+// Preserve the received frame and rejection reason until the caller checks success.
 internal sealed record AdcResponse(byte[] Frame, string? Rejection = null, byte? ErrorCode = null)
 {
     public byte[] RequireSuccess()

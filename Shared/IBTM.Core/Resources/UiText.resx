@@ -2072,7 +2072,7 @@ Operation failed. Check controller status.</value>
     <value>RESPONSE</value>
   </data>
   <data name="response timeout (s)" xml:space="preserve">
-    <value>Response timeout (s)</value>
+    <value>Response timeout per attempt (s)</value>
   </data>
   <data name="restore air pressure, then press reset" xml:space="preserve">
     <value>Restore air pressure, then press RESET</value>
@@ -2275,8 +2275,11 @@ Operation failed. Check controller status.</value>
   <data name="settings saved; recipe was not saved. " xml:space="preserve">
     <value>Settings saved; recipe was not saved. </value>
   </data>
-  <data name="shared status monitor" xml:space="preserve">
-    <value>Status polling</value>
+  <data name="read requests" xml:space="preserve">
+    <value>Read requests</value>
+  </data>
+  <data name="read attempts (including first)" xml:space="preserve">
+    <value>Read attempts (including first)</value>
   </data>
   <data name="shoot bolt" xml:space="preserve">
     <value>Shoot Bolt</value>
@@ -3437,5 +3440,8 @@ Clear results: run this station again</value>
   </data>
   <data name="fastening method" xml:space="preserve">
     <value>Fastening method</value>
+  </data>
+  <data name="this image belongs to an earlier pcb record." xml:space="preserve">
+    <value>This image belongs to an earlier PCB record.</value>
   </data>
 </root>

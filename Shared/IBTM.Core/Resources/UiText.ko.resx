@@ -2072,7 +2072,7 @@
     <value>응답</value>
   </data>
   <data name="response timeout (s)" xml:space="preserve">
-    <value>응답 제한 시간 (s)</value>
+    <value>1회 응답 제한 시간 (s)</value>
   </data>
   <data name="restore air pressure, then press reset" xml:space="preserve">
     <value>공압이 정상으로 돌아오면 리셋을 누르세요</value>
@@ -2275,8 +2275,11 @@
   <data name="settings saved; recipe was not saved. " xml:space="preserve">
     <value>설정 저장됨; 레시피 미저장. </value>
   </data>
-  <data name="shared status monitor" xml:space="preserve">
-    <value>상태 조회</value>
+  <data name="read requests" xml:space="preserve">
+    <value>조회 통신</value>
+  </data>
+  <data name="read attempts (including first)" xml:space="preserve">
+    <value>조회 시도 횟수 (최초 포함)</value>
   </data>
   <data name="shoot bolt" xml:space="preserve">
     <value>볼트 슈팅</value>
@@ -3437,5 +3440,8 @@
   </data>
   <data name="fastening method" xml:space="preserve">
     <value>체결 방식</value>
+  </data>
+  <data name="this image belongs to an earlier pcb record." xml:space="preserve">
+    <value>이전 PCB의 이미지가 잘못 연결되어 있습니다.</value>
   </data>
 </root>

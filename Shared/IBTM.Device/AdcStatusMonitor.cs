@@ -222,6 +222,15 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         }
     }
 
+    public void InvalidateSample(string reason)
+    {
+        lock (_stateGate)
+        {
+            var now = Stopwatch.GetTimestamp();
+            Publish(new(now, now, null, null, reason));
+        }
+    }
+
     private void Publish(AdcStatusSample sample)
     {
         var previous = Interlocked.Exchange(ref _sample, sample);
@@ -239,8 +248,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 return;
             if (sample.Error is { } error)
                 received.TrySetException(error);
-            // Rejected replies carry no feedback. The shared monitor keeps sampling
-            // within the caller's existing deadline; transport failures still fail above.
+            // Rejected replies and retried timeouts carry no feedback.
+            // Exhausted retries and other transport failures still fail above.
             else if (sample.Rejection is null && sample.Status is { } status)
                 received.TrySetResult(status);
         }

@@ -15,6 +15,15 @@ public sealed class HantasSettings : Setting
     public byte PickupSlaveAddress { get; set; } = 0;
     public byte ShootingSlaveAddress { get; set; } = 1;
     public int ResponseTimeoutMilliseconds { get; set; } = 1_000;
+    public int ReadAttempts
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            field = value;
+        }
+    } = 3;
     public int FasteningTimeoutMilliseconds { get; set; } = 15_000;
     public int StatusPollMilliseconds
     {

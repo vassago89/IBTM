@@ -83,7 +83,8 @@ public sealed class AdcBoltHead : IBoltHead
         Monitor.IntervalMilliseconds = _connection.StatusPollMilliseconds;
         await Monitor.StartAsync(_slaveAddress, cancellationToken);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromMilliseconds((long)responseTimeoutMilliseconds + Monitor.IntervalMilliseconds));
+        timeout.CancelAfter(TimeSpan.FromMilliseconds(
+            (long)responseTimeoutMilliseconds * _connection.ReadAttempts + Monitor.IntervalMilliseconds));
         try
         {
             return await Monitor.WaitForSampleAsync(after, timeout.Token);
@@ -314,7 +315,7 @@ public sealed class AdcBoltHead : IBoltHead
                     if (failure is null)
                     {
                         _logger.LogInformation(
-                            "ADC {Port}/{Slave}: RUN OFF; reading fastening result once; start event={StartEvent}; "
+                            "ADC {Port}/{Slave}: RUN OFF; reading fastening result; start event={StartEvent}; "
                                 + "elapsed since START={Elapsed:F1} ms; sample to result enqueue={Handoff:F1} ms.",
                             _portName, _slaveAddress, fastening.EventCount,
                             Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
@@ -378,7 +379,7 @@ public sealed class AdcBoltHead : IBoltHead
         {
             failure = new TimeoutException(
                 $"ADC {_portName}/{_slaveAddress} fastening timed out after {fasteningTimeoutMilliseconds} ms; "
-                + $"waiting for RUN ON then OFF / one result read; RUN observed={runObserved}, last RUN={Monitor.Sample?.Status?.Running}; "
+                + $"waiting for RUN ON then OFF / fastening result; RUN observed={runObserved}, last RUN={Monitor.Sample?.Status?.Running}; "
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
                 + $"direction={lastResult?.Direction}, error={lastResult?.Error}; "

@@ -51,7 +51,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public AdcDirection? ResultDirection { get; init; }
     public int StopPollsRemaining { get; set; }
     public IOException? StopWriteFailure { get; set; }
-    public IOException? NextResultReadFailure { get; set; }
+    public Exception? NextResultReadFailure { get; set; }
     public IOException? BaselineReadFailure { get; init; }
     public bool SuppressCompletion { get; set; }
     public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;

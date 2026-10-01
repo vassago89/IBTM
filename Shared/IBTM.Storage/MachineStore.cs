@@ -299,12 +299,30 @@ public sealed class MachineStore
             .SingleOrDefault() ?? throw new FileNotFoundException($"Recipe '{name}', image {number} is missing.");
     }
 
-    public long NextPcbNumber()
+    public long NextPcbNumber(string directory)
     {
+        // Machine.db may have been restored while the monthly result files were retained.
+        long lastSavedNumber = 0;
+        if (Directory.Exists(directory))
+        {
+            foreach (var file in Directory.EnumerateFiles(directory, "PCB-????-??.db"))
+            {
+                using var results = new SqliteConnection(new SqliteConnectionStringBuilder
+                {
+                    DataSource = file,
+                    Mode = SqliteOpenMode.ReadOnly,
+                }.ToString());
+                results.Open();
+                using var latest = results.CreateCommand();
+                latest.CommandText = "SELECT COALESCE(MAX(Number), 0) FROM Pcbs";
+                lastSavedNumber = Math.Max(lastSavedNumber, (long)latest.ExecuteScalar()!);
+            }
+        }
         using var db = new MachineDbContext(_options);
         db.Database.OpenConnection();
         using var command = db.Database.GetDbConnection().CreateCommand();
-        command.CommandText = "UPDATE PcbCounter SET Number = Number + 1 WHERE Id = 1 RETURNING Number";
+        command.CommandText = "UPDATE PcbCounter SET Number = MAX(Number, $saved) + 1 WHERE Id = 1 RETURNING Number";
+        command.Parameters.Add(new SqliteParameter("$saved", lastSavedNumber));
         return (long)(command.ExecuteScalar()
             ?? throw new InvalidDataException("The PCB counter is missing."));
     }
@@ -321,10 +339,12 @@ public sealed class MachineStore
         command.CommandText = """
             INSERT INTO Pcbs (Number, Value) VALUES ($number, $value)
             ON CONFLICT(Number) DO UPDATE SET Value = excluded.Value
+            WHERE json_extract(Pcbs.Value, '$.CreatedAt') = json_extract(excluded.Value, '$.CreatedAt')
             """;
         command.Parameters.AddWithValue("$number", record.Number);
         command.Parameters.AddWithValue("$value", JsonSerializer.Serialize(record));
-        command.ExecuteNonQuery();
+        if (command.ExecuteNonQuery() != 1)
+            throw new InvalidDataException($"PCB {record.Number} already belongs to a different production record ({databaseFile}).");
     }
 
     public IReadOnlyList<PcbRecord> LoadPcbs(string directory, long? beforeNumber = null, int count = 100)

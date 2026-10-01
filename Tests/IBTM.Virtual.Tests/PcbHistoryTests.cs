@@ -401,7 +401,7 @@ public sealed class PcbHistoryTests
         Assert.Equal(1, assembly.PcbNumber);
         var saved = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory));
         Assert.Equal(8.1, saved.PickupBoltResults[VirtualTestSupport.BoltId(2)].Torque);
-        Assert.Equal(2, store.NextPcbNumber());
+        Assert.Equal(2, store.NextPcbNumber(settings.PcbHistory.Directory));
     }
 
     [Fact]
@@ -449,7 +449,7 @@ public sealed class PcbHistoryTests
         var restored = new byte[6];
         decoded.CopyPixels(restored, 6, 0);
         Assert.Equal(new byte[] { 0, 0, 255, 0, 255, 0 }, restored);
-        Assert.Equal(2, store.NextPcbNumber());
+        Assert.Equal(2, store.NextPcbNumber(settings.PcbHistory.Directory));
         await view.ShutdownAsync();
     }
 
@@ -457,7 +457,7 @@ public sealed class PcbHistoryTests
     public async Task CounterUpgradesExistingDatabaseAndContinuesAcrossReopen()
     {
         var store = VirtualTestSupport.OpenMachineStore();
-        var settings = new PcbHistorySettings { Directory = Path.Combine(Path.GetTempPath(), "PCB results") };
+        var settings = new PcbHistorySettings { Directory = store.DatabaseFile + ".results" };
         store.SaveSettings([settings]);
         using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
         {
@@ -472,12 +472,12 @@ public sealed class PcbHistoryTests
         }
 
         store = new(store.DatabaseFile);
-        Assert.Equal(1, store.NextPcbNumber());
+        Assert.Equal(1, store.NextPcbNumber(settings.Directory));
         var numbers = await Task.WhenAll(Enumerable.Range(0, 8)
-            .Select(_ => Task.Run(store.NextPcbNumber)));
+            .Select(_ => Task.Run(() => store.NextPcbNumber(settings.Directory))));
         Assert.Equal(Enumerable.Range(2, 8).Select(number => (long)number), numbers.Order());
         var reopened = new MachineStore(store.DatabaseFile);
-        Assert.Equal(10, reopened.NextPcbNumber());
+        Assert.Equal(10, reopened.NextPcbNumber(settings.Directory));
         Assert.Equal(settings.Directory, reopened.LoadSettings().Get<PcbHistorySettings>().Directory);
         Assert.Equal("Existing", Assert.Single(reopened.RecipeNames));
         using var db = new SqliteConnection($"Data Source={store.DatabaseFile}");
@@ -494,7 +494,7 @@ public sealed class PcbHistoryTests
         var directory = Path.Combine(Path.GetTempPath(), $"PCB-history-{Guid.NewGuid():N}");
         var september = new DateTimeOffset(2026, 9, 30, 23, 59, 59, TimeSpan.FromHours(9));
         var october = september.AddSeconds(2);
-        var first = new PcbRecord(store.NextPcbNumber(), september, september, "Recipe A",
+        var first = new PcbRecord(store.NextPcbNumber(directory), september, september, "Recipe A",
             HeatSinkSlot.HeatSink1, null, AssemblyResult.Pending, AssemblyResult.Pending,
             AssemblyResult.Pending, new System.Collections.Generic.Dictionary<Guid, BoltResult>(),
             new System.Collections.Generic.Dictionary<Guid, BoltResult>(),
@@ -503,9 +503,9 @@ public sealed class PcbHistoryTests
         var newFile = Path.Combine(directory, "PCB-2026-10.db");
         store.SavePcb(oldFile, first);
         Assert.Empty(store.LoadPcbImages(first with { DatabaseFile = oldFile }));
-        var second = first with { Number = store.NextPcbNumber(), CreatedAt = october, UpdatedAt = october };
+        var second = first with { Number = store.NextPcbNumber(directory), CreatedAt = october, UpdatedAt = october };
         store.SavePcb(newFile, second);
-        store.SavePcb(newFile, second with { Number = store.NextPcbNumber() });
+        store.SavePcb(newFile, second with { Number = store.NextPcbNumber(directory) });
         store.SavePcb(oldFile, first with
         {
             UpdatedAt = october, PcbBarcode = "PCB-A", PcbBarcodeResult = AssemblyResult.Ok,
@@ -540,7 +540,36 @@ public sealed class PcbHistoryTests
         Assert.Equal(1.2, saved.PickupBoltResults[VirtualTestSupport.BoltId(2)].Torque);
         Assert.False(saved.BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
         Assert.Equal(2, Directory.GetFiles(directory, "*.db").Length);
-        Assert.Equal(4, reopened.NextPcbNumber());
+        Assert.Equal(4, reopened.NextPcbNumber(directory));
+    }
+
+    [Fact]
+    public void RestoredCounterCannotReuseSavedPcbNumbersOrOverwriteTheirResults()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        var directory = store.DatabaseFile + ".results";
+        var september = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.FromHours(9));
+        var october = september.AddDays(1);
+        var record = new PcbRecord(207, september, september, "Default", HeatSinkSlot.HeatSink1,
+            null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), []);
+        store.SavePcb(Path.Combine(directory, "PCB-2026-09.db"), record);
+        var file = Path.Combine(directory, "PCB-2026-10.db");
+        var existing = record with { Number = 203, CreatedAt = october, UpdatedAt = october };
+        store.SavePcb(file, existing);
+        store.SavePcbImage(file, existing.Number, new(null, october, new(0, 0, 1, 1), true,
+            "ORIGINAL", null, null, [1, 2, 3]));
+
+        // The settings counter is still zero. All retained months must be considered.
+        Assert.Equal(208, store.NextPcbNumber(directory));
+        Assert.Equal(209, new MachineStore(store.DatabaseFile).NextPcbNumber(directory));
+        Assert.Throws<InvalidDataException>(() => store.SavePcb(file,
+            existing with { CreatedAt = october.AddMinutes(8), PcbBarcode = "DIFFERENT" }));
+
+        var saved = store.LoadPcbs(directory).Single(item => item.Number == 203);
+        Assert.Equal(october, saved.CreatedAt);
+        Assert.Null(saved.PcbBarcode);
+        Assert.Equal("ORIGINAL", Assert.Single(store.LoadPcbImages(saved)).Barcode);
     }
 
     [Fact]
@@ -660,9 +689,10 @@ public sealed class PcbHistoryTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PcbSelectionDiscardsPreviousImageLoadAndItsError(bool corruptImage)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task PcbSelectionDiscardsPreviousImageLoadAndItsError(bool corruptImage, bool earlierPcbImage)
     {
         await using var services = MachineTestSupport.CreateDiagnosticServices();
         var store = services.GetRequiredService<MachineStore>();
@@ -680,7 +710,8 @@ public sealed class PcbHistoryTests
         encoder.Save(stream);
         store.SavePcb(record.DatabaseFile, record);
         store.SavePcbImage(record.DatabaseFile, record.Number,
-            new(null, record.CreatedAt, new(0, 0, 1, 1), true, "PCB-1", null, null,
+            new(null, earlierPcbImage ? record.CreatedAt.AddMinutes(-8) : record.CreatedAt,
+                new(0, 0, 1, 1), true, "PCB-1", null, null,
                 corruptImage ? [1, 2, 3] : stream.ToArray()));
         store.SavePcbImage(record.DatabaseFile, record.Number,
             new(VirtualTestSupport.BoltId(1), record.CreatedAt, new(0, 0, 1, 1), true, null, 1, 0.5, stream.ToArray()));
@@ -716,11 +747,13 @@ public sealed class PcbHistoryTests
             Assert.Equal(2, details.Images.Count);
             Assert.NotNull(details.Images.Single(image => image.Record.BoltId is not null).Image);
             var barcodeImage = details.Images.Single(image => image.Record.BoltId is null);
-            if (corruptImage)
+            if (corruptImage || earlierPcbImage)
             {
                 Assert.NotNull(details.ImageError);
                 Assert.Null(barcodeImage.Image);
                 Assert.NotNull(barcodeImage.Error);
+                Assert.Equal("—", barcodeImage.Verdict);
+                Assert.Equal(barcodeImage.Error, barcodeImage.Details);
             }
             else
             {

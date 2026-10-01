@@ -689,7 +689,7 @@
                                                 Text="{Binding Settings.Hantas.ShootingSlaveAddress, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Row="3" Grid.Column="2" Margin="4,0,4,8" MinWidth="0"/>
                                         </Grid>
-                                        <TextBlock Text="{ui:Text 'Shared status monitor'}" Style="{StaticResource SettingFieldLabel}" Margin="0,12,0,6"/>
+                                        <TextBlock Text="{ui:Text 'Read requests'}" Style="{StaticResource SettingFieldLabel}" Margin="0,12,0,6"/>
                                         <Grid Margin="0,0,0,8" MinHeight="34">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -699,6 +699,17 @@
                                                 VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.ResponseTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                                VerticalAlignment="Center" Grid.Column="1"/>
+                                        </Grid>
+                                        <Grid Margin="0,0,0,8" MinHeight="34">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="140"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{ui:Text 'Read attempts (including first)'}" Style="{StaticResource SettingFieldLabel}"
+                                                Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                            <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                                Text="{Binding Settings.Hantas.ReadAttempts, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Column="1"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8" MinHeight="34">

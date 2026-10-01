@@ -68,7 +68,14 @@ public sealed class InspectionImageLoader
             string? error = null;
             try
             {
-                bitmap = InspectionPreviewViewModel.DecodeImage(image.Png);
+                if (image.CapturedAt < record.CreatedAt)
+                {
+                    error = UiText.Get("This image belongs to an earlier PCB record.");
+                    _log.LogWarning("PCB {Number}, image {BoltId}: capture {CapturedAt} predates PCB creation {CreatedAt}.",
+                        record.Number, image.BoltId, image.CapturedAt, record.CreatedAt);
+                }
+                else
+                    bitmap = InspectionPreviewViewModel.DecodeImage(image.Png);
             }
             catch (Exception exception) when (exception is IOException or NotSupportedException
                 or ArgumentException or InvalidOperationException or COMException)

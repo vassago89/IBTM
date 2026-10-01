@@ -185,6 +185,53 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
+    public async Task ReadinessUsesTheConfiguredReadAttemptBudget()
+    {
+        using var bus = new AdcControllerStub { StatusReadDelayMilliseconds = 140 };
+        var (io, head) = Create(bus, new()
+        {
+            ResponseTimeoutMilliseconds = 60,
+            ReadAttempts = 4,
+            StatusPollMilliseconds = 10,
+        });
+
+        await head.CheckReadyAsync();
+
+        Assert.True(head.Monitor.Sample?.Status?.Ready);
+        Assert.Equal(1, bus.StatusReads);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task RetryingReadClearsCachedFeedbackUntilTheNextStatusReply()
+    {
+        using var bus = new AdcControllerStub();
+        var (_, head) = Create(bus);
+        await head.CheckReadyAsync();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var request = bus.Monitor.EnqueueAsync(async token =>
+        {
+            bus.Monitor.InvalidateSample("Response timed out; retrying.");
+            entered.SetResult();
+            await release.Task.WaitAsync(token);
+            return 0;
+        });
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Null(head.Monitor.Sample?.Status);
+        Assert.Null(head.Monitor.Sample?.Error);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var feedback = head.Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), timeout.Token);
+        Assert.False(feedback.IsCompleted);
+
+        release.SetResult();
+        await request;
+
+        Assert.True((await feedback).Ready);
+        Assert.Null(head.Monitor.Sample?.Rejection);
+    }
+
+    [Fact]
     public async Task CancelledStatusWaitDoesNotReturnAnAlreadyAvailableSample()
     {
         using var bus = new AdcControllerStub();
@@ -464,7 +511,7 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FailedOneShotResultReadIsRecordedWithoutRetryingOrRestarting(bool rejected)
+    public async Task FailedResultReadIsRecordedWithoutRestartingMotor(bool rejected)
     {
         using var bus = new AdcControllerStub { NextResultReadFailure = ResultReplyFailure(rejected) };
         var (io, head) = Create(bus);
@@ -799,13 +846,20 @@ public sealed class AdcBoltHeadTests
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
-    [Fact]
-    public async Task SerialQueryFailureStillTurnsStartOff()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SerialQueryFailureStillTurnsStartOff(bool timedOut)
     {
-        using var bus = new AdcControllerStub { NextResultReadFailure = new IOException("Serial disconnected") };
+        Exception failure = timedOut
+            ? new TimeoutException("Result query timed out after all attempts.")
+            : new IOException("Serial disconnected");
+        using var bus = new AdcControllerStub { NextResultReadFailure = failure };
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
-        await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
+        Assert.Same(failure, await Assert.ThrowsAsync(failure.GetType(), () => head.TightenAsync()));
+        Assert.Equal(1, bus.StartWrites);
+        Assert.Equal(1, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 

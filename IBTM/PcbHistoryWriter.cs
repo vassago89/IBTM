@@ -148,7 +148,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
             try
             {
                 // Allocate once on this single writer; a failed save keeps the same number.
-                var number = write.Assembly.PcbNumber ?? _store.NextPcbNumber();
+                var number = write.Assembly.PcbNumber ?? _store.NextPcbNumber(write.Directory);
                 write.Assembly.PcbNumber = number;
                 file = Path.Combine(Path.GetFullPath(write.Directory), $"PCB-{write.Record.CreatedAt:yyyy-MM}.db");
                 if (write.ClearInspectionImages)

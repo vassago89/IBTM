@@ -17,13 +17,15 @@ public sealed record PcbInspectionImageItem(
                 : UiText.Get("Data Matrix");
         }
     }
-    public string Verdict => Record.Success ? "OK" : "NG";
+    public string Verdict => Error is not null ? "—" : Record.Success ? "OK" : "NG";
     public Rect Region => new(Record.Region.X, Record.Region.Y, Record.Region.Width, Record.Region.Height);
 
     public string Details
     {
         get
         {
+            if (Error is not null)
+                return Error;
             return Record.BoltId.HasValue
                 ? UiText.Format($"Bright {Record.BrightRatio:P2} · Required ≥ {Record.MinimumBrightRatio:P2}")
                 : Record.Barcode ?? UiText.Get("Data Matrix not read");
