@@ -492,9 +492,14 @@ public sealed partial class MachineLifecycleTests
         var restarted = machine.StartAsync();
         try
         {
-            await WaitUntilAsync(() => io.GetInput(InputIo.NgShuttleCarrierDetected)
-                && !io.GetInput(InputIo.NgCarrierDetected)
-                && io.GetInput(InputIo.NgCarrierGripperOpen));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => io.GetInput(InputIo.NgShuttleCarrierDetected)
+                    && !io.GetInput(InputIo.NgCarrierDetected)
+                    && io.GetInput(InputIo.NgCarrierGripperOpen), TimeSpan.FromSeconds(3)),
+                $"START={machine.StartBlock}; Inspection={gantry.Step}; pending={gantry.IsTransferPending}; "
+                    + $"position={gantry.Motion.Feedback.Position}; lift={gantry.Lift}; gripper={gantry.Gripper}; "
+                    + $"shuttle={io.GetInput(InputIo.NgShuttleCarrierDetected)}; held={io.GetInput(InputIo.NgCarrierDetected)}; "
+                    + $"S3={gantry.Station.CarrierPresent}; {state.AlarmDetail}");
             Assert.Equal(MachineAlarm.None, state.Alarm);
         }
         finally
