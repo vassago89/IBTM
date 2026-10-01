@@ -534,16 +534,46 @@ public sealed class UiBindingTests
             await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Loaded);
             if (operation.CheckStartCommand.ExecutionTask is { } checking)
                 await checking;
-            review.Measure(new Size(1600, 860));
-            review.Arrange(new Rect(0, 0, 1600, 860));
+            review.Measure(new Size(1800, 960));
+            review.Arrange(new Rect(0, 0, 1800, 960));
             review.UpdateLayout();
             await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
             Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
             Assert.False(((Button)review.FindName("ConfirmButton")).IsEnabled);
+
+            operation.SelectStartAreaCommand.Execute(StartArea.Station2);
+            await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+            Assert.Same(services.GetRequiredService<BoltFasteningStation>().Station, operation.StartStation);
+            Assert.Equal(UiText.Get(StartArea.Station2), ((TextBlock)review.FindName("SelectedAreaTitle")).Text);
+            var previousCarrier = io.GetInput(InputIo.BoltFasteningHeatSink1Present);
+            try
+            {
+                io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+                await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+                Assert.True(((Button)review.FindName("CompleteWorkButton")).IsEnabled);
+                Assert.False(((Button)review.FindName("ClearWorkButton")).IsEnabled);
+                io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
+                await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+                Assert.False(((Button)review.FindName("CompleteWorkButton")).IsEnabled);
+                Assert.True(((Button)review.FindName("ClearWorkButton")).IsEnabled);
+            }
+            finally
+            {
+                io.SetInput(InputIo.BoltFasteningHeatSink1Present, previousCarrier);
+            }
+            operation.SelectStartAreaCommand.Execute(StartArea.Placement);
+            await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            Assert.Null(operation.StartStation);
+            Assert.False(((Button)review.FindName("CompleteWorkButton")).IsEnabled);
+            Assert.False(((Button)review.FindName("ClearWorkButton")).IsEnabled);
+            Assert.Equal(StartCheckState.MaterialRemaining, operation.StartMaterialState);
+            Assert.Equal(UiText.Get(StartCheckState.MaterialRemaining), ((TextBlock)review.FindName("SelectedMaterialState")).Text);
             io.SetInput(InputIo.PcbPlacementVacuumDetected, false);
             Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
             await operation.CheckStartCommand.ExecuteAsync(null);
             Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.Placement]);
+            await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            Assert.Equal(UiText.Get(StartCheckState.Empty), ((TextBlock)review.FindName("SelectedMaterialState")).Text);
         }
         finally
         {

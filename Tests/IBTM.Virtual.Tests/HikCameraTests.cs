@@ -205,15 +205,22 @@ public sealed class HikCameraTests
     }
 
     [Fact]
-    public async Task InitializationReleasesABrokenGrabHandleForTheNextRecovery()
+    public async Task InitializationKeepsConnectedDeviceWhenStoppingAcquisitionFails()
     {
-        var sdk = new CameraSdk { StopFailures = 3 };
+        var sdk = new CameraSdk { StopFailures = 2 };
         using var camera = sdk.CreateCamera();
+        camera.Initialize();
+        camera.Initialize();
+        Assert.Empty(sdk.Calls);
         await Assert.ThrowsAsync<InvalidOperationException>(() => camera.CaptureAsync());
-        Assert.Throws<AggregateException>(camera.Initialize);
-        Assert.True(sdk.Disposed);
-        Assert.Null(typeof(HikCamera).GetField("_device", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(camera));
+        Assert.Throws<InvalidOperationException>(camera.Initialize);
+        Assert.True(sdk.Connected);
+        Assert.False(sdk.Disposed);
+        camera.Initialize();
+        Assert.Equal(1, (await camera.CaptureAsync()).Width);
+        Assert.Equal(
+            ["Start", "Read", "Free", "Stop", "Stop", "Stop", "Start", "Read", "Free", "Stop"],
+            sdk.Calls.ToArray());
     }
 
     [Fact]

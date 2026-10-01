@@ -14,23 +14,18 @@
             <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
             <Style.Triggers>
                 <Trigger Property="Tag" Value="{x:Static app:StartCheckState.MaterialRemaining}">
-                    <Setter Property="Visibility" Value="Visible"/>
                     <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
                 </Trigger>
                 <Trigger Property="Tag" Value="{x:Static app:StartCheckState.UnfinishedCarrier}">
-                    <Setter Property="Visibility" Value="Visible"/>
                     <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
                 </Trigger>
                 <Trigger Property="Tag" Value="{x:Static app:StartCheckState.Unknown}">
-                    <Setter Property="Visibility" Value="Visible"/>
                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                 </Trigger>
                 <Trigger Property="Tag" Value="{x:Static app:StartCheckState.Completed}">
-                    <Setter Property="Visibility" Value="Visible"/>
                     <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
                 </Trigger>
                 <Trigger Property="Tag" Value="{x:Static app:StartCheckState.HandoffReady}">
-                    <Setter Property="Visibility" Value="Visible"/>
                     <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
                 </Trigger>
             </Style.Triggers>
@@ -59,12 +54,13 @@
     </UserControl.Resources>
     <Viewbox Stretch="Uniform">
         <Canvas Width="1600" Height="{x:Static ui:MachineDiagramLayout.PlanHeight}">
-            <Canvas>
+            <Canvas Width="1600" Height="{x:Static ui:MachineDiagramLayout.PlanHeight}">
                 <Canvas.Style>
                     <Style TargetType="Canvas">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ShowStartCheck, ElementName=Diagram}" Value="True">
-                                <Setter Property="IsHitTestVisible" Value="False"/>
+                            <Setter Property="IsHitTestVisible" Value="False"/>
+                                <Setter Property="IsEnabled" Value="False"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

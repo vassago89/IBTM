@@ -49,24 +49,8 @@ public sealed class HikCamera : ICamera, IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_device?.IsConnected == true)
             {
-                try
-                {
-                    StopLiveView();
-                    return;
-                }
-                catch (Exception failure)
-                {
-                    // A broken grab must not leave the same handle blocking every RESET.
-                    try
-                    {
-                        Disconnect();
-                    }
-                    catch (Exception cleanupFailure)
-                    {
-                        throw new AggregateException(failure, cleanupFailure);
-                    }
-                    throw;
-                }
+                StopLiveView();
+                return;
             }
 
             Disconnect();

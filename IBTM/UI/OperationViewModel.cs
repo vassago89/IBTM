@@ -64,7 +64,7 @@ public partial class OperationViewModel : ObservableObject
         StartCommand = new AsyncRelayCommand(StartAsync);
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
-        ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync, IsCarrierWorkChangeAllowed);
+        ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync, () => HasOlderPcbs);
@@ -423,13 +423,6 @@ public partial class OperationViewModel : ObservableObject
     {
         SelectedStartArea = area;
         StartActionMessage = null;
-        ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
-    }
-
-    private bool IsCarrierWorkChangeAllowed(CarrierWorkAction action)
-    {
-        return State.Available && !State.IsRunning && StartStation is { } station
-            && (action == CarrierWorkAction.Complete ? station.CarrierPresent && !station.Completed : !station.CarrierPresent);
     }
 
     private async Task ChangeCarrierWorkAsync(CarrierWorkAction action, CancellationToken cancellationToken)
@@ -452,7 +445,6 @@ public partial class OperationViewModel : ObservableObject
         finally
         {
             OnPropertyChanged(nameof(StartStation));
-            ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -478,7 +470,6 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(nameof(IsStartReviewAllowed));
             OnPropertyChanged(nameof(StartStation));
             OnPropertyChanged(nameof(StartMaterialState));
-            ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -652,7 +643,6 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(nameof(StartBlock));
             OnPropertyChanged(nameof(IsStartReviewAllowed));
             OnPropertyChanged(nameof(StartMaterialState));
-            ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -708,7 +698,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(Placement));
         if (SelectedStartArea == StartArea.Station1)
             OnPropertyChanged(nameof(StartStation));
-        ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));
         OnPropertyChanged(nameof(PlacementDisplayState));
@@ -749,7 +738,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(Fastening));
         if (SelectedStartArea == StartArea.Station2)
             OnPropertyChanged(nameof(StartStation));
-        ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(BoltFasteningActiveBolt));
         OnPropertyChanged(nameof(BoltFasteningActiveOrdinal));
         OnPropertyChanged(nameof(BoltTargets));
@@ -775,7 +763,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(Inspection));
         if (SelectedStartArea == StartArea.Station3)
             OnPropertyChanged(nameof(StartStation));
-        ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
 
         OnPropertyChanged(nameof(InspectionState));
         OnPropertyChanged(nameof(InspectionPositionKnown));
