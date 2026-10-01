@@ -148,8 +148,6 @@ public sealed class PcbHistoryTests
         Assert.Equal(2, record.PickupBoltResults.Count);
         Assert.Equal(AssemblyResult.Ng, record.FasteningResult);
         Assert.Equal(bolts.Select(bolt => bolt.Id), record.BoltIds);
-        Assert.NotNull(record.BoltNames);
-        Assert.Equal(6, record.BoltNames.Count);
         Assert.Equal(bolts.Select(bolt => bolt.Id).Order(), reopened.LoadRecipe(recipe.Name).Pcb.BoltPoints.Select(bolt => bolt.Id).Order());
         using (var connection = new SqliteConnection($"Data Source={record.DatabaseFile};Mode=ReadOnly"))
         {
@@ -160,6 +158,7 @@ public sealed class PcbHistoryTests
             var json = (string)command.ExecuteScalar()!;
             Assert.DoesNotContain("BoltNumber", json);
             using var saved = System.Text.Json.JsonDocument.Parse(json);
+            Assert.False(saved.RootElement.TryGetProperty("BoltNames", out _));
             // Keep the existing database JSON name while the code names the shooting head explicitly.
             Assert.All(saved.RootElement.GetProperty("PcbBoltResults").EnumerateObject(),
                 result => Assert.True(Guid.TryParse(result.Name, out var id) && id != Guid.Empty));
@@ -179,8 +178,13 @@ public sealed class PcbHistoryTests
             Assert.Equal(bolts[index].Head, row.Head);
             Assert.Equal(index != 4, row.Result.Success);
             Assert.Equal(index == 4 ? null : (double?)(8 + index), row.Result.Torque);
-            Assert.Equal(index == 5 ? null : "고정", record.BoltNames[bolts[index].Id]);
-            Assert.Equal(index == 5 ? "Bolt 6" : "고정", row.BoltLabel);
+            Assert.Equal(index switch
+            {
+                0 => "작업 중 변경",
+                4 => "변경된 이름",
+                5 => "Bolt 6",
+                _ => "고정",
+            }, row.BoltLabel);
             Assert.Equal(index != 4, row.Present);
         }
         details.SelectedBolt = details.BoltResults[4];
@@ -188,7 +192,11 @@ public sealed class PcbHistoryTests
         Assert.True(details.BoltResults[5].Result.Success);
         await details.LoadImagesCommand.ExecuteAsync(null);
         Assert.Equal(bolts[4].Id, details.SelectedImage?.Record.BoltId);
-        Assert.Equal("고정", details.SelectedImage?.Title);
+        Assert.Equal("변경된 이름", details.SelectedImage?.Title);
+        bolts[4].Name = null;
+        Assert.Equal("Bolt 5", details.SelectedBolt.BoltLabel);
+        Assert.Equal("Bolt 5", details.SelectedImage?.Title);
+        bolts[4].Name = "변경된 이름";
         var selectedImage = details.SelectedImage;
         details.SelectedBolt = details.BoltResults[0];
         Assert.Null(details.SelectedImage);
@@ -204,9 +212,9 @@ public sealed class PcbHistoryTests
         await recipes.LoadAsync("Other");
         details.Record = record with { UpdatedAt = record.UpdatedAt.AddSeconds(1) };
         Assert.Equal(bolts[4].Id, details.SelectedBolt?.BoltId);
-        Assert.Equal("고정", details.SelectedBolt?.BoltLabel);
+        Assert.Equal("Bolt 5", details.SelectedBolt?.BoltLabel);
         await details.LoadImagesCommand.ExecuteAsync(null);
-        Assert.Equal("고정", details.SelectedImage?.Title);
+        Assert.Equal("Bolt 5", details.SelectedImage?.Title);
 
         details.Record = record with
         {
@@ -215,11 +223,14 @@ public sealed class PcbHistoryTests
         };
         Assert.Empty(details.BoltResults);
         Assert.Equal(6, details.InspectionOnlyResults.Count);
-        Assert.Equal("고정", details.InspectionOnlyResults.Single(row => row.BoltId == bolts[4].Id).BoltLabel);
+        Assert.Equal("Bolt 5", details.InspectionOnlyResults.Single(row => row.BoltId == bolts[4].Id).BoltLabel);
 
-        // Records saved before display names were added retain their own GUID order.
+        // Old name copies are ignored; the result's GUID order supplies unnamed bolt numbers.
         var legacyJson = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(record))!;
-        legacyJson.AsObject().Remove(nameof(PcbRecord.BoltNames));
+        legacyJson["BoltNames"] = new System.Text.Json.Nodes.JsonObject
+        {
+            [bolts[4].Id.ToString()] = "저장된 옛 이름",
+        };
         var legacy = System.Text.Json.JsonSerializer.Deserialize<PcbRecord>(legacyJson.ToJsonString())!;
         details.Record = legacy with { Number = record.Number, DatabaseFile = record.DatabaseFile };
         Assert.Equal(Enumerable.Range(1, 6).Select(number => $"Bolt {number}"),

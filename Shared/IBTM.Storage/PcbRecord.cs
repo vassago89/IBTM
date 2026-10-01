@@ -22,9 +22,6 @@ public sealed record PcbRecord(
 {
     public AssemblyResult? TurnsResult { get; init; }
 
-    // Display metadata captured for this PCB. Results and images remain keyed by GUID.
-    public IReadOnlyDictionary<Guid, string?>? BoltNames { get; init; }
-
     // The order belongs to this recorded PCB, independent of later recipe edits.
     public int? GetBoltOrdinal(Guid boltId)
     {

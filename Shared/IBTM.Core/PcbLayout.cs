@@ -65,8 +65,9 @@ public sealed class PcbLayout
             .TakeWhile(point => point.Id != boltId).Count() + 1;
     }
 
-    public string GetBoltName(Guid boltId)
+    public string GetBoltName(Guid boltId, int? recordedOrdinal = null)
     {
-        return BoltPoint.GetDisplayName(BoltPoints.FirstOrDefault(bolt => bolt.Id == boltId)?.Name, GetBoltOrdinal(boltId));
+        return BoltPoint.GetDisplayName(BoltPoints.FirstOrDefault(bolt => bolt.Id == boltId)?.Name,
+            recordedOrdinal ?? GetBoltOrdinal(boltId));
     }
 }

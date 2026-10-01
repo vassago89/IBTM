@@ -58,7 +58,8 @@ public sealed class InspectionImageLoader
         }).ToArray(), cancellationToken);
     }
 
-    public Task<PcbInspectionImageItem[]> LoadRecordAsync(PcbRecord record, CancellationToken cancellationToken = default)
+    public Task<PcbInspectionImageItem[]> LoadRecordAsync(
+        PcbRecord record, Recipe recipe, CancellationToken cancellationToken = default)
     {
         return Task.Run(() => _store.LoadPcbImages(record).Select(image =>
         {
@@ -75,9 +76,8 @@ public sealed class InspectionImageLoader
                 error = UiText.Get("Image could not be decoded.");
                 _log.LogError(exception, "PCB {Number}, image {BoltId} could not be decoded.", record.Number, image.BoltId);
             }
-            return new PcbInspectionImageItem(image, bitmap,
-                image.BoltId is { } id ? record.GetBoltOrdinal(id) : null,
-                image.BoltId is { } boltId ? record.BoltNames?.GetValueOrDefault(boltId) : null, error);
+            return new PcbInspectionImageItem(image, bitmap, recipe,
+                image.BoltId is { } id ? record.GetBoltOrdinal(id) : null, error);
         }).ToArray(), cancellationToken);
     }
 }

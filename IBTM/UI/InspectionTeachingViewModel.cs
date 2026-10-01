@@ -369,7 +369,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         SelectedHistoryImage = null;
         try
         {
-            var images = await _images.LoadRecordAsync(record, token);
+            var images = await _images.LoadRecordAsync(record, Preview.Recipe, token);
             if (token.IsCancellationRequested || SelectedRecord != record)
                 return;
             LoadedRecord = record;
