@@ -213,6 +213,8 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(repeat, state.RepeatEnabled);
             VirtualTestSupport.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+            var placement = services.GetRequiredService<PcbPlacer>().Station;
+            placement.Complete(placement.CurrentJob);
 
             // The physical selector is ON in TEACHING/MANUAL, OFF in AUTO.
             if (repeat)
@@ -325,7 +327,12 @@ public sealed partial class MachineLifecycleTests
             io.SetInputs(
                 (InputIo.PcbPlacementHeatSink2Present, true),
                 (InputIo.BoltFasteningHeatSink2Present, secondStationOccupied));
-            await services.GetRequiredService<PcbPlacer>().Station.SeatAsync(CancellationToken.None);
+            var placement = services.GetRequiredService<PcbPlacer>().Station;
+            var fastening = services.GetRequiredService<BoltFasteningStation>().Station;
+            await placement.SeatAsync(CancellationToken.None);
+            placement.Complete(placement.CurrentJob);
+            if (secondStationOccupied)
+                fastening.Complete(fastening.CurrentJob);
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             run = machine.StartAsync();
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
@@ -363,7 +370,9 @@ public sealed partial class MachineLifecycleTests
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true),
             (InputIo.InspectionHeatSink2Present, true));
-        await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
+        var inspectionWork = services.GetRequiredService<InspectionStation>().Station;
+        await inspectionWork.SeatAsync(CancellationToken.None);
+        inspectionWork.Complete(inspectionWork.CurrentJob);
         io.SetInput(InputIo.AutoMode, true);
         var returned = false;
         io.OutputChanged += (output, on) =>
@@ -564,6 +573,7 @@ public sealed partial class MachineLifecycleTests
                 (InputIo.InspectionHeatSink1Present, true),
                 (InputIo.InspectionHeatSink2Present, true));
             await inspection.Station.SeatAsync(CancellationToken.None);
+            inspection.Station.Complete(inspection.Station.CurrentJob);
         }
         else
         {
@@ -637,6 +647,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(unit == MachineUnit.BoltFastening
             ? InputIo.BoltFasteningHeatSink1Present : InputIo.InspectionHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
+        work.Complete(work.CurrentJob);
         var completed = 0;
         long previousJob = 0;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -688,8 +699,10 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await inspection.Station.PrepareToReceiveAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionHeatSink1Present, startsWithCarrierHeld);
-        // Material on the disabled main route does not belong to this repeat.
+        // Completed material on the disabled main route does not belong to this repeat.
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+        var placement = services.GetRequiredService<PcbPlacer>().Station;
+        placement.Complete(placement.CurrentJob);
         // The held-carrier turn does not use the shuttle as a support.
         io.SetInputs((InputIo.NgShuttleUp, false), (InputIo.NgShuttleDown, false));
         if (startsWithCarrierHeld)
@@ -813,9 +826,11 @@ public sealed partial class MachineLifecycleTests
         {
             await WaitUntilAsync(() => machine.IsStartAllowed);
             await machine.StartAsync(stop.Token);
+            Assert.Equal(StartBlockReason.UnfinishedCarrier, machine.StartBlock);
+            Assert.False(state.AutomaticRunning);
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.False(lowered);
-            Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition));
+            Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, new() { X = 50, Y = 30 }));
             Assert.True(gantry.IsRaised);
             Assert.True(gantry.IsTransferPending);
             Assert.True(io.GetInput(InputIo.NgCarrierDetected));

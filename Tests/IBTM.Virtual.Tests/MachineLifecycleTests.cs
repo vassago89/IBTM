@@ -52,7 +52,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInputs(
             (InputIo.MainConveyorAvailableFromFront2, false),
             (InputIo.MainConveyorReadyFromRear, false),
-            (InputIo.NgCarrierDetected, true),
+            (InputIo.NgCarrierDetected, false),
             (InputIo.PcbPlacementHeatSink1Present, false),
             (InputIo.PcbPlacementHeatSink2Present, true));
         var placement = services.GetRequiredService<PcbPlacer>().Station;
@@ -83,7 +83,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(fastening.CarrierPresent);
             Assert.False(inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1));
             Assert.True(inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2));
-            Assert.True(io.GetInput(InputIo.NgCarrierDetected));
+            Assert.False(io.GetInput(InputIo.NgCarrierDetected));
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.True(state.AutomaticRunning);
             Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -337,9 +337,6 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(pcb == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2",
                     DataMatrixReader.Read(image, fov.Region!, recipe.BoltInspection.GetDataMatrix(pcb)));
         };
-        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        io.SetInput(InputIo.InspectionHeatSink1Present, true);
-        io.SetInput(InputIo.InspectionHeatSink2Present, true);
         await work.Station.PrepareToReceiveAsync(CancellationToken.None);
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(work.IsAtInspectionPosition);
@@ -349,6 +346,8 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync(stop.Token);
         try
         {
+            await WaitUntilAsync(() => state.AutomaticRunning);
+            io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => work.Station.Completed, TimeSpan.FromSeconds(3)),
                 $"Alarm={state.Alarm}; inspection={inspector.GetNextStep()}; captures={string.Join(", ", captures)}; {state.AlarmDetail}");
             Assert.Equal(new (HeatSinkSlot, Guid?)[] {
@@ -445,7 +444,6 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
-        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         await services.GetRequiredService<InspectionStation>().Station.PrepareToReceiveAsync(CancellationToken.None);
         services.GetRequiredService<VirtualCamera>().BoltsPresent = false;
         // Presence and a closed empty gripper must not skip the first pickup descent.
@@ -468,7 +466,10 @@ public sealed partial class MachineLifecycleTests
 
         gantry.Motion.Feedback.PositionChanged += StopDuringTransfer;
         using var initialTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await machine.StartAsync(initialTimeout.Token);
+        var initialRun = machine.StartAsync(initialTimeout.Token);
+        await WaitUntilAsync(() => state.AutomaticRunning);
+        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+        await initialRun;
         gantry.Motion.Feedback.PositionChanged -= StopDuringTransfer;
         Assert.False(initialTimeout.IsCancellationRequested,
             $"Inspection={gantry.GetNextStep()}, Main={services.GetRequiredService<MainConveyor>().Step}, "
@@ -900,20 +901,20 @@ public sealed partial class MachineLifecycleTests
 
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateDown, false);
         io.SetInput(InputIo.BoltFasteningStopperUp, false);
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
-        io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
         io.SetInput(InputIo.AutoMode, false);
         await WaitUntilAsync(() => machine.IsStartAllowed);
-        Assert.True(services.GetRequiredService<BoltFasteningStation>().Station.CarrierSeated);
 
         var run = machine.StartAsync();
         try
         {
+            await WaitUntilAsync(() => state.AutomaticRunning);
+            io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
+            VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            Assert.True(services.GetRequiredService<BoltFasteningStation>().Station.CarrierSeated);
             Assert.True(
                 await VirtualTestSupport.WaitUntilAsync(() => head.Started.Task.IsCompleted, TimeSpan.FromSeconds(3)),
                 $"Fastening did not start: block={machine.StartBlock}, alarm={state.Alarm}, "
@@ -2002,11 +2003,8 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.PickupFeederBoltDetected, pickupFeeding);
         io.SetInput(InputIo.ShootingFeederBoltDetected, shootingFeeding);
-        if (!shootingFeeding)
-            io.SetInput(InputIo.ShootingTubeBoltDetected, true); // Disabled supply does not wait for the tube.
         io.SetInput(InputIo.AutoMode, repeat);
         state.RepeatEnabled = repeat;
-        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
         // Standalone fastening starts from plate UP even if the stopper is still UP.
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningStopperUp, true);
@@ -2058,7 +2056,12 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(repeat, state.RepeatEnabled);
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(12));
+            var run = machine.StartAsync(timeout.Token);
+            await WaitUntilAsync(() => state.AutomaticRunning);
+            if (!shootingFeeding)
+                io.SetInput(InputIo.ShootingTubeBoltDetected, true); // Disabled supply does not wait for the tube.
+            io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+            await run.WaitAsync(TimeSpan.FromSeconds(12));
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(work.Completed, services.GetRequiredService<BoltFasteningStation>().NextStep.ToString());
             var assembly = Assert.Single(work.Assemblies);
@@ -2579,8 +2582,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.MainConveyorReadyFromRear, rearReady);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
-        // Start with an occupied, raised S3; the main sequence must lower it for inspection.
-        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        // Raise S3 before arrival; the main sequence must lower it for inspection.
         await work.Station.SeatAsync(CancellationToken.None);
         var inspectedAssembly = work.Station.GetAssembly(HeatSinkSlot.HeatSink1);
         inspectedAssembly.PcbBarcode = "PCB-1";
@@ -2653,6 +2655,9 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync();
         try
         {
+            await WaitUntilAsync(() => machineState.AutomaticRunning);
+            inspectedAssembly = work.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+            io.SetInput(InputIo.InspectionHeatSink1Present, true);
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => beltStarted.Task.IsCompleted, TimeSpan.FromSeconds(5)),
                 $"State={conveyor.Step}; alarm={machineState.AlarmMessage}; "
@@ -2712,6 +2717,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.MainConveyorReadyFromRear, false);
         io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
         await fastening.SeatAsync(CancellationToken.None);
+        fastening.Complete(fastening.CurrentJob);
         var arrivingJob = fastening.CurrentJob;
         var arrivingAssembly = fastening.GetAssembly(HeatSinkSlot.HeatSink2);
         arrivingAssembly.PcbBarcode = "S2-CARRIER";
@@ -2719,6 +2725,7 @@ public sealed partial class MachineLifecycleTests
         {
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
             await placement.SeatAsync(CancellationToken.None);
+            placement.Complete(placement.CurrentJob);
         }
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
 
