@@ -298,6 +298,50 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task PlacementVacuumMaintenanceKeepsPlacementAlarmAndSupplyGrip()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.Units.PcbPlacement = true;
+        settings.Options.TimeoutMilliseconds = 600;
+        await using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 5 };
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var supplier = services.GetRequiredService<PcbSupplier>();
+        var placer = services.GetRequiredService<PcbPlacer>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        io.SetInput(InputIo.AutoMode, false);
+        io.InputChanged += (input, on) =>
+        {
+            if (input == InputIo.PcbPlacementVacuumDetected && on)
+                io.SetInput(input, false);
+        };
+        var run = machine.StartAsync();
+        try
+        {
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(MachineAlarm.PcbPlacement, state.Alarm);
+            Assert.True(supplier.IsHandoffRestartAllowed, state.AlarmDetail);
+            Assert.True(supplier.PcbSecured);
+            Assert.False(placer.Station.Completed);
+            Assert.False(placer.Motion.Feedback.IsMoving);
+            machine.CheckStartMaterials();
+            Assert.Equal(StartCheckState.HandoffReady, machine.StartChecks[StartArea.Supply]);
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task MaintenanceLetsSupplyReachHandoffBeforeStopping()
     {
         var settings = FlowSettings();

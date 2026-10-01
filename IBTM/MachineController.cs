@@ -1006,24 +1006,35 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
             while (!cycle.IsCancellationRequested)
             {
-                if (_state.PendingStop is not null && workUnits.All(unit => !unit.IsRunning || unit.IsWaiting))
+                // Existing sequence boundaries exclude startup, travel and cleanup between axis moves.
+                if (_state.PendingStop is not null && workUnits.All(unit => !unit.IsRunning || unit.Step is
+                    PcbSupplyState.WaitingForCarrier or PcbSupplyState.WaitingForCarrierExit or PcbSupplyState.HandingOff
+                    or PcbPlacementState.WaitingForCarrier or PcbPlacementState.MovingToHandoff or PcbPlacementState.Disabled
+                    or BoltFasteningState.Waiting or BoltFasteningState.Disabled
+                    or InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor
+                    or InspectionStationState.WaitingForDestination or InspectionStationState.WaitingForShuttleDown
+                    or InspectionStationState.Disabled
+                    or MainConveyorState.WaitingForFrontCarrier or MainConveyorState.WaitingForRearEquipment
+                    or MainConveyorState.WaitingForBoltFastening or MainConveyorState.WaitingForPcbPlacement
+                    or MainConveyorState.WaitingForInspectionClear or MainConveyorState.WaitingForInspection
+                    or MainConveyorState.WaitingForInspectionTransfer
+                    or NgConveyorState.WaitingForCarrier or NgConveyorState.WaitingForTransferRelease
+                    or NgConveyorState.WaitingForShuttleDown or NgConveyorState.WaitingForShuttleUp
+                    or NgConveyorState.WaitingForEjectConfirmation or NgConveyorState.ReadyToEject or NgConveyorState.Full))
                 {
                     // Use START's material rules without updating its explicit operator check.
                     // Failed units may still require manual removal; healthy work must finish.
-                    var ready = true;
-                    foreach (var (area, material) in CurrentStartMaterials)
+                    var ready = CurrentStartMaterials.All(check => check.Value switch
                     {
-                        if (material == StartCheckState.Unknown)
-                            ready = false;
-                        if (material is not (StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier))
-                            continue;
-                        ready &= area switch
+                        StartCheckState.Unknown => false,
+                        StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier => check.Key switch
                         {
                             StartArea.Placement or StartArea.Station1 => !_pcbPlacement.IsRunning,
                             StartArea.PickupHead or StartArea.ShootingHead or StartArea.Station2 => !_fasteningStation.IsRunning,
                             _ => false,
-                        };
-                    }
+                        },
+                        _ => true,
+                    });
                     if (ready && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
                         && _feedback.Motions.All(pair => !_units.IsMotionEnabled(pair.Key)
                             || pair.Value.Feedback.IsReady
@@ -1078,34 +1089,30 @@ public sealed partial class MachineController : INotifyPropertyChanged
         catch (OperationCanceledException) when (cycle.IsCancellationRequested)
         {
         }
-        catch (Exception exception) when (!repeat && (!cycle.IsCancellationRequested || _state.PendingStop is not null)
-            && (exception is MaintenanceStopException
-                || alarm is MachineAlarm.PickupBoltFeeder or MachineAlarm.ShootingBoltFeeder
-                    && exception is IoTimeoutException
-                    { Input: InputIo.PickupFeederBoltDetected or InputIo.ShootingFeederBoltDetected }))
-        {
-            var timeout = exception as IoTimeoutException ?? exception.InnerException as IoTimeoutException;
-            if (timeout is not null)
-                alarm = timeout.Input == InputIo.PickupFeederBoltDetected
-                    ? MachineAlarm.PickupBoltFeeder : MachineAlarm.ShootingBoltFeeder;
-            lock (cycle)
-            {
-                if (_state.PendingStop is null && !_state.IsError)
-                {
-                    _conveyor.IsTransferPaused = true;
-                    _pcbPlacement.IsPrefetchAllowed = false;
-                    _state.PendingStop = (alarm, exception);
-                    _log?.LogWarning(exception, "Finishing automatic work for maintenance: {Alarm}.", alarm);
-                }
-            }
-        }
         catch (Exception exception)
         {
-            if (alarm is MachineAlarm.PickupBoltFeeder or MachineAlarm.ShootingBoltFeeder
-                && exception is IoTimeoutException timeout)
-                alarm = timeout.Input == InputIo.PickupFeederBoltDetected
-                    ? MachineAlarm.PickupBoltFeeder : MachineAlarm.ShootingBoltFeeder;
-            if (!_state.IsError)
+            var timeout = exception as IoTimeoutException ?? exception.InnerException as IoTimeoutException;
+            if (timeout?.Input == InputIo.PickupFeederBoltDetected)
+                alarm = MachineAlarm.PickupBoltFeeder;
+            else if (timeout?.Input == InputIo.ShootingFeederBoltDetected)
+                alarm = MachineAlarm.ShootingBoltFeeder;
+            if (!repeat && (!cycle.IsCancellationRequested || _state.PendingStop is not null)
+                && (exception is MaintenanceStopException
+                    || exception is IoTimeoutException
+                        { Input: InputIo.PickupFeederBoltDetected or InputIo.ShootingFeederBoltDetected }))
+            {
+                lock (cycle)
+                {
+                    if (_state.PendingStop is null && !_state.IsError)
+                    {
+                        _conveyor.IsTransferPaused = true;
+                        _pcbPlacement.IsPrefetchAllowed = false;
+                        _state.PendingStop = (alarm, exception);
+                        _log?.LogWarning(exception, "Finishing automatic work for maintenance: {Alarm}.", alarm);
+                    }
+                }
+            }
+            else if (!_state.IsError)
             {
                 // Keep the unit name even when the alarm is classified as MotionUnavailable.
                 // SetError records the original exception and its full stack trace.

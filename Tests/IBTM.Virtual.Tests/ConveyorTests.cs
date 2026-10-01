@@ -35,7 +35,7 @@ public sealed class ConveyorTests
         conveyor.IsTransferPaused = true;
         await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, false);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
-        Assert.True(await WaitUntilAsync(() => conveyor.Step is MainConveyorState.Waiting && conveyor.IsWaiting,
+        Assert.True(await WaitUntilAsync(() => conveyor.Step is MainConveyorState.WaitingForFrontCarrier,
             TimeSpan.FromSeconds(1)));
         Assert.True(conveyor.IsRunning);
         stop.Cancel();
@@ -62,7 +62,7 @@ public sealed class ConveyorTests
             Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
             io.SetInputs((InputIo.MainConveyorEntryCarrierDetected, false),
                 (InputIo.PcbPlacementHeatSink1Present, true), (InputIo.PcbPlacementHeatSink2Present, true));
-            Assert.True(await WaitUntilAsync(() => conveyor.Step is MainConveyorState.Waiting && conveyor.IsWaiting,
+            Assert.True(await WaitUntilAsync(() => conveyor.Step is MainConveyorState.WaitingForPcbPlacement,
                 TimeSpan.FromSeconds(2)));
             Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
             Assert.False(io.GetInput(InputIo.PcbPlacementBackupPlateDown));
@@ -93,7 +93,7 @@ public sealed class ConveyorTests
         conveyor.IsTransferPaused = true;
         Assert.Equal(MainConveyorState.PreparingInspectionCarrier, conveyor.GetNextStep(false));
         inspection.Station.Complete();
-        Assert.Equal(MainConveyorState.Waiting, conveyor.GetNextStep(false));
+        Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.GetNextStep(false));
     }
 
     [Theory]
