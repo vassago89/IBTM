@@ -12,8 +12,8 @@
     <UserControl.Resources>
         <ui:MillisecondsToSecondsConverter x:Key="MillisecondsToSecondsConverter"/>
         <Style x:Key="SettingFieldLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
             <Setter Property="Margin" Value="0,0,0,4"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>

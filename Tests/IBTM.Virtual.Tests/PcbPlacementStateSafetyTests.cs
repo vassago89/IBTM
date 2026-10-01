@@ -149,6 +149,45 @@ public sealed class PcbPlacementStateSafetyTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task HandoffWaitsAtStandbyUntilSupplyIsHolding(bool supplyEnabled)
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        await rig.Placer.MoveAxisAsync(MotionAxis.X, rig.Settings.HandoffPosition.X);
+        await rig.Placer.MoveAxisAsync(MotionAxis.Y, rig.Position.Y);
+        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false);
+        rig.Units.PcbSupply = supplyEnabled;
+        rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+        var standby = rig.Motion.Position;
+        var moved = false;
+        var pressed = false;
+        rig.Motion.MovingChanged += moving => moved |= moving;
+        rig.Io.OutputChanged += (output, on) =>
+            pressed |= output == OutputIo.PcbPlacementIpmDown && on;
+
+        Assert.False(await rig.Placer.ExecuteStepAsync(
+            PcbPlacementState.MovingToHandoff, HeatSinkSlot.HeatSink1, CancellationToken.None));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => rig.Placer.PrepareHandoffAsync());
+
+        Assert.False(moved);
+        Assert.False(pressed);
+        Assert.Equal(standby, rig.Motion.Position);
+        Assert.Equal(PcbPlacementState.MovingToHandoff, rig.Placer.Phase);
+        Assert.Empty(rig.Work.Assemblies);
+        Assert.False(rig.Work.Completed);
+
+        rig.Units.PcbSupply = true;
+        rig.Supply.Handoff = PcbSupplyHandoff.Holding;
+        await rig.Placer.ExecuteStepAsync(
+            PcbPlacementState.MovingToHandoff, HeatSinkSlot.HeatSink1, CancellationToken.None);
+
+        Assert.Equal(PcbPlacementState.ReceivingPcb, rig.Placer.Phase);
+        Assert.Equal(rig.Settings.HandoffPosition.Y, rig.Motion.Position.Y);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PlacementCompletesOnlyAfterReturningXAtStandbyZ(bool cancelReturn)
     {
         using var rig = new PlacementRig();

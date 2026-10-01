@@ -65,7 +65,7 @@
             <Button DockPanel.Dock="Right" Content="{ui:Text 'Export CSV'}" Command="{Binding ExportCsvCommand}"
                 MinWidth="110" Margin="12,0,0,0" VerticalAlignment="Center">
                 <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Record}" Value="{x:Null}">
                                 <Setter Property="IsEnabled" Value="False"/>
@@ -116,7 +116,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="3*"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*" MaxHeight="180"/>
+                        <RowDefinition Height="220"/>
                         <RowDefinition Height="48"/>
                     </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
@@ -151,10 +151,11 @@
                     </StackPanel>
                     <ListBox Grid.Row="3" ItemsSource="{Binding Images}" SelectedItem="{Binding SelectedImage, Mode=TwoWay}"
                         BorderThickness="0" Background="Transparent" ItemContainerStyle="{StaticResource FlatListItemStyle}"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                        ScrollViewer.CanContentScroll="False">
                         <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
                         <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbInspectionImageItem}">
-                            <StackPanel Width="74" Margin="0,0,4,6" ToolTip="{Binding Title}"><Image Source="{Binding Image}" Height="48" Stretch="Uniform"/>
+                            <StackPanel Width="108" Margin="4,4,6,6" ToolTip="{Binding Title}"><Image Source="{Binding Image}" Height="56" Stretch="Uniform"/>
                                 <TextBlock Text="{Binding Error}" Height="14" FontSize="10" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" Foreground="{StaticResource AccentAmberBrush}"/>
                                 <DockPanel Margin="0,4,0,0">
                                     <TextBlock DockPanel.Dock="Right" Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource ResultValueStyle}" FontSize="10" Margin="4,0,0,0"/>
@@ -228,7 +229,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Border Grid.Row="2" Height="280" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,6,0,0" Padding="0,6,0,0">
+                    <Border Grid.Row="2" Height="320" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,6,0,0" Padding="0,6,0,0">
                         <Border.Style><Style TargetType="Border"><Style.Triggers>
                             <DataTrigger Binding="{Binding SelectedBolt}" Value="{x:Null}"><Setter Property="Visibility" Value="Hidden"/></DataTrigger>
                         </Style.Triggers></Style></Border.Style>
@@ -256,7 +257,7 @@
                                     </WrapPanel>
                                 </StackPanel>
                             </DockPanel>
-                            <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="0" Foreground="{StaticResource TextPrimaryBrush}">
+                            <TabControl Grid.Row="1" Style="{StaticResource SectionTabs}" ItemContainerStyle="{StaticResource SectionTab}">
                                 <TabItem Header="{ui:Text 'Measurements'}" Padding="10,4">
                                     <UniformGrid Columns="4" Rows="4" Margin="0,8,0,0" VerticalAlignment="Top">
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Result torque'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBolt.Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>

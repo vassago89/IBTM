@@ -459,7 +459,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     // During maintenance only the seated, unfinished carrier may receive another PCB.
                     if (!IsPrefetchAllowed && (!Station.CarrierSeated || Station.Completed || heatSink is null))
                         return false;
-                    if (_units.PcbSupply && _supply.Handoff != PcbSupplyHandoff.Holding)
+                    if (_supply.Handoff != PcbSupplyHandoff.Holding)
                         return false;
                     await SetLiftDownAsync(false, cancellationToken);
                     await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, cancellationToken);
@@ -657,7 +657,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         void CheckSupply()
         {
             // Handoff confirms settled Supply XYZ and Unrotated feedback, as well as grip state.
-            if (_units.PcbSupply && _supply.Handoff != expected)
+            // Only standalone repeat may visit handoff without an enabled Supply.
+            if ((!returning || _units.PcbSupply) && _supply.Handoff != expected)
                 OperationCancellation.CancelIfNotDisposed(approach);
         }
         _supply.Changed += CheckSupply;

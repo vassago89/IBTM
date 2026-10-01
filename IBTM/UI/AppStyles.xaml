@@ -20,19 +20,19 @@
     <SolidColorBrush x:Key="ImageBackgroundBrush" Color="#0B0F12"/>
 
     <SolidColorBrush x:Key="AccentBrush" Color="#D9DCE1"/>
-    <SolidColorBrush x:Key="AccentGreenBrush" Color="#6FAE7E"/>
+    <SolidColorBrush x:Key="AccentGreenBrush" Color="#7FC995"/>
     <SolidColorBrush x:Key="AccentBlueBrush" Color="#70A3CF"/>
     <SolidColorBrush x:Key="AccentAmberBrush" Color="#D0A754"/>
-    <SolidColorBrush x:Key="AccentRedBrush" Color="#D65D5D"/>
+    <SolidColorBrush x:Key="AccentRedBrush" Color="#EF8585"/>
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F1F3F5"/>
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#C7CDD2"/>
-    <SolidColorBrush x:Key="TextMutedBrush" Color="#98A3AC"/>
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#AFBAC3"/>
     <SolidColorBrush x:Key="ControlBgBrush" Color="#232A30"/>
     <SolidColorBrush x:Key="ControlBorderBrush" Color="#4C5862"/>
     <SolidColorBrush x:Key="ControlHoverBorderBrush" Color="#6A7883"/>
-    <SolidColorBrush x:Key="ControlFocusBorderBrush" Color="#94A1AC"/>
+    <SolidColorBrush x:Key="ControlFocusBorderBrush" Color="#8CC6F3"/>
     <SolidColorBrush x:Key="ControlSelectionBrush" Color="#43505A"/>
-    <SolidColorBrush x:Key="ControlSelectedBackgroundBrush" Color="#343E47"/>
+    <SolidColorBrush x:Key="ControlSelectedBackgroundBrush" Color="#354C5E"/>
     <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#477CA6"/>
     <SolidColorBrush x:Key="DangerButtonBackgroundBrush" Color="#8D4242"/>
     <SolidColorBrush x:Key="DangerButtonBorderBrush" Color="#BA5D5D"/>
@@ -331,7 +331,7 @@
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="BorderThickness" Value="3,0,0,0"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
@@ -351,6 +351,7 @@
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{StaticResource ControlSelectedBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -385,6 +386,9 @@
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Root" Property="Opacity" Value="0.78"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource ControlFocusBorderBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Opacity" Value="0.5"/>
