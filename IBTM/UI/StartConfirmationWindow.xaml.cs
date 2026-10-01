@@ -24,12 +24,14 @@ public partial class StartConfirmationWindow : Window
 
     private void OnConfirmClick(object sender, RoutedEventArgs e)
     {
-        if (_viewModel.IsStartReviewAllowed && !_viewModel.CheckStartCommand.IsRunning)
+        if (_viewModel.IsStartReviewAllowed && !_viewModel.CheckStartCommand.IsRunning
+            && !_viewModel.ChangeCarrierWorkCommand.IsRunning)
             DialogResult = true;
     }
 
     private void OnClosed(object? sender, EventArgs e)
     {
         _viewModel.CheckStartCommand.Cancel();
+        _viewModel.ChangeCarrierWorkCommand.Cancel();
     }
 }
