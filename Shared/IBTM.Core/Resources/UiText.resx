@@ -839,18 +839,6 @@ Operation failed. Check controller status.</value>
   <data name="gripping returned pcb" xml:space="preserve">
     <value>Gripping Returned PCB</value>
   </data>
-  <data name="h1 pickup" xml:space="preserve">
-    <value>H1 Pickup</value>
-  </data>
-  <data name="h1 · pickup" xml:space="preserve">
-    <value>H1 · Pickup</value>
-  </data>
-  <data name="h2 shooting" xml:space="preserve">
-    <value>H2 Shooting</value>
-  </data>
-  <data name="h2 · shooting" xml:space="preserve">
-    <value>H2 · Shooting</value>
-  </data>
   <data name="handing pcb to placement" xml:space="preserve">
     <value>Handing PCB to Placement</value>
   </data>
@@ -868,12 +856,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="head" xml:space="preserve">
     <value>HEAD</value>
-  </data>
-  <data name="head 1 pickup" xml:space="preserve">
-    <value>Head 1 Pickup</value>
-  </data>
-  <data name="head 2 shooting" xml:space="preserve">
-    <value>Head 2 Shooting</value>
   </data>
   <data name="heat sink 1" xml:space="preserve">
     <value>Heat Sink 1</value>
@@ -1692,29 +1674,29 @@ Operation failed. Check controller status.</value>
   <data name="pickup bolt feeder" xml:space="preserve">
     <value>Pickup Bolt Feeder</value>
   </data>
-  <data name="pickup controller fwd/bwd (head 1)" xml:space="preserve">
-    <value>Pickup Controller FWD/BWD (Head 1)</value>
+  <data name="pickup controller fwd/bwd" xml:space="preserve">
+    <value>Pickup Controller FWD/BWD</value>
   </data>
-  <data name="pickup controller i/o (head 1)" xml:space="preserve">
-    <value>Pickup Controller I/O (Head 1)</value>
+  <data name="pickup controller i/o" xml:space="preserve">
+    <value>Pickup Controller I/O</value>
   </data>
-  <data name="pickup controller lock (head 1)" xml:space="preserve">
-    <value>Pickup Controller Lock (Head 1)</value>
+  <data name="pickup controller lock" xml:space="preserve">
+    <value>Pickup Controller Lock</value>
   </data>
-  <data name="pickup controller preset 1 (head 1)" xml:space="preserve">
-    <value>Pickup Controller Preset 1 (Head 1)</value>
+  <data name="pickup controller preset 1" xml:space="preserve">
+    <value>Pickup Controller Preset 1</value>
   </data>
-  <data name="pickup controller preset 2 (head 1)" xml:space="preserve">
-    <value>Pickup Controller Preset 2 (Head 1)</value>
+  <data name="pickup controller preset 2" xml:space="preserve">
+    <value>Pickup Controller Preset 2</value>
   </data>
-  <data name="pickup controller preset 3 (head 1)" xml:space="preserve">
-    <value>Pickup Controller Preset 3 (Head 1)</value>
+  <data name="pickup controller preset 3" xml:space="preserve">
+    <value>Pickup Controller Preset 3</value>
   </data>
-  <data name="pickup controller reset (head 1)" xml:space="preserve">
-    <value>Pickup Controller Reset (Head 1)</value>
+  <data name="pickup controller reset" xml:space="preserve">
+    <value>Pickup Controller Reset</value>
   </data>
-  <data name="pickup controller start (head 1)" xml:space="preserve">
-    <value>Pickup Controller Start (Head 1)</value>
+  <data name="pickup controller start" xml:space="preserve">
+    <value>Pickup Controller Start</value>
   </data>
   <data name="pickup feeder" xml:space="preserve">
     <value>Pickup feeder</value>
@@ -1728,8 +1710,8 @@ Operation failed. Check controller status.</value>
   <data name="pickup head" xml:space="preserve">
     <value>Pickup Head</value>
   </data>
-  <data name="pickup head down (head 1)" xml:space="preserve">
-    <value>Pickup Head Down (Head 1)</value>
+  <data name="pickup head down" xml:space="preserve">
+    <value>Pickup Head Down</value>
   </data>
   <data name="pickup head fastening z" xml:space="preserve">
     <value>Pickup Head Fastening Z</value>
@@ -1740,23 +1722,23 @@ Operation failed. Check controller status.</value>
   <data name="pickup head pin - upper left" xml:space="preserve">
     <value>Pickup Head Pin - Upper Left</value>
   </data>
-  <data name="pickup head up (head 1)" xml:space="preserve">
-    <value>Pickup Head Up (Head 1)</value>
+  <data name="pickup head up" xml:space="preserve">
+    <value>Pickup Head Up</value>
   </data>
-  <data name="pickup head vacuum detected (head 1)" xml:space="preserve">
-    <value>Pickup Head Vacuum Detected (Head 1)</value>
+  <data name="pickup head vacuum detected" xml:space="preserve">
+    <value>Pickup Head Vacuum Detected</value>
   </data>
-  <data name="pickup head vacuum pump (head 1)" xml:space="preserve">
-    <value>Pickup Head Vacuum Pump (Head 1)</value>
+  <data name="pickup head vacuum pump" xml:space="preserve">
+    <value>Pickup Head Vacuum Pump</value>
   </data>
   <data name="pickup retries (0 = off)" xml:space="preserve">
     <value>Pickup retry count (0 = none)</value>
   </data>
-  <data name="pickup table down (head 1)" xml:space="preserve">
-    <value>Pickup Table Down (Head 1)</value>
+  <data name="pickup table down" xml:space="preserve">
+    <value>Pickup Table Down</value>
   </data>
-  <data name="pickup table up (head 1)" xml:space="preserve">
-    <value>Pickup Table Up (Head 1)</value>
+  <data name="pickup table up" xml:space="preserve">
+    <value>Pickup Table Up</value>
   </data>
   <data name="pickup · feed and fasten" xml:space="preserve">
     <value>Pickup · feed and fasten</value>
@@ -2320,29 +2302,29 @@ Operation failed. Check controller status.</value>
   <data name="shooting bolt feeder" xml:space="preserve">
     <value>Shooting Bolt Feeder</value>
   </data>
-  <data name="shooting controller fwd/bwd (head 2)" xml:space="preserve">
-    <value>Shooting Controller FWD/BWD (Head 2)</value>
+  <data name="shooting controller fwd/bwd" xml:space="preserve">
+    <value>Shooting Controller FWD/BWD</value>
   </data>
-  <data name="shooting controller i/o (head 2)" xml:space="preserve">
-    <value>Shooting Controller I/O (Head 2)</value>
+  <data name="shooting controller i/o" xml:space="preserve">
+    <value>Shooting Controller I/O</value>
   </data>
-  <data name="shooting controller lock (head 2)" xml:space="preserve">
-    <value>Shooting Controller Lock (Head 2)</value>
+  <data name="shooting controller lock" xml:space="preserve">
+    <value>Shooting Controller Lock</value>
   </data>
-  <data name="shooting controller preset 1 (head 2)" xml:space="preserve">
-    <value>Shooting Controller Preset 1 (Head 2)</value>
+  <data name="shooting controller preset 1" xml:space="preserve">
+    <value>Shooting Controller Preset 1</value>
   </data>
-  <data name="shooting controller preset 2 (head 2)" xml:space="preserve">
-    <value>Shooting Controller Preset 2 (Head 2)</value>
+  <data name="shooting controller preset 2" xml:space="preserve">
+    <value>Shooting Controller Preset 2</value>
   </data>
-  <data name="shooting controller preset 3 (head 2)" xml:space="preserve">
-    <value>Shooting Controller Preset 3 (Head 2)</value>
+  <data name="shooting controller preset 3" xml:space="preserve">
+    <value>Shooting Controller Preset 3</value>
   </data>
-  <data name="shooting controller reset (head 2)" xml:space="preserve">
-    <value>Shooting Controller Reset (Head 2)</value>
+  <data name="shooting controller reset" xml:space="preserve">
+    <value>Shooting Controller Reset</value>
   </data>
-  <data name="shooting controller start (head 2)" xml:space="preserve">
-    <value>Shooting Controller Start (Head 2)</value>
+  <data name="shooting controller start" xml:space="preserve">
+    <value>Shooting Controller Start</value>
   </data>
   <data name="shooting escape backward" xml:space="preserve">
     <value>Shooting Escape Backward</value>
@@ -2368,8 +2350,8 @@ Operation failed. Check controller status.</value>
   <data name="shooting head" xml:space="preserve">
     <value>Shooting Head</value>
   </data>
-  <data name="shooting head down (head 2)" xml:space="preserve">
-    <value>Shooting Head Down (Head 2)</value>
+  <data name="shooting head down" xml:space="preserve">
+    <value>Shooting Head Down</value>
   </data>
   <data name="shooting head fastening z" xml:space="preserve">
     <value>Shooting Head Fastening Z</value>
@@ -2380,14 +2362,14 @@ Operation failed. Check controller status.</value>
   <data name="shooting head pin - upper left" xml:space="preserve">
     <value>Shooting Head Pin - Upper Left</value>
   </data>
-  <data name="shooting head up (head 2)" xml:space="preserve">
-    <value>Shooting Head Up (Head 2)</value>
+  <data name="shooting head up" xml:space="preserve">
+    <value>Shooting Head Up</value>
   </data>
-  <data name="shooting head vacuum detected (head 2)" xml:space="preserve">
-    <value>Shooting Head Vacuum Detected (Head 2)</value>
+  <data name="shooting head vacuum detected" xml:space="preserve">
+    <value>Shooting Head Vacuum Detected</value>
   </data>
-  <data name="shooting head vacuum pump (head 2)" xml:space="preserve">
-    <value>Shooting Head Vacuum Pump (Head 2)</value>
+  <data name="shooting head vacuum pump" xml:space="preserve">
+    <value>Shooting Head Vacuum Pump</value>
   </data>
   <data name="shooting safe z" xml:space="preserve">
     <value>Shooting Safe Z</value>
@@ -3289,12 +3271,6 @@ See the application log for details.</value>
   </data>
   <data name="remove unfinished carriers, then press start" xml:space="preserve">
     <value>Remove unfinished carriers, then press START</value>
-  </data>
-  <data name="head 1 · pickup" xml:space="preserve">
-    <value>Head 1 · Pickup</value>
-  </data>
-  <data name="head 2 · shooting" xml:space="preserve">
-    <value>Head 2 · Shooting</value>
   </data>
   <data name="s1 · pcb placement" xml:space="preserve">
     <value>S1 · PCB Placement</value>

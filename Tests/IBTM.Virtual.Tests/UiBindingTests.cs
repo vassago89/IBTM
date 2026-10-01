@@ -244,7 +244,7 @@ public sealed class UiBindingTests
                 presenter.ApplyTemplate();
                 presenter.Dispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
                 var text = (TextBlock)VisualTreeHelper.GetChild(presenter, 0);
-                Assert.Equal(item is string ? "Settings" : "헤드 1 픽업", text.Text);
+                Assert.Equal(item is string ? "Settings" : "픽업", text.Text);
             }
         }
         finally

@@ -144,12 +144,12 @@
                 <TextBlock Grid.Column="1" Text="{ui:Text 'READY'}" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBlock Grid.Column="2" Text="{ui:Text 'RUN'}" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBlock Grid.Column="3" Text="{ui:Text 'ALARM'}" Foreground="{StaticResource TextMutedBrush}"/>
-                <TextBlock Grid.Row="1" Text="{ui:Text 'H1 Pickup'}" TextAlignment="Left" FontWeight="SemiBold"/>
+                <TextBlock Grid.Row="1" Text="{ui:Text 'Pickup'}" TextAlignment="Left" FontWeight="SemiBold"/>
                 <TextBlock Grid.Row="1" Grid.Column="1" Tag="{Binding Fastening.PickupHead.Monitor.Sample.Status.Ready}" Style="{StaticResource AdcSignalStateStyle}"/>
                 <TextBlock Grid.Row="1" Grid.Column="2" Tag="{Binding Fastening.PickupHead.Monitor.Sample.Status.Running}" Style="{StaticResource AdcSignalStateStyle}"/>
                 <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding Fastening.PickupHead.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"
                     Tag="{Binding Fastening.PickupHead.Monitor.Sample.Status.Alarm}" Style="{StaticResource AdcAlarmStateStyle}"/>
-                <TextBlock Grid.Row="2" Text="{ui:Text 'H2 Shooting'}" TextAlignment="Left" FontWeight="SemiBold"/>
+                <TextBlock Grid.Row="2" Text="{ui:Text 'Shooting'}" TextAlignment="Left" FontWeight="SemiBold"/>
                 <TextBlock Grid.Row="2" Grid.Column="1" Tag="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Ready}" Style="{StaticResource AdcSignalStateStyle}"/>
                 <TextBlock Grid.Row="2" Grid.Column="2" Tag="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Running}" Style="{StaticResource AdcSignalStateStyle}"/>
                 <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"

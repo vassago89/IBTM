@@ -8,9 +8,9 @@ public enum StartArea
     Supply,
     [Description("Placement handler")]
     Placement,
-    [Description("Head 1 · Pickup")]
+    [Description("Pickup")]
     PickupHead,
-    [Description("Head 2 · Shooting")]
+    [Description("Shooting")]
     ShootingHead,
     [Description("S1 · PCB Placement")]
     Station1,

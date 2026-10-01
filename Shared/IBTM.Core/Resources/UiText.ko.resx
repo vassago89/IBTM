@@ -839,18 +839,6 @@
   <data name="gripping returned pcb" xml:space="preserve">
     <value>반환 PCB 파지 중</value>
   </data>
-  <data name="h1 pickup" xml:space="preserve">
-    <value>H1 픽업</value>
-  </data>
-  <data name="h1 · pickup" xml:space="preserve">
-    <value>H1 · 픽업</value>
-  </data>
-  <data name="h2 shooting" xml:space="preserve">
-    <value>H2 슈팅</value>
-  </data>
-  <data name="h2 · shooting" xml:space="preserve">
-    <value>H2 · 슈팅</value>
-  </data>
   <data name="handing pcb to placement" xml:space="preserve">
     <value>안착측으로 PCB 인계</value>
   </data>
@@ -868,12 +856,6 @@
   </data>
   <data name="head" xml:space="preserve">
     <value>헤드</value>
-  </data>
-  <data name="head 1 pickup" xml:space="preserve">
-    <value>헤드 1 픽업</value>
-  </data>
-  <data name="head 2 shooting" xml:space="preserve">
-    <value>헤드 2 슈팅</value>
   </data>
   <data name="heat sink 1" xml:space="preserve">
     <value>히트싱크 1</value>
@@ -1692,29 +1674,29 @@
   <data name="pickup bolt feeder" xml:space="preserve">
     <value>픽업 볼트 피더</value>
   </data>
-  <data name="pickup controller fwd/bwd (head 1)" xml:space="preserve">
-    <value>픽업 체결기 정/역회전 (헤드 1)</value>
+  <data name="pickup controller fwd/bwd" xml:space="preserve">
+    <value>픽업 체결기 정/역회전</value>
   </data>
-  <data name="pickup controller i/o (head 1)" xml:space="preserve">
-    <value>픽업 체결기 I/O (헤드 1)</value>
+  <data name="pickup controller i/o" xml:space="preserve">
+    <value>픽업 체결기 I/O</value>
   </data>
-  <data name="pickup controller lock (head 1)" xml:space="preserve">
-    <value>픽업 체결기 잠금 (헤드 1)</value>
+  <data name="pickup controller lock" xml:space="preserve">
+    <value>픽업 체결기 잠금</value>
   </data>
-  <data name="pickup controller preset 1 (head 1)" xml:space="preserve">
-    <value>픽업 체결기 프리셋 1 (헤드 1)</value>
+  <data name="pickup controller preset 1" xml:space="preserve">
+    <value>픽업 체결기 프리셋 1</value>
   </data>
-  <data name="pickup controller preset 2 (head 1)" xml:space="preserve">
-    <value>픽업 체결기 프리셋 2 (헤드 1)</value>
+  <data name="pickup controller preset 2" xml:space="preserve">
+    <value>픽업 체결기 프리셋 2</value>
   </data>
-  <data name="pickup controller preset 3 (head 1)" xml:space="preserve">
-    <value>픽업 체결기 프리셋 3 (헤드 1)</value>
+  <data name="pickup controller preset 3" xml:space="preserve">
+    <value>픽업 체결기 프리셋 3</value>
   </data>
-  <data name="pickup controller reset (head 1)" xml:space="preserve">
-    <value>픽업 체결기 리셋 (헤드 1)</value>
+  <data name="pickup controller reset" xml:space="preserve">
+    <value>픽업 체결기 리셋</value>
   </data>
-  <data name="pickup controller start (head 1)" xml:space="preserve">
-    <value>픽업 체결기 시작 (헤드 1)</value>
+  <data name="pickup controller start" xml:space="preserve">
+    <value>픽업 체결기 시작</value>
   </data>
   <data name="pickup feeder" xml:space="preserve">
     <value>픽업 피더</value>
@@ -1728,8 +1710,8 @@
   <data name="pickup head" xml:space="preserve">
     <value>픽업 헤드</value>
   </data>
-  <data name="pickup head down (head 1)" xml:space="preserve">
-    <value>픽업 헤드 하강 (헤드 1)</value>
+  <data name="pickup head down" xml:space="preserve">
+    <value>픽업 헤드 하강</value>
   </data>
   <data name="pickup head fastening z" xml:space="preserve">
     <value>픽업 헤드 체결 Z</value>
@@ -1740,23 +1722,23 @@
   <data name="pickup head pin - upper left" xml:space="preserve">
     <value>픽업 헤드 핀 - 좌상단</value>
   </data>
-  <data name="pickup head up (head 1)" xml:space="preserve">
-    <value>픽업 헤드 상승 (헤드 1)</value>
+  <data name="pickup head up" xml:space="preserve">
+    <value>픽업 헤드 상승</value>
   </data>
-  <data name="pickup head vacuum detected (head 1)" xml:space="preserve">
-    <value>픽업 헤드 진공 감지 (헤드 1)</value>
+  <data name="pickup head vacuum detected" xml:space="preserve">
+    <value>픽업 헤드 진공 감지</value>
   </data>
-  <data name="pickup head vacuum pump (head 1)" xml:space="preserve">
-    <value>픽업 헤드 진공 펌프 (헤드 1)</value>
+  <data name="pickup head vacuum pump" xml:space="preserve">
+    <value>픽업 헤드 진공 펌프</value>
   </data>
   <data name="pickup retries (0 = off)" xml:space="preserve">
     <value>픽업 재시도 횟수 (0 = 없음)</value>
   </data>
-  <data name="pickup table down (head 1)" xml:space="preserve">
-    <value>픽업 테이블 하강 (헤드 1)</value>
+  <data name="pickup table down" xml:space="preserve">
+    <value>픽업 테이블 하강</value>
   </data>
-  <data name="pickup table up (head 1)" xml:space="preserve">
-    <value>픽업 테이블 상승 (헤드 1)</value>
+  <data name="pickup table up" xml:space="preserve">
+    <value>픽업 테이블 상승</value>
   </data>
   <data name="pickup · feed and fasten" xml:space="preserve">
     <value>픽업 · 공급 및 체결</value>
@@ -2320,29 +2302,29 @@
   <data name="shooting bolt feeder" xml:space="preserve">
     <value>슈팅 볼트 피더</value>
   </data>
-  <data name="shooting controller fwd/bwd (head 2)" xml:space="preserve">
-    <value>슈팅 체결기 정/역회전 (헤드 2)</value>
+  <data name="shooting controller fwd/bwd" xml:space="preserve">
+    <value>슈팅 체결기 정/역회전</value>
   </data>
-  <data name="shooting controller i/o (head 2)" xml:space="preserve">
-    <value>슈팅 체결기 I/O (헤드 2)</value>
+  <data name="shooting controller i/o" xml:space="preserve">
+    <value>슈팅 체결기 I/O</value>
   </data>
-  <data name="shooting controller lock (head 2)" xml:space="preserve">
-    <value>슈팅 체결기 잠금 (헤드 2)</value>
+  <data name="shooting controller lock" xml:space="preserve">
+    <value>슈팅 체결기 잠금</value>
   </data>
-  <data name="shooting controller preset 1 (head 2)" xml:space="preserve">
-    <value>슈팅 체결기 프리셋 1 (헤드 2)</value>
+  <data name="shooting controller preset 1" xml:space="preserve">
+    <value>슈팅 체결기 프리셋 1</value>
   </data>
-  <data name="shooting controller preset 2 (head 2)" xml:space="preserve">
-    <value>슈팅 체결기 프리셋 2 (헤드 2)</value>
+  <data name="shooting controller preset 2" xml:space="preserve">
+    <value>슈팅 체결기 프리셋 2</value>
   </data>
-  <data name="shooting controller preset 3 (head 2)" xml:space="preserve">
-    <value>슈팅 체결기 프리셋 3 (헤드 2)</value>
+  <data name="shooting controller preset 3" xml:space="preserve">
+    <value>슈팅 체결기 프리셋 3</value>
   </data>
-  <data name="shooting controller reset (head 2)" xml:space="preserve">
-    <value>슈팅 체결기 리셋 (헤드 2)</value>
+  <data name="shooting controller reset" xml:space="preserve">
+    <value>슈팅 체결기 리셋</value>
   </data>
-  <data name="shooting controller start (head 2)" xml:space="preserve">
-    <value>슈팅 체결기 시작 (헤드 2)</value>
+  <data name="shooting controller start" xml:space="preserve">
+    <value>슈팅 체결기 시작</value>
   </data>
   <data name="shooting escape backward" xml:space="preserve">
     <value>슈팅 이스케이프 후진</value>
@@ -2368,8 +2350,8 @@
   <data name="shooting head" xml:space="preserve">
     <value>슈팅 헤드</value>
   </data>
-  <data name="shooting head down (head 2)" xml:space="preserve">
-    <value>슈팅 헤드 하강 (헤드 2)</value>
+  <data name="shooting head down" xml:space="preserve">
+    <value>슈팅 헤드 하강</value>
   </data>
   <data name="shooting head fastening z" xml:space="preserve">
     <value>슈팅 헤드 체결 Z</value>
@@ -2380,14 +2362,14 @@
   <data name="shooting head pin - upper left" xml:space="preserve">
     <value>슈팅 헤드 핀 - 좌상단</value>
   </data>
-  <data name="shooting head up (head 2)" xml:space="preserve">
-    <value>슈팅 헤드 상승 (헤드 2)</value>
+  <data name="shooting head up" xml:space="preserve">
+    <value>슈팅 헤드 상승</value>
   </data>
-  <data name="shooting head vacuum detected (head 2)" xml:space="preserve">
-    <value>슈팅 헤드 진공 감지 (헤드 2)</value>
+  <data name="shooting head vacuum detected" xml:space="preserve">
+    <value>슈팅 헤드 진공 감지</value>
   </data>
-  <data name="shooting head vacuum pump (head 2)" xml:space="preserve">
-    <value>슈팅 헤드 진공 펌프 (헤드 2)</value>
+  <data name="shooting head vacuum pump" xml:space="preserve">
+    <value>슈팅 헤드 진공 펌프</value>
   </data>
   <data name="shooting safe z" xml:space="preserve">
     <value>슈팅 Safe Z</value>
@@ -3289,12 +3271,6 @@
   </data>
   <data name="remove unfinished carriers, then press start" xml:space="preserve">
     <value>미완료 캐리어를 제거한 뒤 START를 누르세요</value>
-  </data>
-  <data name="head 1 · pickup" xml:space="preserve">
-    <value>헤드 1 · 픽업</value>
-  </data>
-  <data name="head 2 · shooting" xml:space="preserve">
-    <value>헤드 2 · 슈팅</value>
   </data>
   <data name="s1 · pcb placement" xml:space="preserve">
     <value>S1 · PCB 안착</value>

@@ -7,10 +7,10 @@ namespace IBTM.Core;
 [JsonConverter(typeof(JsonStringEnumConverter<FasteningHead>))]
 public enum FasteningHead
 {
-    [Description("Head 2 Shooting")]
+    [Description("Shooting")]
     Shooting,
 
-    [Description("Head 1 Pickup")]
+    [Description("Pickup")]
     Pickup,
 }
 

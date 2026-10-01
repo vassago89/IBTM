@@ -358,8 +358,8 @@ public enum TeachingPointGroup
     CarrierTransfer,
     [Description("Reference positions")]
     MachineReference,
-    [Description("Head 2 Shooting")]
+    [Description("Shooting")]
     ShootingFastening,
-    [Description("Head 1 Pickup")]
+    [Description("Pickup")]
     PickupFastening,
 }

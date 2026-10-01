@@ -46,15 +46,15 @@ public enum OutputIo
     [Description("Placement Vacuum Ejector")]
     PcbPlacementVacuumEjector = 11,
 
-    [Description("Pickup Head Down (Head 1)")]
+    [Description("Pickup Head Down")]
     [JsonStringEnumMemberName("PickupHeadUp")]
     PickupHeadDown = 12,
 
-    [Description("Shooting Head Down (Head 2)")]
+    [Description("Shooting Head Down")]
     [JsonStringEnumMemberName("ShootingHeadUp")]
     ShootingHeadDown = 13,
 
-    [Description("Pickup Head Vacuum Pump (Head 1)")]
+    [Description("Pickup Head Vacuum Pump")]
     PickupHeadVacuumPump = 14,
 
     [Description("Bolt Fastening Stopper Up")]
@@ -65,7 +65,7 @@ public enum OutputIo
     [JsonStringEnumMemberName("BoltFasteningBackupPlateDown")]
     BoltFasteningBackupPlateUp = 16,
 
-    [Description("Shooting Head Vacuum Pump (Head 2)")]
+    [Description("Shooting Head Vacuum Pump")]
     ShootingHeadVacuumPump = 17,
 
     [Description("Inspection Stopper Up")]
@@ -138,33 +138,33 @@ public enum OutputIo
     [Description("Machine Light")]
     MachineLight = 38,
 
-    [Description("Pickup Controller Preset 1 (Head 1)")]
+    [Description("Pickup Controller Preset 1")]
     PickupBoltPreset1 = 39,
-    [Description("Pickup Controller Preset 2 (Head 1)")]
+    [Description("Pickup Controller Preset 2")]
     PickupBoltPreset2 = 40,
-    [Description("Pickup Controller Preset 3 (Head 1)")]
+    [Description("Pickup Controller Preset 3")]
     PickupBoltPreset3 = 41,
-    [Description("Pickup Controller Start (Head 1)")]
+    [Description("Pickup Controller Start")]
     PickupBoltStart = 42,
-    [Description("Pickup Controller FWD/BWD (Head 1)")]
+    [Description("Pickup Controller FWD/BWD")]
     PickupBoltDirection = 43,
-    [Description("Pickup Controller Lock (Head 1)")]
+    [Description("Pickup Controller Lock")]
     PickupBoltLock = 44,
-    [Description("Pickup Controller Reset (Head 1)")]
+    [Description("Pickup Controller Reset")]
     PickupBoltReset = 45,
-    [Description("Shooting Controller Preset 1 (Head 2)")]
+    [Description("Shooting Controller Preset 1")]
     ShootingBoltPreset1 = 46,
-    [Description("Shooting Controller Preset 2 (Head 2)")]
+    [Description("Shooting Controller Preset 2")]
     ShootingBoltPreset2 = 47,
-    [Description("Shooting Controller Preset 3 (Head 2)")]
+    [Description("Shooting Controller Preset 3")]
     ShootingBoltPreset3 = 48,
-    [Description("Shooting Controller Start (Head 2)")]
+    [Description("Shooting Controller Start")]
     ShootingBoltStart = 49,
-    [Description("Shooting Controller FWD/BWD (Head 2)")]
+    [Description("Shooting Controller FWD/BWD")]
     ShootingBoltDirection = 50,
-    [Description("Shooting Controller Lock (Head 2)")]
+    [Description("Shooting Controller Lock")]
     ShootingBoltLock = 51,
-    [Description("Shooting Controller Reset (Head 2)")]
+    [Description("Shooting Controller Reset")]
     ShootingBoltReset = 52,
 
     [Description("Main Conveyor Normal Speed")]
@@ -173,6 +173,6 @@ public enum OutputIo
     [Description("NG Conveyor Normal Speed")]
     NgConveyorNormalSpeed = 54,
 
-    [Description("Pickup Table Down (Head 1)")]
+    [Description("Pickup Table Down")]
     PickupTableDown = 55,
 }

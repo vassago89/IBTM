@@ -74,7 +74,8 @@ public partial class PcbResultsViewModel : ObservableObject
             .Select(row => new PcbBoltResultView(row.Key, newValue.GetBoltOrdinal(row.Key), row.Head, row.Value,
                 newValue.BoltPresenceResults.TryGetValue(row.Key, out var present) ? present : null,
                 newValue.BoltNames?.GetValueOrDefault(row.Key)))
-            .OrderBy(row => row.Ordinal).ThenBy(row => row.Head).ToArray();
+            .OrderBy(row => row.Result.RecordedAt ?? DateTimeOffset.MaxValue)
+            .ThenBy(row => row.Ordinal).ThenBy(row => row.Head).ToArray();
         SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
             ?? BoltResults.FirstOrDefault();
         if (oldValue?.Number != newValue?.Number || oldValue?.DatabaseFile != newValue?.DatabaseFile)
@@ -143,7 +144,7 @@ public sealed record PcbBoltPresenceView(Guid BoltId, int? Ordinal, bool Present
 public sealed record PcbBoltResultView(
     Guid BoltId, int? Ordinal, FasteningHead Head, BoltResult Result, bool? Present = null, string? Name = null)
 {
-    public string HeadLabel => Head == FasteningHead.Pickup ? UiText.Get("H1 · Pickup") : UiText.Get("H2 · Shooting");
+    public string HeadLabel => UiText.Get(Head);
     public string BoltLabel => BoltPoint.GetDisplayName(Name, Ordinal);
     public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => Result.Source == BoltResultSource.DryRun ? UiText.Get("DRY RUN") : Result.Success ? "OK" : "NG";

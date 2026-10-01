@@ -34,9 +34,9 @@ public enum IoSection
     [Description("Operator Eject")]
     NgConveyorOperatorEject,
 
-    [Description("Pickup Controller I/O (Head 1)")]
+    [Description("Pickup Controller I/O")]
     BoltPickupController,
 
-    [Description("Shooting Controller I/O (Head 2)")]
+    [Description("Shooting Controller I/O")]
     BoltShootingController,
 }

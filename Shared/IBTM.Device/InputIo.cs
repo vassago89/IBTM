@@ -85,7 +85,7 @@ public enum InputIo
     [Description("Unused (former Station 2 carrier sensor)")]
     BoltFasteningCarrierPresent = 24,
 
-    [Description("Shooting Head Vacuum Detected (Head 2)")]
+    [Description("Shooting Head Vacuum Detected")]
     ShootingHeadVacuumDetected = 25,
 
     [Description("Placement Handler Down")]
@@ -109,19 +109,19 @@ public enum InputIo
     [Description("Placement Vacuum Detected")]
     PcbPlacementVacuumDetected = 32,
 
-    [Description("Pickup Head Down (Head 1)")]
+    [Description("Pickup Head Down")]
     PickupHeadDown = 33,
 
-    [Description("Pickup Head Up (Head 1)")]
+    [Description("Pickup Head Up")]
     PickupHeadUp = 34,
 
-    [Description("Shooting Head Down (Head 2)")]
+    [Description("Shooting Head Down")]
     ShootingHeadDown = 35,
 
-    [Description("Shooting Head Up (Head 2)")]
+    [Description("Shooting Head Up")]
     ShootingHeadUp = 36,
 
-    [Description("Pickup Head Vacuum Detected (Head 1)")]
+    [Description("Pickup Head Vacuum Detected")]
     PickupHeadVacuumDetected = 37,
 
     [Description("Shooting Feeder Bolt Detected (Linear)")]
@@ -263,9 +263,9 @@ public enum InputIo
     NgConveyorManualMode = 82,
 
 
-    [Description("Pickup Table Down (Head 1)")]
+    [Description("Pickup Table Down")]
     PickupTableDown = 89,
 
-    [Description("Pickup Table Up (Head 1)")]
+    [Description("Pickup Table Up")]
     PickupTableUp = 90,
 }
