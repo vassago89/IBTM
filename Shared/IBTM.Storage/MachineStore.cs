@@ -36,6 +36,8 @@ public sealed class SavedSettings
 
 public sealed class MachineStore
 {
+    public const int PcbHistoryPageSize = 100;
+
     private readonly DbContextOptions<MachineDbContext> _options;
 
     public MachineStore(string? databaseFile = null)
@@ -348,7 +350,7 @@ public sealed class MachineStore
             throw new InvalidDataException($"PCB {record.Number} already belongs to a different production record ({databaseFile}).");
     }
 
-    public IReadOnlyList<PcbRecord> LoadPcbs(string directory, long? beforeNumber = null, int count = 100)
+    public IReadOnlyList<PcbRecord> LoadPcbs(string directory, long? beforeNumber = null, int count = PcbHistoryPageSize)
     {
         var records = new List<PcbRecord>();
         if (!Directory.Exists(directory))

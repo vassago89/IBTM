@@ -354,7 +354,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 return;
             foreach (var record in records)
                 Records.Add(record);
-            HasOlder = records.Count == 100;
+            HasOlder = records.Count == MachineStore.PcbHistoryPageSize;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)

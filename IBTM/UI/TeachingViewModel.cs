@@ -192,6 +192,7 @@ public partial class TeachingViewModel : ObservableObject
         Recipes = recipes;
         LiveLightLevel = Recipes.Current.BoltInspection.LightLevel;
         CarrierImages = [];
+        MoveMode = TeachingMoveMode.Step;
 
         inspectionStation.FrameReady += UpdateLiveImage;
         inspectionStation.LiveViewChanged += OnLiveViewChanged;

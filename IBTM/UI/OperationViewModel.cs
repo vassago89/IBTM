@@ -32,7 +32,6 @@ public partial class OperationViewModel : ObservableObject
     private readonly Lock _countGate;
     private readonly MachineDiagramMapper _map;
     private volatile bool _active;
-    private const int PcbHistoryPageSize = 100;
     private readonly MachineStore _store;
     private readonly DiagnosticWindowManager _windows;
     private readonly PcbHistorySettings _historySettings;
@@ -75,7 +74,7 @@ public partial class OperationViewModel : ObservableObject
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync);
         RetryPcbSaveCommand = new AsyncRelayCommand(RetryPcbSaveAsync);
         PcbRecords = new();
-        _pcbHistoryLimit = PcbHistoryPageSize;
+        _pcbHistoryLimit = MachineStore.PcbHistoryPageSize;
         _store = store;
         _windows = windows;
         _historySettings = historySettings;
@@ -394,7 +393,7 @@ public partial class OperationViewModel : ObservableObject
             PcbDetails.Record = null;
             PcbHistoryError = null;
             HasOlderPcbs = true;
-            _pcbHistoryLimit = PcbHistoryPageSize;
+            _pcbHistoryLimit = MachineStore.PcbHistoryPageSize;
             _pcbHistoryLoaded = false;
         }
         if (!_pcbHistoryLoaded && LoadOlderPcbsCommand.CanExecute(null))
@@ -1222,15 +1221,15 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             var records = await Task.Run(
-                () => _store.LoadPcbs(directory, before, PcbHistoryPageSize), cancellationToken);
+                () => _store.LoadPcbs(directory, before, MachineStore.PcbHistoryPageSize), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (directory != _pcbHistoryDirectory)
                 return;
-            _pcbHistoryLimit = Math.Max(PcbHistoryPageSize,
+            _pcbHistoryLimit = Math.Max(MachineStore.PcbHistoryPageSize,
                 before.HasValue ? PcbRecords.Count + records.Count : PcbRecords.Count);
             foreach (var record in records)
                 UpdatePcbRecord(record);
-            HasOlderPcbs = records.Count == PcbHistoryPageSize;
+            HasOlderPcbs = records.Count == MachineStore.PcbHistoryPageSize;
             _pcbHistoryLoaded = true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -308,7 +308,7 @@ public sealed record PcbBoltResultView(
         get
         {
             return Result.Controller?.Registers is { } registers
-                ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}"))
+                ? string.Join("  ", registers.Select((value, index) => $"{(ushort)AdcResultRegister.EventCount + index}: {value:X4}"))
                 : UiText.Get("Not recorded");
         }
     }
