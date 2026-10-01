@@ -37,3 +37,11 @@ public enum StartCheckState
     [Description("Ready for Placement handoff")]
     HandoffReady,
 }
+
+public enum CarrierWorkAction
+{
+    [Description("Mark complete")]
+    Complete,
+    [Description("Clear work")]
+    Clear,
+}

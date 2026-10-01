@@ -29,7 +29,6 @@ public sealed record RecentFasteningView(string BoltName, HeatSinkSlot HeatSink,
 public partial class OperationViewModel : ObservableObject
 {
     private readonly MachineOptions _options;
-    private readonly RecipeManager _recipes;
     private readonly MachineDiagramMapper _map;
     private volatile bool _active;
     private const int PcbHistoryPageSize = 100;
@@ -64,6 +63,9 @@ public partial class OperationViewModel : ObservableObject
         OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest);
         StartCommand = new AsyncRelayCommand(StartAsync);
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
+        SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
+        ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync, IsCarrierWorkChangeAllowed);
+        SelectedStartArea = StartArea.Station1;
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync, () => HasOlderPcbs);
@@ -92,7 +94,7 @@ public partial class OperationViewModel : ObservableObject
         Inspection = inspectionStation;
         Units = units;
         _options = options;
-        _recipes = recipes;
+        Recipes = recipes;
         _map = map;
         NgConveyor = ngConveyor;
         Conveyor = conveyor;
@@ -134,6 +136,33 @@ public partial class OperationViewModel : ObservableObject
     }
 
     public MachineController Machine { get; }
+
+    public RecipeManager Recipes { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StartStation), nameof(StartMotion), nameof(StartMaterialState))]
+    public partial StartArea SelectedStartArea { get; private set; }
+
+    [ObservableProperty]
+    public partial string? StartActionMessage { get; private set; }
+
+    public ConveyorStation? StartStation => SelectedStartArea switch
+    {
+        StartArea.Station1 => Placement.Station,
+        StartArea.Station2 => Fastening.Station,
+        StartArea.Station3 => Inspection.Station,
+        _ => null,
+    };
+
+    public MotionStatus StartMotion => SelectedStartArea switch
+    {
+        StartArea.Supply => Supply.Motion,
+        StartArea.Placement or StartArea.Station1 => Placement.Motion,
+        StartArea.PickupHead or StartArea.ShootingHead or StartArea.Station2 => Fastening.Motion,
+        _ => Inspection.Motion,
+    };
+
+    public StartCheckState StartMaterialState => Machine.StartChecks[SelectedStartArea];
 
     [ObservableProperty]
     public partial BitmapSource? InspectionImage { get; private set; }
@@ -222,7 +251,7 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return BoltFasteningActiveBolt is { } bolt
-                ? _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
+                ? Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
         }
     }
 
@@ -231,7 +260,7 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return InspectionActiveBolt is { } bolt
-                ? _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
+                ? Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
         }
     }
 
@@ -245,7 +274,7 @@ public partial class OperationViewModel : ObservableObject
             var active = BoltFasteningActiveBolt;
             var assemblies = Fastening.Station.Assemblies;
             var targets = new List<BoltDiagramMarker>();
-            foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
+            foreach (var bolt in Recipes.Current.Pcb.BoltPoints)
             {
                 if (!Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)
                     || _map.GetFasteningTargetPosition(bolt) is not { } position)
@@ -263,7 +292,7 @@ public partial class OperationViewModel : ObservableObject
                         { TurnsResult: AssemblyResult.Pending } => BoltTargetState.Pending,
                         _ => BoltTargetState.Ok,
                     };
-                targets.Add(new(_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
+                targets.Add(new(Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
             }
             return targets;
         }
@@ -279,7 +308,7 @@ public partial class OperationViewModel : ObservableObject
             var active = InspectionActiveBolt;
             var assemblies = Inspection.Station.Assemblies;
             var targets = new List<BoltDiagramMarker>();
-            foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
+            foreach (var bolt in Recipes.Current.Pcb.BoltPoints)
             {
                 if (!Inspection.Station.IsHeatSinkPresent(bolt.HeatSink)
                     || _map.GetInspectionTargetPosition(bolt) is not { } position)
@@ -291,7 +320,7 @@ public partial class OperationViewModel : ObservableObject
                     state = BoltTargetState.Active;
                 else if (assembly is not null && assembly.BoltPresenceResults.TryGetValue(bolt.Id, out var present))
                     state = present ? BoltTargetState.Ok : BoltTargetState.Ng;
-                targets.Add(new(_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
+                targets.Add(new(Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
             }
             return targets;
         }
@@ -378,7 +407,7 @@ public partial class OperationViewModel : ObservableObject
     {
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, StartCommand, CheckStartCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
+            [StopCommand, StartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
     }
 
     public IRelayCommand OpenBoltStationTestCommand { get; }
@@ -386,6 +415,46 @@ public partial class OperationViewModel : ObservableObject
     public IAsyncRelayCommand StartCommand { get; }
 
     public IAsyncRelayCommand CheckStartCommand { get; }
+
+    public IRelayCommand<StartArea> SelectStartAreaCommand { get; }
+    public IAsyncRelayCommand<CarrierWorkAction> ChangeCarrierWorkCommand { get; }
+
+    private void SelectStartArea(StartArea area)
+    {
+        SelectedStartArea = area;
+        StartActionMessage = null;
+        ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool IsCarrierWorkChangeAllowed(CarrierWorkAction action)
+    {
+        return State.Available && !State.IsRunning && StartStation is { } station
+            && (action == CarrierWorkAction.Complete ? station.CarrierPresent && !station.Completed : !station.CarrierPresent);
+    }
+
+    private async Task ChangeCarrierWorkAsync(CarrierWorkAction action, CancellationToken cancellationToken)
+    {
+        var area = SelectedStartArea;
+        var job = StartStation?.CurrentJob;
+        if (job is null)
+            return;
+        try
+        {
+            await Task.Run(() => Machine.ChangeCarrierWork(area, job, action, cancellationToken), cancellationToken);
+            StartActionMessage = UiText.Get(action == CarrierWorkAction.Complete ? "Marked complete" : "Work cleared");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            _log.LogError(exception, "Carrier work change failed: {Area}, {Action}.", area, action);
+            StartActionMessage = UiText.Get(exception.Message);
+        }
+        finally
+        {
+            OnPropertyChanged(nameof(StartStation));
+            ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
+        }
+    }
 
     public bool IsStartReviewAllowed => Machine.IsStartAllowed && Machine.StartBlock == StartBlockReason.None
         && Machine.StartChecks.Values.All(value => value is not (StartCheckState.NotChecked or StartCheckState.Unknown));
@@ -407,6 +476,9 @@ public partial class OperationViewModel : ObservableObject
         finally
         {
             OnPropertyChanged(nameof(IsStartReviewAllowed));
+            OnPropertyChanged(nameof(StartStation));
+            OnPropertyChanged(nameof(StartMaterialState));
+            ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -425,6 +497,7 @@ public partial class OperationViewModel : ObservableObject
         {
             OnMachineStateChanged(this, new(null));
             OnRecipeChanged();
+            // A ready machine still requires the operator to confirm this START.
             confirmed = _windows.ConfirmStart(this, cancellationToken);
         }
         finally
@@ -441,7 +514,7 @@ public partial class OperationViewModel : ObservableObject
     {
         try
         {
-            IAsyncRelayCommand[] commands = [StartCommand, CheckStartCommand, HomeCommand];
+            IAsyncRelayCommand[] commands = [StartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand];
             var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
                 commands,
@@ -578,6 +651,8 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(nameof(StartBlocked));
             OnPropertyChanged(nameof(StartBlock));
             OnPropertyChanged(nameof(IsStartReviewAllowed));
+            OnPropertyChanged(nameof(StartMaterialState));
+            ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -631,6 +706,9 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PlacementPositionKnown));
         OnPropertyChanged(nameof(PlacementStatus));
         OnPropertyChanged(nameof(Placement));
+        if (SelectedStartArea == StartArea.Station1)
+            OnPropertyChanged(nameof(StartStation));
+        ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));
         OnPropertyChanged(nameof(PlacementDisplayState));
@@ -660,7 +738,7 @@ public partial class OperationViewModel : ObservableObject
         if (latest.Result?.RecordedAt is { } recordedAt
             && (RecentFastening?.Result.RecordedAt is not { } previous || recordedAt > previous))
         {
-            RecentFastening = new(_recipes.Current.Pcb.GetBoltName(latest.Id), latest.HeatSink, latest.Head, latest.Result);
+            RecentFastening = new(Recipes.Current.Pcb.GetBoltName(latest.Id), latest.HeatSink, latest.Head, latest.Result);
         }
 
         if (!_active)
@@ -669,6 +747,9 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(FasteningState));
         OnPropertyChanged(nameof(FasteningPositionKnown));
         OnPropertyChanged(nameof(Fastening));
+        if (SelectedStartArea == StartArea.Station2)
+            OnPropertyChanged(nameof(StartStation));
+        ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(BoltFasteningActiveBolt));
         OnPropertyChanged(nameof(BoltFasteningActiveOrdinal));
         OnPropertyChanged(nameof(BoltTargets));
@@ -681,7 +762,7 @@ public partial class OperationViewModel : ObservableObject
     private void OnInspectionCaptured(ImageFrame frame, HeatSinkSlot pcb, Guid? boltId)
     {
         InspectionImageCaption = boltId is { } id
-            ? $"{UiText.Get(pcb)} · {_recipes.Current.Pcb.GetBoltName(id)}"
+            ? $"{UiText.Get(pcb)} · {Recipes.Current.Pcb.GetBoltName(id)}"
             : UiText.Format($"{UiText.Get(pcb)} · Data Matrix");
         InspectionImage = InspectionPreviewViewModel.CreateBitmap(frame);
     }
@@ -692,6 +773,9 @@ public partial class OperationViewModel : ObservableObject
             return;
 
         OnPropertyChanged(nameof(Inspection));
+        if (SelectedStartArea == StartArea.Station3)
+            OnPropertyChanged(nameof(StartStation));
+        ChangeCarrierWorkCommand.NotifyCanExecuteChanged();
 
         OnPropertyChanged(nameof(InspectionState));
         OnPropertyChanged(nameof(InspectionPositionKnown));

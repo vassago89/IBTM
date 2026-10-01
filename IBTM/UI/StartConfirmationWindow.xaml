@@ -5,7 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI" xmlns:app="clr-namespace:IBTM"
     mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
-    Title="{ui:Text 'Review before START'}" Width="1600" Height="860" MinWidth="1100" MinHeight="660"
+    Title="{ui:Text 'Start confirmation'}" Width="1600" Height="860" MinWidth="1100" MinHeight="660"
     WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
     Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource TextPrimaryBrush}"
     Loaded="OnLoaded" Closed="OnClosed">
@@ -15,11 +15,25 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <StackPanel Margin="0,0,0,16">
-            <TextBlock Text="{ui:Text 'Review before START'}" FontSize="23" FontWeight="SemiBold"/>
-            <TextBlock Text="{ui:Text 'Check that the shown material matches the machine.'}" Margin="0,6,0,0"
-                Foreground="{StaticResource TextSecondaryBrush}"/>
-        </StackPanel>
+        <Grid Margin="0,0,0,16" MinHeight="40">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{ui:Text 'Start confirmation'}" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{ui:Text 'Recipe'}" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding Recipes.Current.Name, Mode=OneTime}" FontWeight="SemiBold" MaxWidth="400"
+                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                <Border Background="{StaticResource ControlBgBrush}" Padding="12,8" Margin="20,0,0,0">
+                    <TextBlock Text="{Binding ModeText}"/>
+                </Border>
+                <Border Background="{StaticResource AttentionBackgroundBrush}" Padding="12,8" Margin="8,0,0,0"
+                    Visibility="{Binding State.RepeatEnabled, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{ui:Text 'REPEAT'}" Foreground="{StaticResource AccentAmberBrush}"/>
+                </Border>
+            </StackPanel>
+        </Grid>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -30,12 +44,41 @@
             </Border>
             <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="108"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="160"/>
                 </Grid.RowDefinitions>
-                <TextBlock Text="{ui:Text 'Material check'}" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Border Padding="12" Margin="0,0,0,12" Background="{StaticResource ControlBgBrush}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock TextWrapping="Wrap" TextTrimming="CharacterEllipsis" FontSize="17"
+                            FontWeight="SemiBold" MinHeight="24" MaxHeight="48">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding StartBlock, Converter={StaticResource UiTextConverter}}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsStartReviewAllowed}" Value="True">
+                                            <Setter Property="Text" Value="{ui:Text 'Ready to start'}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding CheckStartCommand.IsRunning}" Value="True">
+                                            <Setter Property="Text" Value="{ui:Text 'Checking...'}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Grid.Row="1" Text="{Binding AlarmMessage}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                            Margin="0,8,0,0" Foreground="{StaticResource AccentRedBrush}"/>
+                    </Grid>
+                </Border>
+                <TextBlock Grid.Row="1" Text="{ui:Text 'Material check'}" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding Machine.StartChecks}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
@@ -48,6 +91,10 @@
                                 </StackPanel>
                             </Border>
                             <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static app:StartCheckState.Empty}">
+                                    <Setter TargetName="CheckRow" Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                                    <Setter TargetName="CheckState" Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                </DataTrigger>
                                 <DataTrigger Binding="{Binding Value}" Value="{x:Static app:StartCheckState.MaterialRemaining}">
                                     <Setter TargetName="CheckRow" Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
                                     <Setter TargetName="CheckState" Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
@@ -73,42 +120,6 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 </ScrollViewer>
-                <Border Grid.Row="2" Margin="0,12,0,0" Padding="12" Background="{StaticResource ControlBgBrush}">
-                    <StackPanel>
-                        <TextBlock TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="{Binding Machine.StartBlock, Converter={StaticResource UiTextConverter}}"/>
-                                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsStartReviewAllowed}" Value="True">
-                                            <Setter Property="Text" Value="{ui:Text 'Ready to start'}"/>
-                                            <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text="{Binding AlarmMessage}" TextWrapping="Wrap" MaxHeight="70" TextTrimming="CharacterEllipsis"
-                            Margin="0,8,0,0" Foreground="{StaticResource AccentRedBrush}"/>
-                        <TextBlock Text="{ui:Text 'Remove red-marked material, then check again.'}"
-                            TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{StaticResource TextMutedBrush}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Hidden"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Machine.StartBlock}" Value="{x:Static app:StartBlockReason.MaterialRemaining}">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding Machine.StartBlock}" Value="{x:Static app:StartBlockReason.UnfinishedCarrier}">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
             </Grid>
         </Grid>
         <Grid Grid.Row="2" Margin="0,18,0,0">

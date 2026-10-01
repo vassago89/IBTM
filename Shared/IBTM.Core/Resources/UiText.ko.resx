@@ -3326,17 +3326,11 @@
   <data name="i/o feedback unavailable" xml:space="preserve">
     <value>I/O 상태 확인 불가</value>
   </data>
-  <data name="review before start" xml:space="preserve">
-    <value>시작 전 작업 상태 확인</value>
-  </data>
-  <data name="check that the shown material matches the machine." xml:space="preserve">
-    <value>표시된 소재와 실제 설비 상태를 확인하세요.</value>
+  <data name="start confirmation" xml:space="preserve">
+    <value>운전 시작 확인</value>
   </data>
   <data name="material check" xml:space="preserve">
     <value>소재 확인</value>
-  </data>
-  <data name="remove red-marked material, then check again." xml:space="preserve">
-    <value>빨간색으로 표시된 소재를 정리한 뒤 다시 확인하세요.</value>
   </data>
   <data name="check again" xml:space="preserve">
     <value>다시 확인</value>
@@ -3349,5 +3343,8 @@
   </data>
   <data name="finishing work" xml:space="preserve">
     <value>작업 마무리 중</value>
+  </data>
+  <data name="checking..." xml:space="preserve">
+    <value>확인 중</value>
   </data>
 </root>

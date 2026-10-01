@@ -672,6 +672,40 @@ public sealed partial class MachineController : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
     }
 
+    public void ChangeCarrierWork(
+        StartArea area, ConveyorStation.Job job, CarrierWorkAction action, CancellationToken cancellationToken = default)
+    {
+        using var operation = _operations.TryBegin(cancellationToken)
+            ?? throw new InvalidOperationException("Stop the machine before changing carrier work.");
+        if (!_state.Available || _state.IsRunningFor(includeOperations: false))
+            throw new InvalidOperationException("Stop the machine and check I/O before changing carrier work.");
+        var station = area switch
+        {
+            StartArea.Station1 => _pcbPlacement.Station,
+            StartArea.Station2 => _fasteningStation.Station,
+            StartArea.Station3 => _inspectionStation.Station,
+            _ => throw new ArgumentOutOfRangeException(nameof(area)),
+        };
+        station.RequireCurrentJob(job);
+        operation.Token.ThrowIfCancellationRequested();
+        switch (action)
+        {
+            case CarrierWorkAction.Complete:
+                if (!station.CarrierPresent)
+                    throw new InvalidOperationException("No carrier is detected at this station.");
+                // This skips station work, but never manufactures a passing quality result.
+                station.Complete(job);
+                break;
+            case CarrierWorkAction.Clear:
+                station.ClearJob();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(action));
+        }
+        _log?.LogWarning("Operator changed carrier work: {Area}, job={Job}, action={Action}.", area, job.Id, action);
+        CheckStartMaterials();
+    }
+
     public bool TeachingReady
     {
         get

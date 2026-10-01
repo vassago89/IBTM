@@ -3326,17 +3326,11 @@ See the application log for details.</value>
   <data name="i/o feedback unavailable" xml:space="preserve">
     <value>I/O feedback unavailable</value>
   </data>
-  <data name="review before start" xml:space="preserve">
-    <value>Review before START</value>
-  </data>
-  <data name="check that the shown material matches the machine." xml:space="preserve">
-    <value>Check that the shown material matches the machine.</value>
+  <data name="start confirmation" xml:space="preserve">
+    <value>Start confirmation</value>
   </data>
   <data name="material check" xml:space="preserve">
     <value>Material check</value>
-  </data>
-  <data name="remove red-marked material, then check again." xml:space="preserve">
-    <value>Remove red-marked material, then check again.</value>
   </data>
   <data name="check again" xml:space="preserve">
     <value>Check again</value>
@@ -3349,5 +3343,8 @@ See the application log for details.</value>
   </data>
   <data name="finishing work" xml:space="preserve">
     <value>Finishing work</value>
+  </data>
+  <data name="checking..." xml:space="preserve">
+    <value>Checking...</value>
   </data>
 </root>
