@@ -90,17 +90,24 @@ public sealed class RecipeTests
     }
 
     [Fact]
-    public void MinimumTurnsFollowEachBoltThroughRecipeSaveReorderAndClear()
+    public void TurnsLimitsFollowEachBoltThroughRecipeSaveReorderAndClear()
     {
         var first = new BoltPoint();
         var second = new BoltPoint();
         Assert.Null(first.MinimumTurns);
+        Assert.Null(first.MaximumTurns);
         first.MinimumTurns = 0;
+        first.MaximumTurns = 0;
         Assert.Null(first.MinimumTurns);
+        Assert.Null(first.MaximumTurns);
         Assert.Throws<ArgumentOutOfRangeException>(() => first.MinimumTurns = -1);
         Assert.Throws<ArgumentOutOfRangeException>(() => first.MinimumTurns = double.NaN);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.MaximumTurns = -1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.MaximumTurns = double.PositiveInfinity);
         first.MinimumTurns = 3.5;
+        first.MaximumTurns = 8.5;
         second.MinimumTurns = 10;
+        second.MaximumTurns = 30;
         var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
         var store = VirtualTestSupport.OpenMachineStore();
         store.SaveRecipe(recipe);
@@ -108,14 +115,19 @@ public sealed class RecipeTests
         var loaded = store.LoadRecipe(recipe.Name);
         Assert.Equal(3.5, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns);
         Assert.Equal(10, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == second.Id).MinimumTurns);
+        Assert.Equal(8.5, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MaximumTurns);
+        Assert.Equal(30, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == second.Id).MaximumTurns);
         loaded.Pcb.BoltPoints.Move(0, 1);
         loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns = 0;
+        loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MaximumTurns = 0;
         store.SaveRecipe(loaded);
         var reopened = store.LoadRecipe(recipe.Name);
         Assert.Equal(second.Id, reopened.Pcb.BoltPoints[0].Id);
         Assert.Equal(10, reopened.Pcb.BoltPoints[0].MinimumTurns);
+        Assert.Equal(30, reopened.Pcb.BoltPoints[0].MaximumTurns);
         Assert.Equal(first.Id, reopened.Pcb.BoltPoints[1].Id);
         Assert.Null(reopened.Pcb.BoltPoints[1].MinimumTurns);
+        Assert.Null(reopened.Pcb.BoltPoints[1].MaximumTurns);
     }
 
     [Fact]

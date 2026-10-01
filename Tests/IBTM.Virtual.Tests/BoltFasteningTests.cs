@@ -229,6 +229,7 @@ public sealed class BoltFasteningTests
         };
         var bolt = recipes.Current.Pcb.BoltPoints[0];
         bolt.MinimumTurns = 3;
+        bolt.MaximumTurns = 15;
         var station = new BoltFasteningStation(shooting, pickup, io, motion, new MotionStatus(motion), settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work, recipes, units,
@@ -254,6 +255,7 @@ public sealed class BoltFasteningTests
                 {
                     headWasLowered = true;
                     bolt.MinimumTurns = 20;
+                    bolt.MaximumTurns = 30;
                     if (failStop)
                         bus.StopWriteFailure = stopFailure;
                 }
@@ -288,6 +290,7 @@ public sealed class BoltFasteningTests
         Assert.NotNull(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Torque);
         Assert.NotNull(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Controller);
         Assert.Equal(3, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].MinimumTurns);
+        Assert.Equal(15, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].MaximumTurns);
         Assert.Equal(1, bus.StartWrites);
         Assert.False(work.Completed);
     }

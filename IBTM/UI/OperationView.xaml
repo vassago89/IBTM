@@ -163,10 +163,12 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <Grid>
-                                    <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
-                                        <Run Text="{ui:Text 'Minimum '}"/><Run Text="{Binding RecentFastening.Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0" TextTrimming="CharacterEllipsis">
+                                        <Run Text="{ui:Text 'Min / Max'}"/><Run Text=" "/><Run Text="{Binding RecentFastening.Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
+                                        <Run Text=" / "/><Run Text="{Binding RecentFastening.Result.MaximumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
                                     </TextBlock>
-                                    <TextBlock HorizontalAlignment="Right" FontSize="13" FontWeight="SemiBold">
+                                    <TextBlock Grid.Column="1" HorizontalAlignment="Right" FontSize="13" FontWeight="SemiBold">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Text" Value=""/>

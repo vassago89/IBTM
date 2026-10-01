@@ -100,7 +100,7 @@ public sealed class PcbHistoryTests
     }
 
     [Fact]
-    public async Task MinimumTurnsCriteriaAndIndependentVerdictsSurviveHistoryReload()
+    public async Task TurnsLimitsAndIndependentVerdictsSurviveHistoryReload()
     {
         var store = VirtualTestSupport.OpenMachineStore();
         var settings = new MachineSettings();
@@ -108,7 +108,7 @@ public sealed class PcbHistoryTests
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddVirtualApplication(settings).BuildServiceProvider();
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        recipe.Pcb.BoltPoints = [new() { MinimumTurns = 3 }, new() { Head = FasteningHead.Pickup, MinimumTurns = 10 }];
+        recipe.Pcb.BoltPoints = [new() { MinimumTurns = 3, MaximumTurns = 6 }, new() { Head = FasteningHead.Pickup, MaximumTurns = 4 }];
         var history = services.GetRequiredService<PcbHistoryWriter>();
         var assembly = services.GetRequiredService<BoltFasteningStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
         foreach (var bolt in recipe.Pcb.BoltPoints)
@@ -116,13 +116,14 @@ public sealed class PcbHistoryTests
             assembly.RecordBolt(bolt.Head, bolt.Id, new(true, 8)
             {
                 MinimumTurns = bolt.MinimumTurns,
+                MaximumTurns = bolt.MaximumTurns,
                 Controller = new("Virtual", 1, 1, 1000, 1, 8, 800, 100, 200, 1800, 1, 0, 0, 1, 0, null),
             });
             assembly.RecordBoltPresence(bolt.Id, true);
         }
         assembly.CompleteFastening();
         assembly.CompleteInspection();
-        recipe.Pcb.BoltPoints[1].MinimumTurns = 2;
+        recipe.Pcb.BoltPoints[1].MaximumTurns = 10;
         await history.FlushAsync();
 
         var record = Assert.Single(new MachineStore(store.DatabaseFile).LoadPcbs(settings.PcbHistory.Directory));
@@ -131,7 +132,9 @@ public sealed class PcbHistoryTests
         Assert.Equal(AssemblyResult.Ng, record.TurnsResult);
         Assert.Equal(AssemblyResult.Ng, record.Result);
         Assert.Equal(3, Assert.Single(record.ShootingBoltResults).Value.MinimumTurns);
-        Assert.Equal(10, Assert.Single(record.PickupBoltResults).Value.MinimumTurns);
+        Assert.Equal(6, Assert.Single(record.ShootingBoltResults).Value.MaximumTurns);
+        Assert.Null(Assert.Single(record.PickupBoltResults).Value.MinimumTurns);
+        Assert.Equal(4, Assert.Single(record.PickupBoltResults).Value.MaximumTurns);
         Assert.Equal(5, Assert.Single(record.PickupBoltResults).Value.TotalTurns);
         var details = services.GetRequiredService<PcbResultsViewModel>();
         details.Record = record;

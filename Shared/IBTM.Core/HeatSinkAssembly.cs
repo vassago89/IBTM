@@ -92,7 +92,7 @@ public sealed class HeatSinkAssembly
         }
         if (result.TurnsResult == AssemblyResult.Ng)
             TurnsResult = AssemblyResult.Ng;
-        else if (result.MinimumTurns.HasValue && TurnsResult != AssemblyResult.Ng)
+        else if (result.TurnsResult.HasValue && TurnsResult != AssemblyResult.Ng)
             TurnsResult = AssemblyResult.Pending;
         ResultsChanged?.Invoke(this);
     }
@@ -106,7 +106,7 @@ public sealed class HeatSinkAssembly
         if (TurnsResult != AssemblyResult.Ng)
         {
             var checkedResults = _shootingBoltResults.Values.Concat(_pickupBoltResults.Values)
-                .Where(result => result.MinimumTurns.HasValue).ToArray();
+                .Where(result => result.TurnsResult.HasValue).ToArray();
             TurnsResult = checkedResults.Length == 0 ? null
                 : checkedResults.All(result => result.TurnsResult == AssemblyResult.Ok)
                     ? AssemblyResult.Ok : AssemblyResult.Pending;

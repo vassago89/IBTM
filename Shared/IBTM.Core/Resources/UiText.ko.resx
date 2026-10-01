@@ -51,8 +51,8 @@
   <data name="active connection: " xml:space="preserve">
     <value>시험 포트: </value>
   </data>
-  <data name="actual / min" xml:space="preserve">
-    <value>측정 / 최소</value>
+  <data name="actual / min / max" xml:space="preserve">
+    <value>측정 / 최소 / 최대</value>
   </data>
   <data name="ad 매뉴얼 2017-03-21, 27-30쪽 기준. 문서에 없는 코드는 컨트롤러 모델·펌웨어별 확인이 필요합니다." xml:space="preserve">
     <value>AD 매뉴얼 2017-03-21, 27-30쪽 기준. 문서에 없는 코드는 컨트롤러 모델·펌웨어별 확인이 필요합니다.</value>
@@ -1223,6 +1223,15 @@
   </data>
   <data name="minimum turns" xml:space="preserve">
     <value>최소 회전수</value>
+  </data>
+  <data name="maximum turns" xml:space="preserve">
+    <value>최대 회전수</value>
+  </data>
+  <data name="max. turns (0 = no check)" xml:space="preserve">
+    <value>최대 회전수 (0 = 검사 안 함)</value>
+  </data>
+  <data name="min / max" xml:space="preserve">
+    <value>최소 / 최대</value>
   </data>
   <data name="mode &amp; utility" xml:space="preserve">
     <value>모드 · 유틸리티</value>

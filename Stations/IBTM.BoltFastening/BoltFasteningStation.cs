@@ -576,8 +576,12 @@ public sealed class BoltFasteningStation : AutoUnit
                     BoltResult? result = null;
                     Exception? fasteningFailure = null;
                     double? minimumTurns;
+                    double? maximumTurns;
                     lock (_recipes.InspectionSync)
+                    {
                         minimumTurns = bolt.MinimumTurns;
+                        maximumTurns = bolt.MaximumTurns;
+                    }
                     try
                     {
                         var head = bolt.Head switch
@@ -673,12 +677,12 @@ public sealed class BoltFasteningStation : AutoUnit
                         {
                             if (result is not null)
                             {
-                                result = result with { MinimumTurns = minimumTurns };
+                                result = result with { MinimumTurns = minimumTurns, MaximumTurns = maximumTurns };
                                 var recordStarted = Stopwatch.GetTimestamp();
                                 assembly.RecordBolt(bolt.Head, bolt.Id, result);
                                 resultReceived?.Invoke(bolt, result);
-                                _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}, minimum={MinimumTurns}, turns result={TurnsResult}.",
-                                    bolt.Id, result.Success, result.TotalTurns, result.MinimumTurns, result.TurnsResult);
+                                _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}, minimum={MinimumTurns}, maximum={MaximumTurns}, turns result={TurnsResult}.",
+                                    bolt.Id, result.Success, result.TotalTurns, result.MinimumTurns, result.MaximumTurns, result.TurnsResult);
                                 _log?.LogInformation("Bolt timing {Job}/{Bolt}: result published, elapsed={ElapsedMs:F1} ms.",
                                     job.Id, bolt.Id, Stopwatch.GetElapsedTime(recordStarted).TotalMilliseconds);
                             }

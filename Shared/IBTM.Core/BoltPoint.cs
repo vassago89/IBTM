@@ -96,6 +96,17 @@ public sealed class BoltPoint
         }
     }
 
+    public double? MaximumTurns
+    {
+        get;
+        set
+        {
+            if (value is { } turns && (!double.IsFinite(turns) || turns < 0))
+                throw new ArgumentOutOfRangeException(nameof(value), "Maximum turns must be zero or greater. Use 0 to disable the check.");
+            field = value == 0 ? null : value;
+        }
+    }
+
     // Null retains the inspection defaults of recipes saved before per-bolt settings.
     public int? BrightnessThreshold
     {

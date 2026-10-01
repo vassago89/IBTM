@@ -191,6 +191,7 @@ public sealed class MachineStore
             bolt.BrightnessThreshold = changed.BrightnessThreshold;
             bolt.MinimumBrightRatio = changed.MinimumBrightRatio;
             bolt.MinimumTurns = changed.MinimumTurns;
+            bolt.MaximumTurns = changed.MaximumTurns;
         }
         foreach (var tile in saved.CarrierImages)
         {

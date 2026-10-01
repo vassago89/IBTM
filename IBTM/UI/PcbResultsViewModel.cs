@@ -150,7 +150,7 @@ public partial class PcbResultsViewModel : ObservableObject
             AppendRow(UiText.Get("Bolt results"));
             AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Fastening type"),
                 UiText.Get("Fasten"), UiText.Get("Vision inspection"), UiText.Get("Total turns"),
-                UiText.Get("Minimum turns"), UiText.Get("Turns result"), UiText.Get("Result torque"),
+                UiText.Get("Minimum turns"), UiText.Get("Maximum turns"), UiText.Get("Turns result"), UiText.Get("Result torque"),
                 UiText.Get("Target torque"), UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"),
                 UiText.Get("Angle A3 (°)"), UiText.Get("Recorded at"), UiText.Get("Result source"),
                 UiText.Get("Error code"), UiText.Get("Error / message"));
@@ -161,7 +161,7 @@ public partial class PcbResultsViewModel : ObservableObject
                 var controller = result.Controller;
                 AppendRow(++number, bolt.BoltLabel, bolt.HeadLabel, bolt.Verdict, bolt.VisionVerdict,
                     result.TotalTurns,
-                    result.MinimumTurns, bolt.TurnsVerdict, result.Torque,
+                    result.MinimumTurns, result.MaximumTurns, bolt.TurnsVerdict, result.Torque,
                     controller?.TargetTorque, controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds,
                     controller?.Angle3, result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
                     string.Join(" · ", new[] { result.Error, controller?.ErrorCode > 0 ? bolt.ControllerErrorDescription : null }

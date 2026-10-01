@@ -544,7 +544,9 @@ public sealed class InspectionTeachingTests
         editor.Preview.BrightnessThreshold = 214;
         editor.Preview.MinimumBrightPercent = 40;
         editor.SelectedPoint.Bolt!.MinimumTurns = 12.5;
+        editor.SelectedPoint.Bolt.MaximumTurns = 15.75;
         Assert.Equal(12.5, recipes.Current.Pcb.BoltPoints[0].MinimumTurns);
+        Assert.Equal(15.75, recipes.Current.Pcb.BoltPoints[0].MaximumTurns);
         Assert.Equal(214, recipes.Current.Pcb.BoltPoints[0].BrightnessThreshold);
         Assert.Null(recipes.Current.Pcb.BoltPoints[0].LightLevel);
         Assert.Equal(255, recipes.Current.BoltInspection.LightLevel);
@@ -564,6 +566,7 @@ public sealed class InspectionTeachingTests
         recipes.Current.BoltInspection.DataMatrix1.LightLevel = 53;
         recipes.Current.BoltInspection.DataMatrix2.LightLevel = 61;
         await recipes.SaveAsync("Inspection");
+        editor.SelectedPoint.Bolt.MaximumTurns = 18.75;
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Null(editor.Error);
@@ -586,6 +589,7 @@ public sealed class InspectionTeachingTests
             Assert.Equal(214, recipe.Pcb.BoltPoints[0].BrightnessThreshold);
             Assert.Equal(0.4, recipe.Pcb.BoltPoints[0].MinimumBrightRatio);
             Assert.Equal(12.5, recipe.Pcb.BoltPoints[0].MinimumTurns);
+            Assert.Equal(18.75, recipe.Pcb.BoltPoints[0].MaximumTurns);
         }
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 1));
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 2));

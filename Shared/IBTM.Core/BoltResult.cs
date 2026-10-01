@@ -32,6 +32,7 @@ public sealed record BoltResult(
     public BoltControllerData? Controller { get; init; }
     // Keep the bolt's applied criterion with the measurement, independent of later recipe edits.
     public double? MinimumTurns { get; init; }
+    public double? MaximumTurns { get; init; }
 
     [JsonIgnore]
     public double? TotalTurns
@@ -49,11 +50,14 @@ public sealed record BoltResult(
     {
         get
         {
-            if (MinimumTurns is not { } minimum)
+            if (MinimumTurns is null && MaximumTurns is null)
                 return null;
             if (TotalTurns is not { } turns)
                 return AssemblyResult.Pending;
-            return turns >= minimum ? AssemblyResult.Ok : AssemblyResult.Ng;
+            if ((MinimumTurns is { } minimum && turns < minimum)
+                || (MaximumTurns is { } maximum && turns > maximum))
+                return AssemblyResult.Ng;
+            return AssemblyResult.Ok;
         }
     }
 }

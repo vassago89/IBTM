@@ -113,7 +113,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="44"/><ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
-                    <ColumnDefinition Width="140"/><ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="140"/><ColumnDefinition Width="180"/><ColumnDefinition Width="100"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="1" Text="{ui:Text 'BOLT'}" Style="{StaticResource TestCell}"/>
                 <TextBlock Grid.Column="2" Text="{ui:Text 'Fastening method'}" Style="{StaticResource TestCell}"/>
@@ -153,7 +153,7 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="44"/><ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
-                                            <ColumnDefinition Width="140"/><ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="140"/><ColumnDefinition Width="180"/><ColumnDefinition Width="100"/>
                                         </Grid.ColumnDefinitions>
                                         <CheckBox IsChecked="{Binding IsSelected}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                             AutomationProperties.Name="{Binding Label}"/>
@@ -171,8 +171,9 @@
                                             <TextBlock Text="{Binding Result.TotalTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
                                                 Tag="{Binding Result.TurnsResult}" Style="{StaticResource ResultValueStyle}" VerticalAlignment="Center" Margin="8,0"/>
                                             <TextBlock Style="{StaticResource TestCell}" FontSize="12" Foreground="{StaticResource TextMutedBrush}">
-                                                <Run Text="{ui:Text 'Minimum '}"/>
+                                                <Run Text="{ui:Text 'Min / Max'}"/><Run Text=" "/>
                                                 <Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
+                                                <Run Text=" / "/><Run Text="{Binding Result.MaximumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
                                             </TextBlock>
                                         </StackPanel>
                                         <TextBlock Grid.Column="6" Text="{Binding Result.Controller.FasteningTimeMilliseconds, TargetNullValue=—, FallbackValue=—}" Style="{StaticResource TestCell}"/>

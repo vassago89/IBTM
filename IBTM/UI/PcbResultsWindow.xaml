@@ -103,7 +103,7 @@
                 </StackPanel><TextBlock Text="{Binding Images.Count, StringFormat={ui:Text '{}{0} images'}}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/></DockPanel>
             </Border>
             <Border Style="{StaticResource Card}" Padding="12,6">
-                <DockPanel><StackPanel><TextBlock Text="{ui:Text 'Minimum turns'}" Style="{StaticResource MetricLabel}"/>
+                <DockPanel><StackPanel><TextBlock Text="{ui:Text 'Turns result'}" Style="{StaticResource MetricLabel}"/>
                     <TextBlock Text="{Binding Record.TurnsResult, Converter={StaticResource UiTextConverter}, TargetNullValue={ui:Text 'Not set'}}" Tag="{Binding Record.TurnsResult}" Style="{StaticResource ResultValueStyle}" Margin="0,5,0,0"/>
                 </StackPanel></DockPanel>
             </Border>
@@ -217,8 +217,8 @@
                             <DataGridTemplateColumn Header="{ui:Text 'Turns'}" Width="90"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                 <TextBlock Text="{Binding TurnsVerdict}" Tag="{Binding TurnsVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="{ui:Text 'ACTUAL / MIN'}" Width="120"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock FontSize="13"><Run Text="{Binding Result.TotalTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
+                            <DataGridTemplateColumn Header="{ui:Text 'ACTUAL / MIN / MAX'}" Width="190"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
+                                <TextBlock FontSize="13"><Run Text="{Binding Result.TotalTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding Result.MaximumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -243,9 +243,11 @@
                             </Grid.RowDefinitions>
                             <DockPanel>
                                 <StackPanel DockPanel.Dock="Right" Margin="12,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{ui:Text 'Minimum turns'}" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{ui:Text 'Min / Max'}" Style="{StaticResource MetricLabel}"/>
                                     <StackPanel Orientation="Horizontal" TextBlock.FontSize="14" Margin="0,3,0,0">
                                         <TextBlock Text="{Binding SelectedBolt.Result.MinimumTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/>
+                                        <TextBlock Text=" / "/>
+                                        <TextBlock Text="{Binding SelectedBolt.Result.MaximumTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/>
                                         <TextBlock Text=" · "/>
                                         <TextBlock Text="{Binding SelectedBolt.TurnsVerdict}" Tag="{Binding SelectedBolt.Result.TurnsResult}"
                                             Style="{StaticResource ResultValueStyle}"/>
