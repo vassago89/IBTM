@@ -1656,9 +1656,6 @@ Operation failed. Check controller status.</value>
   <data name="pending saves: {0}" xml:space="preserve">
     <value>Pending saves: {0}</value>
   </data>
-  <data name="pick" xml:space="preserve">
-    <value>Pick</value>
-  </data>
   <data name="picking carrier" xml:space="preserve">
     <value>Picking Carrier</value>
   </data>
@@ -2280,9 +2277,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="shared status monitor" xml:space="preserve">
     <value>Status polling</value>
-  </data>
-  <data name="shoot" xml:space="preserve">
-    <value>Shoot</value>
   </data>
   <data name="shoot bolt" xml:space="preserve">
     <value>Shoot Bolt</value>
@@ -3391,5 +3385,8 @@ See the application log for details.</value>
   </data>
   <data name="remove the carrier before clearing its work." xml:space="preserve">
     <value>Remove the carrier before clearing its work.</value>
+  </data>
+  <data name="rotation search" xml:space="preserve">
+    <value>Rotation search</value>
   </data>
 </root>

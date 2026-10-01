@@ -27,33 +27,6 @@
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
-        <DataTemplate x:Key="DoorSensorTemplate" DataType="{x:Type ui:DoorSensorDisplay}">
-            <Border x:Name="DoorCard" Margin="4,0" Padding="10,7" CornerRadius="3"
-                Background="Transparent" BorderBrush="Transparent" BorderThickness="1">
-                <Grid HorizontalAlignment="Left">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextSecondaryBrush}"
-                        FontSize="12" Margin="0,0,8,0"/>
-                    <TextBlock x:Name="DoorState" Grid.Column="1" Text="{ui:Text 'UNKNOWN'}"
-                        Foreground="{StaticResource AccentAmberBrush}" FontSize="12"/>
-                </Grid>
-            </Border>
-            <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding Input.IsOn}" Value="True">
-                    <Setter TargetName="DoorState" Property="Text" Value="{ui:Text 'CLOSED'}"/>
-                    <Setter TargetName="DoorState" Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Input.IsOn}" Value="False">
-                    <Setter TargetName="DoorState" Property="Text" Value="{ui:Text 'OPEN'}"/>
-                    <Setter TargetName="DoorState" Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                    <Setter TargetName="DoorCard" Property="Background" Value="{StaticResource AlarmStateBackgroundBrush}"/>
-                    <Setter TargetName="DoorCard" Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-                </DataTrigger>
-            </DataTemplate.Triggers>
-        </DataTemplate>
     </UserControl.Resources>
 
     <Grid Margin="16,8,16,8">

@@ -203,7 +203,7 @@
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
                                 <CheckBox Content="{ui:Text 'Inverted colors'}" IsChecked="{Binding DataMatrix.TryInverted, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="{ui:Text 'Rotation'}" IsChecked="{Binding DataMatrix.AutoRotate, BindingGroupName={x:Null}}"
+                                <CheckBox Content="{ui:Text 'Rotation search'}" IsChecked="{Binding DataMatrix.AutoRotate, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
                                 <CheckBox Content="{ui:Text 'Pure barcode'}" IsChecked="{Binding DataMatrix.PureBarcode, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>

@@ -76,6 +76,71 @@
         <Setter Property="FontSize" Value="13"/>
     </Style>
 
+    <Style x:Key="ServoStatusTextStyle" TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
+        <Setter Property="Text" Value="{ui:Text 'SERVO OFF'}"/>
+        <Style.Triggers>
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
+                <Setter Property="Text" Value="{ui:Text 'SERVO ON'}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="HomeStatusTextStyle" TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
+        <Setter Property="Text" Value="{ui:Text 'NOT HOMED'}"/>
+        <Style.Triggers>
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
+                <Setter Property="Text" Value="{ui:Text 'HOMED'}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="EmergencyStopStatusTextStyle" TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
+        <Setter Property="Text" Value="{ui:Text 'E-STOP PRESSED'}"/>
+        <Style.Triggers>
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
+                <Setter Property="Text" Value="{ui:Text 'E-STOP OK'}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="AirPressureStatusTextStyle" TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
+        <Setter Property="Text" Value="{ui:Text 'AIR LOW'}"/>
+        <Style.Triggers>
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
+                <Setter Property="Text" Value="{ui:Text 'AIR OK'}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <DataTemplate x:Key="DoorSensorTemplate" DataType="{x:Type ui:DoorSensorDisplay}">
+        <Border x:Name="DoorCard" Margin="4,0" Padding="10,7" CornerRadius="3"
+            Background="Transparent" BorderBrush="Transparent" BorderThickness="1">
+            <Grid HorizontalAlignment="Left">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextSecondaryBrush}"
+                    FontSize="12" Margin="0,0,8,0"/>
+                <TextBlock x:Name="DoorState" Grid.Column="1" Text="{ui:Text 'UNKNOWN'}"
+                    Foreground="{StaticResource AccentAmberBrush}" FontSize="12"/>
+            </Grid>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding Input.IsOn}" Value="True">
+                <Setter TargetName="DoorState" Property="Text" Value="{ui:Text 'CLOSED'}"/>
+                <Setter TargetName="DoorState" Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Input.IsOn}" Value="False">
+                <Setter TargetName="DoorState" Property="Text" Value="{ui:Text 'OPEN'}"/>
+                <Setter TargetName="DoorState" Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                <Setter TargetName="DoorCard" Property="Background" Value="{StaticResource AlarmStateBackgroundBrush}"/>
+                <Setter TargetName="DoorCard" Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
     <Style x:Key="SafetyLedStyle" TargetType="Ellipse">
         <Setter Property="Width" Value="14"/>
         <Setter Property="Height" Value="14"/>

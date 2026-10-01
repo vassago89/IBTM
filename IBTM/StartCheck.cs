@@ -4,9 +4,9 @@ namespace IBTM;
 
 public enum StartArea
 {
-    [Description("Supply handler")]
+    [Description("Supply")]
     Supply,
-    [Description("Placement handler")]
+    [Description("Placement")]
     Placement,
     [Description("Pickup")]
     PickupHead,

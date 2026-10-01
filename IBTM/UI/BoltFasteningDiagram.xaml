@@ -220,7 +220,7 @@
                     </Grid.RenderTransform>
                     <Canvas>
                         <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Canvas.Top="125"
-                            Text="{ui:Text 'Pick'}" FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                            Text="{ui:Text 'Pickup'}" FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                         <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeadTop}"
                             Width="{x:Static ui:MachineDiagramLayout.HeadSize}" Height="{x:Static ui:MachineDiagramLayout.HeadSize}">
                             <Border Margin="-6" Tag="{Binding Fastening.Motion.IsMoving}" Style="{StaticResource OverheadBodyStyle}"/>
@@ -246,7 +246,7 @@
                             Y="{Binding ShootingHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                     </Grid.RenderTransform>
                     <Canvas>
-                        <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.ShootingHeadLeft}" Canvas.Top="65" Text="{ui:Text 'Shoot'}"
+                        <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.ShootingHeadLeft}" Canvas.Top="65" Text="{ui:Text 'Shooting'}"
                             FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                         <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.ShootingHeadLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeadTop}"
                             Width="{x:Static ui:MachineDiagramLayout.HeadSize}" Height="{x:Static ui:MachineDiagramLayout.HeadSize}">

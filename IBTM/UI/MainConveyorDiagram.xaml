@@ -116,17 +116,14 @@
             </Border>
 
             <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StationLabelTop}"
-                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" FontSize="14" Style="{StaticResource EquipmentRoleLabelStyle}">
-                <Run Text="S1 · "/><Run Text="{ui:Text 'PCB Placement'}"/>
-            </TextBlock>
+                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" FontSize="14" Style="{StaticResource EquipmentRoleLabelStyle}"
+                Text="{ui:Text 'S1 · PCB Placement'}"/>
             <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StationLabelTop}"
-                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" FontSize="14" Style="{StaticResource EquipmentRoleLabelStyle}">
-                <Run Text="S2 · "/><Run Text="{ui:Text 'Bolt Fastening'}"/>
-            </TextBlock>
+                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" FontSize="14" Style="{StaticResource EquipmentRoleLabelStyle}"
+                Text="{ui:Text 'S2 · Bolt Fastening'}"/>
             <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StationLabelTop}"
-                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" FontSize="14" Style="{StaticResource EquipmentRoleLabelStyle}">
-                <Run Text="S3 · "/><Run Text="{ui:Text 'Inspection'}"/>
-            </TextBlock>
+                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" FontSize="14" Style="{StaticResource EquipmentRoleLabelStyle}"
+                Text="{ui:Text 'S3 · Inspection'}"/>
 
             <Ellipse Canvas.Left="160" Canvas.Top="108"
                 Tag="{Binding Signals.Inputs[MainConveyorEntryCarrierDetected].IsOn}"
