@@ -11,9 +11,9 @@ HOME ALL homes Placement in Z -> Y -> X order to avoid interference, then starts
 the other units. Each axis must finish successfully before the next starts.
 Individual Placement HOME still homes Z first, followed by X/Y together.
 
-1. Wait outside the handoff until Supply reports `Holding`: settled at its give XYZ, Unrotated, and securing the PCB. Then raise the handler, reach standby Z, prepare the IPM and move to standby X followed by Y. Loss of Supply readiness during this approach stops movement.
+1. Wait outside the handoff until an unfinished carrier is seated with a target heat sink, and Supply reports `Holding`: settled at its give XYZ, Unrotated, and securing the PCB. Placement never receives a PCB ahead of its carrier. Then raise the handler, reach standby Z, prepare the IPM and move to standby X followed by Y. Loss of Supply readiness during this approach stops movement.
 2. After the awaited X/Y moves, lower Z to `ReceiveZ` in the same approach operation. Keep the handler cylinder Up, detect the PCB and confirm vacuum holding. STOP cancels the operation; a new START does not resume its descent.
-3. After Supply fixer and gripper retract, return Z to standby and move only Y to the selected heat sink's placement Y. Keep `PreparingPlacement` until Y settles, then enter `WaitingForSupplyDeparture` and publish `Clear`. Wait for Supply to leave its handoff stage before proceeding. A prefetched PCB without a carrier target waits at Heat Sink 1 Y.
+3. After Supply fixer and gripper retract, return Z to standby and move only Y to the selected heat sink's placement Y. Keep `PreparingPlacement` until Y settles, then enter `WaitingForSupplyDeparture` and publish `Clear`. Wait for Supply to leave its handoff stage before proceeding.
 4. With the carrier seated, finish the move to the selected heat sink X, descend to placement Z and lower the handler.
 5. Release vacuum, raise IPM and lower IPM to press using the existing IPM Down output. Record the placement, then raise IPM and handler and return Z followed by X to standby, keeping the placement Y. There is no IPM gripper output or open/closed feedback.
 6. Wait for Supply readiness before returning to receiving XY for the second PCB, then repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.

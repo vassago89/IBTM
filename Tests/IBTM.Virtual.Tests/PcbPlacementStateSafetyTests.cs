@@ -134,8 +134,7 @@ public sealed class PcbPlacementStateSafetyTests
         var reachedStandby = false;
         rig.Placer.StepChanged += () =>
         {
-            if (rig.Placer.Step is PcbPlacementState step && step == (repeat
-                ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff))
+            if (rig.Placer.Step is PcbPlacementState.WaitingForCarrier)
             {
                 reachedStandby = true;
                 stop.Cancel();

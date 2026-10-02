@@ -298,7 +298,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task MaintenanceStopsWithPrefetchedPlacementPcbAndRequiresRemovalBeforeRestart()
+    public async Task MaintenanceKeepsSupplyPcbAtHandoffWhenPlacementHasNoCarrier()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -315,9 +315,10 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var placer = services.GetRequiredService<PcbPlacer>();
+        var supplier = services.GetRequiredService<PcbSupplier>();
         await machine.InitializeAsync();
         await machine.HomeAsync(default);
-        // Supply can prefetch a PCB while the carrier conveyor has no incoming carrier.
+        // Supply may prepare a PCB, but Placement must wait for its carrier outside the handoff.
         io.InputChanged += (input, on) =>
         {
             if (input == InputIo.MainConveyorAvailableFromFront2 && on)
@@ -329,7 +330,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(await WaitUntilAsync(
-                () => placer.Step is PcbPlacementState.WaitingForCarrier && placer.PcbSecured,
+                () => placer.Step is PcbPlacementState.WaitingForCarrier && supplier.Handoff == PcbSupplyHandoff.Holding,
                 TimeSpan.FromSeconds(5)), state.AlarmDetail);
             io.SetInput(InputIo.PickupFeederBoltDetected, false);
 
@@ -339,21 +340,22 @@ public sealed partial class MachineLifecycleTests
             Assert.Null(state.PendingStop);
             Assert.False(state.AutomaticRunning);
             Assert.False(placer.Station.CarrierPresent);
-            Assert.True(placer.PcbSecured);
+            Assert.False(placer.PcbSecured);
+            Assert.True(supplier.PcbSecured);
             Assert.False(placer.Motion.Feedback.IsMoving);
             Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.Z, placer.Motion.Feedback.Position.Z);
             Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.X, placer.Motion.Feedback.Position.X);
             Assert.Equal(60, placer.Motion.Feedback.Position.Y);
-            Assert.True(io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
 
             await machine.ResetAsync();
             Assert.Equal(MachineAlarm.None, state.Alarm);
-            await machine.StartAsync();
-            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
-            Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+            machine.CheckStartMaterials();
+            Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.Placement]);
+            Assert.Equal(StartCheckState.HandoffReady, machine.StartChecks[StartArea.Supply]);
             Assert.False(state.AutomaticRunning);
-            Assert.True(placer.PcbSecured);
+            Assert.False(placer.PcbSecured);
         }
         finally
         {

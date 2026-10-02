@@ -1083,17 +1083,12 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     or NgConveyorState.WaitingForEjectConfirmation or NgConveyorState.ReadyToEject or NgConveyorState.Full))
                 {
                     // Use START's material rules without updating its explicit operator check.
-                    // Finish current carriers. A prefetched PCB has no carrier to finish after
-                    // new transfers are paused; keep it gripped for manual removal at the stop.
                     var ready = CurrentStartMaterials.All(check => check.Value switch
                     {
                         StartCheckState.Unknown => false,
                         StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier => check.Key switch
                         {
-                            StartArea.Placement => !_pcbPlacement.IsRunning
-                                || _pcbPlacement.Step is PcbPlacementState.WaitingForCarrier
-                                    && (!_pcbPlacement.Station.CarrierPresent || _pcbPlacement.Station.Completed),
-                            StartArea.Station1 => !_pcbPlacement.IsRunning,
+                            StartArea.Placement or StartArea.Station1 => !_pcbPlacement.IsRunning,
                             StartArea.PickupHead or StartArea.ShootingHead or StartArea.Station2 => !_fasteningStation.IsRunning,
                             _ => false,
                         },
@@ -1130,7 +1125,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 _state.Changed -= changed.Set;
                 _feedback.Sampled -= OnFeedbackSampled;
                 _conveyor.IsTransferPaused = false;
-                _pcbPlacement.IsPrefetchAllowed = true;
             }
         }
     }
@@ -1170,7 +1164,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     if (_state.PendingStop is null && !_state.IsError)
                     {
                         _conveyor.IsTransferPaused = true;
-                        _pcbPlacement.IsPrefetchAllowed = false;
                         _state.PendingStop = (alarm, exception);
                         _log?.LogWarning(exception, "Finishing automatic work for maintenance: {Alarm}.", alarm);
                     }

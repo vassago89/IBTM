@@ -44,7 +44,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _settings = settings;
         _supply = supply;
         Station = station;
-        IsPrefetchAllowed = true;
         _recipes = recipes;
         _units = units;
         Motion = motionStatus;
@@ -68,18 +67,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private sealed record RepeatPcbTrip(ConveyorStation.Job Job, HeatSinkSlot HeatSink);
 
     public ConveyorStation Station { get; }
-
-    public bool IsPrefetchAllowed
-    {
-        get;
-        set
-        {
-            if (field == value)
-                return;
-            field = value;
-            WakeRun();
-        }
-    }
 
     public MotionStatus Motion { get; }
 
@@ -224,7 +211,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _targetIndex = 0;
         _repeatTrip = null;
         Phase = _units.PcbPlacement ? PcbPlacementState.Retracting
-            : repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff;
+            : PcbPlacementState.WaitingForCarrier;
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckCarrier()
         {
@@ -241,7 +228,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             if (_units.PcbPlacement)
             {
                 await MoveToStandbyAsync(TargetHeatSink ?? HeatSinkSlot.HeatSink1, repeat, operation.Token);
-                EnterStep(repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
+                EnterStep(PcbPlacementState.WaitingForCarrier);
             }
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -306,7 +293,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             case PcbPlacementState.WaitingForCarrier when Station.CarrierSeated && !Station.Completed:
                 if (heatSink is null)
                     return PcbPlacementState.Retracting;
-                return PcbSecured ? PcbPlacementState.PlacingPcb : PcbPlacementState.MovingToHandoff;
+                return PcbPlacementState.MovingToHandoff;
             default:
                 return state;
         }
@@ -411,15 +398,19 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     EnterStep(PcbPlacementState.WaitingForSupplyDeparture);
                     break;
                 case PcbPlacementState.MovingToHandoff or PcbPlacementState.ReceivingPcb:
-                    // During maintenance only the seated, unfinished carrier may receive another PCB.
-                    if (!IsPrefetchAllowed && (!Station.CarrierSeated || Station.Completed || heatSink is null))
+                    if (!Station.CarrierSeated || Station.Completed || heatSink is null)
+                    {
+                        EnterStep(PcbPlacementState.WaitingForCarrier);
                         return false;
+                    }
                     if (_supply.Handoff != PcbSupplyHandoff.Holding)
                         return false;
                     await PrepareHandoffAsync(cancellationToken, repeat: repeat);
                     break;
                 case PcbPlacementState.PreparingPlacement:
-                    await MoveToStandbyAsync(heatSink ?? HeatSinkSlot.HeatSink1, repeat, cancellationToken);
+                    await MoveToStandbyAsync(
+                        heatSink ?? throw new InvalidOperationException("No placement target is selected."),
+                        repeat, cancellationToken);
                     // Publish Clear only after the Z/Y departure, and wait for Supply to acknowledge it.
                     EnterStep(PcbPlacementState.WaitingForSupplyDeparture);
                     while (true)
@@ -431,8 +422,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                             break;
                         await WaitForChangeAsync(cancellationToken);
                     }
-                    EnterStep(Station.CarrierSeated && !Station.Completed
-                        ? PcbPlacementState.PlacingPcb : PcbPlacementState.WaitingForCarrier);
+                    EnterStep(PcbPlacementState.PlacingPcb);
                     break;
                 case PcbPlacementState.PlacingPcb:
                 {
@@ -505,7 +495,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         _targetIndex = 0;
                         Station.Complete(job, cycleTime);
                     }
-                    EnterStep(repeat && carrierComplete ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
+                    EnterStep(carrierComplete ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
                     break;
                 case PcbPlacementState.WaitingForSupplyRelease or PcbPlacementState.WaitingForCarrier
                     or PcbPlacementState.WaitingForSupplyGrip or PcbPlacementState.WaitingForSupplyDeparture:
