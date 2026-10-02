@@ -13,6 +13,23 @@ namespace IBTM.Virtual.Tests;
 public sealed class MotionSettingsTests
 {
     [Fact]
+    public async Task MotionPollIntervalDefaultsValidatesAndPersists()
+    {
+        var options = JsonSerializer.Deserialize<MachineOptions>("{}")!;
+        Assert.Equal(50, options.MotionPollMilliseconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => options.MotionPollMilliseconds = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => options.MotionPollMilliseconds = 1_001);
+        Assert.Equal(50, options.MotionPollMilliseconds);
+
+        var store = VirtualTestSupport.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.Options.MotionPollMilliseconds = 125;
+        await store.SaveSettingsAsync(settings.Sections);
+        var loaded = await MachineSettings.LoadAsync(store);
+        Assert.Equal(125, loaded.Options.MotionPollMilliseconds);
+    }
+
+    [Fact]
     public void ExistingAxisSettingsKeepControllerHomeSignal()
     {
         var settings = JsonSerializer.Deserialize<AxisHardware>(

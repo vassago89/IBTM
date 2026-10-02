@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -17,6 +18,45 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MotionStatusTests
 {
+    [Fact]
+    public async Task MotionPollingUsesTheCurrentIntervalWithoutRestarting()
+    {
+        var options = new MachineOptions { MotionPollMilliseconds = 1_000 };
+        var hardware = new PcbSupplyHardwareSettings();
+        var io = new VirtualIoService(hardware.Outputs, options);
+        io.Initialize();
+        var motions = new Dictionary<MotionGroup, MotionStatus>
+        {
+            [MotionGroup.PcbSupply] = new(new StatusMotion()),
+        };
+        await using var monitor = new MachineFeedbackMonitor(
+            new UnitSettings(), options, io, new IoSignals([hardware], io), motions);
+        var completed = new TaskCompletionSource<(TimeSpan Slow, TimeSpan Fast)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var samples = 0;
+        var previous = 0L;
+        var slow = TimeSpan.Zero;
+        monitor.Sampled += (group, sample) =>
+        {
+            samples++;
+            if (samples == 2)
+            {
+                slow = Stopwatch.GetElapsedTime(previous, sample.StartedAt);
+                options.MotionPollMilliseconds = 50;
+            }
+            else if (samples == 3)
+            {
+                completed.TrySetResult((slow, Stopwatch.GetElapsedTime(previous, sample.StartedAt)));
+            }
+            previous = sample.StartedAt;
+        };
+
+        await monitor.StartAsync();
+        var intervals = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(intervals.Slow >= TimeSpan.FromMilliseconds(900), intervals.Slow.ToString());
+        Assert.True(intervals.Fast < TimeSpan.FromMilliseconds(750), intervals.Fast.ToString());
+    }
+
     [Fact]
     public void SupplyRotationRequiresCurrentHealthyStationaryFeedback()
     {
