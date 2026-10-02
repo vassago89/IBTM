@@ -29,10 +29,15 @@ public abstract class MotionServiceBase : IXyMotion
             && (!motion.HasZ || Math.Abs(current.Z - target.Z) <= PositionToleranceMillimeters);
     }
 
+    public static bool IsReadyAndStopped(IMotionFeedback motion)
+    {
+        return motion.IsReady && !motion.IsMoving && motion.Axes.All(axis => motion.GetAxisState(axis)
+            is { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true });
+    }
+
     public static bool IsHoldingPosition(IMotionFeedback motion, AxisPosition position)
     {
-        if (!motion.IsReady || motion.Axes.Any(axis => motion.GetAxisState(axis)
-            is not { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true }))
+        if (!IsReadyAndStopped(motion))
             return false;
         var current = motion.Position;
         return Math.Abs(current.X - position.X) <= PositionToleranceMillimeters
