@@ -408,7 +408,6 @@
             </TabItem>
             <TabItem Header="{ui:Text 'Motion'}">
                 <Grid>
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="1200"/></Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
