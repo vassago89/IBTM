@@ -112,7 +112,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         return _movement == Movement.None
             && _ejectionPhase == EjectionPhase.Idle
             && Volatile.Read(ref _ejectRequested) == 0
-            && !Full
             && !NeedsCompaction
             && (_repeat || !Io.GetInput(InputIo.NgCarrierEjectButton))
             && !(runCommandOn ?? Io.GetOutput(OutputIo.NgConveyorRun));
@@ -343,8 +342,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             switch (_movement)
             {
                 case Movement.None:
-                    // 빈 셔틀을 복귀시키거나, 만재된 셔틀을 벨트에서 분리한다.
-                    raiseShuttle = shuttleEmpty || Full;
+                    raiseShuttle = shuttleEmpty;
                     break;
                 case Movement.ToPosition1:
                     raiseShuttle = shuttleEmpty && Io.GetInput(InputIo.NgConveyorPosition1Occupied);

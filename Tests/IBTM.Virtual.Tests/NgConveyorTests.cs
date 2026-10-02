@@ -638,12 +638,16 @@ public sealed class NgConveyorTests
                 system.Io.SetInputs((InputIo.NgConveyorStopperUp, on), (InputIo.NgConveyorStopperDown, !on));
             if (output == OutputIo.NgShuttleDown && on)
                 shuttleDowns++;
+            if (output == OutputIo.NgShuttleDown)
+                system.Io.SetInputs((InputIo.NgShuttleDown, on), (InputIo.NgShuttleUp, !on));
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var run = system.Conveyor.RunAsync(stop.Token);
         try
         {
             Assert.Equal(NgConveyorState.Full, system.Conveyor.Step);
+            Assert.Equal(StationCylinderState.Down, system.Conveyor.ShuttleLift);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
             system.Io.SetInput(InputIo.NgCarrierEjectButton, true);
             Assert.True(await WaitUntilAsync(
                 () => system.Conveyor.Step is NgConveyorState.WaitingForEjectConfirmation, TimeSpan.FromSeconds(1)));
@@ -653,7 +657,7 @@ public sealed class NgConveyorTests
             system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
             system.Io.SetInput(InputIo.NgCarrierEjectButton, false);
             await Task.Delay(50);
-            Assert.Equal(0, shuttleDowns);
+            Assert.Equal(1, shuttleDowns); // Full waits DOWN; ejection raises it and keeps it UP until confirmation.
             Assert.Equal(StationCylinderState.Up, system.Conveyor.ShuttleLift);
             Assert.False(system.Conveyor.IsReceiveAllowed);
             Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
@@ -824,9 +828,10 @@ public sealed class NgConveyorTests
         Assert.True(system.Conveyor.AlarmRequired);
         Assert.False(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
 
-        await LoadShuttleAsync(system, lower: false);
+        await LoadShuttleAsync(system);
         await system.Signals.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true);
-        await system.Signals.WaitForInputAsync(InputIo.NgShuttleUp, true);
+        Assert.True(await WaitUntilAsync(() => system.Conveyor.Step is NgConveyorState.Full, TimeSpan.FromSeconds(1)));
+        Assert.Equal(StationCylinderState.Down, system.Conveyor.ShuttleLift);
 
         Assert.True(system.Conveyor.Full);
 
@@ -1012,13 +1017,12 @@ public sealed class NgConveyorTests
         return new TestSystem(io, conveyor, pickup);
     }
 
-    private static async Task LoadShuttleAsync(TestSystem system, bool lower = true)
+    private static async Task LoadShuttleAsync(TestSystem system)
     {
         await system.Signals.WaitForInputAsync(InputIo.NgShuttleUp, true);
         await system.Signals.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, false);
         system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        if (lower)
-            await system.Signals.WaitForInputAsync(InputIo.NgShuttleDown, true);
+        await system.Signals.WaitForInputAsync(InputIo.NgShuttleDown, true);
     }
 
     private sealed record TestSystem(

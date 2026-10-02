@@ -415,8 +415,10 @@ The NG sensors are shown as a secondary handling path next to the inspection tra
 counts carriers, not individual PCBs. The Shuttle lowers a new Carrier at
 Position 3. With Position 1 empty the belt moves it to Position 1; otherwise it moves
 to Position 2, and with Positions 1 and 2 occupied it remains at Position 3. All three
-occupied inputs block the next NG pickup at Station 3. A full shuttle stays raised
-with its carrier while the lower belt ejects P1 and compacts P2. After eject completion
+occupied inputs block the next NG pickup at Station 3. After the gripper releases and
+the pickup rises, the shuttle lowers even when all three positions are occupied.
+The inspection handler returns after DOWN feedback; the NG belt stays stopped at full capacity.
+An eject request raises the loaded shuttle before the lower belt ejects P1 and compacts P2. After eject completion
 is acknowledged, the shuttle can lower its retained carrier into the free position.
 The eject button releases the Carrier at Position 1. The complete lamp
 stays on until the operator removes the ejected carrier and presses the eject-complete

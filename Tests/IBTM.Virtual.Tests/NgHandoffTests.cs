@@ -528,14 +528,16 @@ public sealed class NgHandoffTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task InspectionReturnsOnlyAfterShuttleDown(bool restartWhileWaiting)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task InspectionReturnsOnlyAfterShuttleDown(bool restartWhileWaiting, bool full)
     {
         var system = await CreateAsync();
         using var motion = system.Motion;
         var io = system.Io;
         var transfer = system.Inspection;
+        io.SetInputs((InputIo.NgConveyorPosition1Occupied, full), (InputIo.NgConveyorPosition2Occupied, full));
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await transfer.ExecuteTransferAsync(
             NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
@@ -580,6 +582,16 @@ public sealed class NgHandoffTests
                 () => VirtualTestSupport.IsAt(transfer.Motion.Feedback, new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
                 TimeSpan.FromSeconds(1)));
             Assert.False(movedBeforeDown);
+            if (full)
+            {
+                Assert.True(await WaitUntilAsync(() => system.Conveyor.Step is NgConveyorState.Full,
+                    TimeSpan.FromSeconds(1)));
+                Assert.Equal(StationCylinderState.Down, system.Conveyor.ShuttleLift);
+                Assert.Equal(NgConveyorState.Full, system.Conveyor.GetNextStep(false));
+                Assert.True(system.Conveyor.AlarmRequired);
+                Assert.False(system.Conveyor.IsReceiveAllowed);
+                Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            }
         }
         finally
         {
@@ -589,14 +601,16 @@ public sealed class NgHandoffTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ShuttleWaitsForCommandedReleaseAndRaisedOpenPickup(bool repeat)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task ShuttleWaitsForCommandedReleaseAndRaisedOpenPickup(bool repeat, bool full)
     {
         var system = await CreateAsync();
         using var motion = system.Motion;
         var io = system.Io;
         var transfer = system.Inspection;
+        io.SetInputs((InputIo.NgConveyorPosition1Occupied, full), (InputIo.NgConveyorPosition2Occupied, full));
         io.SetInput(InputIo.NgCarrierDetected, true);
         Assert.False(transfer.IsTransferPending); // Presence alone never establishes pickup ownership.
         await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
