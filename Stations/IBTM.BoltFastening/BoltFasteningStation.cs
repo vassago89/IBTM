@@ -310,10 +310,8 @@ public sealed class BoltFasteningStation : AutoUnit
             {
                 case null:
                     return BoltFasteningState.CompletingCarrier;
-                case FasteningHead.Shooting:
-                    return BoltFasteningState.FasteningShooting;
-                case FasteningHead.Pickup:
-                    return BoltFasteningState.FasteningPickup;
+                case FasteningHead.Shooting or FasteningHead.Pickup:
+                    return BoltFasteningState.Fastening;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(BoltPoint.Head), head, "Unsupported fastening head.");
             }
@@ -394,7 +392,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     return true;
                 }
 
-                case BoltFasteningState.FasteningShooting or BoltFasteningState.FasteningPickup:
+                case BoltFasteningState.Fastening:
                 {
                     var token = operation?.Token ?? throw new InvalidOperationException("No fastening work is selected.");
                     token.ThrowIfCancellationRequested();

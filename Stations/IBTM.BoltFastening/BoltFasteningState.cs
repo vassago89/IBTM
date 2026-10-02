@@ -10,11 +10,8 @@ public enum BoltFasteningState
     [Description("Preparing first shooting point")]
     MovingToStandby,
 
-    [Description("Shooting: feed / fasten")]
-    FasteningShooting,
-
-    [Description("Pickup: pick / fasten")]
-    FasteningPickup,
+    [Description("Fastening")]
+    Fastening,
 
     [Description("Completing Carrier")]
     CompletingCarrier,

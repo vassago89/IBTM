@@ -12,7 +12,6 @@ public sealed partial class InspectionStation
     {
         var changed = new AsyncAutoResetEvent();
         Changed += changed.Set;
-        StepChanged += changed.Set;
         try
         {
             while (Step is not InspectionStationState.HoldingAtDestination
@@ -22,7 +21,6 @@ public sealed partial class InspectionStation
         finally
         {
             Changed -= changed.Set;
-            StepChanged -= changed.Set;
         }
     }
 

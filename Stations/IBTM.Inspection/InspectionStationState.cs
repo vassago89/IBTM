@@ -7,14 +7,11 @@ public enum InspectionStationState
     [Description("Waiting")]
     Waiting,
 
-    [Description("Teach Data Matrix Regions")]
-    BarcodeTeachingRequired,
+    [Description("Teach Inspection Regions")]
+    TeachingRequired,
 
-    [Description("Reading Data Matrix")]
-    ReadingBarcode,
-
-    [Description("Inspecting Bolt")]
-    InspectingBolt,
+    [Description("Inspecting")]
+    InspectingPoint,
 
     [Description("Returning / completing inspection")]
     CompletingInspection,
@@ -31,14 +28,8 @@ public enum InspectionStationState
     [Description("Moving and Placing Carrier")]
     PlacingCarrier,
 
-    [Description("Transfer Complete")]
-    TransferCompleted,
-
     [Description("Carrier Held at Destination")]
     HoldingAtDestination,
-
-    [Description("Teach Inspection FOV / ROI")]
-    FovTeachingRequired,
 
     [Description("Returning to Waiting Position")]
     ReturningToWaitingPosition,

@@ -280,8 +280,8 @@ Safe Z → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다
 | --- | --- |
 | Run 시작의 `MovingToStandby` | 헤드 상승 → Z=0 → 픽업 테이블 상승 확인 → 첫 슈팅 볼트 XY → 공통 Safe Z. Origin 명령이 아닌 좌표 이동이다. |
 | `MovingToStandby` → `Waiting` | 헤드 상승 → Safe Z → 픽업 테이블 상승 확인 → 첫 슈팅 볼트 XY → 착좌 대기 |
-| `FasteningShooting` | 테이블·헤드 상승 확인 → 볼트 위치 이동과 공급 병렬(튜브 통과 직후 이스케이프 후진·남은 도착 시간 대기) → 체결 → 헤드·Z 병렬 복귀. 다음 볼트가 픽업이면 공통 Safe Z까지 복귀한다. |
-| `FasteningPickup` | 양쪽 헤드 UP → Safe Z → 테이블 하강 → Pickup XY → 볼트 준비 확인 → Pickup Z → 볼트 취득 → Safe Z → 체결 위치 → 체결·복귀 |
+| `Fastening` (슈팅) | 테이블·헤드 상승 확인 → 볼트 위치 이동과 공급 병렬(튜브 통과 직후 이스케이프 후진·남은 도착 시간 대기) → 체결 → 헤드·Z 병렬 복귀. 다음 볼트가 픽업이면 공통 Safe Z까지 복귀한다. |
+| `Fastening` (픽업) | 양쪽 헤드 UP → Safe Z → 테이블 하강 → Pickup XY → 볼트 준비 확인 → Pickup Z → 볼트 취득 → Safe Z → 체결 위치 → 체결·복귀 |
 | `PreparingCarrier` | 이번 Run의 캐리어와 볼트 목록을 선택하고 첫 포인트부터 시작한다. |
 | `CompletingCarrier` | 모든 결과와 헤드·Z 복귀 확인 후 작업 완료 |
 

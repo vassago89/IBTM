@@ -152,7 +152,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(default);
         station.StepChanged += () =>
         {
-            if (station.Step is BoltFasteningState.FasteningPickup or BoltFasteningState.FasteningShooting)
+            if (station.Step is BoltFasteningState.Fastening)
                 io.SetInput(head == FasteningHead.Pickup ? InputIo.PickupFeederBoltDetected : InputIo.ShootingFeederBoltDetected, false);
         };
         var run = machine.StartAsync();
@@ -762,13 +762,15 @@ public sealed partial class MachineLifecycleTests
         var captures = new List<(HeatSinkSlot Pcb, Guid? Bolt)>();
         inspector.Trace += message =>
         {
-            if (message.Contains(": ReadingBarcode ", StringComparison.Ordinal))
+            if (!message.StartsWith("InspectionStation: InspectingPoint ", StringComparison.Ordinal))
+                return;
+            if (inspector.ActiveBolt is null)
             {
                 Assert.Null(inspector.ActiveBolt);
                 Assert.Contains("Data Matrix", message);
                 camera.SourceImage = inspector.ActivePcb == unreadPcb ? blankImage : null;
             }
-            else if (message.Contains(": InspectingBolt ", StringComparison.Ordinal))
+            else
             {
                 camera.SourceImage = inspector.ActiveBolt?.Id == VirtualTestSupport.BoltId(3) ? blankImage : null;
             }
@@ -3059,7 +3061,8 @@ public sealed partial class MachineLifecycleTests
         var discharged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         station.Trace += message =>
         {
-            if (!inspected && message.Contains(": InspectingBolt ", StringComparison.Ordinal))
+            if (!inspected && station.ActiveBolt is not null
+                && message.StartsWith("InspectionStation: InspectingPoint ", StringComparison.Ordinal))
             {
                 Assert.True(work.IsAtInspectionPosition);
                 Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
@@ -3213,7 +3216,8 @@ public sealed partial class MachineLifecycleTests
         var inspected = false;
         inspection.Trace += message =>
         {
-            if (inspected || !message.Contains(": InspectingBolt ", StringComparison.Ordinal))
+            if (inspected || inspection.ActiveBolt is null
+                || !message.StartsWith("InspectionStation: InspectingPoint ", StringComparison.Ordinal))
                 return;
             Assert.True(work.InspectionRequested);
             Assert.True(work.IsAtInspectionPosition);
@@ -3291,7 +3295,8 @@ public sealed partial class MachineLifecycleTests
         var beltForcedOn = false;
         station.Trace += message =>
         {
-            if (message.Contains(": InspectingBolt ", StringComparison.Ordinal))
+            if (station.ActiveBolt is not null
+                && message.StartsWith("InspectionStation: InspectingPoint ", StringComparison.Ordinal))
             {
                 beltForcedOn = true;
                 io.SetOutput(OutputIo.MainConveyorRun, true);

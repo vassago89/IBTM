@@ -166,9 +166,9 @@ public sealed class InspectionTests
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         using var secondStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var interrupt = true;
-        station.StepChanged += () =>
+        station.Trace += message =>
         {
-            if (station.Step is not (InspectionStationState.ReadingBarcode or InspectionStationState.InspectingBolt))
+            if (!message.StartsWith($"InspectionStation: {InspectionStationState.InspectingPoint} ", StringComparison.Ordinal))
                 return;
             var bolt = station.ActiveBolt?.Id;
             visited.Add((station.ActivePcb, bolt));
@@ -337,13 +337,12 @@ public sealed class InspectionTests
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var resumed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var waitingState = barcode ? InspectionStationState.BarcodeTeachingRequired : InspectionStationState.FovTeachingRequired;
-        var resumedState = barcode ? InspectionStationState.ReadingBarcode : InspectionStationState.InspectingBolt;
         station.Trace += message =>
         {
-            if (message.Contains($": {waitingState} "))
+            if (message.Contains($": {InspectionStationState.TeachingRequired} "))
                 waiting.TrySetResult();
-            if (message.Contains($": {resumedState} "))
+            if (message.StartsWith($"InspectionStation: {InspectionStationState.InspectingPoint} ", StringComparison.Ordinal)
+                && (station.ActiveBolt is null) == barcode)
             {
                 resumed.TrySetResult();
                 stop.Cancel();

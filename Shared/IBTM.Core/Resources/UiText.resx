@@ -965,8 +965,8 @@ Operation failed. Check controller status.</value>
   <data name="inspect this image" xml:space="preserve">
     <value>Inspect This Image</value>
   </data>
-  <data name="inspecting bolt" xml:space="preserve">
-    <value>Inspecting Bolt</value>
+  <data name="inspecting" xml:space="preserve">
+    <value>Inspecting</value>
   </data>
   <data name="inspection" xml:space="preserve">
     <value>Inspection</value>
@@ -1749,9 +1749,6 @@ Operation failed. Check controller status.</value>
   <data name="pickup · supply bypassed / dry run" xml:space="preserve">
     <value>Pickup · supply bypassed / dry run</value>
   </data>
-  <data name="pickup: pick / fasten" xml:space="preserve">
-    <value>Pickup: pick / fasten</value>
-  </data>
   <data name="placement" xml:space="preserve">
     <value>PLACEMENT</value>
   </data>
@@ -1917,9 +1914,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="read only · machine status unavailable" xml:space="preserve">
     <value>Read only · machine status unavailable</value>
-  </data>
-  <data name="reading data matrix" xml:space="preserve">
-    <value>Reading Data Matrix</value>
   </data>
   <data name="ready" xml:space="preserve">
     <value>Ready</value>
@@ -2386,9 +2380,6 @@ Operation failed. Check controller status.</value>
   <data name="shooting · supply bypassed / dry run" xml:space="preserve">
     <value>Shooting · supply bypassed / dry run</value>
   </data>
-  <data name="shooting: feed / fasten" xml:space="preserve">
-    <value>Shooting: feed / fasten</value>
-  </data>
   <data name="show reference image" xml:space="preserve">
     <value>Show Reference Image</value>
   </data>
@@ -2569,11 +2560,8 @@ Operation failed. Check controller status.</value>
   <data name="teach carrier pickup (s3) x/y first" xml:space="preserve">
     <value>Teach Carrier Pickup (S3) X/Y first</value>
   </data>
-  <data name="teach data matrix regions" xml:space="preserve">
-    <value>Teach Data Matrix Regions</value>
-  </data>
-  <data name="teach inspection fov / roi" xml:space="preserve">
-    <value>Teach Inspection FOV / ROI</value>
+  <data name="teach inspection regions" xml:space="preserve">
+    <value>Teach Inspection Regions</value>
   </data>
   <data name="teaching" xml:space="preserve">
     <value>Teaching</value>
@@ -2641,9 +2629,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="tower lamp yellow" xml:space="preserve">
     <value>Tower Lamp Yellow</value>
-  </data>
-  <data name="transfer complete" xml:space="preserve">
-    <value>Transfer Complete</value>
   </data>
   <data name="transfer timeout (s)" xml:space="preserve">
     <value>Transfer timeout (s)</value>

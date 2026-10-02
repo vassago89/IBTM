@@ -965,8 +965,8 @@
   <data name="inspect this image" xml:space="preserve">
     <value>이미지 검사</value>
   </data>
-  <data name="inspecting bolt" xml:space="preserve">
-    <value>볼트 검사 중</value>
+  <data name="inspecting" xml:space="preserve">
+    <value>검사 중</value>
   </data>
   <data name="inspection" xml:space="preserve">
     <value>검사</value>
@@ -1749,9 +1749,6 @@
   <data name="pickup · supply bypassed / dry run" xml:space="preserve">
     <value>픽업 · 볼트 없이 공회전</value>
   </data>
-  <data name="pickup: pick / fasten" xml:space="preserve">
-    <value>픽업·체결</value>
-  </data>
   <data name="placement" xml:space="preserve">
     <value>안착</value>
   </data>
@@ -1917,9 +1914,6 @@
   </data>
   <data name="read only · machine status unavailable" xml:space="preserve">
     <value>조회 전용 · 설비 상태 미확인</value>
-  </data>
-  <data name="reading data matrix" xml:space="preserve">
-    <value>데이터 매트릭스 판독 중</value>
   </data>
   <data name="ready" xml:space="preserve">
     <value>준비</value>
@@ -2386,9 +2380,6 @@
   <data name="shooting · supply bypassed / dry run" xml:space="preserve">
     <value>슈팅 · 볼트 없이 공회전</value>
   </data>
-  <data name="shooting: feed / fasten" xml:space="preserve">
-    <value>슈팅 공급·체결</value>
-  </data>
   <data name="show reference image" xml:space="preserve">
     <value>기준 이미지 보기</value>
   </data>
@@ -2569,11 +2560,8 @@
   <data name="teach carrier pickup (s3) x/y first" xml:space="preserve">
     <value>캐리어 픽업 (S3) X/Y 티칭 필요</value>
   </data>
-  <data name="teach data matrix regions" xml:space="preserve">
-    <value>데이터 매트릭스 영역 티칭 필요</value>
-  </data>
-  <data name="teach inspection fov / roi" xml:space="preserve">
-    <value>검사 FOV / ROI 티칭 필요</value>
+  <data name="teach inspection regions" xml:space="preserve">
+    <value>검사 영역 티칭 필요</value>
   </data>
   <data name="teaching" xml:space="preserve">
     <value>티칭</value>
@@ -2641,9 +2629,6 @@
   </data>
   <data name="tower lamp yellow" xml:space="preserve">
     <value>타워 램프 황색</value>
-  </data>
-  <data name="transfer complete" xml:space="preserve">
-    <value>이송 완료</value>
   </data>
   <data name="transfer timeout (s)" xml:space="preserve">
     <value>이송 제한 시간 (s)</value>

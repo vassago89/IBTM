@@ -122,7 +122,7 @@ STOP은 추가 운전 중에도 즉시 적용되며, 해당 배출의 OFF 시각
 메인 컨베이어 비활성 상태의 검사 단독 운전은 현재 물리 조건으로 검사한다.
 
 1. `PreparingInspection`: 현재 재실 PCB의 작업 목록을 선택한다.
-2. `ReadingBarcode`·`InspectingBolt`: PCB 1의 바코드·볼트 번호순 검사를 마친 뒤 PCB 2를 검사한다.
+2. `InspectingPoint`: 현재 대상에 따라 바코드 판독 또는 볼트 검사를 수행한다. PCB 1의 바코드·볼트 번호순 검사를 마친 뒤 PCB 2를 검사한다.
 3. `CompletingInspection`: 전용 대기 위치 복귀부터 현재 캐리어의 완료 기록까지 한 번에 수행한다.
 4. OK는 대기하거나 후방 배출한다. NG는 착좌 요청에 따라 검사 유닛이 픽업 위치에서 S3를 올린 뒤
    `PreparingTransfer`·`PickingCarrier`·`PlacingCarrier`로 집어 셔틀에 놓는다.

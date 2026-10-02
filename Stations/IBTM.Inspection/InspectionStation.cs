@@ -347,15 +347,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         var target = InspectionTarget;
         if (target.Pcb is null)
             return InspectionStationState.CompletingInspection;
-        if (target.Bolt is null)
-        {
-            return HasBarcodeRegion(target.Pcb.Value)
-                ? InspectionStationState.ReadingBarcode
-                : InspectionStationState.BarcodeTeachingRequired;
-        }
-        return HasRegion(target.Bolt)
-            ? InspectionStationState.InspectingBolt
-            : InspectionStationState.FovTeachingRequired;
+        var taught = target.Bolt is null ? HasBarcodeRegion(target.Pcb.Value) : HasRegion(target.Bolt);
+        return taught ? InspectionStationState.InspectingPoint : InspectionStationState.TeachingRequired;
     }
 
     private async Task<bool> ExecuteStepAsync(
@@ -419,7 +412,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         Station.Complete();
                     return false;
                 case InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor:
-                case InspectionStationState.BarcodeTeachingRequired or InspectionStationState.FovTeachingRequired:
+                case InspectionStationState.TeachingRequired:
                     // Return on entering a wait, not on every feedback notification while waiting.
                     if (IsClear && !Equals(Step, state)
                         && Step is not InspectionStationState.ReturningToWaitingPosition
@@ -465,39 +458,27 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     ClearInspectionOperation();
                     return true;
                 }
-                case InspectionStationState.ReadingBarcode:
-                {
-                    var pcb = InspectionTarget.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
-                    EnterStep(state, $"{pcb.GetDescription()} / Data Matrix", Station.CurrentJob.Id);
-                    var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
-                    var job = _runJob!;
-                    token.ThrowIfCancellationRequested();
-                    Station.RequireCurrentJob(job);
-                    var assembly = Station.GetAssembly(job, pcb);
-                    var barcode = await ReadBarcodeAsync(pcb, token);
-                    token.ThrowIfCancellationRequested();
-                    Station.RequireCurrentJob(job);
-                    assembly.PcbBarcode = barcode.Barcode;
-                    assembly.RecordInspectionCapture(barcode);
-                    _pointIndex++;
-                    NotifyChanged();
-                    return true;
-                }
-                case InspectionStationState.InspectingBolt:
+                case InspectionStationState.InspectingPoint:
                 {
                     var target = InspectionTarget;
                     var pcb = target.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
-                    var bolt = target.Bolt ?? throw new InvalidOperationException("No inspection bolt is selected.");
-                    EnterStep(state, $"{pcb.GetDescription()} / Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}", Station.CurrentJob.Id);
+                    var bolt = target.Bolt;
+                    var pointName = bolt is null ? "Data Matrix" : $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}";
+                    EnterStep(state, $"{pcb.GetDescription()} / {pointName}", Station.CurrentJob.Id);
                     var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
                     var job = _runJob!;
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     var assembly = Station.GetAssembly(job, pcb);
-                    var capture = await InspectAsync(bolt, token);
+                    var capture = bolt is null
+                        ? await ReadBarcodeAsync(pcb, token)
+                        : await InspectAsync(bolt, token);
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
-                    assembly.RecordBoltPresence(bolt.Id, capture.Success);
+                    if (bolt is null)
+                        assembly.PcbBarcode = capture.Barcode;
+                    else
+                        assembly.RecordBoltPresence(bolt.Id, capture.Success);
                     assembly.RecordInspectionCapture(capture);
                     _pointIndex++;
                     NotifyChanged();
@@ -670,7 +651,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         await Station.WaitForCarrierAsync(cancellationToken);
                 }
                 await SetLiftUpAsync(true, cancellationToken);
-                EnterStep(InspectionStationState.TransferCompleted, destination.ToString());
                 break;
             }
             case InspectionStationState.HoldingAtDestination:
@@ -683,9 +663,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         + $"destination support={IsSupportReady(destination)}, destination occupied={IsCarrierPresent(destination)}, "
                         + $"shuttle={_ngConveyor.ShuttleLift}, receive={_ngConveyor.IsReceiveAllowed}, "
                         + $"pickup={Lift}, gripper={Gripper}, pending={IsTransferPending}");
-                return false;
-            case InspectionStationState.Waiting or InspectionStationState.TransferCompleted:
-                EnterStep(state, destination.ToString());
                 return false;
             default:
                 throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported inspection transfer step.");
@@ -934,15 +911,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             && region.IsInside(size.Width, size.Height);
     }
 
-    public CarrierImageTile GetFov(BoltPoint point)
-    {
-        var fov = _recipes.Current.CarrierImages.SingleOrDefault(fov => fov.IsForTarget(point.HeatSink, point.Id));
-        if (fov is null)
-            throw new InvalidOperationException(
-                $"Record a position for {point.HeatSink.GetDescription()} bolt {point.Id}.");
-        return fov;
-    }
-
     public Task MoveToBoltAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
         var position = point.InspectionPosition ?? throw new InvalidOperationException(
@@ -982,7 +950,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     {
         if (!HasRegion(point))
             throw new InvalidOperationException($"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Id}.");
-        var fov = GetFov(point);
+        var fov = _recipes.Current.FindInspectionImage(point.HeatSink, point.Id)
+            ?? throw new InvalidOperationException(
+                $"Record a position for {point.HeatSink.GetDescription()} bolt {point.Id}.");
         await MoveToAsync(_recipes.Current.GetInspectionPosition(fov), cancellationToken: cancellationToken).ConfigureAwait(false);
         var image = await CaptureCurrentAsync(cancellationToken,
             lightLevel: point.LightLevel ?? _recipes.Current.BoltInspection.LightLevel).ConfigureAwait(false);
