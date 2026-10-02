@@ -280,7 +280,7 @@ public sealed record PcbBoltResultView(
     public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => !Result.IsComplete ? UiText.Get("Final tightening pending")
         : Result.Stage == BoltFasteningStage.Preliminary ? UiText.Get("Pre-tightening NG")
-        : Result.Source == BoltResultSource.DryRun ? UiText.Get("DRY RUN") : Result.Success ? "OK" : "NG";
+        : StageVerdict;
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
 
     public string StageVerdict => Result.Source == BoltResultSource.DryRun
@@ -301,7 +301,7 @@ public sealed record PcbBoltResultView(
         get
         {
             if (Result.Stage == BoltFasteningStage.Preliminary)
-                return Result.IsComplete ? "—" : UiText.Get("Final tightening pending");
+                return "—";
             switch (Result.TurnsResult)
             {
                 case AssemblyResult.Ok:

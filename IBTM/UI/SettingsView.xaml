@@ -355,8 +355,15 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <TextBlock Text="{ui:Text '2-stage turns = pre-tightening + final tightening'}" Style="{StaticResource SettingHelpText}"/>
-                                    <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource SettingHelpText}"/>
+                                    <StackPanel>
+                                        <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.SingleStage}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers></Style></StackPanel.Style>
+                                        <TextBlock Text="{ui:Text '2-stage turns = pre-tightening + final tightening'}" Style="{StaticResource SettingHelpText}"/>
+                                        <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource SettingHelpText}"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource SettingCard}">

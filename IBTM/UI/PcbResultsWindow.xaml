@@ -39,6 +39,7 @@
             <Setter Property="ToolTip" Value="{Binding Verdict}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Result.IsComplete}" Value="False"><Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/></DataTrigger>
+                <DataTrigger Binding="{Binding Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
                         <Condition Binding="{Binding Result.Stage}" Value="{x:Static core:BoltFasteningStage.Preliminary}"/>
@@ -129,9 +130,9 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="3*"/>
+                        <RowDefinition Height="3*" MinHeight="160"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="268"/>
+                        <RowDefinition Height="2*" MaxHeight="268"/>
                         <RowDefinition Height="48"/>
                     </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">

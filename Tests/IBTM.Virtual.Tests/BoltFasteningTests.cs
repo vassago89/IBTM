@@ -24,12 +24,15 @@ namespace IBTM.Virtual.Tests;
 public sealed class BoltFasteningTests
 {
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(true, false, true)]
+    [InlineData(false, false, false, false)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, false, true, true)]
     public async Task PickupStagesUseSelectedPresetsReversePerPcbAndResumeWithoutAnotherPickup(
-        bool twoStage, bool firstNg, bool resume)
+        bool twoStage, bool firstNg, bool resume, bool switchToSingle)
     {
         var settings = new BoltFasteningSettings
         {
@@ -86,18 +89,24 @@ public sealed class BoltFasteningTests
             }
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        BoltResult? beforeStop = null;
         if (resume)
         {
             await station.RunAsync(stop.Token, resultReceived: (bolt, result) => stop.Cancel());
             Assert.False(work.Completed);
-            var preliminary = work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults[bolts[0].Id];
-            Assert.Equal(BoltFasteningStage.Preliminary, preliminary.Stage);
-            Assert.False(preliminary.IsComplete);
+            beforeStop = work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults[bolts[0].Id];
+            Assert.Equal(twoStage ? BoltFasteningStage.Preliminary : BoltFasteningStage.Single, beforeStop.Stage);
+            Assert.Equal(!twoStage, beforeStop.IsComplete);
             Assert.False(station.IsFasteningRecorded);
-            Assert.Equal("Final tightening pending", new FasteningResumeRow("Bolt", HeatSinkSlot.HeatSink1, preliminary).Status);
+            Assert.Equal(twoStage ? "Final tightening pending" : "OK",
+                new FasteningResumeRow("Bolt", HeatSinkSlot.HeatSink1, beforeStop).Status);
         }
+        if (switchToSingle)
+            settings.PickupFasteningMode = PickupFasteningMode.SingleStage;
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        var run = station.RunAsync(finish.Token, selectedBolts: resume ? bolts.Select(bolt => bolt.Id).ToArray() : null);
+        var remaining = resume ? bolts.Where(bolt => work.GetAssembly(bolt.HeatSink).PickupBoltResults
+            .GetValueOrDefault(bolt.Id) is not { IsComplete: true }).Select(bolt => bolt.Id).ToArray() : null;
+        var run = station.RunAsync(finish.Token, selectedBolts: remaining);
         try
         {
             Assert.True(await WaitUntilAsync(() => work.Completed || run.IsCompleted, TimeSpan.FromSeconds(10)));
@@ -105,7 +114,9 @@ public sealed class BoltFasteningTests
             var expected = twoStage
                 ? new (int, ushort)[] { (1, 2), (2, 2), (2, 3), (1, 3), (3, 2), (4, 2), (4, 3), (3, 3) }
                 : [(1, 3), (2, 3), (3, 3), (4, 3)];
-            if (firstNg)
+            if (switchToSingle)
+                expected = [(1, 2), (1, 3), (2, 3), (3, 3), (4, 3)];
+            if (firstNg && twoStage)
                 expected = expected.Where(item => item != (1, (ushort)3)).ToArray();
             Assert.Equal(expected, starts);
             Assert.Equal(4, pickups);
@@ -117,16 +128,25 @@ public sealed class BoltFasteningTests
                 if (firstNg && bolt.Id == bolts[0].Id)
                 {
                     Assert.False(result.Success);
-                    Assert.Equal(BoltFasteningStage.Preliminary, result.Stage);
+                    Assert.Equal(twoStage ? BoltFasteningStage.Preliminary : BoltFasteningStage.Single, result.Stage);
                     Assert.Equal(AssemblyResult.Ng, work.GetAssembly(bolt.HeatSink).FasteningResult);
                 }
-                else if (twoStage)
+                else if (twoStage && (!switchToSingle || bolt.Id == bolts[0].Id))
                 {
                     Assert.Equal(BoltFasteningStage.Final, result.Stage);
                     Assert.Equal((ushort)2, result.PreliminaryResult!.Controller!.Preset);
                     Assert.Equal((ushort)3, result.Controller!.Preset);
                 }
+                else
+                {
+                    Assert.Equal(BoltFasteningStage.Single, result.Stage);
+                    Assert.Null(result.PreliminaryResult);
+                    Assert.Equal(result.MeasuredTurns, result.TotalTurns);
+                    Assert.Equal((ushort)3, result.Controller!.Preset);
+                }
             }
+            if (resume && !twoStage)
+                Assert.Same(beforeStop, work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults[bolts[0].Id]);
         }
         finally
         {
@@ -152,6 +172,11 @@ public sealed class BoltFasteningTests
         Assert.Equal(PickupFasteningMode.TwoStage, loaded.PickupFasteningMode);
         Assert.Equal(settings.PickupPreliminaryPreset, loaded.PickupPreliminaryPreset);
         Assert.Equal(settings.PickupFinalPreset, loaded.PickupFinalPreset);
+        settings.PickupFasteningMode = PickupFasteningMode.SingleStage;
+        await store.SaveSettingsAsync([settings]);
+        loaded = (await MachineSettings.LoadAsync(store)).BoltFastening;
+        Assert.Equal(PickupFasteningMode.SingleStage, loaded.PickupFasteningMode);
+        Assert.Equal((ushort)3, loaded.PickupFinalPreset);
         var preliminary = new BoltResult(true, 2)
         {
             Stage = BoltFasteningStage.Preliminary,
@@ -171,6 +196,17 @@ public sealed class BoltFasteningTests
         Assert.Equal(AssemblyResult.Ng, (restored with { MaximumTurns = 11 }).TurnsResult);
         Assert.Equal(AssemblyResult.Ng, (restored with { MinimumTurns = 13 }).TurnsResult);
         Assert.Null((restored with { PreliminaryResult = preliminary with { Controller = null } }).TotalTurns);
+
+        // Older single-stage records have neither of the new stage fields.
+        var legacy = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(final))!.AsObject();
+        legacy.Remove(nameof(BoltResult.Stage));
+        legacy.Remove(nameof(BoltResult.PreliminaryResult));
+        var single = System.Text.Json.JsonSerializer.Deserialize<BoltResult>(legacy.ToJsonString())!;
+        Assert.Equal(BoltFasteningStage.Single, single.Stage);
+        Assert.True(single.IsComplete);
+        Assert.Null(single.PreliminaryResult);
+        Assert.Equal(2, single.TotalTurns);
+        Assert.Equal(AssemblyResult.Ng, single.TurnsResult);
     }
 
     [Fact]

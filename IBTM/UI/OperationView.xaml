@@ -164,8 +164,8 @@
                                                     <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}">
-                                                    <Setter Property="Text" Value="{ui:Text 'DRY RUN'}"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                                                    <Setter Property="Text" Value="{ui:Text 'Dry run · NG'}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
