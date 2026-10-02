@@ -115,7 +115,7 @@
             </Border>
             <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="216"/>
+                    <RowDefinition Height="180"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
@@ -125,7 +125,6 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <TextBlock TextWrapping="Wrap" TextTrimming="CharacterEllipsis" FontSize="17"
                             FontWeight="SemiBold" MinHeight="24" MaxHeight="48">
@@ -161,7 +160,7 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                        <ScrollViewer Grid.Row="1" Margin="0,8,0,10" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ScrollViewer Grid.Row="1" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel>
                                 <TextBlock Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
                                     FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}"
@@ -173,20 +172,6 @@
                                 <TextBlock Text="{Binding ResetError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
                             </StackPanel>
                         </ScrollViewer>
-                        <Button x:Name="ResetButton" Grid.Row="2" Command="{Binding ResetCommand}" IsEnabled="{Binding IsResetAllowed}"
-                            Height="36" ToolTip="{ui:Text 'Silence buzzer / recover stopped hardware; servos may turn ON.'}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                    <Setter Property="Content" Value="{ui:Text 'RESET'}"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
-                                            <Setter Property="Content" Value="{ui:Text 'RESETTING...'}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
                     </Grid>
                 </Border>
                 <StackPanel Grid.Row="1" Margin="0,0,0,12">
@@ -216,6 +201,12 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <TextBlock Text="{ui:Text 'Check the actual bolts where no result was recorded.'}" TextWrapping="Wrap"
+                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                            <CheckBox x:Name="ConfirmFasteningResume" IsChecked="{Binding IsFasteningResumeConfirmed, Mode=TwoWay}"
+                                IsEnabled="{Binding IsFasteningResumeAvailable}">
+                                <TextBlock Text="{ui:Text 'I checked the carrier and bolts. Resume unfinished fastening.'}" TextWrapping="Wrap"/>
+                            </CheckBox>
                         </StackPanel>
                         <TextBlock Text="{ui:Text 'Current position (mm)'}" Style="{StaticResource ReviewHeading}" Margin="0,0,0,8"/>
                         <UniformGrid Columns="3">
@@ -226,23 +217,6 @@
                         <StackPanel Style="{StaticResource CarrierActions}">
                             <TextBlock Text="{ui:Text 'Carrier work'}" Style="{StaticResource ReviewHeading}"/>
                             <TextBlock Text="{Binding StartStation.CurrentJob.Id, StringFormat={ui:Text 'Work {0}'}}"/>
-                            <UniformGrid Columns="2" Margin="0,12,0,0">
-                                <StackPanel Margin="0,0,12,0">
-                                    <TextBlock Text="{ui:Text 'Backup plate'}" Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock Text="{Binding StartStation.BackupPlate, Converter={StaticResource UiTextConverter}}"/>
-                                    <UniformGrid Columns="2" Margin="0,8,0,0" IsEnabled="{Binding State.ManualSetupEnabled}">
-                                        <Button Content="{ui:Text 'Up'}" Command="{Binding SetStartBackupPlateCommand}"
-                                            Height="36" Padding="8,4" Margin="0,0,4,0" Style="{StaticResource SecondaryButtonStyle}">
-                                            <Button.CommandParameter><sys:Boolean>True</sys:Boolean></Button.CommandParameter>
-                                        </Button>
-                                        <Button Content="{ui:Text 'Down'}" Command="{Binding SetStartBackupPlateCommand}"
-                                            Height="36" Padding="8,4" Margin="4,0,0,0" Style="{StaticResource SecondaryButtonStyle}">
-                                            <Button.CommandParameter><sys:Boolean>False</sys:Boolean></Button.CommandParameter>
-                                        </Button>
-                                    </UniformGrid>
-                                </StackPanel>
-                                <StackPanel><TextBlock Text="{ui:Text 'Stopper'}" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding StartStation.Stopper, Converter={StaticResource UiTextConverter}}"/></StackPanel>
-                            </UniformGrid>
                             <ItemsControl ItemsSource="{Binding StartStation.Assemblies}" Margin="0,12,0,0">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -336,127 +310,173 @@
                     </StackPanel>
                 </ScrollViewer>
                 <StackPanel Grid.Row="3" Margin="0,12,0,0">
-                    <StackPanel Style="{StaticResource FasteningReview}" Margin="0,0,0,12">
-                        <TextBlock Text="{ui:Text 'Check the actual bolts where no result was recorded.'}" TextWrapping="Wrap"
-                            Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
-                        <CheckBox x:Name="ConfirmFasteningResume" IsChecked="{Binding IsFasteningResumeConfirmed, Mode=TwoWay}"
-                            IsEnabled="{Binding IsFasteningResumeAvailable}">
-                            <TextBlock Text="{ui:Text 'I checked the carrier and bolts. Resume unfinished fastening.'}" TextWrapping="Wrap"/>
-                        </CheckBox>
-                    </StackPanel>
                     <StackPanel Style="{StaticResource CarrierActions}">
-                        <TextBlock Text="{ui:Text 'Complete: skip · Clear: erase results and rework'}"
-                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
-                        <UniformGrid Columns="2">
-                            <Button x:Name="CompleteWorkButton" Content="{ui:Text 'Mark complete'}" Command="{Binding ChangeCarrierWorkCommand}"
-                                CommandParameter="{x:Static app:CarrierWorkAction.Complete}" Margin="0,0,4,0" Height="38">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                        <Setter Property="IsEnabled" Value="False"/>
-                                        <Style.Triggers>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding State.Available}" Value="True"/>
-                                                    <Condition Binding="{Binding State.IsRunning}" Value="False"/>
-                                                    <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
-                                                    <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
-                                                    <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
-                                                    <Condition Binding="{Binding StartStation.Completed}" Value="False"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="IsEnabled" Value="True"/>
-                                            </MultiDataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                            <Button x:Name="ClearWorkButton" Content="{ui:Text 'Clear results'}" Command="{Binding ChangeCarrierWorkCommand}"
-                                CommandParameter="{x:Static app:CarrierWorkAction.Clear}" Margin="4,0,0,0" Height="38">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                        <Setter Property="IsEnabled" Value="False"/>
-                                        <Style.Triggers>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding State.Available}" Value="True"/>
-                                                    <Condition Binding="{Binding State.IsRunning}" Value="False"/>
-                                                    <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
-                                                    <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
-                                                    <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="IsEnabled" Value="True"/>
-                                            </MultiDataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                        </UniformGrid>
+                        <Border Background="{StaticResource ControlBgBrush}" Padding="12" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <UniformGrid Columns="2" Margin="0,0,0,8">
+                                    <DockPanel Margin="0,0,8,0">
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding StartStation.BackupPlate, Converter={StaticResource UiTextConverter}}"
+                                            FontWeight="SemiBold" Margin="8,0,0,0"/>
+                                        <TextBlock Text="{ui:Text 'Backup plate'}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                    </DockPanel>
+                                    <DockPanel Margin="8,0,0,0">
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding StartStation.Stopper, Converter={StaticResource UiTextConverter}}"
+                                            FontWeight="SemiBold" Margin="8,0,0,0"/>
+                                        <TextBlock Text="{ui:Text 'Stopper'}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                    </DockPanel>
+                                </UniformGrid>
+                                <UniformGrid Columns="2" IsEnabled="{Binding State.ManualSetupEnabled}">
+                                    <Button Content="{ui:Text 'Raise plate'}" Command="{Binding SetStartBackupPlateCommand}"
+                                        Height="40" Padding="8,4" Margin="0,0,4,0" Style="{StaticResource SecondaryButtonStyle}">
+                                        <Button.CommandParameter><sys:Boolean>True</sys:Boolean></Button.CommandParameter>
+                                    </Button>
+                                    <Button Content="{ui:Text 'Lower plate'}" Command="{Binding SetStartBackupPlateCommand}"
+                                        Height="40" Padding="8,4" Margin="4,0,0,0" Style="{StaticResource SecondaryButtonStyle}">
+                                        <Button.CommandParameter><sys:Boolean>False</sys:Boolean></Button.CommandParameter>
+                                    </Button>
+                                </UniformGrid>
+                                <Border Height="1" Background="{StaticResource DividerBrush}" Margin="0,12"/>
+                                <UniformGrid Columns="2">
+                                    <Button x:Name="CompleteWorkButton" Content="{ui:Text 'Mark complete'}" Command="{Binding ChangeCarrierWorkCommand}"
+                                        CommandParameter="{x:Static app:CarrierWorkAction.Complete}" Margin="0,0,4,0" Height="40">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding State.Available}" Value="True"/>
+                                                            <Condition Binding="{Binding State.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
+                                                            <Condition Binding="{Binding StartStation.Completed}" Value="False"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button x:Name="ClearWorkButton" Content="{ui:Text 'Clear results'}" Command="{Binding ChangeCarrierWorkCommand}"
+                                        CommandParameter="{x:Static app:CarrierWorkAction.Clear}" Margin="4,0,0,0" Height="40">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding State.Available}" Value="True"/>
+                                                            <Condition Binding="{Binding State.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </UniformGrid>
+                                <UniformGrid Columns="2" Margin="0,6,0,0">
+                                    <TextBlock Text="{ui:Text 'Skip this station'}" TextAlignment="Center" TextWrapping="Wrap"
+                                        FontSize="12" Margin="0,0,4,0" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="{ui:Text 'Rework this station'}" TextAlignment="Center" TextWrapping="Wrap"
+                                        FontSize="12" Margin="4,0,0,0" Foreground="{StaticResource TextMutedBrush}"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                    <TextBlock Text="{Binding StartActionMessage}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Height="40" Margin="0,8,0,0"
+                    <TextBlock Text="{Binding StartActionMessage}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Height="36" Margin="0,8,0,0"
                         Foreground="{StaticResource TextSecondaryBrush}"/>
                 </StackPanel>
             </Grid>
         </Grid>
-        <Grid Grid.Row="3" Margin="0,18,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal">
-                <Button x:Name="CancelButton" Content="{ui:Text 'Cancel · Esc'}" IsCancel="True" IsDefault="True"
-                    MinWidth="130" Height="44" Style="{StaticResource SecondaryButtonStyle}"/>
-                <Button Command="{Binding HomeCommand}" IsEnabled="{Binding Machine.IsHomeAllowed}"
-                    ToolTip="{Binding Machine.HomeBlock, Converter={StaticResource UiTextConverter}}"
-                    ToolTipService.ShowOnDisabled="True" MinWidth="160" Height="44" Margin="12,0,0,0">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                            <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding State.IsHoming}" Value="True">
-                                    <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-                <Button Content="{ui:Text 'STOP'}" Command="{Binding StopCommand}" MinWidth="110" Height="44"
-                    Margin="8,0,0,0" Style="{StaticResource SecondaryButtonStyle}"/>
-            </StackPanel>
-            <Button Grid.Column="1" Content="{ui:Text 'Check again'}" Command="{Binding CheckStartCommand}"
-                MinWidth="150" Height="44" Margin="0,0,10,0">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ConfirmStartCommand.IsRunning}" Value="True">
+        <Border Grid.Row="3" Margin="0,12,0,0" Padding="0,12,0,0"
+            BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="350"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="CancelButton" Content="{ui:Text 'Cancel · Esc'}" IsCancel="True" IsDefault="True"
+                        Width="112" Height="44" Style="{StaticResource SecondaryButtonStyle}"/>
+                    <Border Width="1" Background="{StaticResource DividerBrush}" Margin="16,4"/>
+                    <Button Command="{Binding HomeCommand}" IsEnabled="{Binding Machine.IsHomeAllowed}"
+                        ToolTip="{Binding Machine.HomeBlock, Converter={StaticResource UiTextConverter}}"
+                        ToolTipService.ShowOnDisabled="True" Width="160" Height="44" Margin="0,0,8,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding State.IsHoming}" Value="True">
+                                        <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button x:Name="ResetButton" Command="{Binding ResetCommand}" IsEnabled="{Binding IsResetAllowed}"
+                        Width="112" Height="44" Margin="0,0,8,0" ToolTip="{ui:Text 'Silence buzzer / recover stopped hardware; servos may turn ON.'}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <Setter Property="Content" Value="{ui:Text 'RESET'}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
+                                        <Setter Property="Content" Value="{ui:Text 'RESETTING...'}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="{ui:Text 'STOP'}" Command="{Binding StopCommand}" Width="100" Height="44"
+                        Margin="0" Style="{StaticResource DangerButtonStyle}"/>
+                </StackPanel>
+                <Grid Grid.Column="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130"/>
+                        <ColumnDefinition Width="220"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Content="{ui:Text 'Check again'}" Command="{Binding CheckStartCommand}"
+                        Width="122" Height="44" Margin="0,0,8,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ConfirmStartCommand.IsRunning}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button x:Name="ConfirmButton" Grid.Column="1" Content="{ui:Text 'Confirm and START'}" Command="{Binding ConfirmStartCommand}" Width="220" Height="44">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                 <Setter Property="IsEnabled" Value="False"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
-                                <Setter Property="IsEnabled" Value="False"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-            </Button>
-            <Button x:Name="ConfirmButton" Grid.Column="2" Content="{ui:Text 'Confirm and START'}" Command="{Binding ConfirmStartCommand}" MinWidth="190" Height="44">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                        <Setter Property="IsEnabled" Value="False"/>
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding IsStartReviewAllowed}" Value="True"/>
-                                    <Condition Binding="{Binding CheckStartCommand.IsRunning}" Value="False"/>
-                                    <Condition Binding="{Binding ChangeCarrierWorkCommand.IsRunning}" Value="False"/>
-                                    <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="IsEnabled" Value="True"/>
-                                <Setter Property="Background" Value="{StaticResource PrimaryButtonBackgroundBrush}"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-            </Button>
-        </Grid>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsStartReviewAllowed}" Value="True"/>
+                                            <Condition Binding="{Binding CheckStartCommand.IsRunning}" Value="False"/>
+                                            <Condition Binding="{Binding ChangeCarrierWorkCommand.IsRunning}" Value="False"/>
+                                            <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="IsEnabled" Value="True"/>
+                                        <Setter Property="Background" Value="{StaticResource PrimaryButtonBackgroundBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

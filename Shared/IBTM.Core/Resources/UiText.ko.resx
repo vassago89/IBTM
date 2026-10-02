@@ -3523,4 +3523,16 @@
   <data name="ng equipment fault. check the fault details and recovery guidance." xml:space="preserve">
     <value>NG 장치 오류입니다. 오류 내용과 조치 안내를 확인하세요.</value>
   </data>
+  <data name="raise plate" xml:space="preserve">
+    <value>플레이트 상승</value>
+  </data>
+  <data name="lower plate" xml:space="preserve">
+    <value>플레이트 하강</value>
+  </data>
+  <data name="skip this station" xml:space="preserve">
+    <value>이 공정 건너뛰기</value>
+  </data>
+  <data name="rework this station" xml:space="preserve">
+    <value>이 공정 다시 작업</value>
+  </data>
 </root>

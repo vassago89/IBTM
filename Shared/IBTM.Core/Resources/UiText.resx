@@ -3524,4 +3524,16 @@ COMPLETE: finish</value>
   <data name="ng equipment fault. check the fault details and recovery guidance." xml:space="preserve">
     <value>NG equipment fault. Check the fault details and recovery guidance.</value>
   </data>
+  <data name="raise plate" xml:space="preserve">
+    <value>Raise plate</value>
+  </data>
+  <data name="lower plate" xml:space="preserve">
+    <value>Lower plate</value>
+  </data>
+  <data name="skip this station" xml:space="preserve">
+    <value>Skip this station</value>
+  </data>
+  <data name="rework this station" xml:space="preserve">
+    <value>Rework this station</value>
+  </data>
 </root>

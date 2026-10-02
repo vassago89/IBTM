@@ -61,7 +61,7 @@
         <Style.Triggers>
             <Trigger Property="Visibility" Value="Visible">
                 <Trigger.EnterActions>
-                    <BeginStoryboard x:Name="AlarmOutlinePulse">
+                    <BeginStoryboard>
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.35" To="1"
                                 Duration="0:0:0.8" AutoReverse="True" RepeatBehavior="Forever"/>
@@ -69,7 +69,13 @@
                     </BeginStoryboard>
                 </Trigger.EnterActions>
                 <Trigger.ExitActions>
-                    <RemoveStoryboard BeginStoryboardName="AlarmOutlinePulse"/>
+                    <!-- Replace the pulse on this border without looking up a name in a derived style. -->
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1"
+                                Duration="0" FillBehavior="Stop"/>
+                        </Storyboard>
+                    </BeginStoryboard>
                 </Trigger.ExitActions>
             </Trigger>
         </Style.Triggers>

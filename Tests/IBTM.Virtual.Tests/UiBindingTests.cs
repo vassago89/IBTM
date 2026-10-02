@@ -12,6 +12,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Threading;
 using System.Windows.Media;
+using System.Windows.Markup;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
 using IBTM.Core;
@@ -34,6 +35,68 @@ public sealed class WpfUiCollection;
 [Collection("WPF UI")]
 public sealed class UiBindingTests
 {
+    [Fact]
+    public async Task AlarmOutlineInDerivedStylesCanEnterAndExitWithoutNameLookup()
+    {
+        await VirtualTestSupport.RunOnStaAsync(() =>
+        {
+            var panel = (StackPanel)XamlReader.Parse("""
+                <StackPanel xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+                    <StackPanel.Resources>
+                        <ResourceDictionary>
+                            <ResourceDictionary.MergedDictionaries>
+                                <ResourceDictionary Source="/IBTM;component/UI/AppStyles.xaml"/>
+                                <ResourceDictionary Source="/IBTM;component/UI/MachineStyles.xaml"/>
+                            </ResourceDictionary.MergedDictionaries>
+                            <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
+                                <!-- Supply the application-level brush without creating IBTM.App. -->
+                                <Setter Property="BorderBrush" Value="Red"/>
+                                <Style.Triggers>
+                                    <Trigger Property="Tag" Value="Alarm">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ResourceDictionary>
+                    </StackPanel.Resources>
+                    <Border Width="200" Height="50"/>
+                    <Border Width="200" Height="50"/>
+                </StackPanel>
+                """);
+            var window = new Window
+            {
+                Content = panel, Width = 400, Height = 200,
+                ShowActivated = false, ShowInTaskbar = false, Opacity = 0,
+            };
+            try
+            {
+                window.Show();
+                window.Dispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+                // Loaded borders share a derived style, as the production alarm overlays do.
+                for (var cycle = 0; cycle < 2; cycle++)
+                {
+                    foreach (Border border in panel.Children)
+                    {
+                        Assert.True(border.IsLoaded);
+                        Assert.Equal(Visibility.Hidden, border.Visibility);
+                        border.Tag = "Alarm";
+                        border.Dispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+                        Assert.Equal(Visibility.Visible, border.Visibility);
+                        Assert.True(border.HasAnimatedProperties);
+                        border.Tag = null;
+                        border.Dispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+                        Assert.Equal(Visibility.Hidden, border.Visibility);
+                        Assert.Equal(1d, border.Opacity);
+                    }
+                }
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
     [Fact]
     public async Task BindingsAndWindowsHandleBackgroundChangesFailuresAndReopening()
     {

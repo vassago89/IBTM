@@ -14,6 +14,53 @@ namespace IBTM.Virtual.Tests;
 public sealed class NgConveyorTests
 {
     [Fact]
+    public async Task SingleCarrierAlarmAllowsStorageAndResumesReceivingAfterEjection()
+    {
+        var system = CreateSystem(alarmCarrierCount: 1);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = system.Conveyor.RunAsync(stop.Token);
+        try
+        {
+            await WaitUntilAsync(() => system.Conveyor.IsReceiveAllowed);
+            system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+            Assert.True(system.Conveyor.AlarmRequired);
+            Assert.False(system.Conveyor.Full);
+            await system.Signals.WaitForInputAsync(InputIo.NgShuttleDown, true, stop.Token);
+            await system.Signals.WaitForInputAsync(InputIo.NgConveyorPosition1Occupied, true, stop.Token);
+            await WaitUntilAsync(() => system.Conveyor.IsReceiveAllowed);
+            await WaitForOutputAsync(system.Io, OutputIo.NgCarrierEjectLamp, true);
+            Assert.Equal(1, system.Conveyor.CarrierCount);
+            Assert.True(system.Conveyor.AlarmRequired);
+            Assert.False(system.Conveyor.Full);
+            Assert.False(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
+            Assert.Equal(StationCylinderState.Up, system.Conveyor.ShuttleLift);
+            Assert.Equal(NgConveyorState.ReadyToEject, system.Conveyor.Step);
+
+            system.Io.SetInput(InputIo.NgCarrierEjectButton, true);
+            await WaitForOutputAsync(system.Io, OutputIo.NgConveyorRun, true);
+            Assert.False(system.Conveyor.IsReceiveAllowed);
+            system.Io.SetInput(InputIo.NgCarrierEjectButton, false);
+            await WaitForOutputAsync(system.Io, OutputIo.NgCarrierEjectCompleteLamp, true);
+            Assert.Equal(0, system.Conveyor.CarrierCount);
+            Assert.False(system.Conveyor.AlarmRequired);
+            Assert.True(system.Conveyor.IsEjectionPending);
+            Assert.False(system.Conveyor.IsReceiveAllowed);
+            Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperDown));
+
+            system.Io.SetInput(InputIo.NgCarrierEjectCompleteButton, true);
+            system.Io.SetInput(InputIo.NgCarrierEjectCompleteButton, false);
+            await WaitUntilAsync(() => system.Conveyor.IsReceiveAllowed);
+            Assert.False(system.Conveyor.IsEjectionPending);
+            Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperUp));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
     public async Task EjectPressDuringShuttleDescentDoesNotQueueAnEjection()
     {
         var system = CreateSystem();
