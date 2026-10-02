@@ -3423,11 +3423,8 @@
   <data name="fastening results" xml:space="preserve">
     <value>체결 결과</value>
   </data>
-  <data name="unrecorded bolts: {0}" xml:space="preserve">
-    <value>결과 없는 볼트: {0}개</value>
-  </data>
-  <data name="check the actual bolts where no result was recorded." xml:space="preserve">
-    <value>결과 없는 볼트의 실제 체결 상태를 확인하세요.</value>
+  <data name="check the actual condition of the remaining bolts." xml:space="preserve">
+    <value>남은 볼트의 실제 체결 상태를 확인하세요.</value>
   </data>
   <data name="i checked the carrier and bolts. resume unfinished fastening." xml:space="preserve">
     <value>현재 캐리어·볼트 상태를 확인했습니다. 남은 체결을 재개합니다.</value>
@@ -3504,5 +3501,35 @@
   </data>
   <data name="motion refresh interval (ms, all units)" xml:space="preserve">
     <value>모션 갱신 주기 (ms, 공통)</value>
+  </data>
+  <data name="1-stage fastening" xml:space="preserve">
+    <value>1단 체결</value>
+  </data>
+  <data name="2-stage fastening" xml:space="preserve">
+    <value>2단 체결</value>
+  </data>
+  <data name="pre-tightening" xml:space="preserve">
+    <value>가체결</value>
+  </data>
+  <data name="final tightening" xml:space="preserve">
+    <value>본체결</value>
+  </data>
+  <data name="pickup fastening mode" xml:space="preserve">
+    <value>픽업 체결 방식</value>
+  </data>
+  <data name="pre-tightening preset" xml:space="preserve">
+    <value>가체결 프리셋</value>
+  </data>
+  <data name="final tightening preset" xml:space="preserve">
+    <value>본체결 프리셋</value>
+  </data>
+  <data name="1-stage: final only. 2-stage: pre-tighten forward, finish in reverse." xml:space="preserve">
+    <value>1단: 본체결만 · 2단: 가체결 순서대로 → 본체결 역순</value>
+  </data>
+  <data name="final tightening pending" xml:space="preserve">
+    <value>본체결 대기</value>
+  </data>
+  <data name="remaining bolts: {0}" xml:space="preserve">
+    <value>남은 볼트: {0}개</value>
   </data>
 </root>

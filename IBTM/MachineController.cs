@@ -1049,8 +1049,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
                         .Where(bolt =>
                         {
                             var assembly = _fasteningStation.Station.GetAssembly(resumeFastening, bolt.HeatSink);
-                            return !assembly.ShootingBoltResults.ContainsKey(bolt.Id)
-                                && !assembly.PickupBoltResults.ContainsKey(bolt.Id);
+                            return (assembly.ShootingBoltResults.GetValueOrDefault(bolt.Id)
+                                ?? assembly.PickupBoltResults.GetValueOrDefault(bolt.Id)) is not { IsComplete: true };
                         }).Select(bolt => bolt.Id).ToArray();
                     _log?.LogInformation("Operator confirmed fastening resume: job={Job}, remaining={Count}.",
                         resumeFastening.Id, remainingBolts.Length);

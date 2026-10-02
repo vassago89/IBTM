@@ -154,6 +154,10 @@
                                                     <Setter Property="Text" Value="{ui:Text 'FASTEN NG'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                                 </DataTrigger>
+                                                <DataTrigger Binding="{Binding RecentFastening.Result.IsComplete}" Value="False">
+                                                    <Setter Property="Text" Value="{ui:Text 'Final tightening pending'}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                                                </DataTrigger>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}">
                                                     <Setter Property="Text" Value="{ui:Text 'DRY RUN'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>

@@ -29,6 +29,8 @@ public sealed record RecentFasteningView(string BoltName, HeatSinkSlot HeatSink,
 public sealed record FasteningResumeRow(string Label, HeatSinkSlot HeatSink, BoltResult? Result)
 {
     public string Status => Result is null ? "Not recorded"
+        : !Result.IsComplete ? "Final tightening pending"
+        : Result.Stage == BoltFasteningStage.Preliminary ? "Pre-tightening NG"
         : Result.Source == BoltResultSource.DryRun ? "Dry run" : Result.Success ? "OK" : "NG";
 }
 
@@ -300,7 +302,7 @@ public partial class OperationViewModel : ObservableObject
                     state = result switch
                     {
                         { Success: false } or { TurnsResult: AssemblyResult.Ng } => BoltTargetState.Ng,
-                        { TurnsResult: AssemblyResult.Pending } => BoltTargetState.Pending,
+                        { IsComplete: false } or { TurnsResult: AssemblyResult.Pending } => BoltTargetState.Pending,
                         _ => BoltTargetState.Ok,
                     };
                 targets.Add(new(Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
@@ -469,7 +471,7 @@ public partial class OperationViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsStartReviewAllowed))]
     public partial bool IsFasteningResumeConfirmed { get; set; }
 
-    public int RemainingFasteningCount => FasteningResumeBolts.Count(row => row.Result is null);
+    public int RemainingFasteningCount => FasteningResumeBolts.Count(row => row.Result is not { IsComplete: true });
 
     public bool IsFasteningResumeAvailable => State.Available && !State.IsRunning
         && _reviewedFasteningJob is { } job && Machine.IsFasteningResumeAllowed(job)

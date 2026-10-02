@@ -23,6 +23,154 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltFasteningTests
 {
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    public async Task PickupStagesUseSelectedPresetsReversePerPcbAndResumeWithoutAnotherPickup(
+        bool twoStage, bool firstNg, bool resume)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            PickupFasteningMode = twoStage ? PickupFasteningMode.TwoStage : PickupFasteningMode.SingleStage,
+            PickupPreliminaryPreset = 2, PickupFinalPreset = 3,
+            PickupVacuumDelayMilliseconds = 0,
+            SafeZ = 0, PickupPosition = new() { X = 100, Y = 100, Z = 5 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+        };
+        var units = new UnitSettings { ShootingBoltFeeder = false };
+        var io = new VirtualIoService(Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
+        io.Initialize();
+        io.SetInput(InputIo.PickupFeederBoltDetected, true);
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new AdcControllerStub();
+        var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200);
+        var bolts = Enumerable.Range(1, 4).Select(number => new BoltPoint
+        {
+            Id = BoltId(number), Head = FasteningHead.Pickup,
+            HeatSink = number <= 2 ? HeatSinkSlot.HeatSink1 : HeatSinkSlot.HeatSink2,
+            FasteningX = number * 10, FasteningY = 10,
+        }).ToArray();
+        var work = ConveyorStation.CreateBoltFastening(io);
+        var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, new(), work,
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
+            units, new BoltFeederUnit(io, new(), units));
+        io.SetInputs((InputIo.BoltFasteningHeatSink1Present, true), (InputIo.BoltFasteningHeatSink2Present, true));
+        await work.SeatAsync(CancellationToken.None);
+        var starts = new List<(int Bolt, ushort Preset)>();
+        var pickups = 0;
+        ushort preset = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupHeadVacuumPump)
+            {
+                io.SetInput(InputIo.PickupHeadVacuumDetected, on);
+                if (on)
+                    pickups++;
+            }
+            if (!on)
+                return;
+            if (output == OutputIo.PickupBoltPreset2)
+                preset = 2;
+            if (output == OutputIo.PickupBoltPreset3)
+                preset = 3;
+            if (output == OutputIo.PickupBoltStart)
+            {
+                starts.Add((Array.IndexOf(bolts, station.ActiveBolt) + 1, preset));
+                bus.ResultStatus = firstNg && starts.Count == 1 ? AdcEventStatus.FasteningNg : AdcEventStatus.FasteningOk;
+                Assert.Equal(StationCylinderState.Down, station.PickupTablePosition);
+                Assert.Equal(station.ActiveBolt!.FasteningX, motion.Position.X);
+            }
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        if (resume)
+        {
+            await station.RunAsync(stop.Token, resultReceived: (bolt, result) => stop.Cancel());
+            Assert.False(work.Completed);
+            var preliminary = work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults[bolts[0].Id];
+            Assert.Equal(BoltFasteningStage.Preliminary, preliminary.Stage);
+            Assert.False(preliminary.IsComplete);
+            Assert.False(station.IsFasteningRecorded);
+            Assert.Equal("Final tightening pending", new FasteningResumeRow("Bolt", HeatSinkSlot.HeatSink1, preliminary).Status);
+        }
+        using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var run = station.RunAsync(finish.Token, selectedBolts: resume ? bolts.Select(bolt => bolt.Id).ToArray() : null);
+        try
+        {
+            Assert.True(await WaitUntilAsync(() => work.Completed || run.IsCompleted, TimeSpan.FromSeconds(10)));
+            Assert.True(work.Completed, run.Exception?.ToString() ?? station.NextStep.ToString());
+            var expected = twoStage
+                ? new (int, ushort)[] { (1, 2), (2, 2), (2, 3), (1, 3), (3, 2), (4, 2), (4, 3), (3, 3) }
+                : [(1, 3), (2, 3), (3, 3), (4, 3)];
+            if (firstNg)
+                expected = expected.Where(item => item != (1, (ushort)3)).ToArray();
+            Assert.Equal(expected, starts);
+            Assert.Equal(4, pickups);
+            Assert.True(station.IsFasteningRecorded);
+            foreach (var bolt in bolts)
+            {
+                var result = work.GetAssembly(bolt.HeatSink).PickupBoltResults[bolt.Id];
+                Assert.True(result.IsComplete);
+                if (firstNg && bolt.Id == bolts[0].Id)
+                {
+                    Assert.False(result.Success);
+                    Assert.Equal(BoltFasteningStage.Preliminary, result.Stage);
+                    Assert.Equal(AssemblyResult.Ng, work.GetAssembly(bolt.HeatSink).FasteningResult);
+                }
+                else if (twoStage)
+                {
+                    Assert.Equal(BoltFasteningStage.Final, result.Stage);
+                    Assert.Equal((ushort)2, result.PreliminaryResult!.Controller!.Preset);
+                    Assert.Equal((ushort)3, result.Controller!.Preset);
+                }
+            }
+        }
+        finally
+        {
+            finish.Cancel();
+            await run;
+        }
+    }
+
+    [Fact]
+    public async Task PickupStageSettingsAndCombinedTurnsSurviveStorage()
+    {
+        var settings = System.Text.Json.JsonSerializer.Deserialize<BoltFasteningSettings>("{}")!;
+        Assert.Equal(PickupFasteningMode.SingleStage, settings.PickupFasteningMode);
+        Assert.Equal((ushort)1, settings.PickupFinalPreset);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.PickupPreliminaryPreset = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.PickupFinalPreset = 4);
+        settings.PickupFasteningMode = PickupFasteningMode.TwoStage;
+        settings.PickupPreliminaryPreset = 1;
+        settings.PickupFinalPreset = 3;
+        var store = OpenMachineStore();
+        await store.SaveSettingsAsync([settings]);
+        var loaded = (await MachineSettings.LoadAsync(store)).BoltFastening;
+        Assert.Equal(PickupFasteningMode.TwoStage, loaded.PickupFasteningMode);
+        Assert.Equal(settings.PickupPreliminaryPreset, loaded.PickupPreliminaryPreset);
+        Assert.Equal(settings.PickupFinalPreset, loaded.PickupFinalPreset);
+        var preliminary = new BoltResult(true, 2)
+        {
+            Stage = BoltFasteningStage.Preliminary,
+            Controller = new("Virtual", 1, 1, 100, 1, 2, 100, 0, 0, 3600, 1, 0, 0, 1, 0, null),
+        };
+        var final = preliminary with
+        {
+            Stage = BoltFasteningStage.Final, PreliminaryResult = preliminary,
+            Controller = preliminary.Controller with { Preset = 3, Angle3 = 720 },
+            MinimumTurns = 11, MaximumTurns = 13,
+        };
+        var restored = System.Text.Json.JsonSerializer.Deserialize<BoltResult>(System.Text.Json.JsonSerializer.Serialize(final))!;
+        Assert.Equal(12, restored.TotalTurns);
+        Assert.Equal(AssemblyResult.Ok, restored.TurnsResult);
+        Assert.Equal(AssemblyResult.Ng, (restored with { MaximumTurns = 11 }).TurnsResult);
+        Assert.Equal(AssemblyResult.Ng, (restored with { MinimumTurns = 13 }).TurnsResult);
+        Assert.Null((restored with { PreliminaryResult = preliminary with { Controller = null } }).TotalTurns);
+    }
+
     [Fact]
     public async Task UnsupportedBoltHeadDoesNotCompleteTheCarrierWithoutFastening()
     {

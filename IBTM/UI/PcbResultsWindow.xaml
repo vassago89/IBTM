@@ -258,6 +258,7 @@
                                         ToolTip="{Binding SelectedBolt.Title}" Height="24" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="16"/>
                                     <WrapPanel Margin="0,3,0,4" TextBlock.FontSize="13" TextBlock.Foreground="{StaticResource TextMutedBrush}">
                                         <TextBlock Text="{Binding SelectedBolt.Result.Source, Converter={StaticResource UiTextConverter}}" Margin="0,0,14,0"/>
+                                        <TextBlock Text="{Binding SelectedBolt.Result.Stage, Converter={StaticResource UiTextConverter}}" Margin="0,0,14,0"/>
                                         <TextBlock Text="{Binding SelectedBolt.Result.RecordedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}', TargetNullValue={ui:Text 'Time not recorded'}, FallbackValue={ui:Text 'Time not recorded'}}"/>
                                     </WrapPanel>
                                 </StackPanel>

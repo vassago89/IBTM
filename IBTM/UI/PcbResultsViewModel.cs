@@ -47,6 +47,9 @@ public partial class PcbResultsViewModel : ObservableObject
     public partial PcbBoltResultView? SelectedBolt { get; set; }
 
     [ObservableProperty]
+    public partial PcbBoltResultView? SelectedBoltStage { get; set; }
+
+    [ObservableProperty]
     public partial IReadOnlyList<PcbInspectionImageItem> Images { get; private set; }
 
     [ObservableProperty]
@@ -85,7 +88,7 @@ public partial class PcbResultsViewModel : ObservableObject
             .Select(row => new PcbBoltResultView(row.Key, newValue.GetBoltOrdinal(row.Key), row.Head, row.Value,
                 newValue.BoltPresenceResults.TryGetValue(row.Key, out var present) ? present : null,
                 _recipes.Current))
-            .OrderBy(row => row.Result.RecordedAt ?? DateTimeOffset.MaxValue)
+            .OrderBy(row => row.Result.PreliminaryResult?.RecordedAt ?? row.Result.RecordedAt ?? DateTimeOffset.MaxValue)
             .ThenBy(row => row.Ordinal).ThenBy(row => row.Head).ToArray();
         SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
             ?? BoltResults.FirstOrDefault();
@@ -104,6 +107,7 @@ public partial class PcbResultsViewModel : ObservableObject
 
     partial void OnSelectedBoltChanged(PcbBoltResultView? value)
     {
+        SelectedBoltStage = value;
         if (value is not null)
             SelectedImage = Images.FirstOrDefault(image => image.Record.BoltId == value.BoltId);
     }
@@ -255,13 +259,30 @@ public sealed record PcbBoltResultView(
     public string HeadLabel => UiText.Get(Head);
     public string BoltLabel => Recipe.Pcb.GetBoltName(BoltId, Ordinal);
     public string Title => $"{BoltLabel} · {HeadLabel}";
-    public string Verdict => Result.Source == BoltResultSource.DryRun ? UiText.Get("DRY RUN") : Result.Success ? "OK" : "NG";
+    public string Verdict => !Result.IsComplete ? UiText.Get("Final tightening pending")
+        : Result.Stage == BoltFasteningStage.Preliminary ? UiText.Get("Pre-tightening NG")
+        : Result.Source == BoltResultSource.DryRun ? UiText.Get("DRY RUN") : Result.Success ? "OK" : "NG";
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
+
+    public string StageVerdict => Result.Source == BoltResultSource.DryRun
+        ? UiText.Get("Dry run · NG") : Result.Success ? "OK" : "NG";
+
+    public IEnumerable<PcbBoltResultView> StageResults
+    {
+        get
+        {
+            if (Result.PreliminaryResult is { } preliminary)
+                yield return this with { Result = preliminary };
+            yield return this;
+        }
+    }
 
     public string TurnsVerdict
     {
         get
         {
+            if (Result.Stage == BoltFasteningStage.Preliminary)
+                return Result.IsComplete ? "—" : UiText.Get("Final tightening pending");
             switch (Result.TurnsResult)
             {
                 case AssemblyResult.Ok:

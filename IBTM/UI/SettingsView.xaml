@@ -2,6 +2,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
+    xmlns:bolt="clr-namespace:IBTM.BoltFastening;assembly=IBTM.BoltFastening"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
@@ -10,6 +12,15 @@
     Background="{StaticResource AppBgBrush}" Validation.ErrorTemplate="{x:Null}">
     <UserControl.BindingGroup><BindingGroup Name="SettingsInputs"/></UserControl.BindingGroup>
     <UserControl.Resources>
+        <x:Array x:Key="PickupFasteningModes" Type="{x:Type bolt:PickupFasteningMode}">
+            <x:Static Member="bolt:PickupFasteningMode.SingleStage"/>
+            <x:Static Member="bolt:PickupFasteningMode.TwoStage"/>
+        </x:Array>
+        <x:Array x:Key="PickupPresets" Type="{x:Type sys:UInt16}">
+            <sys:UInt16>1</sys:UInt16>
+            <sys:UInt16>2</sys:UInt16>
+            <sys:UInt16>3</sys:UInt16>
+        </x:Array>
         <ui:MillisecondsToSecondsConverter x:Key="MillisecondsToSecondsConverter"/>
         <Style x:Key="SettingFieldLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
@@ -286,6 +297,68 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel>
+                            <Border Style="{StaticResource SettingCard}">
+                                <StackPanel>
+                                    <TextBlock Text="{ui:Text 'Pickup fastening'}" Style="{StaticResource SettingSectionTitle}"/>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Pickup fastening mode'}" Style="{StaticResource SettingFieldLabel}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="PickupMode" Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            ItemsSource="{StaticResource PickupFasteningModes}"
+                                            SelectedItem="{Binding Settings.BoltFastening.PickupFasteningMode, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.SingleStage}">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                        <Setter Property="Opacity" Value="0.45"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Pre-tightening preset'}" Style="{StaticResource SettingFieldLabel}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            ItemsSource="{StaticResource PickupPresets}"
+                                            SelectedItem="{Binding Settings.BoltFastening.PickupPreliminaryPreset, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Final tightening preset'}" Style="{StaticResource SettingFieldLabel}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            ItemsSource="{StaticResource PickupPresets}"
+                                            SelectedItem="{Binding Settings.BoltFastening.PickupFinalPreset, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </Grid>
+                                    <TextBlock Margin="0,4,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource SettingHelpText}">
+                                                <Setter Property="Text" Value="{ui:Text '1-stage: final preset only.'}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.TwoStage}">
+                                                        <Setter Property="Text" Value="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 · per PCB'}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{ui:Text '2-stage turns = pre-tightening + final tightening'}" Style="{StaticResource SettingHelpText}"/>
+                                    <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource SettingHelpText}"/>
+                                </StackPanel>
+                            </Border>
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
                                     <TextBlock Text="{ui:Text 'Pickup feeder / head'}" Style="{StaticResource SettingSectionTitle}"/>

@@ -30,20 +30,24 @@ public sealed record BoltResult(
 {
     public DateTimeOffset? RecordedAt { get; init; }
     public BoltControllerData? Controller { get; init; }
+    public BoltFasteningStage Stage { get; init; }
+    public BoltResult? PreliminaryResult { get; init; }
+
+    [JsonIgnore]
+    public bool IsComplete => Stage != BoltFasteningStage.Preliminary
+        || !Success || Source == BoltResultSource.DryRun;
     // Keep the bolt's applied criterion with the measurement, independent of later recipe edits.
     public double? MinimumTurns { get; init; }
     public double? MaximumTurns { get; init; }
 
     [JsonIgnore]
-    public double? TotalTurns
-    {
-        get
-        {
-            return Source == BoltResultSource.Controller
-                && Controller is { Angle3: >= 0 } data && double.IsFinite(data.Angle3)
-                ? data.Angle3 / 360.0 : null;
-        }
-    }
+    public double? MeasuredTurns => Source == BoltResultSource.Controller
+        && Controller is { Angle3: >= 0 } data && double.IsFinite(data.Angle3)
+        ? data.Angle3 / 360.0 : null;
+
+    [JsonIgnore]
+    public double? TotalTurns => Stage == BoltFasteningStage.Final
+        ? MeasuredTurns + PreliminaryResult?.MeasuredTurns : MeasuredTurns;
 
     [JsonIgnore]
     public AssemblyResult? TurnsResult

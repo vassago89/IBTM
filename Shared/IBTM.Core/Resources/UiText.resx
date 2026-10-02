@@ -3423,11 +3423,8 @@ Clear results: run this station again</value>
   <data name="fastening results" xml:space="preserve">
     <value>Fastening results</value>
   </data>
-  <data name="unrecorded bolts: {0}" xml:space="preserve">
-    <value>Unrecorded bolts: {0}</value>
-  </data>
-  <data name="check the actual bolts where no result was recorded." xml:space="preserve">
-    <value>Check the actual bolts where no result was recorded.</value>
+  <data name="check the actual condition of the remaining bolts." xml:space="preserve">
+    <value>Check the actual condition of the remaining bolts.</value>
   </data>
   <data name="i checked the carrier and bolts. resume unfinished fastening." xml:space="preserve">
     <value>I checked the carrier and bolts. Resume unfinished fastening.</value>
@@ -3505,5 +3502,35 @@ COMPLETE: finish</value>
   </data>
   <data name="motion refresh interval (ms, all units)" xml:space="preserve">
     <value>Motion refresh interval (ms, all units)</value>
+  </data>
+  <data name="1-stage fastening" xml:space="preserve">
+    <value>1-stage fastening</value>
+  </data>
+  <data name="2-stage fastening" xml:space="preserve">
+    <value>2-stage fastening</value>
+  </data>
+  <data name="pre-tightening" xml:space="preserve">
+    <value>Pre-tightening</value>
+  </data>
+  <data name="final tightening" xml:space="preserve">
+    <value>Final tightening</value>
+  </data>
+  <data name="pickup fastening mode" xml:space="preserve">
+    <value>Pickup fastening mode</value>
+  </data>
+  <data name="pre-tightening preset" xml:space="preserve">
+    <value>Pre-tightening preset</value>
+  </data>
+  <data name="final tightening preset" xml:space="preserve">
+    <value>Final tightening preset</value>
+  </data>
+  <data name="1-stage: final only. 2-stage: pre-tighten forward, finish in reverse." xml:space="preserve">
+    <value>1-stage: final only. 2-stage: pre-tighten forward, finish in reverse.</value>
+  </data>
+  <data name="final tightening pending" xml:space="preserve">
+    <value>Final tightening pending</value>
+  </data>
+  <data name="remaining bolts: {0}" xml:space="preserve">
+    <value>Remaining bolts: {0}</value>
   </data>
 </root>

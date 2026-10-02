@@ -23,7 +23,7 @@ public sealed class BoltFasteningStation : AutoUnit
     private readonly ILogger<BoltFasteningStation>? _log;
     private HeatSinkSlot[]? _runTargets;
     // Selected work belongs only to this run; STOP discards it.
-    private BoltPoint[]? _runBolts;
+    private (BoltPoint Bolt, BoltFasteningStage Stage)[]? _runBolts;
     private int _boltIndex;
     private long _cycleStartedAt;
     private ConveyorStation.Job? _runJob;
@@ -94,8 +94,8 @@ public sealed class BoltFasteningStation : AutoUnit
                 var bolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => bolt.HeatSink == heatSink).ToArray();
                 var assembly = Station.Assemblies.FirstOrDefault(item => item.HeatSink == heatSink);
                 if (bolts.Length == 0 || assembly is null
-                    || bolts.Any(bolt => !assembly.ShootingBoltResults.ContainsKey(bolt.Id)
-                        && !assembly.PickupBoltResults.ContainsKey(bolt.Id)))
+                    || bolts.Any(bolt => (assembly.ShootingBoltResults.GetValueOrDefault(bolt.Id)
+                        ?? assembly.PickupBoltResults.GetValueOrDefault(bolt.Id)) is not { IsComplete: true }))
                     return false;
             }
             return true;
@@ -173,7 +173,16 @@ public sealed class BoltFasteningStation : AutoUnit
         get
         {
             var index = _boltIndex;
-            return _runBolts is { } bolts && index < bolts.Length ? bolts[index] : null;
+            return _runBolts is { } bolts && index < bolts.Length ? bolts[index].Bolt : null;
+        }
+    }
+
+    public BoltFasteningStage? ActiveStage
+    {
+        get
+        {
+            var index = _boltIndex;
+            return _runBolts is { } bolts && index < bolts.Length ? bolts[index].Stage : null;
         }
     }
 
@@ -376,10 +385,31 @@ public sealed class BoltFasteningStation : AutoUnit
                                 $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
                     }
                     _runJob = Station.CurrentJob;
-                    _runBolts = _recipes.Current.Pcb.FasteningPoints
+                    var selected = _recipes.Current.Pcb.FasteningPoints
                         .Where(bolt => _runTargets.Contains(bolt.HeatSink)
-                            && (selectedBolts is null || selectedBolts.Contains(bolt.Id)))
-                        .ToArray();
+                            && (selectedBolts is null || selectedBolts.Contains(bolt.Id)));
+                    var work = new List<(BoltPoint Bolt, BoltFasteningStage Stage)>();
+                    foreach (var group in selected.GroupBy(bolt => (bolt.Head, bolt.HeatSink)))
+                    {
+                        var pickupResults = Station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == group.Key.HeatSink)?.PickupBoltResults;
+                        var twoStage = group.Key.Head == FasteningHead.Pickup
+                            && _settings.PickupFasteningMode == PickupFasteningMode.TwoStage;
+                        foreach (var point in group)
+                        {
+                            var resumePreliminary = selectedBolts is not null && point.Head == FasteningHead.Pickup
+                                && pickupResults?.GetValueOrDefault(point.Id) is { Stage: BoltFasteningStage.Preliminary };
+                            if (twoStage)
+                            {
+                                if (!resumePreliminary)
+                                    work.Add((point, BoltFasteningStage.Preliminary));
+                            }
+                            else
+                                work.Add((point, resumePreliminary ? BoltFasteningStage.Final : BoltFasteningStage.Single));
+                        }
+                        if (twoStage)
+                            work.AddRange(group.Reverse().Select(point => (point, BoltFasteningStage.Final)));
+                    }
+                    _runBolts = work.ToArray();
                     _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     Station.Changed += CheckCarrier;
                     CheckCarrier();
@@ -407,7 +437,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     }
                     token.ThrowIfCancellationRequested();
                     // A partial selection still returns to standby, but cannot release an unfinished carrier.
-                    var complete = selectedBolts is null || IsFasteningRecorded;
+                    var complete = IsFasteningRecorded;
                     if (!complete && continueAfterSelection)
                         throw new InvalidOperationException("The resumed carrier still has unrecorded bolts.");
                     if (complete)
@@ -429,6 +459,22 @@ public sealed class BoltFasteningStation : AutoUnit
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     var bolt = selectedBolt ?? throw new InvalidOperationException("No bolt is selected.");
+                    var stage = _runBolts![_boltIndex].Stage;
+                    var assembly = Station.GetAssembly(job, bolt.HeatSink);
+                    BoltResult? preliminary = null;
+                    if (stage == BoltFasteningStage.Final)
+                    {
+                        preliminary = assembly.PickupBoltResults.GetValueOrDefault(bolt.Id);
+                        if (preliminary is not { Stage: BoltFasteningStage.Preliminary })
+                            throw new InvalidOperationException("Final tightening requires the recorded pre-tightening result.");
+                        if (preliminary.IsComplete)
+                        {
+                            // A failed pre-tightening result stays NG; never feed or tighten this bolt again.
+                            _boltIndex++;
+                            NotifyChanged();
+                            return true;
+                        }
+                    }
                     var cycleStarted = Stopwatch.GetTimestamp();
                     _log?.LogInformation("Bolt timing {Job}/{Bolt}: begin, PCB={Pcb}, head={Head}, safe Z={SafeZ}.",
                         job.Id, bolt.Id, bolt.HeatSink, bolt.Head, _settings.GetSafeZ(bolt.Head));
@@ -521,7 +567,12 @@ public sealed class BoltFasteningStation : AutoUnit
                                     bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                             }
 
-                            if (!Io.GetInput(InputIo.PickupHeadVacuumDetected))
+                            if (stage == BoltFasteningStage.Final)
+                            {
+                                await RaiseCylindersAsync(token);
+                                await MoveZAsync(_settings.SafeZ, token);
+                            }
+                            else if (!Io.GetInput(InputIo.PickupHeadVacuumDetected))
                             {
                                 TraceStep(step, target, job.Id, "pickup XY movement");
                                 await MoveToPickupXYAsync(token);
@@ -580,7 +631,6 @@ public sealed class BoltFasteningStation : AutoUnit
                     }
                     _log?.LogInformation("Bolt timing {Job}/{Bolt}: preparation ready, elapsed={ElapsedMs:F1} ms, feeding={Feeding}.",
                         job.Id, bolt.Id, Stopwatch.GetElapsedTime(cycleStarted).TotalMilliseconds, feeding);
-                    var assembly = Station.GetAssembly(job, bolt.HeatSink);
                     TraceStep(step, target, job.Id, "fastening controller result");
                     BoltResult? result = null;
                     Exception? fasteningFailure = null;
@@ -588,8 +638,8 @@ public sealed class BoltFasteningStation : AutoUnit
                     double? maximumTurns;
                     lock (_recipes.InspectionSync)
                     {
-                        minimumTurns = bolt.MinimumTurns;
-                        maximumTurns = bolt.MaximumTurns;
+                        minimumTurns = stage == BoltFasteningStage.Preliminary ? null : bolt.MinimumTurns;
+                        maximumTurns = stage == BoltFasteningStage.Preliminary ? null : bolt.MaximumTurns;
                     }
                     try
                     {
@@ -600,7 +650,10 @@ public sealed class BoltFasteningStation : AutoUnit
                             _ => throw new ArgumentOutOfRangeException(nameof(bolt.Head)),
                         };
                         var started = Stopwatch.GetTimestamp();
-                        await head.SelectPresetAsync(1, token);
+                        var preset = bolt.Head == FasteningHead.Shooting ? (ushort)1
+                            : stage == BoltFasteningStage.Preliminary
+                                ? _settings.PickupPreliminaryPreset : _settings.PickupFinalPreset;
+                        await head.SelectPresetAsync(preset, token);
                         _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
                             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                         started = Stopwatch.GetTimestamp();
@@ -664,7 +717,7 @@ public sealed class BoltFasteningStation : AutoUnit
 
                         // Finish physical clearance before publishing the measured result.
                         TraceStep(step, target, job.Id, "head retraction");
-                        var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1] : null;
+                        var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1].Bolt : null;
                         var nextShootingBolt = bolt.Head == FasteningHead.Shooting && feeding
                             && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
                         var safeZ = bolt.Head == FasteningHead.Shooting && nextBolt is { Head: FasteningHead.Pickup }
@@ -684,7 +737,13 @@ public sealed class BoltFasteningStation : AutoUnit
                         {
                             if (result is not null)
                             {
-                                result = result with { MinimumTurns = minimumTurns, MaximumTurns = maximumTurns };
+                                result = result with
+                                {
+                                    Stage = stage,
+                                    PreliminaryResult = preliminary,
+                                    MinimumTurns = minimumTurns,
+                                    MaximumTurns = maximumTurns,
+                                };
                                 var recordStarted = Stopwatch.GetTimestamp();
                                 assembly.RecordBolt(bolt.Head, bolt.Id, result);
                                 resultReceived?.Invoke(bolt, result);

@@ -15,6 +15,37 @@ public sealed class BoltFasteningSettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
+    public PickupFasteningMode PickupFasteningMode
+    {
+        get;
+        set
+        {
+            if (!Enum.IsDefined(value))
+                throw new ArgumentOutOfRangeException(nameof(value));
+            field = value;
+        }
+    }
+    public ushort PickupPreliminaryPreset
+    {
+        get;
+        set
+        {
+            if (value is < 1 or > 3)
+                throw new ArgumentOutOfRangeException(nameof(value), "IO bolt presets are 1, 2 and 3.");
+            field = value;
+        }
+    } = 2;
+    public ushort PickupFinalPreset
+    {
+        get;
+        set
+        {
+            if (value is < 1 or > 3)
+                throw new ArgumentOutOfRangeException(nameof(value), "IO bolt presets are 1, 2 and 3.");
+            field = value;
+        }
+    } = 1;
+
     public int PickupVacuumDelayMilliseconds
     {
         get;

@@ -183,7 +183,7 @@
                     <StackPanel>
                         <StackPanel Style="{StaticResource FasteningReview}" Margin="0,0,0,12">
                             <TextBlock Text="{ui:Text 'Fastening results'}" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding RemainingFasteningCount, StringFormat={ui:Text 'Unrecorded bolts: {0}'}}"
+                            <TextBlock Text="{Binding RemainingFasteningCount, StringFormat={ui:Text 'Remaining bolts: {0}'}}"
                                 Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,8"/>
                             <ItemsControl ItemsSource="{Binding FasteningResumeBolts}">
                                 <ItemsControl.ItemTemplate>
@@ -201,7 +201,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock Text="{ui:Text 'Check the actual bolts where no result was recorded.'}" TextWrapping="Wrap"
+                            <TextBlock Text="{ui:Text 'Check the actual condition of the remaining bolts.'}" TextWrapping="Wrap"
                                 Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
                             <CheckBox x:Name="ConfirmFasteningResume" IsChecked="{Binding IsFasteningResumeConfirmed, Mode=TwoWay}"
                                 IsEnabled="{Binding IsFasteningResumeAvailable}">
