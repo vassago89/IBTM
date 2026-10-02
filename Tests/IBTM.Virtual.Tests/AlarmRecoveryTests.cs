@@ -852,7 +852,6 @@ public sealed class AlarmRecoveryTests
         var state = services.GetRequiredService<MachineState>();
         var view = services.GetRequiredService<SettingsViewModel>();
         var io = services.GetRequiredService<VirtualIoService>();
-        services.GetRequiredService<MachineOptions>().UseResetButton = false;
         await machine.InitializeAsync();
         try
         {
@@ -867,6 +866,51 @@ public sealed class AlarmRecoveryTests
             Assert.False(state.AutomaticRunning);
             Assert.False(state.IsHoming);
             Assert.False(state.IsRunning);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AutoDoorOnlyTripsWhileEquipmentIsRunning(bool conveyorRunning)
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.SetInput(InputIo.AutoMode, false);
+            // Software operation ownership alone is not physical equipment activity.
+            using (var operation = services.GetRequiredService<OperationCancellation>().Link())
+            {
+                io.SetOutput(OutputIo.MainConveyorRun, conveyorRunning);
+                io.SetInput(InputIo.Door1Open, false);
+
+                Assert.Equal(conveyorRunning ? MachineAlarm.DoorOpen : MachineAlarm.None, state.Alarm);
+                Assert.Equal(conveyorRunning, operation.IsCancellationRequested);
+                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+                Assert.False(state.DoorClosed);
+                Assert.False(state.DoorInterlockReady);
+            }
+
+            Assert.False(machine.IsStartAllowed);
+            await machine.StartAsync();
+            Assert.False(state.AutomaticRunning);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+
+            if (!conveyorRunning)
+            {
+                // Selecting AUTO with the door already open must also stay idle without a door alarm.
+                io.SetInput(InputIo.AutoMode, true);
+                io.SetInput(InputIo.AutoMode, false);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+            }
         }
         finally
         {
@@ -900,7 +944,9 @@ public sealed class AlarmRecoveryTests
                 or InputIo.Door6Open;
             Assert.True(state.DoorClosed);
             io.SetInput(InputIo.AutoMode, false);
+            state.AutomaticRunning = true;
             io.SetInput(input, input == InputIo.EmergencyStop1Pressed);
+            state.AutomaticRunning = false;
             var alarm = state.Alarm;
             Assert.NotEqual(MachineAlarm.None, alarm);
             Assert.False(machine.IsResetAllowed);
@@ -936,6 +982,7 @@ public sealed class AlarmRecoveryTests
         }
         finally
         {
+            state.AutomaticRunning = false;
             await machine.ShutdownAsync();
         }
     }

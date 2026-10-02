@@ -839,9 +839,6 @@ Operation failed. Check controller status.</value>
   <data name="hardware / logs: save + restart" xml:space="preserve">
     <value>Hardware / logs: Save + restart</value>
   </data>
-  <data name="hardware reset button" xml:space="preserve">
-    <value>External reset button</value>
-  </data>
   <data name="head" xml:space="preserve">
     <value>HEAD</value>
   </data>
@@ -1031,8 +1028,8 @@ Operation failed. Check controller status.</value>
   <data name="interface &amp; drive" xml:space="preserve">
     <value>Interface &amp; Drive</value>
   </data>
-  <data name="interlocks &amp; reset input" xml:space="preserve">
-    <value>Interlocks &amp; reset input</value>
+  <data name="interlocks" xml:space="preserve">
+    <value>Interlocks</value>
   </data>
   <data name="interrupt number" xml:space="preserve">
     <value>Interrupt number</value>

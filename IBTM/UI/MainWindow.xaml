@@ -444,7 +444,7 @@
                                     <Setter Property="Content" Value="{ui:Text 'RESET'}"/>
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Operation.ResetCommand.IsRunning}" Value="True">
+                                        <DataTrigger Binding="{Binding Operation.Machine.IsResetting}" Value="True">
                                             <Setter Property="Content" Value="{ui:Text 'RESETTING...'}"/>
                                         </DataTrigger>
                                     </Style.Triggers>

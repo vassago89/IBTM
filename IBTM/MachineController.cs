@@ -339,8 +339,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 or InputIo.NgCarrierPickupDown)
             _state.Refresh();
 
-        if (input == InputIo.ResetButton && value && _options.UseResetButton)
+        if (input == InputIo.ResetButton && value)
         {
+            _log?.LogInformation("Hardware RESET requested.");
             _ = ResetAsync();
         }
     }
@@ -452,7 +453,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
         {
             if (_options.UseEmergencyStop && !_state.EmergencyStopReleased)
                 return MachineAlarm.EmergencyStop;
-            if (!_state.DoorInterlockReady)
+            // An open door blocks START, but only trips equipment that is running.
+            if (!_state.DoorInterlockReady && _state.IsRunningFor(includeOperations: false))
                 return MachineAlarm.DoorOpen;
             return _options.UseAirPressureInterlock && !_state.AirPressureOk
                 ? MachineAlarm.AirPressureLow
@@ -1762,6 +1764,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     public bool IsResetAllowed => IsResetAllowedFor(_state.IsRunning);
 
+    public bool IsResetting => !_resetTask.IsCompleted;
+
     private bool IsResetAllowedFor(bool running)
     {
         if (_operations.IsShuttingDown || _feedback.Failure is not null || running)
@@ -1780,9 +1784,18 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     public async Task ResetAsync()
     {
+        Task resetTask;
+        lock (_resetGate)
+        {
+            // Claim the request before scheduling device work so repeated inputs are ignored.
+            if (!_resetTask.IsCompleted)
+                return;
+            resetTask = _resetTask = Task.Run(ResetHardwareAsync);
+        }
         try
         {
-            await Task.Run(AcknowledgeAndResetAsync);
+            PropertyChanged?.Invoke(this, new(nameof(IsResetting)));
+            await resetTask;
         }
         catch (OperationCanceledException exception) when (
             exception.CancellationToken.IsCancellationRequested || _operations.IsShuttingDown)
@@ -1797,22 +1810,15 @@ public sealed partial class MachineController : INotifyPropertyChanged
             else
                 _state.SetError(MachineAlarm.IoCommunication, exception);
         }
-    }
-
-    private Task AcknowledgeAndResetAsync()
-    {
-        SilenceBuzzer();
-        lock (_resetGate)
+        finally
         {
-            // Repeated clicks acknowledge the buzzer, but share the current recovery.
-            if (!_resetTask.IsCompleted)
-                return _resetTask;
-            return _resetTask = ResetHardwareAsync();
+            PropertyChanged?.Invoke(this, new(nameof(IsResetting)));
         }
     }
 
     private async Task ResetHardwareAsync()
     {
+        SilenceBuzzer();
         var waitForCleanup = _state.IsError && _operations.HasActiveOperations
             && !_operations.IsShuttingDown && _feedback.Failure is null;
         if (waitForCleanup)

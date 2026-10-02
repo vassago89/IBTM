@@ -839,9 +839,6 @@
   <data name="hardware / logs: save + restart" xml:space="preserve">
     <value>하드웨어 / 로그: 저장 후 재시작</value>
   </data>
-  <data name="hardware reset button" xml:space="preserve">
-    <value>외부 리셋 버튼</value>
-  </data>
   <data name="head" xml:space="preserve">
     <value>헤드</value>
   </data>
@@ -1031,8 +1028,8 @@
   <data name="interface &amp; drive" xml:space="preserve">
     <value>인터페이스 · 구동</value>
   </data>
-  <data name="interlocks &amp; reset input" xml:space="preserve">
-    <value>인터록 · 리셋 입력</value>
+  <data name="interlocks" xml:space="preserve">
+    <value>인터록</value>
   </data>
   <data name="interrupt number" xml:space="preserve">
     <value>인터럽트 번호</value>

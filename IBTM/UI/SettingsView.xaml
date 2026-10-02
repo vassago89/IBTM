@@ -167,15 +167,13 @@
                             </Border>
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
-                                    <TextBlock Text="{ui:Text 'Interlocks &amp; reset input'}" Style="{StaticResource SettingSectionTitle}"/>
+                                    <TextBlock Text="{ui:Text 'Interlocks'}" Style="{StaticResource SettingSectionTitle}"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Emergency stop'}"
                                         IsChecked="{Binding Settings.Options.UseEmergencyStop, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Door interlock'}"
                                         IsChecked="{Binding Settings.Options.UseDoorInterlock, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Air pressure interlock'}"
                                         IsChecked="{Binding Settings.Options.UseAirPressureInterlock, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
-                                    <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Hardware reset button'}"
-                                        IsChecked="{Binding Settings.Options.UseResetButton, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource SettingCard}">

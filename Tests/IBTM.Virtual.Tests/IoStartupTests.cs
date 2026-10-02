@@ -255,13 +255,15 @@ public sealed class IoStartupTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ResetWaitsForStoppedOperationCleanupAndRechecksLiveRunOutput(bool outputStillOn)
+    public async Task HardwareAndScreenResetIgnoreRepeatedRequestsAndRecheckLiveRunOutput(bool outputStillOn)
     {
         await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var operations = services.GetRequiredService<OperationCancellation>();
         var io = services.GetRequiredService<StartupIo>();
+        var inputs = services.GetRequiredService<VirtualIoService>();
+        var resetCommand = services.GetRequiredService<OperationViewModel>().ResetCommand;
         await machine.InitializeAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         var initializations = io.Initializations;
@@ -271,29 +273,57 @@ public sealed class IoStartupTests
         state.SetError(MachineAlarm.MainConveyor);
         owner.Cancel();
         var acknowledged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var acknowledgements = 0;
         io.BeforeOutputWrite = (output, on) =>
         {
             if (output == OutputIo.Buzzer && !on)
+            {
+                Interlocked.Increment(ref acknowledgements);
                 acknowledged.TrySetResult();
+            }
         };
-        var reset = machine.ResetAsync();
+        var resetStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resetCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnResetChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(MachineController.IsResetting))
+                return;
+            if (machine.IsResetting)
+                resetStarted.TrySetResult();
+            else
+                resetCompleted.TrySetResult();
+        }
+
+        machine.PropertyChanged += OnResetChanged;
+        inputs.SetInput(InputIo.ResetButton, true);
         try
         {
             await acknowledged.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(reset.IsCompleted);
+            await resetStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(machine.IsResetting);
             Assert.Equal(initializations, io.Initializations);
             Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
-            var repeatedClick = machine.ResetAsync();
+            io.SetOutput(OutputIo.Buzzer, true);
+            inputs.SetInput(InputIo.ResetButton, false);
+            inputs.SetInput(InputIo.ResetButton, true);
+            var repeatedClick = resetCommand.ExecuteAsync(null);
+            await repeatedClick.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(machine.IsResetting);
+            Assert.True(io.GetOutput(OutputIo.Buzzer));
+            Assert.Equal(1, Volatile.Read(ref acknowledgements));
             io.SetOutput(OutputIo.MainConveyorRun, outputStillOn);
             state.AutomaticRunning = false;
             owner.Dispose();
-            await Task.WhenAll(reset, repeatedClick).WaitAsync(TimeSpan.FromSeconds(3));
+            await resetCompleted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.False(machine.IsResetting);
             Assert.Equal(outputStillOn ? MachineAlarm.MainConveyor : MachineAlarm.None, state.Alarm);
             Assert.Equal(initializations + (outputStillOn ? 0 : 1), io.Initializations);
             Assert.Equal(outputStillOn, io.GetOutput(OutputIo.MainConveyorRun));
         }
         finally
         {
+            machine.PropertyChanged -= OnResetChanged;
+            inputs.SetInput(InputIo.ResetButton, false);
             owner.Dispose();
             state.AutomaticRunning = false;
             io.BeforeOutputWrite = null;
