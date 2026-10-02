@@ -109,76 +109,76 @@
                     </Border.Style>
                 </Border>
                 <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}">
-                <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="258" Height="54">
-                    <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SupplyDisplayState}" Value="{x:Static ui:HandlerDisplayState.IoAlarm}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                </Border>
-                <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.PlacementStatusLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="258" Height="54">
-                    <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding PlacementDisplayState}" Value="{x:Static ui:HandlerDisplayState.IoAlarm}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                </Border>
+                    <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="{x:Static ui:MachineDiagramLayout.SupplyRailWidth}" Height="54">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SupplyDisplayState}" Value="{x:Static ui:HandlerDisplayState.IoAlarm}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.PlacementStatusLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="{x:Static ui:MachineDiagramLayout.SupplyRailWidth}" Height="54">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PlacementDisplayState}" Value="{x:Static ui:HandlerDisplayState.IoAlarm}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
                 </Canvas>
                 <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningLeft}">
-                <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54">
-                    <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding BoltDisplayState}" Value="{x:Static ui:StationDisplayState.IoAlarm}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                </Border>
-                <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="342" Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="{x:Static ui:MachineDiagramLayout.PickupFeederHeight}">
-                    <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.PickupBoltFeeder}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                </Border>
-                <Border Canvas.Top="192" Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="138">
-                    <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.ShootingBoltFeeder}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                </Border>
+                    <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding BoltDisplayState}" Value="{x:Static ui:StationDisplayState.IoAlarm}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="342" Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="{x:Static ui:MachineDiagramLayout.PickupFeederHeight}">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.PickupBoltFeeder}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <Border Canvas.Top="192" Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="138">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.ShootingBoltFeeder}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
                 </Canvas>
                 <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionLeft}">
-                <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54">
-                    <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding InspectionDisplayState}" Value="{x:Static ui:StationDisplayState.IoAlarm}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                </Border>
+                    <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding InspectionDisplayState}" Value="{x:Static ui:StationDisplayState.IoAlarm}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
                 </Canvas>
                 <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.MainTop}" Width="1552" Height="200">
                     <Border.Style>
@@ -192,6 +192,7 @@
                     </Border.Style>
                 </Border>
             </Canvas>
+
 
             <Canvas Panel.ZIndex="100"
                 Visibility="{Binding ShowStartCheck, ElementName=Diagram, Converter={StaticResource BoolToVis}}">

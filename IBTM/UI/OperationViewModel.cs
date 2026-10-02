@@ -353,10 +353,10 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            if (State.ReadError is not null)
-                return MachineDisplayState.Unavailable;
             if (State.Alarm != MachineAlarm.None)
                 return State.Alarm;
+            if (State.ReadError is not null)
+                return MachineDisplayState.Unavailable;
             if (State.PendingStop is { } pending)
                 return pending.Alarm;
             return State.Available && State.FeedbackReadiness.Faulted
@@ -365,9 +365,9 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public string? AlarmDetail => State.ReadError?.ToString() ?? State.AlarmDetail ?? State.PendingStop?.Error.ToString();
+    public string? AlarmDetail => State.AlarmDetail ?? State.ReadError?.ToString() ?? State.PendingStop?.Error.ToString();
 
-    public string? AlarmMessage => State.ReadError?.Message ?? State.AlarmMessage ?? State.PendingStop?.Error.Message;
+    public string? AlarmMessage => State.AlarmMessage ?? State.ReadError?.Message ?? State.PendingStop?.Error.Message;
 
     public string? AlarmAction
     {
