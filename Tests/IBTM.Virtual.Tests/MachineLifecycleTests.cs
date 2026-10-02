@@ -3548,6 +3548,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             await machine.HomeAsync(CancellationToken.None);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
             io.SetInputs((InputIo.PcbSupplyPcbDetected, true), (InputIo.PcbPlacementVacuumDetected, true),
                 (InputIo.ShootingTubeBoltDetected, true), (InputIo.PcbPlacementHeatSink1Present, true),
                 (InputIo.BoltFasteningHeatSink1Present, true));
@@ -3880,6 +3881,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             await machine.HomeAsync(CancellationToken.None);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
             // Completed carriers, NG shuttle/conveyor loads and feeder stock may remain.
             io.SetInputs(
                 (InputIo.PcbPlacementHeatSink1Present, true),
