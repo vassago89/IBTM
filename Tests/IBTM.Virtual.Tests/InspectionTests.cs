@@ -18,11 +18,13 @@ namespace IBTM.Virtual.Tests;
 public sealed class InspectionTests
 {
     [Theory]
-    [InlineData(null, null, false)]
-    [InlineData(10.0, null, true)]
-    [InlineData(null, 10.0, true)]
-    public void CompletedInspectionCannotReleaseAnUnmeasuredRequiredTurnsCheck(
-        double? minimumTurns, double? maximumTurns, bool routeToNg)
+    [InlineData(null, null, false, false)]
+    [InlineData(10.0, null, false, true)]
+    [InlineData(null, 10.0, false, true)]
+    [InlineData(null, null, true, true)]
+    [InlineData(10.0, 15.0, true, true)]
+    public void CompletedInspectionRoutesDryRunAndMissingRequiredMeasurementsToNg(
+        double? minimumTurns, double? maximumTurns, bool dryRun, bool routeToNg)
     {
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
@@ -30,7 +32,8 @@ public sealed class InspectionTests
         var station = CreateNgTransfer(io, motion);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         var assembly = station.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBolt(FasteningHead.Pickup, Guid.NewGuid(), new(true, null)
+        assembly.RecordBolt(FasteningHead.Pickup, Guid.NewGuid(), new(true, null,
+            dryRun ? BoltResultSource.DryRun : BoltResultSource.Controller)
         {
             MinimumTurns = minimumTurns,
             MaximumTurns = maximumTurns,
@@ -40,6 +43,9 @@ public sealed class InspectionTests
         station.Station.Complete(station.Station.CurrentJob);
 
         Assert.Equal(minimumTurns.HasValue || maximumTurns.HasValue ? AssemblyResult.Pending : null, assembly.TurnsResult);
+        Assert.Equal(dryRun ? AssemblyResult.Ng : AssemblyResult.Ok, assembly.FasteningResult);
+        if (dryRun)
+            Assert.Equal(AssemblyResult.Ng, assembly.Result);
         Assert.Equal(routeToNg, station.RouteToNg);
     }
 

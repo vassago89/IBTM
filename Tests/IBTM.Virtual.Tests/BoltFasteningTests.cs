@@ -895,6 +895,7 @@ public sealed class BoltFasteningTests
             if (dryRun)
             {
                 Assert.Equal(0, bus.ResultReads);
+                Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
                 Assert.All(assembly.ShootingBoltResults.Values, result =>
                 {
                     Assert.Equal(BoltResultSource.DryRun, result.Source);

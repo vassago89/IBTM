@@ -86,7 +86,7 @@ public sealed class HeatSinkAssembly
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
         results[boltId] = result;
-        if (!result.Success)
+        if (!result.Success || result.Source == BoltResultSource.DryRun)
         {
             FasteningResult = AssemblyResult.Ng;
         }
