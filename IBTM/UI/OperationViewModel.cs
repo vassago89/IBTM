@@ -374,44 +374,36 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             if (State.Alarm == MachineAlarm.None && State.PendingStop is not null && State.ReadError is null)
-                return UiText.Get("Current work is finishing. Wait for the machine to stop before checking the indicated equipment.");
+                return UiText.Get("Finishing current work. Wait for the machine to stop.");
             switch (Alarm)
             {
                 case MachineAlarm.EmergencyStop:
-                    return UiText.Get("Check why the emergency stop was pressed. When safe, release it and press RESET.");
+                    return UiText.Get("When safe, release the emergency stop and press RESET.");
                 case MachineAlarm.DoorOpen:
-                    return UiText.Get("Check the red door indicators above. Close the doors, then press RESET.");
+                    return UiText.Get("Close the doors, then press RESET.");
                 case MachineAlarm.AirPressureLow:
-                    return UiText.Get("Check the air supply and pressure. Restore the pressure, then press RESET.");
+                    return UiText.Get("Restore air pressure, then press RESET.");
                 case MachineAlarm.IoCommunication:
                 case MachineDisplayState.Unavailable:
-                    return UiText.Get("Check control I/O power and communication. Feedback is unavailable. After recovery, press RESET.");
+                    return UiText.Get("Restore I/O communication, then press RESET.");
                 case MachineAlarm.MotionUnavailable:
-                    return UiText.Get("Open MOTION to check the axis alarm and servo state. Correct the cause, then press RESET.");
+                    return UiText.Get("Check axis alarms in MOTION, then press RESET.");
                 case MachineAlarm.HomeFailed:
-                    return UiText.Get("Check the axis alarm, home sensor and travel path in MOTION. Correct the cause, then retry homing from MANUAL or Start Review.");
-                case MachineAlarm.PcbSupply:
-                    return UiText.Get("Check the PCB supply gripper, rotation and PCB position. Correct the cause, then press RESET and verify the material in Start Review.");
-                case MachineAlarm.PcbPlacement:
-                    return UiText.Get("Check placement vacuum, handler lift and PCB position. Correct the cause, then press RESET and verify the carrier in Start Review.");
+                    return UiText.Get("Correct the fault, then retry homing.");
                 case MachineAlarm.PickupBoltFeeder:
-                    return UiText.Get("Check pickup feeder bolts, jams and the bolt sensor. Stop motion before entering the machine. After service, press RESET and review unfinished carriers.");
                 case MachineAlarm.ShootingBoltFeeder:
-                    return UiText.Get("Check shooting feeder bolts, the tube and cylinder feedback. Stop motion before entering the machine. After service, press RESET and review unfinished carriers.");
+                    return UiText.Get("Stop motion before servicing the feeder, then press RESET.");
+                case MachineAlarm.PcbSupply:
+                case MachineAlarm.PcbPlacement:
                 case MachineAlarm.BoltFastening:
-                    return UiText.Get("Check the fastening controller alarm, bolt pickup and head cylinders. Correct the cause, then press RESET and review the remaining bolts in Start Review.");
                 case MachineAlarm.Inspection:
-                    return UiText.Get("Check the camera, lighting and inspection mechanism using the fault details. Correct the cause, then press RESET and review the carrier.");
                 case MachineAlarm.NgCarrierTransfer:
-                    return UiText.Get("Check the NG pickup gripper, lift and carrier support. Correct the cause, then press RESET and review the handler in Start Review.");
                 case MachineAlarm.NgShuttle:
-                    return UiText.Get("Check the shuttle lift sensors, carrier and inspection handler clearance. Correct the cause, then press RESET.");
                 case MachineAlarm.MainConveyor:
-                    return UiText.Get("Check the stopped carrier, arrival sensors, backup plates and stoppers. Correct the cause, then press RESET and review each carrier in Start Review.");
                 case MachineAlarm.NgConveyor:
-                    return UiText.Get("Check the NG carrier position, sensors, stopper and conveyor drive. Correct the cause, then press RESET. This is separate from the normal unloading request.");
+                    return UiText.Get("Correct the fault, then press RESET.");
                 case MachineAlarm.StopFailed:
-                    return UiText.Get("Motion may not have stopped. Press the emergency stop and confirm all motion has stopped before checking the equipment.");
+                    return UiText.Get("Press the emergency stop and confirm all motion has stopped.");
                 default:
                     return null;
             }

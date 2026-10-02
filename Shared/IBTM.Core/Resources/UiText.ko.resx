@@ -3457,68 +3457,35 @@
     <value>꺼냈으면 다시 배출,
 마쳤으면 배출 완료를 누르세요.</value>
   </data>
-  <data name="current work is finishing. wait for the machine to stop before checking the indicated equipment." xml:space="preserve">
-    <value>현재 작업을 마친 뒤 정지합니다. 설비가 멈출 때까지 기다린 후 표시된 장치를 확인하세요.</value>
+  <data name="finishing current work. wait for the machine to stop." xml:space="preserve">
+    <value>작업 마무리 중입니다. 정지할 때까지 기다리세요.</value>
   </data>
-  <data name="check why the emergency stop was pressed. when safe, release it and press reset." xml:space="preserve">
-    <value>비상정지 원인을 확인하세요. 안전을 확인한 뒤 비상정지를 풀고 리셋을 누르세요.</value>
+  <data name="when safe, release the emergency stop and press reset." xml:space="preserve">
+    <value>안전 확인 후 비상정지를 풀고 리셋하세요.</value>
   </data>
-  <data name="check the red door indicators above. close the doors, then press reset." xml:space="preserve">
-    <value>위쪽에서 붉게 표시된 도어를 확인하세요. 도어를 닫은 뒤 리셋을 누르세요.</value>
+  <data name="close the doors, then press reset." xml:space="preserve">
+    <value>도어를 닫고 리셋하세요.</value>
   </data>
-  <data name="check the air supply and pressure. restore the pressure, then press reset." xml:space="preserve">
-    <value>공압 공급과 압력을 확인하세요. 정상 압력으로 돌아오면 리셋을 누르세요.</value>
+  <data name="restore air pressure, then press reset." xml:space="preserve">
+    <value>공압 복구 후 리셋하세요.</value>
   </data>
-  <data name="check control i/o power and communication. feedback is unavailable. after recovery, press reset." xml:space="preserve">
-    <value>제어 I/O의 전원과 통신 연결을 확인하세요. 현재 장치 상태를 읽을 수 없습니다. 연결을 복구한 뒤 리셋을 누르세요.</value>
+  <data name="restore i/o communication, then press reset." xml:space="preserve">
+    <value>I/O 통신 복구 후 리셋하세요.</value>
   </data>
-  <data name="open motion to check the axis alarm and servo state. correct the cause, then press reset." xml:space="preserve">
-    <value>모션 창에서 축 알람과 서보 상태를 확인하세요. 원인을 조치한 뒤 리셋을 누르세요.</value>
+  <data name="check axis alarms in motion, then press reset." xml:space="preserve">
+    <value>모션 창에서 축 알람 확인 후 리셋하세요.</value>
   </data>
-  <data name="check the axis alarm, home sensor and travel path in motion. correct the cause, then retry homing from manual or start review." xml:space="preserve">
-    <value>모션 창에서 축 알람, 원점 센서와 이동 경로를 확인하세요. 원인을 조치한 뒤 수동 화면이나 시작 확인창에서 원점 복귀를 다시 실행하세요.</value>
+  <data name="correct the fault, then retry homing." xml:space="preserve">
+    <value>오류 조치 후 원점 복귀하세요.</value>
   </data>
-  <data name="check the pcb supply gripper, rotation and pcb position. correct the cause, then press reset and verify the material in start review." xml:space="preserve">
-    <value>PCB 공급부의 그리퍼, 회전 상태와 PCB 위치를 확인하세요. 원인을 조치하고 리셋한 뒤 시작 확인창에서 소재 상태를 확인하세요.</value>
+  <data name="stop motion before servicing the feeder, then press reset." xml:space="preserve">
+    <value>모션 정지 후 피더를 정비하고 리셋하세요.</value>
   </data>
-  <data name="check placement vacuum, handler lift and pcb position. correct the cause, then press reset and verify the carrier in start review." xml:space="preserve">
-    <value>안착부의 진공, 핸들러 승강 상태와 PCB 위치를 확인하세요. 원인을 조치하고 리셋한 뒤 시작 확인창에서 캐리어 상태를 확인하세요.</value>
+  <data name="correct the fault, then press reset." xml:space="preserve">
+    <value>오류 조치 후 리셋하세요.</value>
   </data>
-  <data name="check pickup feeder bolts, jams and the bolt sensor. stop motion before entering the machine. after service, press reset and review unfinished carriers." xml:space="preserve">
-    <value>픽업 피더의 볼트 부족, 걸림과 감지 센서를 확인하세요. 설비 내부에 들어가기 전에는 모션을 정지하세요. 정비 후 리셋하고 시작 확인창에서 미완료 캐리어를 확인하세요.</value>
-  </data>
-  <data name="check shooting feeder bolts, the tube and cylinder feedback. stop motion before entering the machine. after service, press reset and review unfinished carriers." xml:space="preserve">
-    <value>슈팅 피더의 볼트 부족, 튜브와 실린더 센서를 확인하세요. 설비 내부에 들어가기 전에는 모션을 정지하세요. 정비 후 리셋하고 시작 확인창에서 미완료 캐리어를 확인하세요.</value>
-  </data>
-  <data name="check the fastening controller alarm, bolt pickup and head cylinders. correct the cause, then press reset and review the remaining bolts in start review." xml:space="preserve">
-    <value>체결기 알람, 볼트 픽업 상태와 헤드 실린더를 확인하세요. 원인을 조치하고 리셋한 뒤 시작 확인창에서 남은 체결 작업을 확인하세요.</value>
-  </data>
-  <data name="check the camera, lighting and inspection mechanism using the fault details. correct the cause, then press reset and review the carrier." xml:space="preserve">
-    <value>아래 오류 내용을 보고 카메라·조명과 검사부 상태를 확인하세요. 원인을 조치하고 리셋한 뒤 시작 확인창에서 캐리어 상태를 확인하세요.</value>
-  </data>
-  <data name="check the ng pickup gripper, lift and carrier support. correct the cause, then press reset and review the handler in start review." xml:space="preserve">
-    <value>NG 픽업의 그리퍼, 승강 상태와 캐리어가 받쳐져 있는지 확인하세요. 원인을 조치하고 리셋한 뒤 시작 확인창에서 핸들러 상태를 확인하세요.</value>
-  </data>
-  <data name="check the shuttle lift sensors, carrier and inspection handler clearance. correct the cause, then press reset." xml:space="preserve">
-    <value>셔틀의 상승·하강 센서와 캐리어 위치를 확인하세요. 검사 핸들러가 빠져나왔는지도 확인한 뒤 원인을 조치하고 리셋을 누르세요.</value>
-  </data>
-  <data name="check the stopped carrier, arrival sensors, backup plates and stoppers. correct the cause, then press reset and review each carrier in start review." xml:space="preserve">
-    <value>멈춘 캐리어의 위치, 도착 센서, 백업 플레이트와 스토퍼를 확인하세요. 원인을 조치하고 리셋한 뒤 시작 확인창에서 각 캐리어 상태를 확인하세요.</value>
-  </data>
-  <data name="check the ng carrier position, sensors, stopper and conveyor drive. correct the cause, then press reset. this is separate from the normal unloading request." xml:space="preserve">
-    <value>NG 캐리어 위치, 센서, 스토퍼와 컨베이어 구동부를 확인하세요. 일반 배출 안내가 아닌 장치 오류입니다. 원인을 조치한 뒤 리셋을 누르세요.</value>
-  </data>
-  <data name="motion may not have stopped. press the emergency stop and confirm all motion has stopped before checking the equipment." xml:space="preserve">
-    <value>모션이 멈추지 않았을 수 있습니다. 비상정지를 누르고 모든 동작이 정지한 것을 확인한 뒤 설비를 점검하세요.</value>
-  </data>
-  <data name="equipment to check" xml:space="preserve">
-    <value>확인할 장치</value>
-  </data>
-  <data name="fault details" xml:space="preserve">
-    <value>오류 내용</value>
-  </data>
-  <data name="reset silences the buzzer. the highlight remains until the fault clears." xml:space="preserve">
-    <value>리셋으로 부저를 꺼도 오류가 남아 있으면 강조 표시가 유지됩니다.</value>
+  <data name="press the emergency stop and confirm all motion has stopped." xml:space="preserve">
+    <value>비상정지를 누르고 정지 여부를 확인하세요.</value>
   </data>
   <data name="ng equipment fault. check the fault details and recovery guidance." xml:space="preserve">
     <value>NG 장치 오류입니다. 오류 내용과 조치 안내를 확인하세요.</value>

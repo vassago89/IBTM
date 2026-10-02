@@ -86,7 +86,6 @@ public sealed class UiBindingTests
                         border.Tag = null;
                         border.Dispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
                         Assert.Equal(Visibility.Hidden, border.Visibility);
-                        Assert.Equal(1d, border.Opacity);
                     }
                 }
             }

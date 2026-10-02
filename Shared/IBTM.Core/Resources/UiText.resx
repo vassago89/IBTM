@@ -3458,68 +3458,35 @@ Clear results: run this station again</value>
 EJECT: next carrier
 COMPLETE: finish</value>
   </data>
-  <data name="current work is finishing. wait for the machine to stop before checking the indicated equipment." xml:space="preserve">
-    <value>Current work is finishing. Wait for the machine to stop before checking the indicated equipment.</value>
+  <data name="finishing current work. wait for the machine to stop." xml:space="preserve">
+    <value>Finishing current work. Wait for the machine to stop.</value>
   </data>
-  <data name="check why the emergency stop was pressed. when safe, release it and press reset." xml:space="preserve">
-    <value>Check why the emergency stop was pressed. When safe, release it and press RESET.</value>
+  <data name="when safe, release the emergency stop and press reset." xml:space="preserve">
+    <value>When safe, release the emergency stop and press RESET.</value>
   </data>
-  <data name="check the red door indicators above. close the doors, then press reset." xml:space="preserve">
-    <value>Check the red door indicators above. Close the doors, then press RESET.</value>
+  <data name="close the doors, then press reset." xml:space="preserve">
+    <value>Close the doors, then press RESET.</value>
   </data>
-  <data name="check the air supply and pressure. restore the pressure, then press reset." xml:space="preserve">
-    <value>Check the air supply and pressure. Restore the pressure, then press RESET.</value>
+  <data name="restore air pressure, then press reset." xml:space="preserve">
+    <value>Restore air pressure, then press RESET.</value>
   </data>
-  <data name="check control i/o power and communication. feedback is unavailable. after recovery, press reset." xml:space="preserve">
-    <value>Check control I/O power and communication. Feedback is unavailable. After recovery, press RESET.</value>
+  <data name="restore i/o communication, then press reset." xml:space="preserve">
+    <value>Restore I/O communication, then press RESET.</value>
   </data>
-  <data name="open motion to check the axis alarm and servo state. correct the cause, then press reset." xml:space="preserve">
-    <value>Open MOTION to check the axis alarm and servo state. Correct the cause, then press RESET.</value>
+  <data name="check axis alarms in motion, then press reset." xml:space="preserve">
+    <value>Check axis alarms in MOTION, then press RESET.</value>
   </data>
-  <data name="check the axis alarm, home sensor and travel path in motion. correct the cause, then retry homing from manual or start review." xml:space="preserve">
-    <value>Check the axis alarm, home sensor and travel path in MOTION. Correct the cause, then retry homing from MANUAL or Start Review.</value>
+  <data name="correct the fault, then retry homing." xml:space="preserve">
+    <value>Correct the fault, then retry homing.</value>
   </data>
-  <data name="check the pcb supply gripper, rotation and pcb position. correct the cause, then press reset and verify the material in start review." xml:space="preserve">
-    <value>Check the PCB supply gripper, rotation and PCB position. Correct the cause, then press RESET and verify the material in Start Review.</value>
+  <data name="stop motion before servicing the feeder, then press reset." xml:space="preserve">
+    <value>Stop motion before servicing the feeder, then press RESET.</value>
   </data>
-  <data name="check placement vacuum, handler lift and pcb position. correct the cause, then press reset and verify the carrier in start review." xml:space="preserve">
-    <value>Check placement vacuum, handler lift and PCB position. Correct the cause, then press RESET and verify the carrier in Start Review.</value>
+  <data name="correct the fault, then press reset." xml:space="preserve">
+    <value>Correct the fault, then press RESET.</value>
   </data>
-  <data name="check pickup feeder bolts, jams and the bolt sensor. stop motion before entering the machine. after service, press reset and review unfinished carriers." xml:space="preserve">
-    <value>Check pickup feeder bolts, jams and the bolt sensor. Stop motion before entering the machine. After service, press RESET and review unfinished carriers.</value>
-  </data>
-  <data name="check shooting feeder bolts, the tube and cylinder feedback. stop motion before entering the machine. after service, press reset and review unfinished carriers." xml:space="preserve">
-    <value>Check shooting feeder bolts, the tube and cylinder feedback. Stop motion before entering the machine. After service, press RESET and review unfinished carriers.</value>
-  </data>
-  <data name="check the fastening controller alarm, bolt pickup and head cylinders. correct the cause, then press reset and review the remaining bolts in start review." xml:space="preserve">
-    <value>Check the fastening controller alarm, bolt pickup and head cylinders. Correct the cause, then press RESET and review the remaining bolts in Start Review.</value>
-  </data>
-  <data name="check the camera, lighting and inspection mechanism using the fault details. correct the cause, then press reset and review the carrier." xml:space="preserve">
-    <value>Check the camera, lighting and inspection mechanism using the fault details. Correct the cause, then press RESET and review the carrier.</value>
-  </data>
-  <data name="check the ng pickup gripper, lift and carrier support. correct the cause, then press reset and review the handler in start review." xml:space="preserve">
-    <value>Check the NG pickup gripper, lift and carrier support. Correct the cause, then press RESET and review the handler in Start Review.</value>
-  </data>
-  <data name="check the shuttle lift sensors, carrier and inspection handler clearance. correct the cause, then press reset." xml:space="preserve">
-    <value>Check the shuttle lift sensors, carrier and inspection handler clearance. Correct the cause, then press RESET.</value>
-  </data>
-  <data name="check the stopped carrier, arrival sensors, backup plates and stoppers. correct the cause, then press reset and review each carrier in start review." xml:space="preserve">
-    <value>Check the stopped carrier, arrival sensors, backup plates and stoppers. Correct the cause, then press RESET and review each carrier in Start Review.</value>
-  </data>
-  <data name="check the ng carrier position, sensors, stopper and conveyor drive. correct the cause, then press reset. this is separate from the normal unloading request." xml:space="preserve">
-    <value>Check the NG carrier position, sensors, stopper and conveyor drive. Correct the cause, then press RESET. This is separate from the normal unloading request.</value>
-  </data>
-  <data name="motion may not have stopped. press the emergency stop and confirm all motion has stopped before checking the equipment." xml:space="preserve">
-    <value>Motion may not have stopped. Press the emergency stop and confirm all motion has stopped before checking the equipment.</value>
-  </data>
-  <data name="equipment to check" xml:space="preserve">
-    <value>Equipment to check</value>
-  </data>
-  <data name="fault details" xml:space="preserve">
-    <value>Fault details</value>
-  </data>
-  <data name="reset silences the buzzer. the highlight remains until the fault clears." xml:space="preserve">
-    <value>RESET silences the buzzer. The highlight remains until the fault clears.</value>
+  <data name="press the emergency stop and confirm all motion has stopped." xml:space="preserve">
+    <value>Press the emergency stop and confirm all motion has stopped.</value>
   </data>
   <data name="ng equipment fault. check the fault details and recovery guidance." xml:space="preserve">
     <value>NG equipment fault. Check the fault details and recovery guidance.</value>

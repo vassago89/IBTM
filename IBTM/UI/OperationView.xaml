@@ -232,17 +232,12 @@
             Visibility="{Binding HasAlarm, Converter={StaticResource BoolToVis}}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
-                    <TextBlock Text="{ui:Text 'Equipment to check'}" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
                     <TextBlock Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}" FontSize="22" FontWeight="SemiBold"
-                        Margin="0,6,0,16" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
-                    <TextBlock Text="{Binding AlarmAction}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap"
-                        Foreground="{StaticResource AccentAmberBrush}" LineHeight="25" LineStackingStrategy="BlockLineHeight"/>
-                    <TextBlock Text="{ui:Text 'Fault details'}" FontSize="14" FontWeight="SemiBold" Margin="0,24,0,8"
-                        Foreground="{StaticResource TextSecondaryBrush}"/>
+                        Margin="0,0,0,12" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
                     <TextBlock Text="{Binding AlarmMessage}" FontSize="14" TextWrapping="Wrap"
                         Foreground="{StaticResource TextPrimaryBrush}" ToolTip="{Binding AlarmDetail}"/>
-                    <TextBlock Text="{ui:Text 'RESET silences the buzzer. The highlight remains until the fault clears.'}"
-                        FontSize="13" Margin="0,24,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="{Binding AlarmAction}" FontSize="16" Margin="0,16,0,0" TextWrapping="Wrap"
+                        Foreground="{StaticResource AccentAmberBrush}"/>
                 </StackPanel>
             </ScrollViewer>
         </Border>
