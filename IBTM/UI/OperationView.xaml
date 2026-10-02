@@ -31,162 +31,13 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <Border Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,10" Padding="12,8" Height="108"
-            Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
-            BorderThickness="0,0,0,1">
-            <ListBox ItemsSource="{Binding PcbRecords}" SelectedItem="{Binding PcbDetails.Record, Mode=TwoWay}"
-                SelectionChanged="OnPcbSelectionChanged"
-                ItemTemplate="{StaticResource PcbHistoryCard}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
-                Background="{StaticResource ControlBgBrush}" BorderThickness="0"
-                ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                <ListBox.Template>
-                    <ControlTemplate TargetType="ListBox">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="32"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{ui:Text 'Total'}" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock Text="{Binding TotalCount, StringFormat=N0}" Margin="8,0,24,0" FontSize="22" FontWeight="SemiBold"
-                                        Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="OK" VerticalAlignment="Center" Foreground="{StaticResource AccentGreenBrush}"/>
-                                    <TextBlock Text="{Binding OkCount, StringFormat=N0}" Margin="8,0,24,0" FontSize="22" FontWeight="SemiBold"
-                                        Foreground="{StaticResource AccentGreenBrush}"/>
-                                    <TextBlock Text="NG" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}"/>
-                                    <TextBlock Text="{Binding NgCount, StringFormat=N0}" Margin="8,0,16,0" FontSize="22" FontWeight="SemiBold"
-                                        Foreground="{StaticResource AccentRedBrush}"/>
-                                    <Button Content="{ui:Text 'Clear counts'}" Command="{Binding ClearCountsCommand}"
-                                        Style="{StaticResource SecondaryButtonStyle}" Padding="12,2" MinHeight="24" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <TextBlock Grid.Column="1" Margin="20,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                    Foreground="{StaticResource AccentRedBrush}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="{Binding Machine.PcbHistory.SaveError}"/>
-                                            <Setter Property="ToolTip" Value="{Binding Machine.PcbHistory.SaveError}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
-                                                    <Setter Property="Text" Value="{Binding PcbHistoryError}"/>
-                                                    <Setter Property="ToolTip" Value="{Binding PcbHistoryError}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{ui:Text 'PCB Results'}" FontWeight="SemiBold" VerticalAlignment="Center"
-                                        Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,24,0"/>
-                                    <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
-                                        Text="{Binding Machine.PcbHistory.PendingCount, StringFormat={ui:Text 'Pending saves: {0}'}}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Machine.PcbHistory.PendingCount}" Value="0">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <Button Content="{ui:Text 'Retry save'}" Margin="0,0,8,0" Padding="12,2" MinHeight="24"
-                                        Command="{Binding RetryPcbSaveCommand}">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button Content="{ui:Text '← Newer'}" Padding="12,2" MinHeight="24" Margin="0,0,6,0"
-                                        Command="{x:Static ScrollBar.PageLeftCommand}" CommandTarget="{Binding ElementName=PcbHistoryScroll}">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ElementName=PcbHistoryScroll, Path=HorizontalOffset}" Value="0">
-                                                        <Setter Property="IsEnabled" Value="False"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button Content="{ui:Text 'Older →'}" Padding="12,2" MinHeight="24" Margin="0,0,12,0"
-                                        Command="{x:Static ScrollBar.PageRightCommand}" CommandTarget="{Binding ElementName=PcbHistoryScroll}">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ElementName=PcbHistoryScroll, Path=ScrollableWidth}" Value="0">
-                                                        <Setter Property="IsEnabled" Value="False"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button Width="120" Padding="12,2" MinHeight="24" Command="{Binding LoadOlderPcbsCommand}" IsEnabled="{Binding HasOlderPcbs}">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Setter Property="Content" Value="{ui:Text 'Retry loading'}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding PcbHistoryError}" Value="{x:Null}">
-                                                        <Setter Property="Content" Value="{ui:Text 'Load older'}"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="True">
-                                                        <Setter Property="Content" Value="{ui:Text 'Loading...'}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                </StackPanel>
-                            </Grid>
-                            <ScrollViewer x:Name="PcbHistoryScroll" Grid.Row="1" Margin="0,4,0,0"
-                                Background="{TemplateBinding Background}" Focusable="False" CanContentScroll="True"
-                                HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
-                                <ItemsPresenter/>
-                            </ScrollViewer>
-                            <TextBlock Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Setter Property="Text" Value="{ui:Text 'PCB history unavailable'}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding PcbRecords.Count}" Value="0">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding PcbHistoryError}" Value="{x:Null}">
-                                                <Setter Property="Text" Value="{ui:Text 'No PCB results'}"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="True">
-                                                <Setter Property="Text" Value="{ui:Text 'Loading PCB results...'}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
-                    </ControlTemplate>
-                </ListBox.Template>
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate><VirtualizingStackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-            </ListBox>
-        </Border>
-        <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="12,8"
+        <Border Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,10" Padding="12,8"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="76"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="{ui:Text 'DOORS'}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold"/>
@@ -198,6 +49,19 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
+                <StackPanel Grid.Column="2" Margin="24,0,0,0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{ui:Text 'Total'}" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Text="{Binding Recipes.Counts.TotalCount, StringFormat=N0}" Margin="8,0,24,0" FontSize="22" FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="OK" VerticalAlignment="Center" Foreground="{StaticResource AccentGreenBrush}"/>
+                    <TextBlock Text="{Binding Recipes.Counts.OkCount, StringFormat=N0}" Margin="8,0,24,0" FontSize="22" FontWeight="SemiBold"
+                        Foreground="{StaticResource AccentGreenBrush}"/>
+                    <TextBlock Text="NG" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock Text="{Binding Recipes.Counts.NgCount, StringFormat=N0}" Margin="8,0,16,0" FontSize="22" FontWeight="SemiBold"
+                        Foreground="{StaticResource AccentRedBrush}"/>
+                    <Button Content="{ui:Text 'Clear counts'}" Command="{Binding ClearCountsCommand}"
+                        Style="{StaticResource SecondaryButtonStyle}" Padding="12,2" MinHeight="24" VerticalAlignment="Center"/>
+                </StackPanel>
             </Grid>
         </Border>
         <Border Grid.Row="1" Background="{StaticResource EquipBgBrush}"
@@ -362,6 +226,142 @@
                     </Grid>
                 </Border>
             </Grid>
+        </Border>
+        <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="12,8" Height="108"
+            Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
+            BorderThickness="0,0,0,1">
+            <ListBox ItemsSource="{Binding PcbRecords}" SelectedItem="{Binding PcbDetails.Record, Mode=TwoWay}"
+                SelectionChanged="OnPcbSelectionChanged"
+                ItemTemplate="{StaticResource PcbHistoryCard}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
+                Background="{StaticResource ControlBgBrush}" BorderThickness="0"
+                ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                <ListBox.Template>
+                    <ControlTemplate TargetType="ListBox">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="32"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="1" Margin="20,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                    Foreground="{StaticResource AccentRedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{Binding Machine.PcbHistory.SaveError}"/>
+                                            <Setter Property="ToolTip" Value="{Binding Machine.PcbHistory.SaveError}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
+                                                    <Setter Property="Text" Value="{Binding PcbHistoryError}"/>
+                                                    <Setter Property="ToolTip" Value="{Binding PcbHistoryError}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{ui:Text 'PCB Results'}" FontWeight="SemiBold" VerticalAlignment="Center"
+                                        Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,24,0"/>
+                                    <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
+                                        Text="{Binding Machine.PcbHistory.PendingCount, StringFormat={ui:Text 'Pending saves: {0}'}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Machine.PcbHistory.PendingCount}" Value="0">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Button Content="{ui:Text 'Retry save'}" Margin="0,0,8,0" Padding="12,2" MinHeight="24"
+                                        Command="{Binding RetryPcbSaveCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="{ui:Text '← Newer'}" Padding="12,2" MinHeight="24" Margin="0,0,6,0"
+                                        Command="{x:Static ScrollBar.PageLeftCommand}" CommandTarget="{Binding ElementName=PcbHistoryScroll}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ElementName=PcbHistoryScroll, Path=HorizontalOffset}" Value="0">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="{ui:Text 'Older →'}" Padding="12,2" MinHeight="24" Margin="0,0,12,0"
+                                        Command="{x:Static ScrollBar.PageRightCommand}" CommandTarget="{Binding ElementName=PcbHistoryScroll}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ElementName=PcbHistoryScroll, Path=ScrollableWidth}" Value="0">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Width="120" Padding="12,2" MinHeight="24" Command="{Binding LoadOlderPcbsCommand}" IsEnabled="{Binding HasOlderPcbs}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="Content" Value="{ui:Text 'Retry loading'}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PcbHistoryError}" Value="{x:Null}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Load older'}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="True">
+                                                        <Setter Property="Content" Value="{ui:Text 'Loading...'}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                            <ScrollViewer x:Name="PcbHistoryScroll" Grid.Row="1" Margin="0,4,0,0"
+                                Background="{TemplateBinding Background}" Focusable="False" CanContentScroll="True"
+                                HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                            <TextBlock Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Setter Property="Text" Value="{ui:Text 'PCB history unavailable'}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PcbRecords.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding PcbHistoryError}" Value="{x:Null}">
+                                                <Setter Property="Text" Value="{ui:Text 'No PCB results'}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="True">
+                                                <Setter Property="Text" Value="{ui:Text 'Loading PCB results...'}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </ControlTemplate>
+                </ListBox.Template>
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate><VirtualizingStackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+            </ListBox>
         </Border>
     </Grid>
 </UserControl>

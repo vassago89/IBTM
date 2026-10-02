@@ -15,6 +15,52 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class NgHandoffTests
 {
+    [Fact]
+    public async Task ChangingCarrierWaitReasonDoesNotRepeatReturnButRestartStillReturns()
+    {
+        var system = await CreateAsync(new UnitSettings { MainConveyor = true });
+        using var motion = system.Motion;
+        var inspection = system.Inspection;
+        system.Io.SetInput(InputIo.InspectionHeatSink1Present, false);
+        var returns = 0;
+        inspection.Trace += message =>
+        {
+            if (message.StartsWith("InspectionStation: ReturningToWaitingPosition ", StringComparison.Ordinal))
+                Interlocked.Increment(ref returns);
+        };
+        using var stop = new CancellationTokenSource();
+        using var restartStop = new CancellationTokenSource();
+        var run = inspection.RunAsync(stop.Token);
+        try
+        {
+            Assert.True(await WaitUntilAsync(() => inspection.Step is InspectionStationState.Waiting,
+                TimeSpan.FromSeconds(1)));
+            Assert.Equal(1, Volatile.Read(ref returns));
+            foreach (var present in new[] { true, false, true, false })
+            {
+                system.Io.SetInput(InputIo.InspectionHeatSink1Present, present);
+                var expected = present ? InspectionStationState.WaitingForConveyor : InspectionStationState.Waiting;
+                Assert.True(await WaitUntilAsync(() => Equals(inspection.Step, expected), TimeSpan.FromSeconds(1)));
+            }
+            Assert.Equal(1, Volatile.Read(ref returns));
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+
+            await motion.AdjustAxisAsync(MotionAxis.X, 0.04, 1_000);
+            run = inspection.RunAsync(restartStop.Token);
+            Assert.True(await WaitUntilAsync(() => inspection.Step is InspectionStationState.Waiting,
+                TimeSpan.FromSeconds(1)));
+            Assert.Equal(2, Volatile.Read(ref returns));
+            Assert.Equal(0, motion.Position.X);
+        }
+        finally
+        {
+            stop.Cancel();
+            restartStop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -91,6 +137,69 @@ public sealed class NgHandoffTests
         Assert.True(transfer.IsTransferPending);
         Assert.True(transfer.IsRaised);
         Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PickupLowersStationPlateOnlyAfterGripAndRiseAndWaitsForPlateDown(bool cancelBeforeRise)
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var io = system.Io;
+        var transfer = system.Inspection;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var rising = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var loweringPlate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.NgCarrierPickupDown && !on && transfer.IsTransferPending)
+            {
+                Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
+                Assert.True(io.GetOutput(OutputIo.InspectionBackupPlateUp));
+                io.AutoResponseEnabled = false;
+                rising.TrySetResult();
+            }
+            if (output == OutputIo.InspectionBackupPlateUp && !on)
+            {
+                Assert.True(transfer.IsRaised);
+                Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
+                Assert.Equal((0d, 0d), (motion.Position.X, motion.Position.Y));
+                loweringPlate.TrySetResult();
+            }
+        };
+        var pickup = transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        try
+        {
+            await rising.Task.WaitAsync(stop.Token);
+            Assert.False(pickup.IsCompleted);
+            Assert.Equal(StationCylinderState.Up, transfer.Station.BackupPlate);
+            if (cancelBeforeRise)
+            {
+                stop.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pickup);
+                Assert.False(loweringPlate.Task.IsCompleted);
+                Assert.True(io.GetOutput(OutputIo.InspectionBackupPlateUp));
+                return;
+            }
+
+            io.SetInputs((InputIo.NgCarrierPickupDown, false), (InputIo.NgCarrierPickupUp, true));
+            await loweringPlate.Task.WaitAsync(stop.Token);
+            Assert.False(pickup.IsCompleted); // A DOWN command alone cannot admit shuttle travel.
+            Assert.True(transfer.IsTransferPending);
+            io.SetInputs((InputIo.InspectionBackupPlateUp, false), (InputIo.InspectionBackupPlateDown, true));
+            Assert.True(await pickup);
+            Assert.Equal(StationCylinderState.Down, transfer.Station.BackupPlate);
+            Assert.Equal(StationCylinderState.Down, transfer.Station.Stopper);
+            Assert.True(transfer.IsTransferPending);
+        }
+        finally
+        {
+            stop.Cancel();
+            await ((Task)pickup).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing
+                | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
     }
 
     [Fact]

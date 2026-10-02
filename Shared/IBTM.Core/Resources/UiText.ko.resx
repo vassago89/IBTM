@@ -3414,43 +3414,22 @@
   <data name="{0}: carrier not detected after the conveyor stop delay." xml:space="preserve">
     <value>{0}: 추가 이송 후 캐리어 감지가 없습니다. 캐리어와 센서를 확인하세요.</value>
   </data>
-  <data name="resume fastening" xml:space="preserve">
-    <value>체결 재개</value>
+  <data name="check s2 before resuming fastening." xml:space="preserve">
+    <value>S2의 현재 상태를 확인한 뒤 체결을 재개하세요.</value>
   </data>
-  <data name="finish fastening" xml:space="preserve">
-    <value>체결 마무리</value>
+  <data name="fastening results" xml:space="preserve">
+    <value>체결 결과</value>
   </data>
-  <data name="select bolts without results" xml:space="preserve">
-    <value>결과 없는 볼트 선택</value>
+  <data name="unrecorded bolts: {0}" xml:space="preserve">
+    <value>결과 없는 볼트: {0}개</value>
   </data>
-  <data name="bolts without results are selected. selecting a recorded bolt will fasten it again." xml:space="preserve">
-    <value>결과 없는 볼트를 선택했습니다. 결과가 있는 볼트를 선택하면 다시 체결합니다.</value>
+  <data name="check the actual bolts where no result was recorded." xml:space="preserve">
+    <value>결과 없는 볼트의 실제 체결 상태를 확인하세요.</value>
   </data>
-  <data name="fastening {0} selected bolts..." xml:space="preserve">
-    <value>선택한 볼트 {0}개 체결 중...</value>
+  <data name="i checked the carrier and bolts. resume unfinished fastening." xml:space="preserve">
+    <value>현재 캐리어·볼트 상태를 확인했습니다. 남은 체결을 재개합니다.</value>
   </data>
-  <data name="returning to standby..." xml:space="preserve">
-    <value>대기 위치로 복귀 중...</value>
-  </data>
-  <data name="fastening completed." xml:space="preserve">
-    <value>체결을 완료했습니다.</value>
-  </data>
-  <data name="fastening stopped. received results are retained." xml:space="preserve">
-    <value>체결을 정지했습니다. 받은 결과는 유지됩니다.</value>
-  </data>
-  <data name="selected bolts finished. the carrier still has unfinished bolts." xml:space="preserve">
-    <value>선택한 볼트의 체결을 마쳤습니다. 결과 없는 볼트가 남아 있습니다.</value>
-  </data>
-  <data name="fastening failed." xml:space="preserve">
-    <value>체결 중 오류가 발생했습니다.</value>
-  </data>
-  <data name="fastening shutdown failed" xml:space="preserve">
-    <value>체결 정지 오류</value>
-  </data>
-  <data name="all results received. finish fastening to return to standby." xml:space="preserve">
-    <value>결과를 모두 받았습니다. 체결 마무리를 눌러 대기 위치로 복귀하세요.</value>
-  </data>
-  <data name="the carrier changed. reopen the fastening resume window." xml:space="preserve">
-    <value>캐리어가 변경됐습니다. 체결 재개 창을 다시 여세요.</value>
+  <data name="count reset failed: {0}" xml:space="preserve">
+    <value>수량을 초기화하지 못했습니다: {0}</value>
   </data>
 </root>

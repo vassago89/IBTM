@@ -320,7 +320,7 @@ public sealed class UiBindingTests
                 new Binding(nameof(MainViewModel.SelectedRecipeName)) { Source = main, Mode = BindingMode.TwoWay });
             for (var attempt = 0; attempt < 2; attempt++)
             {
-                editor.NewCommand.Execute(null);
+                await editor.NewCommand.ExecuteAsync(null);
                 Assert.True(main.RecipeEditingEnabled);
                 recipeSelector.SetCurrentValue(
                     System.Windows.Controls.Primitives.Selector.SelectedItemProperty,
@@ -585,6 +585,14 @@ public sealed class UiBindingTests
             await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
             Assert.Same(services.GetRequiredService<BoltFasteningStation>().Station, operation.StartStation);
             Assert.Equal(UiText.Get(StartArea.Station2), ((TextBlock)review.FindName("SelectedAreaTitle")).Text);
+            var resumeConfirmation = (CheckBox)review.FindName("ConfirmFasteningResume");
+            Assert.False(resumeConfirmation.IsChecked);
+            operation.IsFasteningResumeConfirmed = true;
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.True(resumeConfirmation.IsChecked);
+            await operation.CheckStartCommand.ExecuteAsync(null);
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.False(resumeConfirmation.IsChecked);
             var previousCarrier = io.GetInput(InputIo.BoltFasteningHeatSink1Present);
             try
             {
@@ -828,7 +836,6 @@ public sealed class UiBindingTests
             (typeof(MotionDiagnosticsWindow), diagnostics.OpenMotion),
             (typeof(AdcProtocolWindow), diagnostics.OpenAdcProtocol),
             (typeof(LogWindow), diagnostics.OpenLogs),
-            (typeof(FasteningResumeWindow), () => diagnostics.OpenFasteningResume(null)),
         })
         {
             var hiddenStyle = new Style(windowType);
@@ -843,7 +850,7 @@ public sealed class UiBindingTests
             var previousStyle = resources[windowType];
             // These windows declare a local Style. Exercise their owner-assignment
             // failure instead of replacing the shutdown style used by the window.
-            var invalidOwner = windowType == typeof(MotionDiagnosticsWindow) || windowType == typeof(FasteningResumeWindow)
+            var invalidOwner = windowType == typeof(MotionDiagnosticsWindow)
                 ? new Window() : null;
             try
             {
@@ -860,22 +867,10 @@ public sealed class UiBindingTests
 
                 resources[windowType] = hiddenStyle;
                 diagnostics.Owner = null;
-                Window? reopened = null;
-                if (windowType == typeof(FasteningResumeWindow))
-                {
-                    _ = Application.Current.Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        reopened = Application.Current.Windows.Cast<Window>().Single(window => window.GetType() == windowType);
-                        io.SetInput(InputIo.AutoMode, false);
-                    }));
-                }
                 open();
-                if (windowType != typeof(FasteningResumeWindow))
-                {
-                    reopened = Application.Current.Windows.Cast<Window>().Single(window => window.GetType() == windowType);
-                    Assert.True(reopened.IsVisible);
-                    await Task.Run(() => io.SetInput(InputIo.AutoMode, false));
-                }
+                var reopened = Application.Current.Windows.Cast<Window>().Single(window => window.GetType() == windowType);
+                Assert.True(reopened.IsVisible);
+                await Task.Run(() => io.SetInput(InputIo.AutoMode, false));
                 Assert.NotNull(reopened);
                 Assert.True(await VirtualTestSupport.WaitUntilAsync(
                     () => maintenanceButtons.All(button => !button.IsEnabled), TimeSpan.FromSeconds(2)));

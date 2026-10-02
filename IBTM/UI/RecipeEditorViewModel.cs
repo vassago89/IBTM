@@ -39,7 +39,7 @@ public partial class RecipeEditorViewModel : ObservableObject
     {
         LoadCommand = new AsyncRelayCommand<string>(LoadAsync);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
-        NewCommand = new RelayCommand(New);
+        NewCommand = new AsyncRelayCommand(NewAsync);
 
         _log = log;
         _recipes = recipes;
@@ -74,7 +74,7 @@ public partial class RecipeEditorViewModel : ObservableObject
 
     public Task ShutdownAsync()
     {
-        return CommandShutdown.CancelAndWaitAsync([LoadCommand, RefreshCommand]);
+        return CommandShutdown.CancelAndWaitAsync([LoadCommand, RefreshCommand, NewCommand]);
     }
 
     public async Task<bool> SaveAsync(
@@ -153,9 +153,9 @@ public partial class RecipeEditorViewModel : ObservableObject
         }
     }
 
-    public IRelayCommand NewCommand { get; }
+    public IAsyncRelayCommand NewCommand { get; }
 
-    private void New()
+    private async Task NewAsync()
     {
         Error = null;
         var activeToken = CancellationToken.None;
@@ -169,7 +169,7 @@ public partial class RecipeEditorViewModel : ObservableObject
             }
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            _recipes.New();
+            await _recipes.NewAsync(operation.Token);
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested || _operations.IsShuttingDown)
         {

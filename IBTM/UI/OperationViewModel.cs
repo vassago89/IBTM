@@ -26,10 +26,15 @@ public sealed record DoorSensorDisplay(string Name, IoInputStatus Input);
 
 public sealed record RecentFasteningView(string BoltName, HeatSinkSlot HeatSink, FasteningHead Head, BoltResult Result);
 
+public sealed record FasteningResumeRow(string Label, HeatSinkSlot HeatSink, BoltResult? Result)
+{
+    public string Status => Result is null ? "Not recorded"
+        : Result.Source == BoltResultSource.DryRun ? "Dry run" : Result.Success ? "OK" : "NG";
+}
+
 public partial class OperationViewModel : ObservableObject
 {
     private readonly MachineOptions _options;
-    private readonly Lock _countGate;
     private readonly MachineDiagramMapper _map;
     private volatile bool _active;
     private readonly MachineStore _store;
@@ -39,6 +44,7 @@ public partial class OperationViewModel : ObservableObject
     private string _pcbHistoryDirectory;
     private int _pcbHistoryLimit;
     private bool _pcbHistoryLoaded;
+    private ConveyorStation.Job? _reviewedFasteningJob;
 
     public OperationViewModel(
         MachineState state,
@@ -60,11 +66,9 @@ public partial class OperationViewModel : ObservableObject
         DiagnosticWindowManager windows,
         ILogger<OperationViewModel> log)
     {
-        _countGate = new();
-        ClearCountsCommand = new RelayCommand(ClearCounts);
-        OpenFasteningResumeCommand = new RelayCommand<Window>(windows.OpenFasteningResume);
+        ClearCountsCommand = new AsyncRelayCommand(ClearCountsAsync);
         StartCommand = new AsyncRelayCommand(StartAsync);
-        ConfirmStartCommand = new AsyncRelayCommand(machine.StartAsync);
+        ConfirmStartCommand = new AsyncRelayCommand(ConfirmStartAsync);
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
@@ -74,6 +78,7 @@ public partial class OperationViewModel : ObservableObject
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync);
         RetryPcbSaveCommand = new AsyncRelayCommand(RetryPcbSaveAsync);
         PcbRecords = new();
+        FasteningResumeBolts = new();
         _pcbHistoryLimit = MachineStore.PcbHistoryPageSize;
         _store = store;
         _windows = windows;
@@ -128,7 +133,6 @@ public partial class OperationViewModel : ObservableObject
         conveyor.Changed += OnMainConveyorChanged;
         conveyor.StepChanged += OnMainConveyorChanged;
         inspectionStation.InspectionCaptured += OnInspectionCaptured;
-        inspectionStation.InspectionCompleted += OnInspectionCompleted;
         ngConveyor.Changed += OnNgConveyorChanged;
         ngConveyor.StepChanged += OnNgConveyorChanged;
         inspectionStation.Changed += OnInspectionChanged;
@@ -414,38 +418,53 @@ public partial class OperationViewModel : ObservableObject
         IsResetAllowed = false;
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
+            [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand]);
     }
 
-    public IRelayCommand<Window> OpenFasteningResumeCommand { get; }
-
-    public IRelayCommand ClearCountsCommand { get; }
+    public ObservableCollection<FasteningResumeRow> FasteningResumeBolts { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TotalCount))]
-    public partial long OkCount { get; private set; }
+    [NotifyPropertyChangedFor(nameof(IsStartReviewAllowed))]
+    public partial bool IsFasteningResumeConfirmed { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TotalCount))]
-    public partial long NgCount { get; private set; }
+    public int RemainingFasteningCount => FasteningResumeBolts.Count(row => row.Result is null);
 
-    public long TotalCount => OkCount + NgCount;
+    public bool IsFasteningResumeAvailable => State.Available && !State.IsRunning
+        && _reviewedFasteningJob is { } job && Machine.IsFasteningResumeAllowed(job)
+        && Enum.GetValues<HeatSinkSlot>().All(pcb => Fastening.Station.IsHeatSinkPresent(pcb)
+            == FasteningResumeBolts.Any(row => row.HeatSink == pcb));
 
-    private void OnInspectionCompleted(int okCount, int ngCount)
+    private void RefreshFasteningResume()
     {
-        lock (_countGate)
+        // Every explicit check requires a new operator confirmation; sensor edges cannot grant it.
+        IsFasteningResumeConfirmed = false;
+        _reviewedFasteningJob = Fastening.Station.CurrentJob;
+        FasteningResumeBolts.Clear();
+        foreach (var bolt in Recipes.Current.Pcb.FasteningPoints.Where(bolt => Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)))
         {
-            OkCount += okCount;
-            NgCount += ngCount;
+            var assembly = Fastening.Station.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
+            var result = assembly?.ShootingBoltResults.GetValueOrDefault(bolt.Id)
+                ?? assembly?.PickupBoltResults.GetValueOrDefault(bolt.Id);
+            FasteningResumeBolts.Add(new(Recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, result));
         }
+        OnPropertyChanged(nameof(RemainingFasteningCount));
+        OnPropertyChanged(nameof(IsFasteningResumeAvailable));
+        OnPropertyChanged(nameof(IsStartReviewAllowed));
     }
 
-    private void ClearCounts()
+    public IAsyncRelayCommand ClearCountsCommand { get; }
+
+    private async Task ClearCountsAsync()
     {
-        lock (_countGate)
+        try
         {
-            OkCount = 0;
-            NgCount = 0;
+            await Recipes.ClearProductionCountsAsync();
+            PcbHistoryError = null;
+        }
+        catch (Exception exception)
+        {
+            _log.LogError(exception, "Production count reset failed.");
+            PcbHistoryError = UiText.Format($"Count reset failed: {exception.Message}");
         }
     }
 
@@ -472,6 +491,7 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             await Task.Run(() => Machine.ChangeCarrierWork(area, job, action, cancellationToken), cancellationToken);
+            RefreshFasteningResume();
             StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action == CarrierWorkAction.Complete ? "Marked complete" : "Results cleared")}";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
@@ -486,14 +506,30 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public bool IsStartReviewAllowed => Machine.IsStartAllowed && Machine.StartBlock == StartBlockReason.None
-        && Machine.StartChecks.Values.All(value => value is not (StartCheckState.NotChecked or StartCheckState.Unknown));
+    public bool IsStartReviewAllowed => Machine.IsStartAllowed
+        && Machine.StartBlock is StartBlockReason.None or StartBlockReason.UnfinishedCarrier
+        && Machine.StartChecks.All(check => check.Value is not (StartCheckState.NotChecked or StartCheckState.Unknown
+            or StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier)
+            || check.Key == StartArea.Station2 && check.Value == StartCheckState.UnfinishedCarrier
+                && IsFasteningResumeConfirmed && IsFasteningResumeAvailable);
+
+    private async Task ConfirmStartAsync(CancellationToken cancellationToken)
+    {
+        if (!IsStartReviewAllowed)
+            return;
+        var resume = IsFasteningResumeConfirmed ? _reviewedFasteningJob : null;
+        IsFasteningResumeConfirmed = false;
+        await Machine.StartAsync(cancellationToken, resume);
+    }
 
     private async Task CheckStartAsync(CancellationToken cancellationToken)
     {
         try
         {
             await Task.Run(Machine.CheckStartMaterials, cancellationToken);
+            RefreshFasteningResume();
+            if (Machine.StartChecks[StartArea.Station2] == StartCheckState.UnfinishedCarrier)
+                SelectedStartArea = StartArea.Station2;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -515,6 +551,7 @@ public partial class OperationViewModel : ObservableObject
     {
         if (State.IsRunning || cancellationToken.IsCancellationRequested)
             return;
+        IsFasteningResumeConfirmed = false;
         // Register the async command's cancellation before entering the modal message loop.
         await Task.Yield();
         if (cancellationToken.IsCancellationRequested)
@@ -532,6 +569,7 @@ public partial class OperationViewModel : ObservableObject
         finally
         {
             _active = wasActive;
+            IsFasteningResumeConfirmed = false;
         }
         // The window starts production; this command owns its lifetime after the window closes.
         if (ConfirmStartCommand.ExecutionTask is { } starting)
@@ -665,6 +703,12 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(MachineState.IsRunning) or nameof(MachineState.Available)
+            or nameof(MachineState.RepeatEnabled))
+        {
+            OnPropertyChanged(nameof(IsFasteningResumeAvailable));
+            OnPropertyChanged(nameof(IsStartReviewAllowed));
+        }
         if (e.PropertyName is null or nameof(MachineState.Available) or nameof(MachineState.SafetyReady)
             or nameof(MachineState.Alarm) or nameof(MachineState.FeedbackReadiness) or nameof(MachineState.IsHoming)
             or nameof(MachineState.ServoPowerOn) or nameof(MachineState.IsRunning) or nameof(MachineState.PendingStop))
@@ -780,6 +824,10 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnBoltFasteningChanged()
     {
+        if (IsFasteningResumeConfirmed && !IsFasteningResumeAvailable)
+            IsFasteningResumeConfirmed = false;
+        OnPropertyChanged(nameof(IsFasteningResumeAvailable));
+        OnPropertyChanged(nameof(IsStartReviewAllowed));
         // Retain the latest completed measurement after the carrier leaves, including
         // results produced while another screen is open. Do not wait for DB persistence.
         var latest = Fastening.Station.Assemblies.SelectMany(assembly =>

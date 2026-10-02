@@ -169,17 +169,17 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                 var state = GetNextStep(Io.GetOutput(OutputIo.NgConveyorRun));
                 cancellationToken.ThrowIfCancellationRequested();
                 var buttonsEnabled = _units.NgConveyor && !_repeat;
-                Io.SetOutput(
-                    OutputIo.NgCarrierEjectLamp,
-                    buttonsEnabled
-                        && state is NgConveyorState.ReadyToEject or NgConveyorState.Full or NgConveyorState.WaitingForEjectConfirmation
-                        && Volatile.Read(ref _ejectCompleteRequested) == 0
-                        && !Io.GetOutput(OutputIo.NgConveyorRun)
-                        && (Io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                            || Io.GetInput(InputIo.NgConveyorPosition2Occupied)));
-                Io.SetOutput(
-                    OutputIo.NgCarrierEjectCompleteLamp,
-                    buttonsEnabled && state == NgConveyorState.WaitingForEjectConfirmation);
+                var ejectLamp = buttonsEnabled
+                    && state is NgConveyorState.ReadyToEject or NgConveyorState.Full or NgConveyorState.WaitingForEjectConfirmation
+                    && Volatile.Read(ref _ejectCompleteRequested) == 0
+                    && !Io.GetOutput(OutputIo.NgConveyorRun)
+                    && (Io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                        || Io.GetInput(InputIo.NgConveyorPosition2Occupied));
+                if (Io.GetOutput(OutputIo.NgCarrierEjectLamp) != ejectLamp)
+                    Io.SetOutput(OutputIo.NgCarrierEjectLamp, ejectLamp);
+                var completeLamp = buttonsEnabled && state == NgConveyorState.WaitingForEjectConfirmation;
+                if (Io.GetOutput(OutputIo.NgCarrierEjectCompleteLamp) != completeLamp)
+                    Io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, completeLamp);
                 switch (state)
                 {
                     case NgConveyorState.LoweringShuttle:

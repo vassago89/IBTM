@@ -779,7 +779,15 @@ public sealed partial class MachineController : INotifyPropertyChanged
         return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken = default)
+    public bool IsFasteningResumeAllowed(ConveyorStation.Job job)
+    {
+        return _units.BoltFastening && !_state.RepeatEnabled
+            && ReferenceEquals(job, _fasteningStation.Station.CurrentJob)
+            && _fasteningStation.Station.CarrierSeated && !_fasteningStation.Station.Completed;
+    }
+
+    public async Task StartAsync(
+        CancellationToken cancellationToken = default, ConveyorStation.Job? resumeFastening = null)
     {
         await Task.Run(async () =>
         {
@@ -797,8 +805,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 operation.Token.ThrowIfCancellationRequested();
 
                 CheckStartMaterials();
-                if (StartChecks.Values.Any(value => value is StartCheckState.Unknown
-                    or StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier))
+                if (resumeFastening is not null && !IsFasteningResumeAllowed(resumeFastening))
+                    return;
+                if (StartChecks.Any(check => check.Value is StartCheckState.Unknown or StartCheckState.MaterialRemaining
+                    || check.Value == StartCheckState.UnfinishedCarrier
+                        && !(check.Key == StartArea.Station2 && resumeFastening is not null)))
                     return;
 
                 // Only an accepted START clears work from stations that are now empty.
@@ -945,7 +956,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     else
                     {
                         using var cycle = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
-                        await RunAutomaticUnitsAsync(cycle, repeat: false);
+                        await RunAutomaticUnitsAsync(cycle, repeat: false, resumeFastening);
                     }
                 }
                 finally
@@ -981,7 +992,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
         });
     }
 
-    private async Task RunAutomaticUnitsAsync(CancellationTokenSource cycle, bool repeat)
+    private async Task RunAutomaticUnitsAsync(
+        CancellationTokenSource cycle, bool repeat, ConveyorStation.Job? resumeFastening = null)
     {
         var runningUnits = new List<Task>();
         AutoUnit[] workUnits = [_conveyor, _pcbSupply, _pcbPlacement,
@@ -1027,6 +1039,21 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
             if (!cycle.IsCancellationRequested)
             {
+                Guid[]? remainingBolts = null;
+                if (resumeFastening is not null)
+                {
+                    _fasteningStation.Station.RequireCurrentJob(resumeFastening);
+                    remainingBolts = _recipes.Current.Pcb.FasteningPoints
+                        .Where(bolt => _fasteningStation.Station.IsHeatSinkPresent(bolt.HeatSink))
+                        .Where(bolt =>
+                        {
+                            var assembly = _fasteningStation.Station.GetAssembly(resumeFastening, bolt.HeatSink);
+                            return !assembly.ShootingBoltResults.ContainsKey(bolt.Id)
+                                && !assembly.PickupBoltResults.ContainsKey(bolt.Id);
+                        }).Select(bolt => bolt.Id).ToArray();
+                    _log?.LogInformation("Operator confirmed fastening resume: job={Job}, remaining={Count}.",
+                        resumeFastening.Id, remainingBolts.Length);
+                }
                 if (_units.BoltFastening && (repeat || !_units.PickupBoltFeeder))
                     _log?.LogInformation(
                         "Pickup bolt feeding is disabled for this run; pickup motion remains active without vacuum ON or bolt detection waits. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
@@ -1035,7 +1062,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
                         "Shooting bolt feeding is disabled for this run; bolt supply and shooting are skipped. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
                 runningUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.BoltFastening,
-                    _fasteningStation.RunAsync(cycle.Token, repeat),
+                    _fasteningStation.RunAsync(cycle.Token, repeat,
+                        selectedBolts: remainingBolts, continueAfterSelection: true),
                     cycle, repeat));
             }
 
@@ -1702,70 +1730,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
         {
             operation.Dispose();
             throw;
-        }
-    }
-
-    internal async Task<bool> ResumeFasteningAsync(
-        ConveyorStation.Job job,
-        IReadOnlyCollection<Guid> selectedBolts,
-        Action<BoltPoint, BoltResult> resultReceived,
-        CancellationToken cancellationToken)
-    {
-        using var operation = BeginManualOperation(
-            () => IsManualMotionReady(MotionGroup.BoltFastening), cancellationToken)
-            ?? throw new InvalidOperationException("Another machine operation is already running.");
-        try
-        {
-            operation.Token.ThrowIfCancellationRequested();
-            _fasteningStation.Station.RequireCurrentJob(job);
-            if (_state.IsRunningFor(includeOperations: false))
-                throw new InvalidOperationException("Stop the machine before resuming fastening.");
-            _state.BoltTestRunning = true;
-            using var cycle = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
-            var heads = _recipes.Current.Pcb.BoltPoints
-                .Where(bolt => selectedBolts.Contains(bolt.Id)).Select(bolt => bolt.Head).Distinct().ToArray();
-            var feeding = heads.Any(_units.IsBoltFeederEnabled)
-                ? _boltFeeder.RunAsync(cycle.Token, heads.Length == 1 ? heads[0] : null)
-                : null;
-            var fastening = _fasteningStation.RunAsync(cycle.Token,
-                selectedBolts: selectedBolts, resultReceived: resultReceived);
-            try
-            {
-                if (feeding is null)
-                    await fastening;
-                else
-                {
-                    var first = await Task.WhenAny(feeding, fastening);
-                    if (first == feeding && feeding.IsCompletedSuccessfully && !cycle.IsCancellationRequested)
-                        throw new InvalidOperationException("The bolt feeder stopped before fastening completed.");
-                }
-            }
-            finally
-            {
-                try
-                {
-                    cycle.Cancel();
-                }
-                finally
-                {
-                    // Drain both and retain concurrent failures before releasing manual ownership.
-                    var completion = Task.WhenAll(fastening, feeding ?? Task.CompletedTask);
-                    await completion.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-                    if (completion.Exception is { InnerExceptions.Count: > 1 } failures)
-                        throw failures;
-                    await completion;
-                }
-            }
-            operation.Token.ThrowIfCancellationRequested();
-            return true;
-        }
-        catch (OperationCanceledException) when (operation.IsCancellationRequested)
-        {
-            return false;
-        }
-        finally
-        {
-            _state.BoltTestRunning = false;
         }
     }
 

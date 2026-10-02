@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Inspection;
 
 namespace IBTM.Storage;
 
-public sealed class RecipeManager
+public sealed partial class RecipeManager : ObservableObject
 {
     private readonly MachineStore _database;
     private readonly RecipeSelectionSettings _selection;
@@ -20,12 +21,16 @@ public sealed class RecipeManager
         _saveGate = new(1, 1);
         InspectionSync = new();
         Current = new();
+        Counts = new(0, 0);
     }
 
     public event Action? Changed;
     public event Action? InspectionSettingsChanged;
 
     public Recipe Current { get; }
+
+    [ObservableProperty]
+    public partial ProductionCounts Counts { get; private set; }
 
     public Lock InspectionSync { get; }
 
@@ -49,13 +54,57 @@ public sealed class RecipeManager
         InspectionSettingsChanged?.Invoke();
     }
 
-    public void New()
+    public async Task NewAsync(CancellationToken cancellationToken = default)
     {
-        lock (InspectionSync)
+        await _saveGate.WaitAsync(cancellationToken);
+        try
         {
-            Current.CopyFrom(new Recipe { Name = "New" });
+            var counts = await Task.Run(() => _database.LoadProductionCounts("New"), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (InspectionSync)
+            {
+                Current.CopyFrom(new Recipe { Name = "New" });
+            }
+            Counts = counts;
+        }
+        finally
+        {
+            _saveGate.Release();
         }
         Changed?.Invoke();
+    }
+
+    public async Task RecordProductionAsync(int okCount, int ngCount)
+    {
+        var name = Current.Name;
+        // A completed inspection must be saved even if STOP arrives at the same time.
+        await _saveGate.WaitAsync();
+        try
+        {
+            var counts = await Task.Run(() => _database.AddProductionCounts(name, okCount, ngCount));
+            if (MachineStore.IsSameRecipeName(Current.Name, name))
+                Counts = counts;
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
+    }
+
+    public async Task ClearProductionCountsAsync()
+    {
+        var name = Current.Name;
+        await _saveGate.WaitAsync();
+        try
+        {
+            await Task.Run(() => _database.ClearProductionCounts(name));
+            if (MachineStore.IsSameRecipeName(Current.Name, name))
+                Counts = new(0, 0);
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
     }
 
     public async Task LoadAsync(string name, CancellationToken cancellationToken = default)
@@ -64,6 +113,7 @@ public sealed class RecipeManager
         try
         {
             var loaded = await Task.Run(() => _database.LoadRecipe(name), cancellationToken);
+            var counts = await Task.Run(() => _database.LoadProductionCounts(loaded.Name), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (_selection.LastRecipeName != loaded.Name)
             {
@@ -78,6 +128,7 @@ public sealed class RecipeManager
                 Current.CopyFrom(loaded);
                 _selection.LastRecipeName = Current.Name;
             }
+            Counts = counts;
         }
         finally
         {
@@ -95,6 +146,7 @@ public sealed class RecipeManager
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
+            var counts = await Task.Run(() => _database.LoadProductionCounts(name), cancellationToken);
             if (tiles is not null)
             {
                 foreach (var tile in tiles)
@@ -133,6 +185,7 @@ public sealed class RecipeManager
                 Current.Name = name;
                 _selection.LastRecipeName = name;
             }
+            Counts = counts;
         }
         finally
         {

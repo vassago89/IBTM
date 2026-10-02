@@ -161,8 +161,6 @@ public sealed class InspectionTests
             (InputIo.NgCarrierPickupUp, true), (InputIo.NgCarrierPickupDown, false),
             (InputIo.NgCarrierGripperOpen, true), (InputIo.NgCarrierGripperClosed, false));
         var visited = new System.Collections.Generic.List<(HeatSinkSlot?, Guid?)>();
-        var completed = new List<(int Ok, int Ng)>();
-        station.InspectionCompleted += (ok, ng) => completed.Add((ok, ng));
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         using var secondStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var interrupt = true;
@@ -191,7 +189,7 @@ public sealed class InspectionTests
         Assert.Null(station.ActivePcb);
         Assert.Null(station.ActiveBolt);
         Assert.Null(work.LastCycleSeconds);
-        Assert.Empty(completed);
+        Assert.Equal(new ProductionCounts(0, 0), recipes.Counts);
         visited.Clear();
         interrupt = false;
         await station.RunAsync(secondStop.Token);
@@ -202,7 +200,7 @@ public sealed class InspectionTests
         Assert.True(work.Completed);
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
         Assert.True(work.LastCycleSeconds > 0);
-        Assert.Equal((0, 2), Assert.Single(completed));
+        Assert.Equal(new ProductionCounts(0, 2), recipes.Counts);
         var cycleTime = work.LastCycleSeconds;
         Assert.Null(station.Step);
         Assert.Null(station.ActivePcb);
@@ -222,7 +220,7 @@ public sealed class InspectionTests
         Assert.False(restartedInspection);
         Assert.Empty(visited);
         Assert.Equal(cycleTime, work.LastCycleSeconds);
-        Assert.Single(completed);
+        Assert.Equal(new ProductionCounts(0, 2), recipes.Counts);
     }
 
     [Theory]

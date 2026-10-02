@@ -4050,170 +4050,185 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task FasteningResumeRunsOnlyCheckedBoltsInRecipeOrderAndLeavesPartialCarrierIncomplete()
-    {
-        var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.BoltFastening);
-        settings.BoltFastening.ShootingSafeZ = 4;
-        settings.Units.ShootingBoltFeeder = true;
-        settings.Units.PickupBoltFeeder = true;
-        settings.BoltFeeder.PickupTimeoutMilliseconds = 50;
-        await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<RecipeManager>().Current;
-        var pickup = new BoltPoint { Head = FasteningHead.Pickup, X = 5, Y = 5 };
-        var first = new BoltPoint { Head = FasteningHead.Shooting, X = 10, Y = 10 };
-        var second = new BoltPoint { Head = FasteningHead.Shooting, X = 20, Y = 20 };
-        var absent = new BoltPoint { HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 30 };
-        recipe.Pcb.BoltPoints = [pickup, first, second, absent];
-        recipe.Pcb.FasteningOrder = [second.Id, first.Id];
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var station = services.GetRequiredService<BoltFasteningStation>();
-        var viewModel = services.GetRequiredService<FasteningResumeViewModel>();
-        await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
-        VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        await station.Station.SeatAsync(CancellationToken.None);
-        var received = new List<Guid>();
-        var assembly = station.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.ResultsChanged += updated =>
-        {
-            foreach (var id in updated.ShootingBoltResults.Keys.Where(id => !received.Contains(id)))
-                received.Add(id);
-        };
-        io.SetInput(InputIo.PickupFeederBoltDetected, false); // An unused feeder must not interrupt this test.
-        viewModel.Activate();
-        try
-        {
-            Assert.All(viewModel.Bolts.Where(row => row.Bolt != absent), row => Assert.True(row.IsSelected));
-            var absentRow = viewModel.Bolts.Single(row => row.Bolt == absent);
-            Assert.False(absentRow.IsSelected);
-            Assert.True(viewModel.IsRunAllowed);
-            absentRow.IsSelected = true;
-            Assert.False(viewModel.IsRunAllowed);
-            absentRow.IsSelected = false;
-            viewModel.Bolts.Single(row => row.Bolt == pickup).IsSelected = false;
-            Assert.True(viewModel.IsRunAllowed);
-            await viewModel.RunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
-
-            Assert.Null(viewModel.Error);
-            Assert.Equal(new[] { second.Id, first.Id }, received);
-            Assert.All(viewModel.Bolts.Where(row => row.Bolt == first || row.Bolt == second), row =>
-            {
-                Assert.Equal("OK", row.Status);
-                Assert.NotNull(row.Result);
-                Assert.False(row.IsSelected);
-            });
-            Assert.All(viewModel.Bolts.Where(row => row.Bolt == pickup || row.Bolt == absent), row => Assert.Null(row.Result));
-            Assert.False(station.Station.Completed);
-            Assert.False(viewModel.IsRunAllowed); // No selection while the pickup bolt is still missing.
-            viewModel.SelectPendingCommand.Execute(null);
-            Assert.Equal(pickup.Id, Assert.Single(viewModel.Bolts, row => row.IsSelected).Bolt.Id);
-            Assert.False(state.BoltTestRunning);
-            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-            Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
-            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
-            Assert.Equal(settings.BoltFastening.SafeZ, station.Motion.Position.Z);
-        }
-        finally
-        {
-            viewModel.Deactivate();
-            await machine.ShutdownAsync();
-        }
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FasteningResumeRetainsResultsAcrossReopenAndCompletesAfterStandby(bool stopAfterLastResult)
+    public async Task ConfirmedFasteningResumeRetainsResultsAndRunsNextCarrierNormally(bool stopAfterLastResult)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
-        settings.BoltFastening.DryRunMilliseconds = 30;
         await using var services = CreateServices(settings);
         var recipes = services.GetRequiredService<RecipeManager>();
         var recorded = new BoltPoint { Head = FasteningHead.Pickup, X = 5, Y = 5 };
         var first = new BoltPoint { X = 10, Y = 10 };
         var last = new BoltPoint { X = 20, Y = 20 };
-        recipes.Current.Pcb.BoltPoints = [recorded, first, last];
+        var absent = new BoltPoint { HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 30 };
+        recipes.Current.Pcb.BoltPoints = [recorded, last, first, absent];
+        recipes.Current.Pcb.FasteningOrder = [first.Id, last.Id, recorded.Id, absent.Id];
+        foreach (var bolt in recipes.Current.Pcb.BoltPoints)
+            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
         var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var station = services.GetRequiredService<BoltFasteningStation>();
-        var viewModel = services.GetRequiredService<FasteningResumeViewModel>();
+        var review = services.GetRequiredService<OperationViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         await station.Station.SeatAsync(CancellationToken.None);
         var job = station.Station.CurrentJob;
         var assembly = station.Station.GetAssembly(HeatSinkSlot.HeatSink1);
         var priorResult = new BoltResult(false, 8);
         assembly.RecordBolt(recorded.Head, recorded.Id, priorResult);
-        var started = new List<Guid>();
+        var started = new ConcurrentQueue<Guid>();
         void OnOutput(OutputIo output, bool on)
         {
             if (output is OutputIo.ShootingBoltStart or OutputIo.PickupBoltStart && on)
-                started.Add(station.ActiveBolt!.Id);
+                started.Enqueue(station.ActiveBolt!.Id);
+        }
+        void StopAfterResult(HeatSinkAssembly updated)
+        {
+            if (updated.ShootingBoltResults.ContainsKey(stopAfterLastResult ? last.Id : first.Id))
+                machine.Stop();
         }
         io.OutputChanged += OnOutput;
-        viewModel.Activate();
+        assembly.ResultsChanged += StopAfterResult;
         try
         {
-            var priorRow = viewModel.Bolts.Single(row => row.Bolt.Id == recorded.Id);
-            Assert.Same(priorResult, priorRow.Result);
-            Assert.Equal("NG", priorRow.Status);
-            Assert.False(priorRow.IsSelected);
-            Assert.Equal(2, viewModel.SelectedCount);
-            var stopRow = viewModel.Bolts.Single(row => row.Bolt == (stopAfterLastResult ? last : first));
-            stopRow.PropertyChanged += (sender, args) =>
-            {
-                if (args.PropertyName == nameof(FasteningResumeRow.Result) && stopRow.Result is not null)
-                    viewModel.RunCommand.Cancel();
-            };
-            await viewModel.RunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Null(viewModel.Error);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.Equal(StartArea.Station2, review.SelectedStartArea);
+            Assert.False(review.IsFasteningResumeConfirmed);
+            Assert.False(review.IsStartReviewAllowed);
+            Assert.Equal(2, review.RemainingFasteningCount);
+            Assert.Equal(3, review.FasteningResumeBolts.Count);
+            Assert.Same(priorResult, review.FasteningResumeBolts.Last().Result);
+            await review.ConfirmStartCommand.ExecuteAsync(null);
+            await machine.StartAsync(); // An unfinished carrier is never admitted without confirmation.
+            Assert.Empty(started);
+            Assert.False(state.AutomaticRunning);
+
+            review.IsFasteningResumeConfirmed = true;
+            Assert.True(review.IsStartReviewAllowed);
+            await review.ConfirmStartCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(6));
+            Assert.False(state.IsError, state.AlarmDetail);
             Assert.False(station.Station.Completed);
             Assert.Same(job, station.Station.CurrentJob);
+            Assert.False(review.IsFasteningResumeConfirmed);
             var firstResult = assembly.ShootingBoltResults[first.Id];
+            assembly.ResultsChanged -= StopAfterResult;
 
-            viewModel.Deactivate();
-            viewModel.Activate();
-            Assert.Same(priorResult, viewModel.Bolts.Single(row => row.Bolt == recorded).Result);
-            Assert.Same(firstResult, viewModel.Bolts.Single(row => row.Bolt == first).Result);
-            Assert.Equal(stopAfterLastResult ? 0 : 1, viewModel.SelectedCount);
-            Assert.True(viewModel.IsRunAllowed); // With all results present, only the final clearance remains.
-            await viewModel.RunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.False(review.IsStartReviewAllowed);
+            Assert.Same(firstResult, review.FasteningResumeBolts.First().Result);
+            Assert.Equal(stopAfterLastResult ? 0 : 1, review.RemainingFasteningCount);
+            review.IsFasteningResumeConfirmed = true;
+            var resumed = review.ConfirmStartCommand.ExecuteAsync(null);
+            try
+            {
+                Assert.True(await WaitUntilAsync(() => station.Station.Completed && station.Step is BoltFasteningState.Waiting,
+                    TimeSpan.FromSeconds(6)), state.AlarmDetail);
+                Assert.True(state.AutomaticRunning);
+                Assert.False(resumed.IsCompleted);
+                Assert.Equal(new[] { first.Id, last.Id }, started.ToArray());
+                Assert.Same(priorResult, assembly.PickupBoltResults[recorded.Id]);
+                Assert.Same(firstResult, assembly.ShootingBoltResults[first.Id]);
+                Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
+                var standby = settings.BoltFastening.GetBoltPosition(first);
+                Assert.Equal((standby.X, standby.Y, settings.BoltFastening.SafeZ),
+                    (station.Motion.Position.X, station.Motion.Position.Y, station.Motion.Position.Z));
 
-            Assert.Null(viewModel.Error);
-            Assert.Equal(new[] { first.Id, last.Id }, started);
-            Assert.Same(priorResult, assembly.PickupBoltResults[recorded.Id]);
-            Assert.Same(firstResult, assembly.ShootingBoltResults[first.Id]);
-            Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
-            Assert.True(station.Station.Completed);
-            Assert.Equal(0, viewModel.SelectedCount);
-            Assert.False(viewModel.IsRunAllowed);
-            var standby = settings.BoltFastening.GetBoltPosition(first);
-            Assert.Equal((standby.X, standby.Y, settings.BoltFastening.SafeZ),
-                (station.Motion.Position.X, station.Motion.Position.Y, station.Motion.Position.Z));
-            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-            Assert.Same(job, station.Station.CurrentJob);
-
-            VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-            station.Station.ClearJob();
-            VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-            viewModel.Bolts[0].IsSelected = true;
-            Assert.False(viewModel.IsRunAllowed);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => machine.ResumeFasteningAsync(
-                job, [first.Id], (_, _) => { }, CancellationToken.None));
-            Assert.Equal(2, started.Count);
-            Assert.False(services.GetRequiredService<MachineState>().BoltTestRunning);
+                SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+                station.Station.ClearJob();
+                SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+                Assert.True(await WaitUntilAsync(() => station.Station.Completed, TimeSpan.FromSeconds(6)), state.AlarmDetail);
+                Assert.NotSame(job, station.Station.CurrentJob);
+                Assert.Equal(new[] { first.Id, last.Id, first.Id, last.Id, recorded.Id }, started.ToArray());
+                Assert.True(state.AutomaticRunning);
+            }
+            finally
+            {
+                machine.Stop();
+                await resumed.WaitAsync(TimeSpan.FromSeconds(3));
+            }
         }
         finally
         {
-            viewModel.Deactivate();
+            assembly.ResultsChanged -= StopAfterResult;
             io.OutputChanged -= OnOutput;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task FasteningResumeConfirmationCannotBypassChangedCarrierOrOtherStartupBlocks()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        await using var services = CreateServices(settings);
+        services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints = [new() { FasteningX = 10, FasteningY = 10 }];
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<BoltFasteningStation>().Station;
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        await station.SeatAsync(CancellationToken.None);
+        var writes = 0;
+        void CountWrite(OutputIo output, bool value)
+        {
+            writes++;
+        }
+        io.OutputChanged += CountWrite;
+        try
+        {
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            review.IsFasteningResumeConfirmed = true;
+            Assert.True(review.IsStartReviewAllowed);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.False(review.IsFasteningResumeConfirmed);
+            Assert.False(review.IsStartReviewAllowed);
+            review.IsFasteningResumeConfirmed = true;
+            io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
+            Assert.False(review.IsFasteningResumeAvailable); // Reviewed PCB targets no longer match.
+            Assert.False(review.IsFasteningResumeConfirmed);
+            io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
+            Assert.False(review.IsFasteningResumeConfirmed);
+            review.IsFasteningResumeConfirmed = true;
+            var original = station.CurrentJob;
+            SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            station.ClearJob();
+            SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            Assert.False(review.IsFasteningResumeAvailable);
+            Assert.False(review.IsStartReviewAllowed);
+            await machine.StartAsync(resumeFastening: original);
+            Assert.False(state.AutomaticRunning);
+
+            foreach (var blocker in new[] { InputIo.PickupHeadVacuumDetected, InputIo.PcbPlacementHeatSink1Present })
+            {
+                await review.CheckStartCommand.ExecuteAsync(null);
+                review.IsFasteningResumeConfirmed = true;
+                Assert.True(review.IsStartReviewAllowed);
+                io.SetInput(blocker, true);
+                await review.ConfirmStartCommand.ExecuteAsync(null);
+                Assert.False(state.AutomaticRunning);
+                Assert.False(review.IsFasteningResumeConfirmed);
+                Assert.False(review.IsStartReviewAllowed);
+                io.SetInput(blocker, false);
+            }
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            await machine.StartAsync(cancelled.Token, station.CurrentJob);
+            Assert.False(state.IsError);
+            Assert.Equal(0, writes);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.OutputChanged -= CountWrite;
             await machine.ShutdownAsync();
         }
     }
@@ -4221,104 +4236,55 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FasteningResumeStopsOnCancelOrModeChangeAndRetriesUnrecordedBolt(bool changeMode)
+    public async Task FasteningResumeStopsOnCancelOrModeChangeWithoutInventingAResult(bool changeMode)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.BoltFastening.DryRunMilliseconds = 1_000;
         await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<RecipeManager>().Current;
-        var first = new BoltPoint { X = 10, Y = 10 };
-        var second = new BoltPoint { X = 20, Y = 20 };
-        recipe.Pcb.BoltPoints = [first, second];
+        services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints = [new() { FasteningX = 10, FasteningY = 10 }];
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var station = services.GetRequiredService<BoltFasteningStation>();
+        var station = services.GetRequiredService<BoltFasteningStation>().Station;
+        var review = services.GetRequiredService<OperationViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        await station.Station.SeatAsync(CancellationToken.None);
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var started = new List<Guid>();
-        var interrupt = true;
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        await station.SeatAsync(CancellationToken.None);
+        var interrupted = false;
         void OnOutput(OutputIo output, bool on)
         {
             if (output != OutputIo.ShootingBoltStart || !on)
                 return;
-            started.Add(station.ActiveBolt!.Id);
-            if (!interrupt)
-                return;
-            interrupt = false;
+            interrupted = true;
             if (changeMode)
                 io.SetInput(InputIo.AutoMode, false);
             else
-                stop.Cancel();
+                review.ConfirmStartCommand.Cancel();
         }
         io.OutputChanged += OnOutput;
         try
         {
-            Assert.False(await machine.ResumeFasteningAsync(station.Station.CurrentJob, [first.Id, second.Id], (_, _) => { }, stop.Token));
-            Assert.Equal(new[] { first.Id }, started);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            review.IsFasteningResumeConfirmed = true;
+            await review.ConfirmStartCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(interrupted);
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.False(state.AutomaticRunning);
             Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
-            Assert.False(station.Motion.IsMoving);
-            Assert.False(state.BoltTestRunning);
-            Assert.False(state.IsError);
-            Assert.False(station.Station.Completed);
+            Assert.False(station.Completed);
+            Assert.Empty(station.GetAssembly(HeatSinkSlot.HeatSink1).ShootingBoltResults);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-
-            io.SetInput(InputIo.AutoMode, true);
-            await WaitUntilAsync(() => state.ManualMode);
-            settings.BoltFastening.DryRunMilliseconds = 30;
-            Assert.True(await machine.ResumeFasteningAsync(station.Station.CurrentJob, [first.Id, second.Id], (_, _) => { }, CancellationToken.None)
-                .WaitAsync(TimeSpan.FromSeconds(5)));
-            Assert.Equal(new[] { first.Id, first.Id, second.Id }, started);
-            Assert.True(station.Station.Completed);
-            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.False(review.IsFasteningResumeConfirmed);
+            Assert.False(review.IsStartReviewAllowed);
+            Assert.Equal(1, review.RemainingFasteningCount);
         }
         finally
         {
             io.OutputChanged -= OnOutput;
-            await machine.ShutdownAsync();
-        }
-    }
-
-    [Fact]
-    public async Task FasteningResumeCancellationBeforeAdmissionDoesNotRaiseAnAlarm()
-    {
-        var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.BoltFastening);
-        await using var services = CreateServices(settings);
-        services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints = [new()];
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var viewModel = services.GetRequiredService<FasteningResumeViewModel>();
-        await machine.InitializeAsync();
-        viewModel.Activate();
-        var row = Assert.Single(viewModel.Bolts);
-        row.IsSelected = true;
-        row.PropertyChanged += (sender, e) =>
-        {
-            if (e.PropertyName == nameof(FasteningResumeRow.Status) && row.Status == "Queued")
-                viewModel.RunCommand.Cancel();
-        };
-        try
-        {
-            await viewModel.RunCommand.ExecuteAsync(null);
-
-            Assert.Null(viewModel.Error);
-            Assert.Equal("Fastening stopped. Received results are retained.", viewModel.Message);
-            Assert.Equal("Not recorded", row.Status);
-            Assert.False(state.IsError);
-            Assert.False(state.BoltTestRunning);
-            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-            Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
-        }
-        finally
-        {
-            viewModel.Deactivate();
             await machine.ShutdownAsync();
         }
     }

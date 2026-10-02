@@ -31,8 +31,6 @@ public sealed class DiagnosticWindowManager
     private AdcProtocolWindow? _adc;
     private AdcProtocolViewModel? _adcViewModel;
     private LogWindow? _logs;
-    private FasteningResumeWindow? _fasteningResume;
-    private readonly FasteningResumeViewModel _fasteningResumeViewModel;
 
     public DiagnosticWindowManager(
         IIoService io,
@@ -41,7 +39,6 @@ public sealed class DiagnosticWindowManager
         MachineController machine,
         MachineState state,
         MotionDiagnosticsViewModel motionViewModel,
-        FasteningResumeViewModel fasteningResumeViewModel,
         ApplicationLog applicationLog,
         ILoggerFactory loggerFactory,
         [FromKeyedServices(FasteningHead.Pickup)] IAdcBus pickupAdcBus,
@@ -53,7 +50,6 @@ public sealed class DiagnosticWindowManager
         _machine = machine;
         _state = state;
         _motionViewModel = motionViewModel;
-        _fasteningResumeViewModel = fasteningResumeViewModel;
         _applicationLog = applicationLog;
         _loggerFactory = loggerFactory;
         _log = loggerFactory.CreateLogger<DiagnosticWindowManager>();
@@ -102,7 +98,6 @@ public sealed class DiagnosticWindowManager
         _output?.Close();
         _motion?.Close();
         _adc?.Close();
-        _fasteningResume?.Close();
     }
 
     public void OpenMotion()
@@ -160,20 +155,6 @@ public sealed class DiagnosticWindowManager
         ShowWindow(_adc);
     }
 
-    public void OpenFasteningResume(Window? owner)
-    {
-        if (!_state.ManualMode || _state.AutomaticRunning)
-            return;
-        if (_fasteningResume is not null)
-        {
-            _fasteningResume.Activate();
-            return;
-        }
-        _fasteningResume = new(_fasteningResumeViewModel);
-        _fasteningResume.Closed += (_, _) => _fasteningResume = null;
-        ShowWindow(_fasteningResume, modal: true, owner: owner);
-    }
-
     public void OpenLogs()
     {
         if (_logs is not null)
@@ -195,16 +176,13 @@ public sealed class DiagnosticWindowManager
         ShowWindow(_logs);
     }
 
-    private void ShowWindow(Window window, bool modal = false, Window? owner = null)
+    private void ShowWindow(Window window)
     {
         try
         {
-            window.Owner = owner ?? Owner;
+            window.Owner = Owner;
             window.ShowInTaskbar = false;
-            if (modal)
-                window.ShowDialog();
-            else
-                window.Show();
+            window.Show();
         }
         catch (Exception exception)
         {
@@ -228,7 +206,7 @@ public sealed class DiagnosticWindowManager
         foreach (var window in Owner.OwnedWindows.Cast<Window>().ToArray())
         {
             window.IsEnabled = false;
-            if (window is not AdcProtocolWindow and not OutputWindow and not MotionDiagnosticsWindow and not FasteningResumeWindow)
+            if (window is not AdcProtocolWindow and not OutputWindow and not MotionDiagnosticsWindow)
                 window.Close();
         }
     }
@@ -237,7 +215,6 @@ public sealed class DiagnosticWindowManager
     {
         return CommandShutdown.WaitAsync(
             _adcViewModel?.ShutdownAsync() ?? Task.CompletedTask,
-            _fasteningResume is null ? Task.CompletedTask : _fasteningResumeViewModel.ShutdownAsync(),
             _motion is null ? Task.CompletedTask : _motionViewModel.ShutdownAsync());
     }
 }

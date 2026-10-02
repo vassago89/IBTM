@@ -853,7 +853,7 @@ public sealed class RecipeTests
 
         using var running = operations.Link();
         if (createNew)
-            editor.NewCommand.Execute(null);
+            await editor.NewCommand.ExecuteAsync(null);
         else
             await editor.LoadCommand.ExecuteAsync("Other");
 
@@ -958,7 +958,7 @@ public sealed class RecipeTests
         Assert.False(operations.HasActiveOperations);
 
         activeAtChange = null;
-        editor.NewCommand.Execute(null);
+        await editor.NewCommand.ExecuteAsync(null);
         Assert.True(activeAtChange);
         Assert.False(operations.HasActiveOperations);
         var defaults = new BoltInspectionRecipe();
@@ -976,7 +976,7 @@ public sealed class RecipeTests
 
         editor.Name = "Other";
         await editor.SaveAsync();
-        editor.NewCommand.Execute(null);
+        await editor.NewCommand.ExecuteAsync(null);
         var changed = false;
         recipes.Changed += () => changed = true;
         using var connection = new SqliteConnection($"Data Source={database.DatabaseFile}");

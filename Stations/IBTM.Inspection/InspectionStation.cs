@@ -413,9 +413,11 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     return false;
                 case InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor:
                 case InspectionStationState.TeachingRequired:
-                    // Return on entering a wait, not on every feedback notification while waiting.
-                    if (IsClear && !Equals(Step, state)
-                        && Step is not InspectionStationState.ReturningToWaitingPosition
+                    // A change of waiting reason does not require another return move.
+                    if (IsClear && Step is not InspectionStationState.Waiting
+                            and not InspectionStationState.WaitingForConveyor
+                            and not InspectionStationState.TeachingRequired
+                            and not InspectionStationState.ReturningToWaitingPosition
                             and not InspectionStationState.CompletingInspection)
                     {
                         EnterStep(InspectionStationState.ReturningToWaitingPosition, workId: Station.CurrentJob.Id);
@@ -454,7 +456,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         }
                     }
                     Station.Complete(job, Stopwatch.GetElapsedTime(_cycleStartedAt));
-                    InspectionCompleted?.Invoke(okCount, ngCount);
+                    await _recipes.RecordProductionAsync(okCount, ngCount);
                     ClearInspectionOperation();
                     return true;
                 }
@@ -580,6 +582,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 IsTransferPending = true;
                 await SetGripperOpenAsync(false, cancellationToken);
                 await SetLiftUpAsync(true, cancellationToken);
+                // The raised pickup now supports the carrier; lower S3 before travelling to the shuttle.
+                if (source == NgTransferDestination.Station)
+                    await Io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
                 break;
             }
             case InspectionStationState.PlacingCarrier:
@@ -778,7 +783,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     public event Action<ImageFrame, HeatSinkSlot, Guid?>? InspectionCaptured;
 
     // Once per completed carrier, counted by individual PCB verdicts.
-    public event Action<int, int>? InspectionCompleted;
 
     public event Action<ImageFrame>? FrameReady
     {

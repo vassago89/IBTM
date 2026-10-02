@@ -13,6 +13,7 @@ using IBTM.Device;
 using IBTM.Storage;
 using IBTM.PcbSupply;
 using IBTM.Inspection;
+using IBTM.NgConveyor;
 using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,61 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class IoStartupTests
 {
+    [Fact]
+    public async Task NgButtonLampsSkipUnchangedWritesAndCorrectChangedOutputFeedback()
+    {
+        var feedback = new VirtualIoService(Outputs(new NgConveyorHardwareSettings(), new NgShuttleHardwareSettings()), new());
+        var io = new StartupIo(feedback);
+        io.Initialize();
+        feedback.SetInputs((InputIo.NgShuttleUp, true), (InputIo.NgShuttleDown, false),
+            (InputIo.NgConveyorPosition1Occupied, true));
+        var conveyor = new NgCarrierConveyor(io, new(), new());
+        var writes = 0;
+        var reads = 0;
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output is OutputIo.NgCarrierEjectLamp or OutputIo.NgCarrierEjectCompleteLamp)
+                Interlocked.Increment(ref writes);
+        };
+        void ObserveRead(OutputIo output)
+        {
+            io.BeforeOutputRead = ObserveRead;
+            if (output == OutputIo.NgCarrierEjectCompleteLamp)
+                Interlocked.Increment(ref reads);
+        }
+        io.BeforeOutputRead = ObserveRead;
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            Assert.Equal(NgConveyorState.ReadyToEject, conveyor.Step);
+            Assert.Equal(1, Volatile.Read(ref writes));
+            foreach (var pressed in new[] { true, false, true, false })
+            {
+                var before = Volatile.Read(ref reads);
+                feedback.SetInput(InputIo.NgCarrierEjectCompleteButton, pressed);
+                Assert.True(await WaitUntilAsync(() => Volatile.Read(ref reads) > before, TimeSpan.FromSeconds(1)));
+            }
+            Assert.Equal(1, Volatile.Read(ref writes));
+
+            // External output changes must be corrected; a cached last command is insufficient.
+            feedback.SetOutput(OutputIo.NgCarrierEjectLamp, false);
+            feedback.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, true);
+            feedback.SetInput(InputIo.NgCarrierEjectCompleteButton, true);
+            Assert.True(await WaitUntilAsync(() => feedback.GetOutput(OutputIo.NgCarrierEjectLamp)
+                && !feedback.GetOutput(OutputIo.NgCarrierEjectCompleteLamp), TimeSpan.FromSeconds(1)));
+            Assert.Equal(3, Volatile.Read(ref writes));
+            Assert.False(feedback.GetOutput(OutputIo.NgConveyorRun));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+        Assert.False(feedback.GetOutput(OutputIo.NgCarrierEjectLamp));
+        Assert.False(feedback.GetOutput(OutputIo.NgCarrierEjectCompleteLamp));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

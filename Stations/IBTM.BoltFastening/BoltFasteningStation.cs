@@ -190,7 +190,8 @@ public sealed class BoltFasteningStation : AutoUnit
         CancellationToken cancellationToken = default,
         bool repeat = false,
         IReadOnlyCollection<Guid>? selectedBolts = null,
-        Action<BoltPoint, BoltResult>? resultReceived = null)
+        Action<BoltPoint, BoltResult>? resultReceived = null,
+        bool continueAfterSelection = false)
     {
         if (cancellationToken.IsCancellationRequested)
             return;
@@ -255,10 +256,17 @@ public sealed class BoltFasteningStation : AutoUnit
                         throw new MotionInterlockException("The fastening carrier is no longer seated.");
                 }
                 var step = NextStep;
-                if (!await ExecuteStepAsync(step, repeat, cancellationToken, selectedBolts, resultReceived))
+                if (!await ExecuteStepAsync(step, repeat, cancellationToken, selectedBolts, resultReceived, continueAfterSelection))
                     await WaitForChangeAsync(cancellationToken);
                 if (resumeJob is not null && step == BoltFasteningState.CompletingCarrier)
-                    break;
+                {
+                    if (!continueAfterSelection)
+                        break;
+                    // The confirmation applies to this carrier only. Later carriers use the full recipe.
+                    resumeJob = null;
+                    selectedBolts = null;
+                    resultReceived = null;
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -336,7 +344,7 @@ public sealed class BoltFasteningStation : AutoUnit
     private async Task<bool> ExecuteStepAsync(
         BoltFasteningState step, bool repeat, CancellationToken cancellationToken,
         IReadOnlyCollection<Guid>? selectedBolts,
-        Action<BoltPoint, BoltResult>? resultReceived)
+        Action<BoltPoint, BoltResult>? resultReceived, bool continueAfterSelection)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var selectedBolt = ActiveBolt;
@@ -399,7 +407,10 @@ public sealed class BoltFasteningStation : AutoUnit
                     }
                     token.ThrowIfCancellationRequested();
                     // A partial selection still returns to standby, but cannot release an unfinished carrier.
-                    if (selectedBolts is null || IsFasteningRecorded)
+                    var complete = selectedBolts is null || IsFasteningRecorded;
+                    if (!complete && continueAfterSelection)
+                        throw new InvalidOperationException("The resumed carrier still has unrecorded bolts.");
+                    if (complete)
                     {
                         foreach (var heatSink in _runTargets!)
                             Station.GetAssembly(job, heatSink).CompleteFastening();

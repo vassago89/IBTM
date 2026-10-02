@@ -2833,31 +2833,33 @@ public sealed class BoltFasteningTests
     }
 
     [Fact]
-    public async Task FasteningResumeMatchesRecreatedPointsByGuidRatherThanNameOrReference()
+    public async Task FasteningResumeReviewUsesCurrentNamesAndMatchesResultsByGuid()
     {
         await using var services = MachineTestSupport.CreateDiagnosticServices();
-        var recipes = services.GetRequiredService<RecipeManager>();
-        var first = new BoltPoint { Name = "Same name" };
-        var second = new BoltPoint { Name = "Same name" };
-        recipes.Current.Pcb.BoltPoints = [first, second];
-        var test = services.GetRequiredService<FasteningResumeViewModel>();
-        test.Activate();
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
         try
         {
+            var recipes = services.GetRequiredService<RecipeManager>();
+            var first = new BoltPoint { Name = "Same name" };
+            var second = new BoltPoint { Name = "Same name" };
+            var io = services.GetRequiredService<VirtualIoService>();
+            VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            var station = services.GetRequiredService<BoltFasteningStation>().Station;
             var result = new BoltResult(true, 8);
-            var callback = typeof(FasteningResumeViewModel).GetMethod("OnResultReceived",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-            callback.Invoke(test, [new BoltPoint(second.Id) { Name = "Renamed" }, result]);
-            Assert.Null(test.Bolts[0].Result);
-            Assert.Same(result, test.Bolts[1].Result);
-            Assert.Equal("OK", test.Bolts[1].Status);
-            callback.Invoke(test, [new BoltPoint { Name = "Same name" }, new BoltResult(false, null)]);
-            Assert.Same(result, test.Bolts[1].Result);
-            Assert.Null(test.Bolts[0].Result);
+            station.GetAssembly(HeatSinkSlot.HeatSink1).RecordBolt(second.Head, second.Id, result);
+            recipes.Current.Pcb.BoltPoints = [first, new BoltPoint(second.Id) { Name = "Renamed" }];
+            var review = services.GetRequiredService<OperationViewModel>();
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.Null(review.FasteningResumeBolts[0].Result);
+            Assert.Same(result, review.FasteningResumeBolts[1].Result);
+            Assert.Equal("Renamed", review.FasteningResumeBolts[1].Label);
+            Assert.Equal("OK", review.FasteningResumeBolts[1].Status);
+            Assert.False(review.IsFasteningResumeConfirmed);
         }
         finally
         {
-            test.Deactivate();
+            await machine.ShutdownAsync();
         }
     }
 }

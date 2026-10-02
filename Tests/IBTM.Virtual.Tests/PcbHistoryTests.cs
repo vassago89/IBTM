@@ -30,39 +30,80 @@ public sealed class PcbHistoryTests
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddVirtualApplication(settings).BuildServiceProvider();
         var view = services.GetRequiredService<OperationViewModel>();
+        var recipes = view.Recipes;
+        await recipes.SaveAsync("Default");
         var inspection = services.GetRequiredService<InspectionStation>();
         var history = services.GetRequiredService<PcbHistoryWriter>();
         var assembly = inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.PcbBarcode = null;
         await history.FlushAsync();
         Assert.Single(view.PcbRecords);
-        Assert.Equal(0, view.TotalCount); // A partial NG result is not a completed PCB.
+        Assert.Equal(0, recipes.Counts.TotalCount); // A partial NG result is not a completed PCB.
 
-        // Publish the same completion event as the inspection sequence, without moving equipment.
-        var completed = (Action<int, int>)typeof(InspectionStation)
-            .GetField(nameof(InspectionStation.InspectionCompleted),
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .GetValue(inspection)!;
-        await Task.Run(() => completed(1, 2));
-        Assert.Equal(3, view.TotalCount);
-        Assert.Equal(1, view.OkCount);
-        Assert.Equal(2, view.NgCount);
+        await recipes.RecordProductionAsync(1, 2);
+        Assert.Equal(3, recipes.Counts.TotalCount);
+        Assert.Equal(new ProductionCounts(1, 2), recipes.Counts);
         assembly.RecordBoltPresence(Guid.NewGuid(), false);
         await history.FlushAsync();
-        Assert.Equal(3, view.TotalCount);
+        Assert.Equal(3, recipes.Counts.TotalCount);
+
+        // Save-as starts its own total; overwriting recipe settings must retain that total.
+        await recipes.SaveAsync("Other");
+        Assert.Equal(new ProductionCounts(0, 0), recipes.Counts);
+        await recipes.RecordProductionAsync(2, 1);
+        await recipes.SaveAsync("Other");
+        Assert.Equal(new ProductionCounts(2, 1), recipes.Counts);
+        await recipes.LoadAsync("DEFAULT");
+        Assert.Equal(new ProductionCounts(1, 2), recipes.Counts);
+
+        var reopened = new RecipeManager(new MachineStore(store.DatabaseFile), new());
+        await reopened.LoadAsync("Default");
+        Assert.Equal(recipes.Counts, reopened.Counts);
 
         var record = Assert.Single(view.PcbRecords);
-        view.ClearCountsCommand.Execute(null);
-        Assert.Equal(0, view.TotalCount);
-        Assert.Equal(0, view.OkCount);
-        Assert.Equal(0, view.NgCount);
+        await view.ClearCountsCommand.ExecuteAsync(null);
+        Assert.Equal(new ProductionCounts(0, 0), recipes.Counts);
         Assert.Equal(record, Assert.Single(view.PcbRecords));
         Assert.Equal(record.Number, Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).Number);
 
-        await Task.Run(() => completed(2, 0));
-        Assert.Equal(2, view.TotalCount);
-        Assert.Equal(2, view.OkCount);
-        Assert.Equal(0, view.NgCount);
+        await reopened.LoadAsync("Default");
+        Assert.Equal(new ProductionCounts(0, 0), reopened.Counts);
+        await reopened.LoadAsync("Other");
+        Assert.Equal(new ProductionCounts(2, 1), reopened.Counts);
+
+        await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => recipes.RecordProductionAsync(1, 0)));
+        Assert.Equal(new ProductionCounts(4, 0), recipes.Counts);
+        await reopened.LoadAsync("Default");
+        Assert.Equal(recipes.Counts, reopened.Counts);
+
+        using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TRIGGER FailCountClear BEFORE DELETE ON ProductionCounts BEGIN SELECT RAISE(ABORT, 'count reset failed'); END";
+        command.ExecuteNonQuery();
+        await view.ClearCountsCommand.ExecuteAsync(null);
+        Assert.NotNull(view.PcbHistoryError);
+        Assert.Equal(new ProductionCounts(4, 0), recipes.Counts);
+        Assert.Equal(recipes.Counts, store.LoadProductionCounts("Default"));
+    }
+
+    [Fact]
+    public void ProductionCountsAreAddedToExistingMachineDatabase()
+    {
+        var original = VirtualTestSupport.OpenMachineStore();
+        original.SaveRecipe(new Recipe { Name = "Existing" });
+        using var connection = new SqliteConnection($"Data Source={original.DatabaseFile}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "DROP TABLE ProductionCounts";
+        command.ExecuteNonQuery();
+
+        var updated = new MachineStore(original.DatabaseFile);
+        Assert.Equal("Existing", updated.LoadRecipe("Existing").Name);
+        Assert.Equal(new ProductionCounts(0, 0), updated.LoadProductionCounts("Existing"));
+        Assert.Equal(new ProductionCounts(1, 2), updated.AddProductionCounts("Existing", 1, 2));
+        Assert.Equal(new ProductionCounts(3, 3), updated.AddProductionCounts("EXISTING", 2, 1));
+        Assert.Equal(new ProductionCounts(3, 3), new MachineStore(original.DatabaseFile).LoadProductionCounts("Existing"));
     }
 
     [Fact]

@@ -21,6 +21,14 @@
                 <DataTrigger Binding="{Binding StartStation}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="FasteningReview" TargetType="StackPanel">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -125,6 +133,13 @@
                                     <Setter Property="Text" Value="{Binding StartBlock, Converter={StaticResource UiTextConverter}}"/>
                                     <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                     <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding StartBlock}" Value="{x:Static app:StartBlockReason.UnfinishedCarrier}"/>
+                                                <Condition Binding="{Binding IsFasteningResumeAvailable}" Value="True"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Text" Value="{ui:Text 'Check S2 before resuming fastening.'}"/>
+                                        </MultiDataTrigger>
                                         <DataTrigger Binding="{Binding IsStartReviewAllowed}" Value="True">
                                             <Setter Property="Text" Value="{ui:Text 'Ready to start'}"/>
                                             <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
@@ -178,6 +193,27 @@
                 </StackPanel>
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
+                        <StackPanel Style="{StaticResource FasteningReview}" Margin="0,0,0,12">
+                            <TextBlock Text="{ui:Text 'Fastening results'}" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding RemainingFasteningCount, StringFormat={ui:Text 'Unrecorded bolts: {0}'}}"
+                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,8"/>
+                            <ItemsControl ItemsSource="{Binding FasteningResumeBolts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type ui:FasteningResumeRow}">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding HeatSink, Converter={StaticResource UiTextConverter}}"
+                                                    Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding Status, Converter={StaticResource UiTextConverter}}"
+                                                Tag="{Binding Status}" Style="{StaticResource ResultValueStyle}" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
                         <TextBlock Text="{ui:Text 'Current position (mm)'}" Style="{StaticResource ReviewHeading}" Margin="0,0,0,8"/>
                         <UniformGrid Columns="3">
                             <StackPanel><TextBlock Text="X" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding StartMotion.Position.X, StringFormat=F3, TargetNullValue=—}"/></StackPanel>
@@ -284,6 +320,14 @@
                     </StackPanel>
                 </ScrollViewer>
                 <StackPanel Grid.Row="3" Margin="0,12,0,0">
+                    <StackPanel Style="{StaticResource FasteningReview}" Margin="0,0,0,12">
+                        <TextBlock Text="{ui:Text 'Check the actual bolts where no result was recorded.'}" TextWrapping="Wrap"
+                            Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="ConfirmFasteningResume" IsChecked="{Binding IsFasteningResumeConfirmed, Mode=TwoWay}"
+                            IsEnabled="{Binding IsFasteningResumeAvailable}">
+                            <TextBlock Text="{ui:Text 'I checked the carrier and bolts. Resume unfinished fastening.'}" TextWrapping="Wrap"/>
+                        </CheckBox>
+                    </StackPanel>
                     <StackPanel Style="{StaticResource CarrierActions}">
                         <TextBlock Text="{ui:Text 'Complete: skip · Clear: erase results and rework'}"
                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
@@ -345,11 +389,6 @@
             <StackPanel Orientation="Horizontal">
                 <Button x:Name="CancelButton" Content="{ui:Text 'Cancel · Esc'}" IsCancel="True" IsDefault="True"
                     MinWidth="130" Height="44" Style="{StaticResource SecondaryButtonStyle}"/>
-                <Button Content="{ui:Text 'Resume fastening'}" Command="{Binding OpenFasteningResumeCommand}"
-                    CommandParameter="{Binding ElementName=StartReviewWindow}"
-                    Visibility="{Binding State.ManualMode, Converter={StaticResource BoolToVis}}"
-                    IsEnabled="{Binding State.ManualSetupEnabled}"
-                    MinWidth="130" Height="44" Margin="10,0,0,0" Style="{StaticResource SecondaryButtonStyle}"/>
             </StackPanel>
             <Button Grid.Column="1" Content="{ui:Text 'Check again'}" Command="{Binding CheckStartCommand}"
                 MinWidth="150" Height="44" Margin="0,0,10,0">

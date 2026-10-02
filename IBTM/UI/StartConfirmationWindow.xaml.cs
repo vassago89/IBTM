@@ -43,6 +43,7 @@ public partial class StartConfirmationWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        _viewModel.IsFasteningResumeConfirmed = false;
         _viewModel.CheckStartCommand.Cancel();
         _viewModel.ChangeCarrierWorkCommand.Cancel();
         if (DialogResult != true)

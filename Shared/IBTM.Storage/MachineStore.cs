@@ -58,10 +58,52 @@ public sealed class MachineStore
                 Number INTEGER NOT NULL
             );
             INSERT OR IGNORE INTO PcbCounter (Id, Number) VALUES (1, 0);
+            CREATE TABLE IF NOT EXISTS ProductionCounts (
+                RecipeName TEXT NOT NULL PRIMARY KEY COLLATE NOCASE,
+                OkCount INTEGER NOT NULL,
+                NgCount INTEGER NOT NULL
+            );
             """);
     }
 
     public string DatabaseFile { get; }
+
+    public ProductionCounts LoadProductionCounts(string recipeName)
+    {
+        using var db = new MachineDbContext(_options);
+        db.Database.OpenConnection();
+        using var command = db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "SELECT OkCount, NgCount FROM ProductionCounts WHERE RecipeName = $recipe";
+        command.Parameters.Add(new SqliteParameter("$recipe", recipeName));
+        using var reader = command.ExecuteReader();
+        return reader.Read() ? new(reader.GetInt64(0), reader.GetInt64(1)) : new(0, 0);
+    }
+
+    public ProductionCounts AddProductionCounts(string recipeName, int okCount, int ngCount)
+    {
+        using var db = new MachineDbContext(_options);
+        db.Database.OpenConnection();
+        using var command = db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            INSERT INTO ProductionCounts (RecipeName, OkCount, NgCount) VALUES ($recipe, $ok, $ng)
+            ON CONFLICT(RecipeName) DO UPDATE SET
+                OkCount = ProductionCounts.OkCount + excluded.OkCount,
+                NgCount = ProductionCounts.NgCount + excluded.NgCount
+            RETURNING OkCount, NgCount
+            """;
+        command.Parameters.Add(new SqliteParameter("$recipe", recipeName));
+        command.Parameters.Add(new SqliteParameter("$ok", okCount));
+        command.Parameters.Add(new SqliteParameter("$ng", ngCount));
+        using var reader = command.ExecuteReader();
+        reader.Read();
+        return new(reader.GetInt64(0), reader.GetInt64(1));
+    }
+
+    public void ClearProductionCounts(string recipeName)
+    {
+        using var db = new MachineDbContext(_options);
+        db.Database.ExecuteSql($"DELETE FROM ProductionCounts WHERE RecipeName = {recipeName}");
+    }
 
     public bool HasData
     {

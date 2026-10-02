@@ -3414,43 +3414,22 @@ Clear results: run this station again</value>
   <data name="{0}: carrier not detected after the conveyor stop delay." xml:space="preserve">
     <value>{0}: carrier not detected after the conveyor stop delay.</value>
   </data>
-  <data name="resume fastening" xml:space="preserve">
-    <value>Resume fastening</value>
+  <data name="check s2 before resuming fastening." xml:space="preserve">
+    <value>Check S2 before resuming fastening.</value>
   </data>
-  <data name="finish fastening" xml:space="preserve">
-    <value>Finish fastening</value>
+  <data name="fastening results" xml:space="preserve">
+    <value>Fastening results</value>
   </data>
-  <data name="select bolts without results" xml:space="preserve">
-    <value>Select bolts without results</value>
+  <data name="unrecorded bolts: {0}" xml:space="preserve">
+    <value>Unrecorded bolts: {0}</value>
   </data>
-  <data name="bolts without results are selected. selecting a recorded bolt will fasten it again." xml:space="preserve">
-    <value>Bolts without results are selected. Selecting a recorded bolt will fasten it again.</value>
+  <data name="check the actual bolts where no result was recorded." xml:space="preserve">
+    <value>Check the actual bolts where no result was recorded.</value>
   </data>
-  <data name="fastening {0} selected bolts..." xml:space="preserve">
-    <value>Fastening {0} selected bolts...</value>
+  <data name="i checked the carrier and bolts. resume unfinished fastening." xml:space="preserve">
+    <value>I checked the carrier and bolts. Resume unfinished fastening.</value>
   </data>
-  <data name="returning to standby..." xml:space="preserve">
-    <value>Returning to standby...</value>
-  </data>
-  <data name="fastening completed." xml:space="preserve">
-    <value>Fastening completed.</value>
-  </data>
-  <data name="fastening stopped. received results are retained." xml:space="preserve">
-    <value>Fastening stopped. Received results are retained.</value>
-  </data>
-  <data name="selected bolts finished. the carrier still has unfinished bolts." xml:space="preserve">
-    <value>Selected bolts finished. The carrier still has unfinished bolts.</value>
-  </data>
-  <data name="fastening failed." xml:space="preserve">
-    <value>Fastening failed.</value>
-  </data>
-  <data name="fastening shutdown failed" xml:space="preserve">
-    <value>Fastening shutdown failed</value>
-  </data>
-  <data name="all results received. finish fastening to return to standby." xml:space="preserve">
-    <value>All results received. Finish fastening to return to standby.</value>
-  </data>
-  <data name="the carrier changed. reopen the fastening resume window." xml:space="preserve">
-    <value>The carrier changed. Reopen the fastening resume window.</value>
+  <data name="count reset failed: {0}" xml:space="preserve">
+    <value>Count reset failed: {0}</value>
   </data>
 </root>
