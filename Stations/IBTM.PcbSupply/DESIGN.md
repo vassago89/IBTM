@@ -63,10 +63,12 @@ before publishing a completed handoff. `MoveFromHandoffAsync` rotates at handoff
 XYZ and moves through Travel Z to the selected pickup XY. Interrupted withdrawal
 with confirmed Rotated feedback continues through Travel Z without rotating again.
 
-`SetRotatedAsync` never moves an axis. It requires homed, servo-on, settled XYZ
-at the configured handoff position and stops waiting if that condition is lost.
-The teaching rotation button and direct OUTPUTS toggle enforce this same position
-condition. Move to the taught handoff position first; changing Z alone is insufficient.
+Automatic rotation follows the awaited handoff move and waits for cylinder feedback;
+it does not recheck handoff coordinates against the teaching tolerance.
+`SetTeachingRotationAsync` applies only to the teaching rotation button. It never
+moves an axis, requires homed, servo-on, settled XYZ at the configured handoff
+position, and stops waiting if that condition is lost. The direct OUTPUTS toggle
+uses the shared manual-output safety conditions without this coordinate restriction.
 
 ## Direct handoff and live feedback
 

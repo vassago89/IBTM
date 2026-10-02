@@ -58,7 +58,7 @@ public sealed class MotionStatusTests
     }
 
     [Fact]
-    public void SupplyRotationRequiresCurrentHealthyStationaryFeedback()
+    public void SupplyTeachingRotationRequiresCurrentHealthyStationaryFeedback()
     {
         var motion = new StatusMotion();
         var status = new MotionStatus(motion);
@@ -68,34 +68,34 @@ public sealed class MotionStatusTests
         var io = new VirtualIoService(VirtualTestSupport.Outputs(new PcbSupplyHardwareSettings()), new());
         io.Initialize();
         var supply = VirtualTestSupport.CreateSupplier(motion, io, new() { HandoffPosition = target });
-        Assert.True(supply.IsRotationAllowed);
+        Assert.True(supply.IsTeachingRotationAllowed);
 
         motion.ReportedPosition = (15, 0, 0); // External encoder change, without an application move event.
         Assert.Equal(12, status.Position.X);
-        Assert.False(supply.IsRotationAllowed);
+        Assert.False(supply.IsTeachingRotationAllowed);
         motion.ReportedPosition = (12, 0, 0);
         motion.State = motion.State with { ServoOn = false };
         Assert.True(status.Axes[MotionAxis.X].State?.ServoOn);
-        Assert.False(supply.IsRotationAllowed);
+        Assert.False(supply.IsTeachingRotationAllowed);
         motion.State = motion.State with { ServoOn = true, Alarm = true };
-        Assert.False(supply.IsRotationAllowed);
+        Assert.False(supply.IsTeachingRotationAllowed);
         motion.State = motion.State with { Alarm = false, InMotion = true };
-        Assert.False(supply.IsRotationAllowed);
+        Assert.False(supply.IsTeachingRotationAllowed);
         motion.State = motion.State with { InMotion = false };
-        Assert.True(supply.IsRotationAllowed);
+        Assert.True(supply.IsTeachingRotationAllowed);
         motion.Failure = new IOException("Current feedback is unavailable.");
-        Assert.Throws<IOException>(() => supply.IsRotationAllowed);
+        Assert.Throws<IOException>(() => supply.IsTeachingRotationAllowed);
     }
 
     [Fact]
-    public async Task SupplyRotationRetainsRejectedFeedbackAfterItRecovers()
+    public async Task SupplyTeachingRotationRetainsRejectedFeedbackAfterItRecovers()
     {
         var motion = new StatusMotion();
         var io = new VirtualIoService(VirtualTestSupport.Outputs(new PcbSupplyHardwareSettings()), new());
         io.Initialize();
         var supply = VirtualTestSupport.CreateSupplier(motion, io, new() { HandoffPosition = new() { X = 12 } });
         io.AutoResponseEnabled = false;
-        var rotation = supply.SetRotatedAsync(true);
+        var rotation = supply.SetTeachingRotationAsync(true);
         motion.State = motion.State with { InPosition = false };
         motion.Publish();
         motion.State = motion.State with { InPosition = true };
@@ -105,7 +105,7 @@ public sealed class MotionStatusTests
 
         Assert.Contains("X", error.Message);
         Assert.Contains("InPosition = False", error.Message);
-        Assert.True(supply.IsRotationAllowed);
+        Assert.True(supply.IsTeachingRotationAllowed);
         Assert.True(io.GetOutput(OutputIo.PcbSupplyRotate));
     }
 

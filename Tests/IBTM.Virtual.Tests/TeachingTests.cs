@@ -113,7 +113,7 @@ public sealed class TeachingTests
             await teaching.MoveToPointCommand.ExecuteAsync(null);
             Assert.Equal((20d, 15d, 7d), motion.Position);
             Assert.False(pneumaticCommanded);
-            await supply.SetRotatedAsync(true);
+            await supply.SetTeachingRotationAsync(true);
             pneumaticCommanded = false;
 
             foreach (var target in new[]
@@ -1594,7 +1594,14 @@ public sealed class TeachingTests
         var wasRotated = io.GetOutput(OutputIo.PcbSupplyRotate);
         await handler.MoveAxisAsync(MotionAxis.Z, 5);
         Assert.False(rotation.IsToggleOutputAllowed);
-        Assert.Equal(OutputBlockReason.SupplyNotAtHandoff, machine.ToggleDiagnosticOutput(OutputIo.PcbSupplyRotate));
+        Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.PcbSupplyRotate));
+        Assert.Equal(!wasRotated, io.GetOutput(OutputIo.PcbSupplyRotate));
+        await WaitUntilAsync(() => handler.Rotation == (wasRotated
+            ? PcbSupplyRotationState.Unrotated : PcbSupplyRotationState.Rotated));
+        Assert.False(rotation.IsToggleOutputAllowed);
+        Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.PcbSupplyRotate));
+        await WaitUntilAsync(() => handler.Rotation == (wasRotated
+            ? PcbSupplyRotationState.Rotated : PcbSupplyRotationState.Unrotated));
         var handoff = services.GetRequiredService<PcbSupplySettings>().HandoffPosition;
         await handler.MoveToTeachingPositionAsync(
             new(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full), handoff);

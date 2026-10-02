@@ -10,7 +10,7 @@ namespace IBTM.PcbSupply;
 
 public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 {
-    private const double RotationPositionToleranceMillimeters = 0.05;
+    private const double TeachingRotationPositionToleranceMillimeters = 0.05;
 
     private readonly IXyMotion _motion;
     private readonly PcbSupplySettings _settings;
@@ -598,7 +598,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             EnterStep(PcbSupplyState.MovingToHandoff);
         await MoveToPositionAsync(position, Rotation, cancellationToken);
         if (Rotation != PcbSupplyRotationState.Unrotated)
-            await SetRotatedAsync(false, cancellationToken);
+            await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, false, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (Phase != PcbSupplyState.PreparingReturnReceipt)
             EnterStep(PcbSupplyState.HandingOff);
@@ -678,7 +678,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         if (Rotation != PcbSupplyRotationState.Rotated)
         {
             await MoveToPositionAsync(_settings.HandoffPosition, Rotation, cancellationToken);
-            await SetRotatedAsync(true, cancellationToken);
+            await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true, cancellationToken);
         }
         await MoveToPickupAsync(nextPick, cancellationToken);
     }
@@ -754,9 +754,9 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
     }
 
-    public bool IsRotationAllowed => RotationBlockReason is null;
+    public bool IsTeachingRotationAllowed => TeachingRotationBlockReason is null;
 
-    private string? RotationBlockReason
+    private string? TeachingRotationBlockReason
     {
         get
         {
@@ -774,22 +774,22 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             }
             var current = _motion.Position;
             var handoff = _settings.HandoffPosition;
-            if (Math.Abs(current.X - handoff.X) <= RotationPositionToleranceMillimeters
-                && (!_motion.HasY || Math.Abs(current.Y - handoff.Y) <= RotationPositionToleranceMillimeters)
-                && (!_motion.HasZ || Math.Abs(current.Z - handoff.Z) <= RotationPositionToleranceMillimeters))
+            if (Math.Abs(current.X - handoff.X) <= TeachingRotationPositionToleranceMillimeters
+                && (!_motion.HasY || Math.Abs(current.Y - handoff.Y) <= TeachingRotationPositionToleranceMillimeters)
+                && (!_motion.HasZ || Math.Abs(current.Z - handoff.Z) <= TeachingRotationPositionToleranceMillimeters))
                 return null;
-            return UiText.Format($"Supply rotation blocked: current XYZ=({current.X:F3}, {current.Y:F3}, {current.Z:F3}), handoff XYZ=({handoff.X:F3}, {handoff.Y:F3}, {handoff.Z:F3}), tolerance={RotationPositionToleranceMillimeters:F3} mm.");
+            return UiText.Format($"Supply rotation blocked: current XYZ=({current.X:F3}, {current.Y:F3}, {current.Z:F3}), handoff XYZ=({handoff.X:F3}, {handoff.Y:F3}, {handoff.Z:F3}), tolerance={TeachingRotationPositionToleranceMillimeters:F3} mm.");
         }
     }
 
-    public async Task SetRotatedAsync(bool rotated, CancellationToken cancellationToken = default)
+    public async Task SetTeachingRotationAsync(bool rotated, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var rotation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         string? blockedReason = null;
         void CheckPosition()
         {
-            if (rotation.IsCancellationRequested || RotationBlockReason is not { } reason)
+            if (rotation.IsCancellationRequested || TeachingRotationBlockReason is not { } reason)
                 return;
             // Preserve the first rejected feedback, even if it recovers before the await resumes.
             Interlocked.CompareExchange(ref blockedReason, reason, null);

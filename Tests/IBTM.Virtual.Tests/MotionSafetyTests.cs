@@ -264,7 +264,7 @@ public sealed class MotionSafetyTests
         var handoff = new TeachingPosition(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full);
         var pickup = new TeachingPosition(TeachingTarget.SupplyPcb1Pick, MotionGroup.PcbSupply, TeachMode.Full);
         await supply.MoveToTeachingPositionAsync(handoff, settings.HandoffPosition);
-        await supply.SetRotatedAsync(true);
+        await supply.SetTeachingRotationAsync(true);
         Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
         Assert.True(supply.IsMoveToTeachingPositionAllowed(pickup));
         await supply.MoveToTeachingPositionAsync(pickup, new() { X = 10, Y = 30, Z = 5 });
@@ -286,11 +286,50 @@ public sealed class MotionSafetyTests
         Assert.Equal(4, motion.Position.Z);
     }
 
+    [Fact]
+    public async Task SupplyAutomaticRotationUsesMoveCompletionWithoutTeachingPositionCheck()
+    {
+        var io = CreateIo();
+        var settings = new PcbSupplySettings
+        {
+            Motion = new() { HorizontalSpeed = 1_000, ZSpeed = 1_000 },
+            TravelZ = 3,
+            HandoffPosition = new() { X = 20, Y = 15, Z = 7.08 },
+        };
+        // Simulate settled feedback outside the teaching tolerance after a completed move.
+        using var motion = new VirtualMotionService(settings.Motion, new(),
+            axisResolutionMillimeters: (0.001, 0.001, 0.2));
+        var supply = CreateSupplier(motion, io, settings);
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 1_000);
+        await io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true);
+        var rotations = new List<bool>();
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.PcbSupplyRotate)
+                return;
+            Assert.True(MotionServiceBase.IsReadyAndStopped(motion));
+            Assert.Equal(7, motion.Position.Z);
+            Assert.False(supply.IsTeachingRotationAllowed);
+            rotations.Add(on);
+        };
+
+        await supply.PrepareHandoffAsync(default);
+        Assert.Equal(PcbSupplyRotationState.Unrotated, supply.Rotation);
+        Assert.Equal(PcbSupplyState.HandingOff, supply.Phase);
+        await supply.MoveFromHandoffAsync(new() { X = 10, Y = 30, Z = 5 });
+
+        Assert.Equal(PcbSupplyRotationState.Rotated, supply.Rotation);
+        Assert.Equal((10, 30, settings.TravelZ), motion.Position);
+        Assert.Equal(new[] { false, true }, rotations);
+    }
+
     [Theory]
     [InlineData(MotionAxis.X)]
     [InlineData(MotionAxis.Y)]
     [InlineData(MotionAxis.Z)]
-    public async Task SupplyRotationRejectsAnyAxisAwayFromHandoffWithoutMoving(MotionAxis axis)
+    public async Task SupplyTeachingRotationRejectsAnyAxisAwayFromHandoffWithoutMoving(MotionAxis axis)
     {
         var io = CreateIo();
         var settings = new PcbSupplySettings
@@ -309,15 +348,15 @@ public sealed class MotionSafetyTests
         var commanded = false;
         motion.MovingChanged += moving => commanded |= moving;
         io.OutputChanged += (output, on) => commanded |= output == OutputIo.PcbSupplyRotate;
-        Assert.False(supply.IsRotationAllowed);
-        var error = await Assert.ThrowsAsync<MotionInterlockException>(() => supply.SetRotatedAsync(true));
+        Assert.False(supply.IsTeachingRotationAllowed);
+        var error = await Assert.ThrowsAsync<MotionInterlockException>(() => supply.SetTeachingRotationAsync(true));
         Assert.Contains("XYZ", error.Message);
         Assert.Contains("0.050", error.Message);
         Assert.False(commanded);
     }
 
     [Fact]
-    public async Task SupplyRotationAllowsFourMicronsOfYPositionDifference()
+    public async Task SupplyTeachingRotationAllowsFourMicronsOfYPositionDifference()
     {
         var io = CreateIo();
         var settings = new PcbSupplySettings
@@ -333,13 +372,13 @@ public sealed class MotionSafetyTests
         await supply.PrepareHandoffAsync(default);
         await supply.MoveAxisAsync(MotionAxis.Y, -19.910);
 
-        Assert.True(supply.IsRotationAllowed);
-        await supply.SetRotatedAsync(true);
+        Assert.True(supply.IsTeachingRotationAllowed);
+        await supply.SetTeachingRotationAsync(true);
         Assert.Equal(PcbSupplyRotationState.Rotated, supply.Rotation);
     }
 
     [Fact]
-    public async Task SupplyRotationStopsWaitingIfHandoffPositionIsLost()
+    public async Task SupplyTeachingRotationStopsWaitingIfHandoffPositionIsLost()
     {
         var io = CreateIo();
         var settings = new PcbSupplySettings
@@ -354,7 +393,7 @@ public sealed class MotionSafetyTests
         await HomeAsync(motion, 1_000);
         await supply.PrepareHandoffAsync(default);
         io.AutoResponseEnabled = false;
-        var rotation = supply.SetRotatedAsync(true);
+        var rotation = supply.SetTeachingRotationAsync(true);
         await supply.MoveAxisAsync(MotionAxis.X, 19);
         await Assert.ThrowsAsync<MotionInterlockException>(() => rotation);
         Assert.True(io.GetOutput(OutputIo.PcbSupplyRotate)); // Cancellation does not reverse the cylinder.

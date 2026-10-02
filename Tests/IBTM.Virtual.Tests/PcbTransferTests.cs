@@ -27,7 +27,7 @@ public sealed class PcbTransferTests
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);
-        await supplier.SetRotatedAsync(true, default);
+        await supplier.SetTeachingRotationAsync(true, default);
         var point = CreateTeachingPoint(
             new(TeachingTarget.SupplyPcb1Pick, MotionGroup.PcbSupply, TeachMode.Full),
             new() { PcbSupply = settings }, new());
@@ -63,7 +63,7 @@ public sealed class PcbTransferTests
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);
-        await handler.SetRotatedAsync(true, default);
+        await handler.SetTeachingRotationAsync(true, default);
         var picks = new[] { TeachingTarget.SupplyPcb1Pick, TeachingTarget.SupplyPcb2Pick }
             .Select(target => CreateTeachingPoint(new(target, MotionGroup.PcbSupply, TeachMode.Full),
                 new() { PcbSupply = settings }, new() { PcbSupply = recipe })).ToArray();
@@ -75,13 +75,13 @@ public sealed class PcbTransferTests
             handler.MoveToTeachingPositionAsync(picks[0].Position, new AxisPosition()));
         Assert.Equal(before, motion.Position);
 
-        await handler.SetRotatedAsync(false);
+        await handler.SetTeachingRotationAsync(false);
         var rotationCommanded = false;
         io.OutputChanged += (output, on) => rotationCommanded |= output == OutputIo.PcbSupplyRotate;
         await Assert.ThrowsAsync<MotionInterlockException>(() => handler.MoveFromHandoffAsync(recipe.Pcb1PickPosition));
         Assert.False(rotationCommanded);
         Assert.Equal(before, motion.Position);
-        await handler.SetRotatedAsync(true);
+        await handler.SetTeachingRotationAsync(true);
 
         picks[0].Teach(10, 30, 5);
         picks[1].Teach(20, 45, 8);

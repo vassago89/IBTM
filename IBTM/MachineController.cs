@@ -2008,8 +2008,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 return OutputBlockReason.ShuttingDown;
             using var operation = _operations.Link();
             var block = ManualOutputSafetyBlock;
-            if (block == OutputBlockReason.None && signal == OutputIo.PcbSupplyRotate && !_pcbSupply.IsRotationAllowed)
-                block = OutputBlockReason.SupplyNotAtHandoff;
             if (block != OutputBlockReason.None)
             {
                 _log?.LogInformation("Direct output {Signal} ignored: [{Block}] {Description}",
@@ -2229,7 +2227,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         return IsTeachingOutputSupported(output.Signal)
             && _state.ManualSetupEnabled
             && (output.Signal != OutputIo.PcbSupplyRotate
-                || IsManualMotionReady(MotionGroup.PcbSupply, live: false) && _pcbSupply.IsRotationAllowed);
+                || IsManualMotionReady(MotionGroup.PcbSupply, live: false) && _pcbSupply.IsTeachingRotationAllowed);
     }
 
     internal async Task SetTeachingOutputAsync(
@@ -2246,7 +2244,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             using var operation = BeginManualOperation(
                 () => _state.Available && _state.ManualMode && _state.SafetyReady
                     && (output.Signal != OutputIo.PcbSupplyRotate
-                        || IsManualMotionReady(MotionGroup.PcbSupply) && _pcbSupply.IsRotationAllowed),
+                        || IsManualMotionReady(MotionGroup.PcbSupply) && _pcbSupply.IsTeachingRotationAllowed),
                 cancellationToken,
                 viewCancellation);
             if (operation is null)
@@ -2263,7 +2261,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     _io.SetOutput(output.Signal, value);
                     break;
                 case OutputIo.PcbSupplyRotate:
-                    await _pcbSupply.SetRotatedAsync(value, operation.Token);
+                    await _pcbSupply.SetTeachingRotationAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbPlacementHandlerDown:
                     await _pcbPlacement.SetLiftDownAsync(value, operation.Token);

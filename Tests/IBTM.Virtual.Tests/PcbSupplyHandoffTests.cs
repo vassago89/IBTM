@@ -272,7 +272,7 @@ public sealed class PcbSupplyHandoffTests
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
-        await rig.Supplier.SetRotatedAsync(facingPickup);
+        await rig.Supplier.SetTeachingRotationAsync(facingPickup);
         rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var waitingForCarrier = false;
