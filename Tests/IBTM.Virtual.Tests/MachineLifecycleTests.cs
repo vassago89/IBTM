@@ -3527,6 +3527,101 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
+    [Fact]
+    public async Task StartReviewBackupPlateUsesSelectedStationAndExplicitDirection()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        (StartArea Area, OutputIo Output)[] plates = [
+            (StartArea.Station1, OutputIo.PcbPlacementBackupPlateUp),
+            (StartArea.Station2, OutputIo.BoltFasteningBackupPlateUp),
+            (StartArea.Station3, OutputIo.InspectionBackupPlateUp),
+        ];
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            foreach (var plate in plates)
+                await ((IIoService)io).SetOutputAndWaitAsync(plate.Output, false);
+            foreach (var (area, output) in plates)
+            {
+                review.SelectStartAreaCommand.Execute(area);
+                var station = Assert.IsType<ConveyorStation>(review.StartStation);
+                var job = station.CurrentJob;
+                await review.SetStartBackupPlateCommand.ExecuteAsync(true);
+                Assert.Equal(StationCylinderState.Up, station.BackupPlate);
+                foreach (var other in plates.Where(plate => plate.Output != output))
+                    Assert.False(io.GetOutput(other.Output));
+                await review.SetStartBackupPlateCommand.ExecuteAsync(true);
+                Assert.True(io.GetOutput(output)); // Repeating UP must never toggle it DOWN.
+                await review.SetStartBackupPlateCommand.ExecuteAsync(false);
+                Assert.Equal(StationCylinderState.Down, station.BackupPlate);
+                Assert.Same(job, station.CurrentJob);
+            }
+
+            review.SelectStartAreaCommand.Execute(StartArea.Supply);
+            await review.SetStartBackupPlateCommand.ExecuteAsync(true);
+            Assert.All(plates, plate => Assert.False(io.GetOutput(plate.Output)));
+            review.SelectStartAreaCommand.Execute(StartArea.Station1);
+            state.AutomaticRunning = true;
+            await review.SetStartBackupPlateCommand.ExecuteAsync(true);
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
+            state.AutomaticRunning = false;
+            io.SetInput(InputIo.AutoMode, false);
+            await review.SetStartBackupPlateCommand.ExecuteAsync(true);
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
+        }
+        finally
+        {
+            state.AutomaticRunning = false;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartReviewBackupPlateWaitCancelsAndReportsMissingFeedback()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false);
+            io.AutoResponseEnabled = false;
+            review.SelectStartAreaCommand.Execute(StartArea.Station3);
+            var raising = review.SetStartBackupPlateCommand.ExecuteAsync(true);
+            await WaitForOutputAsync(io, OutputIo.InspectionBackupPlateUp, true);
+            Assert.False(raising.IsCompleted);
+            Assert.Equal(StationCylinderState.Down, review.StartStation!.BackupPlate);
+            review.SelectStartAreaCommand.Execute(StartArea.Station1);
+            review.SetStartBackupPlateCommand.Cancel();
+            await raising.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+
+            review.SelectStartAreaCommand.Execute(StartArea.Station3);
+            settings.Options.TimeoutMilliseconds = 50;
+            await review.SetStartBackupPlateCommand.ExecuteAsync(true).WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
+            Assert.Equal(StationCylinderState.Down, review.StartStation!.BackupPlate);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(StartArea.Station1)]
     [InlineData(StartArea.Station2)]

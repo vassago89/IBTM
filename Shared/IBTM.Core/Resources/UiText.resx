@@ -2024,7 +2024,7 @@ Operation failed. Check controller status.</value>
     <value>Remove Bolt</value>
   </data>
   <data name="remove carrier · eject next / complete to resume" xml:space="preserve">
-    <value>Remove carrier · EJECT / COMPLETE</value>
+    <value>Awaiting removal confirmation</value>
   </data>
   <data name="repeat" xml:space="preserve">
     <value>REPEAT</value>
@@ -3434,5 +3434,28 @@ Clear results: run this station again</value>
   </data>
   <data name="count reset failed: {0}" xml:space="preserve">
     <value>Count reset failed: {0}</value>
+  </data>
+  <data name="ng carriers need unloading." xml:space="preserve">
+    <value>NG carriers need unloading.</value>
+  </data>
+  <data name="press the ng eject button on the machine." xml:space="preserve">
+    <value>Press the NG EJECT button on the machine.</value>
+  </data>
+  <data name="remove the carrier, then press eject complete." xml:space="preserve">
+    <value>Remove the carrier, then press EJECT COMPLETE.</value>
+  </data>
+  <data name="ejecting. wait until the conveyor stops." xml:space="preserve">
+    <value>Ejecting. Wait until the conveyor stops.</value>
+  </data>
+  <data name="start operation to unload ng carriers." xml:space="preserve">
+    <value>Start operation to unload NG carriers.</value>
+  </data>
+  <data name="preparing the next carrier. wait for the eject lamp." xml:space="preserve">
+    <value>Preparing next carrier. Wait for EJECT lamp.</value>
+  </data>
+  <data name="remove carrier. eject for next / complete to finish." xml:space="preserve">
+    <value>Remove carrier.
+EJECT: next carrier
+COMPLETE: finish</value>
   </data>
 </root>

@@ -1666,7 +1666,7 @@ public sealed class TeachingTests
                 row => row.Signal is InputIo.PcbPlacementHandlerRotated or InputIo.PcbPlacementHandlerUnrotated);
             var rotation = services.GetRequiredService<IoSignals>().Outputs[OutputIo.PcbPlacementHandlerRotate];
             Assert.False(machine.IsSetTeachingOutputAllowed(rotation));
-            await machine.ToggleTeachingOutputAsync(rotation, CancellationToken.None, CancellationToken.None);
+            await machine.SetTeachingOutputAsync(rotation, CancellationToken.None, CancellationToken.None);
             Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
             var output = new OutputSignalRow(
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.PcbPlacementHandlerRotate], machine);

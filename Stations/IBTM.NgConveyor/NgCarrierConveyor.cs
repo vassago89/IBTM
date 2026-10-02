@@ -76,6 +76,9 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 
     public bool Full => CarrierCount == 3;
 
+    // Operator removal is unfinished until COMPLETE, even between EJECT presses or after STOP.
+    public bool IsEjectionPending => _ejectionPhase != EjectionPhase.Idle;
+
     // Pending ownership is cleared by the release operation, never by presence DI.
     private bool IsTransferClear
     {
@@ -133,8 +136,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         break;
                     if (_movement != Movement.None || Io.GetOutput(OutputIo.NgConveyorRun))
                         break;
-                    if (Io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                        || Io.GetInput(InputIo.NgConveyorPosition2Occupied))
+                    if (CarrierCount > 0)
                         Interlocked.Exchange(ref _ejectRequested, 1);
                     break;
                 case InputIo.NgCarrierEjectCompleteButton when _ejectionPhase == EjectionPhase.WaitingForConfirmation:
@@ -172,8 +174,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                     && state is NgConveyorState.ReadyToEject or NgConveyorState.Full or NgConveyorState.WaitingForEjectConfirmation
                     && Volatile.Read(ref _ejectCompleteRequested) == 0
                     && !Io.GetOutput(OutputIo.NgConveyorRun)
-                    && (Io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                        || Io.GetInput(InputIo.NgConveyorPosition2Occupied));
+                    && CarrierCount > 0;
                 if (Io.GetOutput(OutputIo.NgCarrierEjectLamp) != ejectLamp)
                     Io.SetOutput(OutputIo.NgCarrierEjectLamp, ejectLamp);
                 var completeLamp = buttonsEnabled && state == NgConveyorState.WaitingForEjectConfirmation;
@@ -185,7 +186,12 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         EnterStep(state);
                         if (Volatile.Read(ref _ejectRequested) != 0)
                             continue;
-                        await SetShuttleDownAsync(true, cancellationToken);
+                        if (!IsTransferClear)
+                        {
+                            await WaitForChangeAsync(cancellationToken);
+                            continue;
+                        }
+                        await Io.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true, cancellationToken);
                         break;
                     case NgConveyorState.RaisingShuttle:
                         EnterStep(state);
@@ -215,18 +221,8 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         break;
                     case NgConveyorState.EjectingCarrier:
                         EnterStep(state, waitingFor:
-                            $"S1 then {_settings.EjectRunSeconds:F3} s; S1={Io.GetInput(InputIo.NgConveyorPosition1Occupied)}, S2={Io.GetInput(InputIo.NgConveyorPosition2Occupied)}");
-                        if (ShuttleLift != StationCylinderState.Up)
-                        {
-                            if (!IsTransferClear)
-                            {
-                                await WaitForChangeAsync(cancellationToken);
-                                continue;
-                            }
-                            await SetShuttleDownAsync(false, cancellationToken);
-                        }
-                        if (Io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                            || Io.GetInput(InputIo.NgConveyorPosition2Occupied))
+                            $"P1 then {_settings.EjectRunSeconds:F3} s; P1={Io.GetInput(InputIo.NgConveyorPosition1Occupied)}, P2={Io.GetInput(InputIo.NgConveyorPosition2Occupied)}, P3={Io.GetInput(InputIo.NgShuttleCarrierDetected)}");
+                        if (CarrierCount > 0)
                         {
                             var duration = TimeSpan.FromSeconds(_settings.EjectRunSeconds);
                             await Io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false, cancellationToken);
@@ -327,6 +323,17 @@ public sealed partial class NgCarrierConveyor : AutoUnit
     {
         if (!_units.NgConveyor)
             return NgConveyorState.WaitingForCarrier;
+
+        // A loaded shuttle stays DOWN, including full capacity and operator ejection.
+        // Inspection can leave the handoff only after this lowering completes.
+        if (Io.GetInput(InputIo.NgShuttleCarrierDetected)
+            && (IsEjectionPending || IsAcceptCarrierAllowed(runCommandOn)))
+        {
+            if (!IsTransferClear)
+                return NgConveyorState.WaitingForTransferRelease;
+            if (ShuttleLift != StationCylinderState.Down)
+                return NgConveyorState.LoweringShuttle;
+        }
         switch (_ejectionPhase)
         {
             case EjectionPhase.Ejecting:
@@ -354,13 +361,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             if (raiseShuttle)
                 return IsTransferClear
                     ? NgConveyorState.RaisingShuttle : NgConveyorState.WaitingForTransferRelease;
-        }
-        if (Io.GetInput(InputIo.NgShuttleCarrierDetected) && IsAcceptCarrierAllowed(runCommandOn))
-        {
-            if (!IsTransferClear)
-                return NgConveyorState.WaitingForTransferRelease;
-            if (ShuttleLift != StationCylinderState.Down)
-                return NgConveyorState.LoweringShuttle;
         }
         switch (_movement)
         {

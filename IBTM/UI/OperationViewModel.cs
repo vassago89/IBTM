@@ -72,6 +72,7 @@ public partial class OperationViewModel : ObservableObject
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
+        SetStartBackupPlateCommand = new AsyncRelayCommand<bool>(SetStartBackupPlateAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         ResetCommand = new AsyncRelayCommand(ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
@@ -418,7 +419,8 @@ public partial class OperationViewModel : ObservableObject
         IsResetAllowed = false;
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand]);
+            [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
+                SetStartBackupPlateCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand]);
     }
 
     public ObservableCollection<FasteningResumeRow> FasteningResumeBolts { get; }
@@ -475,6 +477,22 @@ public partial class OperationViewModel : ObservableObject
 
     public IRelayCommand<StartArea> SelectStartAreaCommand { get; }
     public IAsyncRelayCommand<CarrierWorkAction> ChangeCarrierWorkCommand { get; }
+    public IAsyncRelayCommand<bool> SetStartBackupPlateCommand { get; }
+
+    private Task SetStartBackupPlateAsync(bool up, CancellationToken cancellationToken)
+    {
+        OutputIo? output = SelectedStartArea switch
+        {
+            StartArea.Station1 => OutputIo.PcbPlacementBackupPlateUp,
+            StartArea.Station2 => OutputIo.BoltFasteningBackupPlateUp,
+            StartArea.Station3 => OutputIo.InspectionBackupPlateUp,
+            _ => null,
+        };
+        if (output is not { } signal)
+            return Task.CompletedTask;
+        StartActionMessage = null;
+        return Machine.SetTeachingOutputAsync(Signals.Outputs[signal], cancellationToken, requestedValue: up);
+    }
 
     private void SelectStartArea(StartArea area)
     {
@@ -582,7 +600,8 @@ public partial class OperationViewModel : ObservableObject
     {
         try
         {
-            IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand];
+            IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
+                SetStartBackupPlateCommand, HomeCommand];
             var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
                 commands,
@@ -1054,7 +1073,8 @@ public partial class OperationViewModel : ObservableObject
                 case { IsRunning: true }:
                     return MachineDisplayState.Running;
                 default:
-                    return NgConveyor.AlarmRequired ? MachineDisplayState.NgEjectionRequired : MachineDisplayState.Ready;
+                    return NgConveyor.AlarmRequired || NgConveyor.IsEjectionPending
+                        ? MachineDisplayState.NgEjectionRequired : MachineDisplayState.Ready;
             }
         }
     }

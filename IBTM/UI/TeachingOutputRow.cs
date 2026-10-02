@@ -42,6 +42,6 @@ public sealed class TeachingOutputRow : ObservableObject
 
     private Task ToggleOutputAsync(CancellationToken cancellationToken)
     {
-        return _machine.ToggleTeachingOutputAsync(Io, cancellationToken, ViewCancellation);
+        return _machine.SetTeachingOutputAsync(Io, cancellationToken, ViewCancellation);
     }
 }

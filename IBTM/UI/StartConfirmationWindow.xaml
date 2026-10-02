@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="clr-namespace:IBTM.UI" xmlns:app="clr-namespace:IBTM"
     mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
     Title="{ui:Text 'Start confirmation'}" Width="1800" Height="960" MinWidth="1280" MinHeight="760"
@@ -224,7 +225,20 @@
                             <TextBlock Text="{ui:Text 'Carrier work'}" Style="{StaticResource ReviewHeading}"/>
                             <TextBlock Text="{Binding StartStation.CurrentJob.Id, StringFormat={ui:Text 'Work {0}'}}"/>
                             <UniformGrid Columns="2" Margin="0,12,0,0">
-                                <StackPanel><TextBlock Text="{ui:Text 'Backup plate'}" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding StartStation.BackupPlate, Converter={StaticResource UiTextConverter}}"/></StackPanel>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Text="{ui:Text 'Backup plate'}" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="{Binding StartStation.BackupPlate, Converter={StaticResource UiTextConverter}}"/>
+                                    <UniformGrid Columns="2" Margin="0,8,0,0" IsEnabled="{Binding State.ManualSetupEnabled}">
+                                        <Button Content="{ui:Text 'Up'}" Command="{Binding SetStartBackupPlateCommand}"
+                                            Height="36" Padding="8,4" Margin="0,0,4,0" Style="{StaticResource SecondaryButtonStyle}">
+                                            <Button.CommandParameter><sys:Boolean>True</sys:Boolean></Button.CommandParameter>
+                                        </Button>
+                                        <Button Content="{ui:Text 'Down'}" Command="{Binding SetStartBackupPlateCommand}"
+                                            Height="36" Padding="8,4" Margin="4,0,0,0" Style="{StaticResource SecondaryButtonStyle}">
+                                            <Button.CommandParameter><sys:Boolean>False</sys:Boolean></Button.CommandParameter>
+                                        </Button>
+                                    </UniformGrid>
+                                </StackPanel>
                                 <StackPanel><TextBlock Text="{ui:Text 'Stopper'}" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding StartStation.Stopper, Converter={StaticResource UiTextConverter}}"/></StackPanel>
                             </UniformGrid>
                             <ItemsControl ItemsSource="{Binding StartStation.Assemblies}" Margin="0,12,0,0">

@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using IBTM.AlphaMotion;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using IBTM.NgConveyor;
 using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
@@ -156,6 +158,74 @@ public sealed class AlarmRecoveryTests
                 () => lamps.All(output => io.GetOutput(output) == (output == lamp))
                     && io.GetOutput(OutputIo.Buzzer) == buzzer,
                 TimeSpan.FromSeconds(2)));
+        }
+    }
+
+    [Fact]
+    public async Task NgEjectionKeepsRedAndDoesNotRebuzzOnPassingSensors()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var conveyor = services.GetRequiredService<NgCarrierConveyor>();
+        await machine.InitializeAsync();
+        services.GetRequiredService<MachineSettings>().Units.NgConveyor = true;
+        services.GetRequiredService<MachineSettings>().NgConveyor.EjectRunSeconds = 0.1;
+        io.AutoResponseEnabled = false;
+        void ActuatorFeedback(OutputIo output, bool on)
+        {
+            if (output == OutputIo.NgShuttleDown)
+                io.SetInputs((InputIo.NgShuttleDown, on), (InputIo.NgShuttleUp, !on));
+            if (output == OutputIo.NgConveyorStopperUp)
+                io.SetInputs((InputIo.NgConveyorStopperUp, on), (InputIo.NgConveyorStopperDown, !on));
+        }
+        io.OutputChanged += ActuatorFeedback;
+        io.SetInputs((InputIo.NgConveyorPosition1Occupied, true),
+            (InputIo.NgConveyorPosition2Occupied, true), (InputIo.NgShuttleCarrierDetected, true));
+        state.AutomaticRunning = true;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await VirtualTestSupport.WaitForOutputAsync(io, OutputIo.NgCarrierEjectLamp, true);
+            Assert.True(io.GetOutput(OutputIo.Buzzer));
+            io.SetInput(InputIo.NgCarrierEjectButton, true);
+            await VirtualTestSupport.WaitForOutputAsync(io, OutputIo.NgConveyorRun, true);
+            Assert.True(conveyor.IsEjectionPending);
+            Assert.False(io.GetOutput(OutputIo.Buzzer));
+            // Passing sensors must neither clear the red indication nor retrigger the buzzer.
+            foreach (var input in new[] { InputIo.NgConveyorPosition1Occupied, InputIo.NgConveyorPosition2Occupied })
+            {
+                io.SetInput(input, false);
+                Assert.True(io.GetOutput(OutputIo.TowerLampRed));
+                io.SetInput(input, true);
+                Assert.False(io.GetOutput(OutputIo.Buzzer));
+                Assert.True(io.GetOutput(OutputIo.TowerLampRed));
+            }
+            state.SetError(MachineAlarm.MotionUnavailable);
+            await VirtualTestSupport.WaitForOutputAsync(io, OutputIo.Buzzer, true);
+            state.ClearError();
+            await VirtualTestSupport.WaitForOutputAsync(io, OutputIo.Buzzer, false);
+            await VirtualTestSupport.WaitForOutputAsync(io, OutputIo.NgCarrierEjectCompleteLamp, true);
+            io.SetInput(InputIo.NgCarrierEjectButton, false);
+            io.SetInputs((InputIo.NgConveyorPosition1Occupied, false),
+                (InputIo.NgConveyorPosition2Occupied, false), (InputIo.NgShuttleCarrierDetected, false));
+            Assert.True(io.GetOutput(OutputIo.TowerLampRed));
+            Assert.False(io.GetOutput(OutputIo.Buzzer));
+            io.SetInput(InputIo.NgCarrierEjectCompleteButton, true);
+            io.SetInput(InputIo.NgCarrierEjectCompleteButton, false);
+            await VirtualTestSupport.WaitForOutputAsync(io, OutputIo.TowerLampGreen, true);
+            Assert.False(conveyor.IsEjectionPending);
+            Assert.False(io.GetOutput(OutputIo.TowerLampRed));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            io.OutputChanged -= ActuatorFeedback;
+            state.AutomaticRunning = false;
+            await machine.ShutdownAsync();
         }
     }
 

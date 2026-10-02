@@ -418,11 +418,15 @@ to Position 2, and with Positions 1 and 2 occupied it remains at Position 3. All
 occupied inputs block the next NG pickup at Station 3. After the gripper releases and
 the pickup rises, the shuttle lowers even when all three positions are occupied.
 The inspection handler returns after DOWN feedback; the NG belt stays stopped at full capacity.
-An eject request raises the loaded shuttle before the lower belt ejects P1 and compacts P2. After eject completion
-is acknowledged, the shuttle can lower its retained carrier into the free position.
-The eject button releases the Carrier at Position 1. The complete lamp
-stays on until the operator removes the ejected carrier and presses the eject-complete
-button; operator confirmation has no automatic timeout.
+Each EJECT press performs one timed discharge from P1. A loaded shuttle stays DOWN,
+even with P1 and P2 occupied and during ejection, so the inspection handler can return.
+Ejection never raises it. After each timed discharge the belt stays stopped until the
+operator removes the discharged carrier and presses EJECT again. P3 also counts as a
+remaining carrier; it can discharge directly through P1 without an intervening normal-storage cycle.
+COMPLETE ends removal and resumes normal receiving; it is not required between EJECT presses.
+The stopper stays DOWN until COMPLETE, and operator confirmation has no automatic timeout.
+The red removal indication remains on throughout this operation. EJECT acknowledges the NG buzzer;
+sensor transitions during removal do not sound it again. Independent machine faults still sound normally.
 
 ## UI rules
 

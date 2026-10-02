@@ -45,9 +45,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly ILogger<MachineController>? _log;
     private readonly Lock _resetGate;
     private Task _resetTask;
-    private readonly ConcurrentQueue<(MachineAlarm Alarm, bool Running, bool NgAlarm, bool SilenceBuzzer)> _indicatorNotifications;
+    private readonly ConcurrentQueue<(MachineAlarm Alarm, bool Running, bool NgAlarm, bool NgEjectionPending, bool SilenceBuzzer)> _indicatorNotifications;
     // Last handled notification, not the physical lamp/buzzer state.
-    private (MachineAlarm Alarm, bool Running, bool NgAlarm)? _lastIndicatorNotification;
+    private (MachineAlarm Alarm, bool Running, bool NgAlarm, bool NgEjectionPending)? _lastIndicatorNotification;
     // Device callbacks must not wait for the writer that may be using their device.
     private int _indicatorWriterActive;
 
@@ -1923,7 +1923,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
         if (!_io.IsReady)
             return;
 
-        _indicatorNotifications.Enqueue((_state.Alarm, _state.AutomaticRunning, _ngConveyor.AlarmRequired, silenceBuzzer));
+        _indicatorNotifications.Enqueue((
+            _state.Alarm, _state.AutomaticRunning,
+            _ngConveyor.AlarmRequired, _ngConveyor.IsEjectionPending, silenceBuzzer));
         do
         {
             if (Interlocked.CompareExchange(ref _indicatorWriterActive, 1, 0) != 0)
@@ -1939,20 +1941,25 @@ public sealed partial class MachineController : INotifyPropertyChanged
                         _io.SetOutput(OutputIo.Buzzer, false);
                         continue;
                     }
-                    var notification = (request.Alarm, request.Running, request.NgAlarm);
+                    var notification = (request.Alarm, request.Running, request.NgAlarm, request.NgEjectionPending);
                     var previous = _lastIndicatorNotification;
                     if (previous == notification)
                         continue;
 
-                    var attention = notification.Alarm != MachineAlarm.None || notification.NgAlarm;
+                    var attention = notification.Alarm != MachineAlarm.None
+                        || notification.NgAlarm || notification.NgEjectionPending;
                     var newAlarm = notification.Alarm != MachineAlarm.None
                             && notification.Alarm != previous?.Alarm
-                        || notification.NgAlarm && previous?.NgAlarm != true;
+                        || notification.NgAlarm && !notification.NgEjectionPending
+                            && (previous?.NgAlarm != true || previous?.NgEjectionPending == true);
 
                     _io.SetOutput(OutputIo.TowerLampGreen, notification.Running && !attention);
                     _io.SetOutput(OutputIo.TowerLampYellow, !notification.Running && !attention);
                     _io.SetOutput(OutputIo.TowerLampRed, attention);
-                    if (!attention || newAlarm)
+                    // EJECT acknowledges the NG alert. Passing sensors during removal must
+                    // not sound it again; independent machine faults still sound normally.
+                    if (!attention || newAlarm
+                        || notification.NgEjectionPending && notification.Alarm == MachineAlarm.None)
                         _io.SetOutput(OutputIo.Buzzer, newAlarm);
 
                     _lastIndicatorNotification = notification;
@@ -2204,10 +2211,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 || IsManualMotionReady(MotionGroup.PcbSupply, live: false) && _pcbSupply.IsRotationAllowed);
     }
 
-    internal async Task ToggleTeachingOutputAsync(
+    internal async Task SetTeachingOutputAsync(
         IoOutputStatus output,
         CancellationToken cancellationToken,
-        CancellationToken viewCancellation)
+        CancellationToken viewCancellation = default,
+        bool? requestedValue = null)
     {
         var activeToken = cancellationToken;
         try
@@ -2226,7 +2234,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             if (_state.IsRunningFor(includeOperations: false))
                 return;
             operation.Token.ThrowIfCancellationRequested();
-            var value = !_io.GetOutput(output.Signal);
+            var value = requestedValue ?? !_io.GetOutput(output.Signal);
             operation.Token.ThrowIfCancellationRequested();
             switch (output.Signal)
             {

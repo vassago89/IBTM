@@ -1677,7 +1677,7 @@ public sealed class IoStartupTests
         try
         {
             if (outputCommand)
-                await machine.ToggleTeachingOutputAsync(
+                await machine.SetTeachingOutputAsync(
                     services.GetRequiredService<IoSignals>().Outputs[OutputIo.NgCarrierPickupDown], default, default);
             else
                 await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus).WaitAsync(TimeSpan.FromSeconds(2));
@@ -1713,7 +1713,7 @@ public sealed class IoStartupTests
             if (diagnostic)
                 new OutputSignalRow(output, machine).ToggleCommand.Execute(null);
             else
-                await machine.ToggleTeachingOutputAsync(output, default, default);
+                await machine.SetTeachingOutputAsync(output, default, default);
 
             Assert.True(stopped);
             Assert.False(started);

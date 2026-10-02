@@ -56,7 +56,8 @@
     <Canvas>
         <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="170">
             <TextBlock Text="{ui:Text 'NG Conveyor'}" FontSize="15" FontWeight="SemiBold" TextAlignment="Left" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" FontSize="16">
+            <TextBlock TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Margin="0,6,0,0" FontSize="16"
+                Height="44" LineHeight="20" LineStackingStrategy="BlockLineHeight">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Text" Value="{Binding NgConveyorState, Converter={StaticResource UiTextConverter}, TargetNullValue={ui:Text 'Status Unavailable'}, FallbackValue={ui:Text 'Status Unavailable'}}"/>
@@ -96,6 +97,54 @@
                 </TextBlock.Style>
             </TextBlock>
         </StackPanel>
+        <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="126"
+            Width="170" Height="150" Padding="12" FontSize="17" FontWeight="SemiBold"
+            TextWrapping="Wrap" LineHeight="23" LineStackingStrategy="BlockLineHeight"
+            Background="{StaticResource AlarmStateBackgroundBrush}" Foreground="{StaticResource AccentAmberBrush}">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Hidden"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding NgConveyor.AlarmRequired}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="Text" Value="{ui:Text 'NG carriers need unloading.'}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding NgConveyor.IsEjectionPending}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="Text" Value="{ui:Text 'Preparing the next carrier. Wait for the EJECT lamp.'}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Signals.Outputs[NgCarrierEjectLamp].IsOn}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="Text" Value="{ui:Text 'Press the NG EJECT button on the machine.'}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Signals.Outputs[NgCarrierEjectCompleteLamp].IsOn}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="Text" Value="{ui:Text 'Remove the carrier, then press EJECT COMPLETE.'}"/>
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding Signals.Outputs[NgCarrierEjectLamp].IsOn}" Value="True"/>
+                                <Condition Binding="{Binding Signals.Outputs[NgCarrierEjectCompleteLamp].IsOn}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Text" Value="{ui:Text 'Remove carrier. EJECT for next / COMPLETE to finish.'}"/>
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Static ng:NgConveyorState.EjectingCarrier}">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="Text" Value="{ui:Text 'Ejecting. Wait until the conveyor stops.'}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State.AutomaticRunning}" Value="False">
+                            <Setter Property="Text" Value="{ui:Text 'Start operation to unload NG carriers.'}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Units.NgConveyor}" Value="False">
+                            <Setter Property="Visibility" Value="Hidden"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State.Available}" Value="False">
+                            <Setter Property="Visibility" Value="Hidden"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
         <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.NgConveyorLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.NgConveyorTop}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -110,6 +159,38 @@
             <Border Grid.RowSpan="5" Width="{x:Static ui:MachineDiagramLayout.NgConveyorWidth}"
                 Tag="{Binding Signals.Outputs[NgConveyorRun].IsOn}"
                 Style="{StaticResource ConveyorBedStyle}"/>
+            <Border Grid.RowSpan="5" Margin="-4" BorderThickness="3" CornerRadius="4"
+                BorderBrush="{StaticResource AccentRedBrush}" Background="#18EF8585" IsHitTestVisible="False">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Hidden"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding NgConveyor.AlarmRequired}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding NgConveyor.IsEjectionPending}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding State.Available}" Value="False">
+                                <Setter Property="Visibility" Value="Hidden"/>
+                            </DataTrigger>
+                            <Trigger Property="Visibility" Value="Visible">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard x:Name="NgAttentionPulse">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.35" To="1"
+                                                Duration="0:0:0.8" AutoReverse="True" RepeatBehavior="Forever"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <RemoveStoryboard BeginStoryboardName="NgAttentionPulse"/>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
             <Border Height="{x:Static ui:MachineDiagramLayout.PlatePadding}"/>
             <Border Grid.Row="4" Height="{x:Static ui:MachineDiagramLayout.PlatePadding}"/>
             <Grid Grid.Row="1" Height="{x:Static ui:MachineDiagramLayout.NgPositionHeight}">
@@ -179,15 +260,23 @@
                 </Border.Style>
             </Border>
         </Grid>
-        <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="212">
-            <TextBlock Text="{ui:Text 'P3 LIFT'}" Style="{StaticResource EquipmentRoleLabelStyle}" Margin="0,0,0,12"/>
-            <Viewbox Width="150">
+        <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="288" Width="170">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="20"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.ColumnSpan="2" Text="{ui:Text 'P3 LIFT'}" Style="{StaticResource EquipmentRoleLabelStyle}" Margin="0,0,0,8"/>
+            <Viewbox Grid.Row="1" Width="130" HorizontalAlignment="Left">
                 <Canvas Width="284" Height="48">
                     <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
                     <Path Tag="{Binding NgConveyor.ShuttleLift}" Style="{StaticResource PlateElevationStyle}"/>
                 </Canvas>
             </Viewbox>
-        </StackPanel>
-        <Path Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="276" Style="{StaticResource NgBeltDirectionStyle}"/>
+            <Path Grid.Row="1" Grid.Column="1" Height="28" Stretch="Uniform" Style="{StaticResource NgBeltDirectionStyle}"/>
+        </Grid>
     </Canvas>
 </UserControl>
