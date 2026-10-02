@@ -226,11 +226,7 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.False(vacuumStarted);
 
         await rig.Work.SeatAsync(stop.Token);
-        rig.Placer.StepChanged += () =>
-        {
-            if (rig.Placer.Step is PcbPlacementState.ReceivingPcb)
-                rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
-        };
+        rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.True(await rig.Placer.ExecuteStepAsync(
             rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, stop.Token));
         Assert.True(moved);

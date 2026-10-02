@@ -391,6 +391,9 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync();
         try
         {
+            Assert.True(await WaitUntilAsync(() => state.AutomaticRunning, TimeSpan.FromSeconds(2)), state.AlarmDetail);
+            io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+            await placer.Station.SeatAsync(default);
             await run.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal(MachineAlarm.PcbPlacement, state.Alarm);
             Assert.True(supplier.IsHandoffRestartAllowed, state.AlarmDetail);
