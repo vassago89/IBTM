@@ -303,7 +303,7 @@ public sealed class MotionSafetyTests
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 1_000);
-        await io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true);
         var rotations = new List<bool>();
         io.OutputChanged += (output, on) =>
         {
