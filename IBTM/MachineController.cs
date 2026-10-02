@@ -647,29 +647,43 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         get
         {
-            var checks = Enum.GetValues<StartArea>().ToDictionary(area => area, area => StartCheckState.Unknown);
-            if (_io.IsReady)
+            var checks = new Dictionary<StartArea, StartCheckState>();
+            foreach (var area in Enum.GetValues<StartArea>())
             {
-                checks[StartArea.Supply] = !_io.GetInput(InputIo.PcbSupplyPcbDetected) ? StartCheckState.Empty
-                    : !_state.RepeatEnabled && _pcbSupply.IsHandoffRestartAllowed
-                        ? StartCheckState.HandoffReady : StartCheckState.MaterialRemaining;
-                checks[StartArea.Placement] = _io.GetInput(InputIo.PcbPlacementPcbDetected)
-                    || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
-                        ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
-                checks[StartArea.PickupHead] = _io.GetInput(InputIo.PickupHeadVacuumDetected)
-                    ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
-                checks[StartArea.ShootingHead] = _io.GetInput(InputIo.ShootingHeadVacuumDetected)
-                    || _io.GetInput(InputIo.ShootingTubeBoltDetected)
-                        ? StartCheckState.MaterialRemaining : StartCheckState.Empty;
-                checks[StartArea.Station1] = !_pcbPlacement.Station.CarrierPresent ? StartCheckState.Empty
-                    : _pcbPlacement.Station.Completed ? StartCheckState.Completed
-                    : _pcbPlacement.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier;
-                checks[StartArea.Station2] = !_fasteningStation.Station.CarrierPresent ? StartCheckState.Empty
-                    : _fasteningStation.Station.Completed ? StartCheckState.Completed
-                    : _fasteningStation.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier;
-                checks[StartArea.Station3] = !_inspectionStation.Station.CarrierPresent ? StartCheckState.Empty
-                    : _inspectionStation.Station.Completed ? StartCheckState.Completed
-                    : _inspectionStation.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier;
+                var enabled = area switch
+                {
+                    StartArea.Supply => _units.PcbSupply,
+                    StartArea.Placement or StartArea.Station1 => _units.PcbPlacement,
+                    StartArea.PickupHead or StartArea.ShootingHead or StartArea.Station2 => _units.BoltFastening,
+                    StartArea.Station3 => _units.Inspection,
+                    _ => throw new ArgumentOutOfRangeException(nameof(area)),
+                };
+                checks[area] = !enabled ? StartCheckState.Disabled
+                    : !_io.IsReady ? StartCheckState.Unknown
+                    : area switch
+                    {
+                        StartArea.Supply => !_io.GetInput(InputIo.PcbSupplyPcbDetected) ? StartCheckState.Empty
+                            : !_state.RepeatEnabled && _pcbSupply.IsHandoffRestartAllowed
+                                ? StartCheckState.HandoffReady : StartCheckState.MaterialRemaining,
+                        StartArea.Placement => _io.GetInput(InputIo.PcbPlacementPcbDetected)
+                            || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
+                                ? StartCheckState.MaterialRemaining : StartCheckState.Empty,
+                        StartArea.PickupHead => _io.GetInput(InputIo.PickupHeadVacuumDetected)
+                            ? StartCheckState.MaterialRemaining : StartCheckState.Empty,
+                        StartArea.ShootingHead => _io.GetInput(InputIo.ShootingHeadVacuumDetected)
+                            || _io.GetInput(InputIo.ShootingTubeBoltDetected)
+                                ? StartCheckState.MaterialRemaining : StartCheckState.Empty,
+                        StartArea.Station1 => !_pcbPlacement.Station.CarrierPresent ? StartCheckState.Empty
+                            : _pcbPlacement.Station.Completed ? StartCheckState.Completed
+                            : _pcbPlacement.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier,
+                        StartArea.Station2 => !_fasteningStation.Station.CarrierPresent ? StartCheckState.Empty
+                            : _fasteningStation.Station.Completed ? StartCheckState.Completed
+                            : _fasteningStation.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier,
+                        StartArea.Station3 => !_inspectionStation.Station.CarrierPresent ? StartCheckState.Empty
+                            : _inspectionStation.Station.Completed ? StartCheckState.Completed
+                            : _inspectionStation.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier,
+                        _ => throw new ArgumentOutOfRangeException(nameof(area)),
+                    };
             }
             return checks;
         }

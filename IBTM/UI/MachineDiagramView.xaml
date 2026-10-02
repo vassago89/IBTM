@@ -12,6 +12,9 @@
             <Setter Property="Visibility" Value="Visible"/>
             <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
             <Style.Triggers>
+                <Trigger Property="Tag" Value="{x:Static app:StartCheckState.Disabled}">
+                    <Setter Property="BorderBrush" Value="Transparent"/>
+                </Trigger>
                 <Trigger Property="Tag" Value="{x:Static app:StartCheckState.MaterialRemaining}">
                     <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
                 </Trigger>

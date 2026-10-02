@@ -38,6 +38,8 @@ public enum StartCheckState
     ReworkReady,
     [Description("Ready for Placement handoff")]
     HandoffReady,
+    [Description("Disabled")]
+    Disabled,
 }
 
 public enum CarrierWorkAction
