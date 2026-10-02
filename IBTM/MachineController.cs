@@ -285,7 +285,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new(nameof(HomeBlock)));
             PropertyChanged?.Invoke(this, new(nameof(IsHomeAllowed)));
         }
-        if (e.PropertyName is nameof(MachineState.Alarm) or nameof(MachineState.AutomaticRunning))
+        if (e.PropertyName is nameof(MachineState.Alarm) or nameof(MachineState.AutomaticRunning)
+            or nameof(MachineState.FeedbackReadiness))
             UpdateMachineIndicators();
     }
 
@@ -1917,14 +1918,18 @@ public sealed partial class MachineController : INotifyPropertyChanged
         UpdateMachineIndicators(silenceBuzzer: true);
     }
 
-    // Called by alarm/run/NG notifications, never by the display or acquisition loops.
+    // Called when alarm/run/motion readiness/NG state changes, not on every display refresh or sample.
     private void UpdateMachineIndicators(bool silenceBuzzer = false)
     {
         if (!_io.IsReady)
             return;
 
+        // Idle axes can report a fault without a running sequence latching a machine alarm.
+        var alarm = _state.Alarm;
+        if (alarm == MachineAlarm.None && _state.FeedbackReadiness.Faulted)
+            alarm = MachineAlarm.MotionUnavailable;
         _indicatorNotifications.Enqueue((
-            _state.Alarm, _state.AutomaticRunning,
+            alarm, _state.AutomaticRunning,
             _ngConveyor.AlarmRequired, _ngConveyor.IsEjectionPending, silenceBuzzer));
         do
         {

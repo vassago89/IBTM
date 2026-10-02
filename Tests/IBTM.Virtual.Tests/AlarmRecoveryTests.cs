@@ -162,6 +162,65 @@ public sealed class AlarmRecoveryTests
     }
 
     [Fact]
+    public async Task IdleMotionFaultUpdatesIndicatorsWithoutAViewOrLatchedAlarm()
+    {
+        await using var services = CreateServices();
+        services.GetRequiredService<MachineSettings>().Units.PcbSupply = true;
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
+        await machine.InitializeAsync();
+        try
+        {
+            await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+            motion.SetAlarm(MotionAxis.X, true);
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
+            Assert.True(state.FeedbackReadiness.Faulted);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(state.AutomaticRunning);
+
+            machine.SilenceBuzzer();
+            // Other readiness changes must not acknowledge the fault or sound it again.
+            motion.SetServo(MotionAxis.X, false);
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => !state.FeedbackReadiness.ServosOn, TimeSpan.FromSeconds(2)));
+            state.Refresh();
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
+
+            motion.SetAlarm(MotionAxis.X, false);
+            await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+            motion.SetAlarm(MotionAxis.X, true);
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
+            await machine.ResetAsync();
+            await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+            Assert.False(state.FeedbackReadiness.Faulted);
+
+            // Diagnostic faults on an unused unit must not change production indicators.
+            var unused = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
+            unused.SetAlarm(MotionAxis.X, true);
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => services.GetRequiredService<MachineFeedbackMonitor>().Motions[MotionGroup.BoltFastening]
+                    .MonitorAxes[MotionAxis.X].Sample.State is { Alarm: true },
+                TimeSpan.FromSeconds(2)));
+            await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+
+        async Task AssertIndicatorsAsync(OutputIo lamp, bool buzzer)
+        {
+            OutputIo[] lamps = [OutputIo.TowerLampGreen, OutputIo.TowerLampYellow, OutputIo.TowerLampRed];
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => lamps.All(output => io.GetOutput(output) == (output == lamp))
+                    && io.GetOutput(OutputIo.Buzzer) == buzzer,
+                TimeSpan.FromSeconds(2)));
+        }
+    }
+
+    [Fact]
     public async Task NgEjectionKeepsRedAndDoesNotRebuzzOnPassingSensors()
     {
         await using var services = CreateServices();
