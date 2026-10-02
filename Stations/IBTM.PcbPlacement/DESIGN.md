@@ -33,7 +33,10 @@ confirms its own grip. A Repeat return publishes
 position, and `Clear` after the Y departure settles. Internal placement/press stages
 are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
 documents these conditions and reference direction.
-Starting another axis move clears the previous handoff completion; manual moves do not select a new process stage or start recovery moves.
+Handoff readiness uses the completed sequence stage and current axis, lift and grip feedback;
+there is no stored handoff coordinate or permanent invalidation after an axis fault.
+After Z/Y departure, `WaitingForSupplyDeparture` publishes `Clear` until Supply acknowledges it.
+Manual moves do not select a new process stage or start recovery moves.
 
 Teaching lists `PCB Receive Standby` (XYZ, Save) and
 `PCB Receive Z` (Z only, saved automatically). Existing settings retain their
@@ -71,8 +74,7 @@ the sequence prepares Up for Repeat and Down for normal receipt.
 PCB detection and vacuum still confirm holding. Normal production retains the IPM press.
 Forward receipt and Repeat pickup both confirm PCB detection and vacuum after
 vacuum completes. Only then may Supply release, or Repeat enter `ReturningToSupply`.
-Return release also requires Placement to retain its confirmed receive position
-before releasing vacuum.
+Return release requires ready, stopped Placement axes and Supply `Holding` before releasing vacuum.
 A missing PCB signal with vacuum ON stops at pickup instead of raising the handler
 and trying the pickup again.
 Supply returns each PCB to its corresponding pickup XYZ, releases it there and

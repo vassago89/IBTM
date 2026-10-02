@@ -270,6 +270,10 @@ public sealed class PcbSupplyRepeatTests
             Assert.True(liftedEmpty);
             Assert.True(supplier.PcbSecured);
             Assert.True(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+            Assert.False(supplier.IsHandoffRestartAllowed);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => supplier.RunAsync(new NoPlacement()));
+            Assert.Equal(1, releases);
+            Assert.Equal(PcbSupplyState.HandingOff, supplier.Phase);
         }
         Assert.False(motion.IsMoving);
     }

@@ -74,17 +74,19 @@ Each unit owns its sequence enum and advances its process stage after the comman
 Coordinates never select a process stage or pickup slot.
 Program startup and manual motion do not reconstruct progress from matching teaching coordinates.
 Sensor feedback still validates each operation and handoff.
-Starting another axis move invalidates the previous handoff completion without changing the stored process stage or starting recovery moves.
+Handoff readiness uses the completed sequence stage and current axis, rotation and grip feedback.
+It does not store or continuously compare a handoff coordinate snapshot. Axis faults make it unavailable;
+restoring feedback does not require repeating the stage. START separately validates a retained PCB's taught handoff XYZ.
 Only `Handoff` and `Changed` cross the boundary through Core's
 `IPcbSupplyHandoff` / `IPcbPlacementHandoff`. These interfaces expose no handler,
 motion commands, or internal sequence stages, and do not store duplicate state.
 
 | Handoff | Confirmed locally | Peer action |
 | --- | --- | --- |
-| Supply `Holding` | Secured PCB at settled give XYZ with confirmed Unrotated feedback | Placement moves Z to its receive height with its cylinder Up |
-| Placement `Holding` | At receive XY/Z, handler Up, confirmed IPM endpoint (Up during active Repeat), PCB detected and vacuum confirmed | Supply retracts fixer, then opens gripper |
-| Supply `Released` | At give XYZ with confirmed Unrotated feedback, fixer and gripper released | Placement returns Z to standby, then departs along Y |
-| Placement `Clear` | Placement has settled at the heat sink Y after receipt, or is already working at the heat sink | Supply returns to pickup |
+| Supply `Holding` | Handoff move completed, axes ready and stopped, Unrotated and PCB grip confirmed | Placement moves Z to its receive height with its cylinder Up |
+| Placement `Holding` | Receipt completed, axes ready and stopped, handler Up, confirmed IPM endpoint, PCB detected and vacuum confirmed | Supply retracts fixer, then opens gripper |
+| Supply `Released` | Handoff stage, axes ready and stopped, Unrotated, fixer and gripper released | Placement returns Z to standby, then departs along Y |
+| Placement `Clear` | Z/Y departure completed, ready axes and raised handler; waiting for Supply departure | Supply returns to pickup |
 | Either unit `Unavailable` | Disabled or not at a confirmed handoff condition | Peer waits |
 
 `MachineController` passes Placement's handoff interface into Supply's run.
@@ -102,8 +104,8 @@ Supply releases only while Placement reports handoff `Holding`, which
 requires PCB detection and vacuum detection at the receive position with the handler Up.
 Normal receipt prepares IPM Down and Repeat prepares IPM Up. A contradictory
 or unknown endpoint is unavailable. Forward release checks recipient holding and
-Supply's confirmed, settled Unrotated handoff position before each actuator.
-Return receipt rechecks that position after gripper closure before advancing the fixer.
+Supply's ready, stopped axes and Unrotated feedback before each actuator.
+Return receipt rechecks these conditions after gripper closure before advancing the fixer.
 After release, Placement returns Z
 to standby with its handler cylinder still Up, then moves Y to the selected heat sink while retaining handoff X.
 Supply waits for Placement's `Clear` after that Y move before its XY return.

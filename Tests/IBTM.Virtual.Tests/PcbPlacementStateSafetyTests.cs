@@ -75,6 +75,14 @@ public sealed class PcbPlacementStateSafetyTests
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var departing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var departureMoves = 0;
+        rig.Motion.PositionChanged += (x, y, z) =>
+        {
+            if (rig.Placer.Phase != PcbPlacementState.PreparingPlacement)
+                return;
+            departureMoves++;
+            Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
+        };
         rig.Placer.Changed += () =>
         {
             if (rig.Placer.Handoff == PcbPlacementHandoff.Clear)
@@ -90,7 +98,8 @@ public sealed class PcbPlacementStateSafetyTests
         {
             await departing.Task.WaitAsync(stop.Token);
             Assert.False(run.IsCompleted);
-            Assert.Equal(PcbPlacementState.PreparingPlacement, rig.Placer.Phase);
+            Assert.True(departureMoves > 0);
+            Assert.Equal(PcbPlacementState.WaitingForSupplyDeparture, rig.Placer.Phase);
             Assert.Equal(rig.Position.Y, rig.Motion.Position.Y);
             Assert.Equal(rig.Settings.HandoffPosition.X, rig.Motion.Position.X);
             Assert.True(rig.Placer.PcbSecured);
@@ -438,7 +447,7 @@ public sealed class PcbPlacementStateSafetyTests
     }
 
     [Fact]
-    public async Task ReturnReleaseRejectsMovementAwayFromReceivePositionWhileStopped()
+    public async Task ReturnReleaseRequiresReadyAxes()
     {
         using var rig = new PlacementRig();
         await rig.InitializeAsync();
@@ -447,7 +456,7 @@ public sealed class PcbPlacementStateSafetyTests
         await rig.Placer.SetVacuumAsync(true);
         await rig.Placer.PrepareHandoffAsync(returning: true);
         Assert.Equal(PcbPlacementHandoff.Returning, rig.Placer.Handoff);
-        await rig.Motion.MoveAxisAsync(MotionAxis.X, 55, 2_000);
+        rig.Motion.SetServo(MotionAxis.X, false);
         rig.Supply.Handoff = PcbSupplyHandoff.Holding;
         var released = false;
         rig.Io.OutputChanged += (output, on) =>
@@ -459,11 +468,11 @@ public sealed class PcbPlacementStateSafetyTests
 
         Assert.False(released);
         Assert.True(rig.Placer.PcbSecured);
-        Assert.Equal(55, rig.Motion.Position.X);
+        Assert.Equal(rig.Settings.HandoffPosition.X, rig.Motion.Position.X);
     }
 
     [Fact]
-    public async Task AxisAlarmInvalidatesHeldPcbHandoffUntilItsStageRunsAgain()
+    public async Task HeldPcbHandoffReflectsCurrentAxisAlarmFeedback()
     {
         using var rig = new PlacementRig();
         await rig.InitializeAsync();
@@ -474,10 +483,6 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
         rig.Motion.SetAlarm(MotionAxis.Y, false);
         Assert.True(MotionServiceBase.IsAt(rig.Placer.Motion.Feedback, new() { X = 50, Y = 10, Z = 12 }));
-        Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
-
-        rig.Supply.Handoff = PcbSupplyHandoff.Holding;
-        await rig.Placer.ExecuteStepAsync(PcbPlacementState.ReceivingPcb, HeatSinkSlot.HeatSink1, CancellationToken.None);
         Assert.Equal(PcbPlacementHandoff.Holding, rig.Placer.Handoff);
     }
 
@@ -850,7 +855,7 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.Equal(50, rig.Motion.Position.X);
         Assert.True(rig.Placer.PcbSecured);
         Assert.Equal(StationCylinderState.Down, rig.Placer.IpmLift);
-        Assert.Equal(PcbPlacementHandoff.Clear, rig.Placer.Handoff);
+        Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
     }
 
     [Fact]

@@ -401,7 +401,7 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Fact]
-    public async Task ServoLossInvalidatesHandoffUntilItsStageRunsAgain()
+    public async Task HandoffReflectsCurrentServoFeedback()
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
@@ -411,9 +411,6 @@ public sealed class PcbSupplyHandoffTests
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
         rig.Motion.SetServo(MotionAxis.X, true);
         Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
-        Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
-
-        await rig.Supplier.PrepareHandoffAsync(CancellationToken.None);
         Assert.Equal(PcbSupplyHandoff.Released, rig.Supplier.Handoff);
     }
 
@@ -439,9 +436,12 @@ public sealed class PcbSupplyHandoffTests
 
         await rig.Supplier.PrepareHandoffAsync(CancellationToken.None);
         Assert.Equal(PcbSupplyHandoff.Holding, rig.Supplier.Handoff);
+        Assert.True(rig.Supplier.IsHandoffRestartAllowed);
         await rig.Motion.MoveAxisAsync(MotionAxis.X, target.X + 10, 2_000);
         Assert.Equal(PcbSupplyState.HandingOff, rig.Supplier.Phase);
-        Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
+        Assert.False(rig.Supplier.IsHandoffRestartAllowed);
+        await rig.Motion.MoveAxisAsync(MotionAxis.X, target.X, 2_000);
+        Assert.True(rig.Supplier.IsHandoffRestartAllowed);
     }
 
     [Theory]
@@ -465,7 +465,7 @@ public sealed class PcbSupplyHandoffTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task HandoffPositionLossKeepsTheGripperClosed(bool duringRelease)
+    public async Task HandoffAxisFaultKeepsTheGripperClosed(bool duringRelease)
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
@@ -492,10 +492,7 @@ public sealed class PcbSupplyHandoffTests
             rig.Supplier.StepChanged += () =>
             {
                 if (rig.Supplier.Step is PcbSupplyState.HandingOff)
-                {
                     rig.Motion.SetServo(MotionAxis.X, false);
-                    rig.Motion.SetServo(MotionAxis.X, true);
-                }
             };
         }
 
@@ -509,7 +506,7 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Fact]
-    public async Task ReturnReceiptPositionLossStopsBeforeFixerAdvances()
+    public async Task ReturnReceiptAxisFaultStopsBeforeFixerAdvances()
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
