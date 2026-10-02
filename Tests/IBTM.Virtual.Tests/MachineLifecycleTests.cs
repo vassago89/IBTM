@@ -3469,11 +3469,76 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task StartReviewExcludesDisabledUnitsAndAllowsConveyorStartWithTheirMaterials()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            io.SetInputs(
+                (InputIo.PcbSupplyPcbDetected, true),
+                (InputIo.PcbPlacementPcbDetected, true),
+                (InputIo.PcbPlacementVacuumDetected, true),
+                (InputIo.PickupHeadVacuumDetected, true),
+                (InputIo.ShootingHeadVacuumDetected, true),
+                (InputIo.ShootingTubeBoltDetected, true),
+                (InputIo.PcbPlacementHeatSink1Present, true),
+                (InputIo.BoltFasteningHeatSink1Present, true),
+                (InputIo.InspectionHeatSink1Present, true));
+            var writes = 0;
+            io.OutputChanged += (output, on) => writes++;
+
+            await review.CheckStartCommand.ExecuteAsync(null);
+
+            Assert.All(machine.StartChecks.Values, check => Assert.Equal(StartCheckState.Disabled, check));
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.True(review.IsStartReviewAllowed);
+            Assert.False(state.AutomaticRunning);
+            Assert.Equal(0, writes);
+
+            var admitted = false;
+            state.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(MachineState.AutomaticRunning) && state.AutomaticRunning)
+                {
+                    admitted = true;
+                    review.ConfirmStartCommand.Cancel();
+                }
+            };
+            await review.ConfirmStartCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(admitted);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+
+            // An explicitly repeated check reads a unit again after it is enabled.
+            settings.Units.BoltFastening = true;
+            machine.CheckStartMaterials();
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.PickupHead]);
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.ShootingHead]);
+            Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station2]);
+            Assert.Equal(StartCheckState.Disabled, machine.StartChecks[StartArea.Supply]);
+            Assert.Equal(StartCheckState.Disabled, machine.StartChecks[StartArea.Station1]);
+            Assert.Equal(StartCheckState.Disabled, machine.StartChecks[StartArea.Station3]);
+            Assert.False(review.IsStartReviewAllowed);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task StartReviewReportsEveryBlockedAreaWithoutMovingOrClearingJobs()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgConveyor);
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -3629,7 +3694,6 @@ public sealed partial class MachineLifecycleTests
     public async Task StartReviewClearsOnlySelectedStationResultsAndKeepsCarrierIdentity(StartArea area)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgConveyor);
         settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-clear-{Guid.NewGuid():N}");
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
@@ -3750,8 +3814,9 @@ public sealed partial class MachineLifecycleTests
     public async Task StartReviewClearAllowsOneStartAndDoesNotBypassHeldMaterial()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -3760,6 +3825,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             await machine.HomeAsync(CancellationToken.None);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
             io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
             var job = station.CurrentJob;
             machine.CheckStartMaterials();
@@ -3805,8 +3871,8 @@ public sealed partial class MachineLifecycleTests
     public async Task StartChecksHeldMaterialsOnlyWhenPressed()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgConveyor);
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -3894,8 +3960,14 @@ public sealed partial class MachineLifecycleTests
     public async Task StartRejectsUnfinishedCarrierEvenAfterRemovalAndReplacement(InputIo carrier)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        settings.Units = EnableOnly(carrier switch
+        {
+            InputIo.PcbPlacementHeatSink1Present => MachineUnit.PcbPlacement,
+            InputIo.BoltFasteningHeatSink1Present => MachineUnit.BoltFastening,
+            _ => MachineUnit.Inspection,
+        });
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -3909,6 +3981,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             await machine.HomeAsync(default);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
             io.SetInput(carrier, true);
             var job = station.CurrentJob;
             var assembly = station.GetAssembly(HeatSinkSlot.HeatSink1);
@@ -4260,6 +4333,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Units.PcbPlacement = true;
         await using var services = CreateServices(settings);
         services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints = [new() { FasteningX = 10, FasteningY = 10 }];
         var machine = services.GetRequiredService<MachineController>();
