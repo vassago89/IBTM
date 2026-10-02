@@ -690,6 +690,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
         return true;
     }
+
     private static NgTransferDestination GetOppositeDestination(NgTransferDestination destination)
     {
         return destination == NgTransferDestination.Shuttle
@@ -706,13 +707,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         await MoveToAsync(position, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         await Station.SeatAsync(cancellationToken);
-    }
-
-    private AxisPosition? GetTransferPosition(NgTransferDestination location)
-    {
-        return location == NgTransferDestination.Station
-            ? _settings.CarrierPickupPosition
-            : _settings.ShuttlePlacePosition;
     }
 
     private bool IsSupportReady(NgTransferDestination location)
@@ -755,7 +749,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var position = GetTransferPosition(source)
+        var position = (source == NgTransferDestination.Station
+            ? _settings.CarrierPickupPosition : _settings.ShuttlePlacePosition)
             ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to a carrier.");
         await MoveToAsync(position, cancellationToken: cancellationToken);
     }

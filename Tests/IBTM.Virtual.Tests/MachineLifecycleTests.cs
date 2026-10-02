@@ -5893,10 +5893,12 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await transfer.Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
-        io.SetInput(destination == NgTransferDestination.Shuttle
-            ? InputIo.InspectionHeatSink1Present : InputIo.NgShuttleCarrierDetected, true);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await transfer.ExecuteTransferAsync(destination, InspectionStationState.PickingCarrier, stop.Token);
+        await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        if (destination == NgTransferDestination.Station)
+            await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
+                InspectionStationState.PlacingCarrier, stop.Token, repeat: true);
         var target = destination == NgTransferDestination.Station
             ? settings.NgCarrierTransfer.CarrierPickupPosition! : settings.NgCarrierTransfer.ShuttlePlacePosition;
         var lowered = false;
