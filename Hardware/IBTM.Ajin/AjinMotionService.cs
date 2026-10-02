@@ -639,7 +639,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
 
     private void StopAxes(IEnumerable<int> axes)
     {
-        List<Exception>? failures = null;
+        List<(int Axis, Exception Error)>? failures = null;
         foreach (var axis in axes)
         {
             try
@@ -648,12 +648,34 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
             }
             catch (Exception exception)
             {
-                (failures ??= []).Add(exception);
+                (failures ??= []).Add((axis, exception));
             }
         }
 
-        if (failures is not null)
-            throw new MotionException("Stop axes", new AggregateException(failures));
+        if (failures is null)
+            return;
+
+        // Send STOP to every axis before collecting diagnostics from a failed one.
+        var errors = new List<Exception>();
+        foreach (var failure in failures)
+        {
+            try
+            {
+                var axis = Axes.Single(axis => GetAxis(axis) == failure.Axis);
+                var state = GetAxisState(axis);
+                errors.Add(new System.IO.IOException(
+                    $"AJIN {axis} (axis {failure.Axis}) feedback after STOP: {state}.",
+                    failure.Error));
+            }
+            catch (Exception feedbackError)
+            {
+                errors.Add(new AggregateException(
+                    $"AJIN axis {failure.Axis} feedback after STOP is unknown.",
+                    failure.Error, feedbackError));
+            }
+        }
+
+        throw new MotionException("Stop axes", new AggregateException(errors));
     }
 
     private double ReadPosition(int axis)

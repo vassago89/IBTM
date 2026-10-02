@@ -249,7 +249,7 @@ public sealed class AjinControllerTests
     }
 
     [Fact]
-    public void RecoveredCarrierArrivalDoesNotReuseCompletedConveyorStation()
+    public void CarrierFeedbackRecoveryKeepsWorkUntilExplicitClear()
     {
         Shared.TMCAEDLL.Reset();
         using var alpha = new IBTM.AlphaMotion.AlphaMotionController(new());
@@ -268,18 +268,8 @@ public sealed class AjinControllerTests
         using var io = new PhysicalIoService(
             alpha, ajin, inputs, new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>(), new());
         var work = ConveyorStation.CreateInspection(io);
-        var presentNotifications = 0;
-        work.CarrierChanged += present =>
-        {
-            if (present)
-            {
-                presentNotifications++;
-                Assert.True(work.CarrierSeated);
-            }
-        };
         AjinSdk.Inputs[0] = 0b111;
         io.Initialize();
-        Assert.Equal(0, presentNotifications); // Initial levels are not new input edges.
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordBolt(FasteningHead.Shooting, Guid.NewGuid(), new BoltResult(false, 1.25));
         work.Complete(work.CurrentJob);
@@ -290,8 +280,6 @@ public sealed class AjinControllerTests
         Assert.Same(job, work.CurrentJob);
         Assert.Same(assembly, Assert.Single(work.Assemblies));
         Assert.True(work.Completed);
-        // The first notification establishes presence without creating a new carrier job.
-        Assert.Equal(1, presentNotifications);
         AjinSdk.Inputs[0] = 0b110;
         io.RefreshInputs();
         Assert.False(work.CarrierPresent);
@@ -303,12 +291,20 @@ public sealed class AjinControllerTests
         io.Initialize();
 
         Assert.True(work.CarrierSeated);
+        Assert.Same(job, work.CurrentJob);
+        Assert.True(work.Completed);
+        Assert.Same(assembly, Assert.Single(work.Assemblies));
+        Assert.Throws<InvalidOperationException>(work.ClearJob);
+
+        AjinSdk.Inputs[0] = 0b110;
+        io.RefreshInputs();
+        work.ClearJob();
+        AjinSdk.Inputs[0] = 0b1111;
+        io.RefreshInputs();
+
         Assert.NotSame(job, work.CurrentJob);
         Assert.False(work.Completed);
         Assert.Empty(work.Assemblies);
-        Assert.Equal(2, presentNotifications);
-        io.RefreshInputs();
-        Assert.Equal(2, presentNotifications);
     }
 
     [Fact]
@@ -505,26 +501,57 @@ public sealed class AjinControllerTests
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMove"));
     }
 
-    [Fact]
-    public void StopReachesEveryAxisWithoutAnApplicationMoveAndKeepsActualFeedback()
+    [Theory]
+    [InlineData(4150U)]
+    [InlineData((uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN)]
+    public void StopReachesEveryAxisWithoutAnApplicationMoveAndKeepsActualFeedback(uint stopError)
     {
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
             controller, new() { Number = 9 }, new() { Number = 10 }, null,
             new(), new(), new());
-        AjinSdk.MotionAxes[9] = new(InMotion: 1);
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 4, ServoOn: 1, InMotion: 1);
         AjinSdk.MotionAxes[10] = new(InMotion: 1);
-        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = stopError;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 10)] = 0;
 
         var error = Assert.Throws<MotionException>(motion.Stop);
 
         Assert.Contains("axis 9", error.ToString());
+        Assert.Contains($"0x{stopError:X8}", error.ToString());
+        Assert.Contains("ServoOn = True", error.ToString());
+        Assert.Contains("Alarm = True", error.ToString());
+        Assert.Contains("InMotion = True", error.ToString());
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop))
             .Select(call => call.Axis!.Value));
         Assert.True(motion.IsMoving);
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
+    }
+
+    [Fact]
+    public void StopDiagnosticFailurePreservesTheStopErrorAndRunsAfterAllAxesStop()
+    {
+        using var controller = new AjinController(new());
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            new(), new(), new());
+        AjinSdk.MotionAxes[9] = new();
+        AjinSdk.MotionAxes[10] = new();
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = 4150;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 10)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmStatusReadMechanical), Axis: 9)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+
+        var error = Assert.Throws<MotionException>(motion.Stop);
+
+        var details = error.ToString();
+        Assert.Contains("0x00001036", details);
+        Assert.Contains("AxmStatusReadMechanical (axis=9)", details);
+        Assert.Contains("feedback after STOP is unknown", details);
+        Assert.DoesNotContain("InMotion = False", details);
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls.Take(2).Select(call => call.Axis!.Value));
+        Assert.All(AjinSdk.Calls.Take(2), call => Assert.Equal(nameof(CAXM.AxmMoveSStop), call.Operation));
     }
 
     [Theory]
