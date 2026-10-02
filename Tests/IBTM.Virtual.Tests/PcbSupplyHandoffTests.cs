@@ -621,6 +621,7 @@ public sealed class PcbSupplyHandoffTests
         {
             if (!lost && rig.Motion.IsMovingHorizontal && Math.Abs(x - initialX) > 0.1)
             {
+                Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
                 lost = true;
                 rig.Io.SetInputs((InputIo.PcbSupplyUnrotated, true), (InputIo.PcbSupplyRotated, false));
             }
@@ -633,7 +634,6 @@ public sealed class PcbSupplyHandoffTests
         Assert.True(lost);
         Assert.False(rig.Motion.IsMoving);
         Assert.NotEqual(leaving ? pickup.X : rig.Settings.HandoffPosition.X, rig.Motion.Position.X);
-        Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
     }
 
     [Theory]
