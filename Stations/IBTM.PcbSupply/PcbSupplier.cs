@@ -597,22 +597,8 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 case PcbSupplyState.WaitingForReturnClear:
                     return placement.Handoff == PcbPlacementHandoff.Clear
                         ? PcbSupplyState.ReturningToPickup : state;
-                case PcbSupplyState.PreparingReturnReceipt or PcbSupplyState.ReceivingReturnedPcb
-                    or PcbSupplyState.ReturningToPickup or PcbSupplyState.PlacingReturnedPcb
-                    or PcbSupplyState.MovingToHandoff:
-                    return state;
-                case PcbSupplyState.PickingReturnedPcb or PcbSupplyState.MovingToPickup:
-                    return PcbSecured ? PcbSupplyState.MovingToHandoff : state;
                 case PcbSupplyState.HandingOff:
                     return _units.PcbPlacement ? state : PcbSupplyState.ReturningToPickup;
-                case PcbSupplyState.WaitingForPlacementClear:
-                    break; // Use normal withdrawal after Placement clears the handoff.
-                default:
-                    if (PcbSecured)
-                        return PcbSupplyState.MovingToHandoff;
-                    if (_units.PcbPlacement)
-                        return PcbSupplyState.MovingToPickup;
-                    break;
             }
         }
         switch (state)

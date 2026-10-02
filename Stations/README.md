@@ -119,7 +119,7 @@ I/O 감시는 모든 유닛 생성이 끝난 뒤 `MachineController`에서 시�
 이를 위한 별도 `WaitingForSupplyClear` 단계와 외부 루프의 재선택은 두지 않는다.
 
 단계 전환은 기본 파일과 `.Repeat.cs`의 명시적인 시퀀스에서 수행한다.
-`PrepareHandoffAsync`는 인계 접근부터 수취 Z 이동까지 이어서 수행한다.
+Placement의 `PrepareHandoffAsync`는 대기 Z → IPM → X/Y → 수취 Z → PCB·진공 확인을 이어서 수행한다.
 티칭의 `MoveToTeachingPositionAsync`와 개별 축 이동은 시퀀스 단계를 변경하지 않는다.
 
 공통 기반인 `AutoUnit`에는 실행 수명·변경 대기·단계 통지만 둔다. 장치 호출, 분기,

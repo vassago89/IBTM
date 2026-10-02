@@ -24,8 +24,10 @@ the current execution/wait and becomes null after STOP. Both are updated through
 `EnterStep`; `GetNextStep` and `Handoff` only read state and feedback.
 Coordinates do not select stages or heat sinks. `MovingToHandoff` waits for Supply's
 `Holding` before approach; `ReturningToSupply` waits for `Released` for a Repeat return.
-`PrepareHandoffAsync` awaits standby Z, X, Y and receive Z in sequence while monitoring
-Supply readiness. Normal receipt continues to PCB detection and vacuum; Repeat publishes
+`PrepareHandoffAsync` awaits standby Z, IPM preparation, X, Y and receive Z in sequence,
+then PCB detection and vacuum for normal receipt. One feedback monitor and cancellation
+scope covers the operation: Supply must stay ready through descent, then until Placement
+confirms its own grip. A Repeat return publishes
 `WaitingForSupplyGrip` only after the receive Z move completes. There is no separate descent stage.
 `ExecuteStepAsync` returns Z to standby followed by placement Y once Supply is `Released`. Placement publishes `Holding` while securing the PCB at the receiving
 position, and `Clear` after the Y departure settles. Internal placement/press stages
