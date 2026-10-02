@@ -164,6 +164,8 @@ public sealed class BoltFasteningTests
             MinimumTurns = 11, MaximumTurns = 13,
         };
         var restored = System.Text.Json.JsonSerializer.Deserialize<BoltResult>(System.Text.Json.JsonSerializer.Serialize(final))!;
+        Assert.Equal(10, restored.PreliminaryResult!.MeasuredTurns);
+        Assert.Equal(2, restored.MeasuredTurns);
         Assert.Equal(12, restored.TotalTurns);
         Assert.Equal(AssemblyResult.Ok, restored.TurnsResult);
         Assert.Equal(AssemblyResult.Ng, (restored with { MaximumTurns = 11 }).TurnsResult);
