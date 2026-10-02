@@ -101,6 +101,8 @@
                                 </Style.Triggers>
                             </Style>
                         </DockPanel.Style>
+                        <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{Binding Fastening.ActiveStage, Converter={StaticResource UiTextConverter}, TargetNullValue='', FallbackValue=''}"/>
                         <TextBlock DockPanel.Dock="Left" Margin="0,0,6,0"
                             Text="{Binding BoltFasteningActiveBolt.HeatSink, Converter={StaticResource UiTextConverter}, StringFormat='{}{0} ·'}"/>
                         <TextBlock TextTrimming="CharacterEllipsis" ToolTip="{Binding BoltFasteningActiveBolt.Name}">

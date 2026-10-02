@@ -140,6 +140,11 @@
                                     <Run Text="{Binding RecentFastening.HeatSink, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                                     <Run Text=" · "/><Run Text="{Binding RecentFastening.Head, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                                 </TextBlock>
+                                <TextBlock Margin="0,0,0,8" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="{Binding RecentFastening.Result.Stage, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
+                                    <Run Text=" · "/><Run Text="{ui:Text 'Preset'}"/><Run Text=" "/>
+                                    <Run Text="{Binding RecentFastening.Result.Controller.Preset, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
+                                </TextBlock>
                                 <TextBlock FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -166,7 +171,21 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Text="{ui:Text 'TURNS'}" FontSize="13" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock FontSize="13" Foreground="{StaticResource TextMutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{ui:Text 'TURNS'}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RecentFastening.Result.Stage}" Value="{x:Static core:BoltFasteningStage.Preliminary}">
+                                                    <Setter Property="Text" Value="{ui:Text 'Pre-tightening turns'}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RecentFastening.Result.Stage}" Value="{x:Static core:BoltFasteningStage.Final}">
+                                                    <Setter Property="Text" Value="{ui:Text 'Combined turns'}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <TextBlock Text="{Binding RecentFastening.Result.TotalTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
                                     FontSize="36" FontWeight="SemiBold" FontFamily="Cascadia Mono, Consolas">
                                     <TextBlock.Style>

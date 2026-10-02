@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+    xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
     xmlns:ui="clr-namespace:IBTM.UI" xmlns:app="clr-namespace:IBTM"
     mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
     Title="{ui:Text 'Start confirmation'}" Width="1800" Height="960" MinWidth="1280" MinHeight="760"
@@ -195,8 +196,20 @@
                                                 <TextBlock Text="{Binding HeatSink, Converter={StaticResource UiTextConverter}}"
                                                     Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
                                             </StackPanel>
-                                            <TextBlock Grid.Column="1" Text="{Binding Status, Converter={StaticResource UiTextConverter}}"
-                                                Tag="{Binding Status}" Style="{StaticResource ResultValueStyle}" VerticalAlignment="Center"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Status, Converter={StaticResource UiTextConverter}}" Tag="{Binding Status}" HorizontalAlignment="Right">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Result.IsComplete}" Value="False"><Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/></DataTrigger>
+                                                                <DataTrigger Binding="{Binding Status}" Value="Pre-tightening NG"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Result.Stage, Converter={StaticResource UiTextConverter}, TargetNullValue='', FallbackValue=''}"
+                                                    FontSize="12" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right" Margin="0,3,0,0"/>
+                                            </StackPanel>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
