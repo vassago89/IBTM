@@ -543,17 +543,6 @@ public sealed partial class MainConveyor : AutoUnit
                     EnterStep(MainConveyorState.ReceivingFrontCarrier, waitingFor: "S1 Heat Sink 2 detected=ON");
                 }
                 StartMotor(transfer.Token);
-                if (receiving)
-                {
-                    try
-                    {
-                        await entered.Task.WaitAsync(timeout, transfer.Token);
-                    }
-                    catch (TimeoutException)
-                    {
-                        throw new IoTimeoutException(InputIo.MainConveyorEntryCarrierDetected, true, timeoutMilliseconds);
-                    }
-                }
                 try
                 {
                     await arrived.Task.WaitAsync(timeout, transfer.Token);

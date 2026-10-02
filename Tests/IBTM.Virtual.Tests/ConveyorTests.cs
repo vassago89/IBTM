@@ -1219,6 +1219,12 @@ public sealed class ConveyorTests
             Assert.Equal(trigger == InputIo.MainConveyorAvailableFromFront2, conveyor.UpstreamCarrierAvailable);
             Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateDown));
             Assert.True(io.GetInput(InputIo.PcbPlacementStopperUp));
+
+            // HS2 completes receipt even when SMEMA started the belt without an entry edge.
+            io.SetInputs((InputIo.PcbPlacementHeatSink1Present, true),
+                (InputIo.PcbPlacementHeatSink2Present, true));
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, false);
+            await ((IIoService)io).WaitForInputAsync(InputIo.PcbPlacementBackupPlateUp, true);
         }
         finally
         {
@@ -1282,11 +1288,11 @@ public sealed class ConveyorTests
     }
 
     [Theory]
-    [InlineData(InputIo.MainConveyorEntryCarrierDetected)]
-    [InlineData(InputIo.PcbPlacementHeatSink2Present)]
-    [InlineData(InputIo.BoltFasteningHeatSink2Present)]
-    [InlineData(InputIo.InspectionHeatSink2Present)]
-    public async Task TransferTimeoutStopsBeltAndReportsMissingArrivalInput(InputIo missingInput)
+    [InlineData(InputIo.PcbPlacementHeatSink2Present, true)]
+    [InlineData(InputIo.PcbPlacementHeatSink2Present, false)]
+    [InlineData(InputIo.BoltFasteningHeatSink2Present, false)]
+    [InlineData(InputIo.InspectionHeatSink2Present, false)]
+    public async Task TransferTimeoutStopsBeltAndReportsMissingArrivalInput(InputIo missingInput, bool smema)
     {
         var io = CreateIo(timeoutMilliseconds: 1_000);
         io.Initialize();
@@ -1297,11 +1303,8 @@ public sealed class ConveyorTests
             settings: new ConveyorSettings { TransferTimeoutSeconds = 0.2 });
         switch (missingInput)
         {
-            case InputIo.MainConveyorEntryCarrierDetected:
-                io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
-                break;
             case InputIo.PcbPlacementHeatSink2Present:
-                io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+                io.SetInput(smema ? InputIo.MainConveyorAvailableFromFront2 : InputIo.MainConveyorEntryCarrierDetected, true);
                 break;
             case InputIo.BoltFasteningHeatSink2Present:
                 await SetSeatedCarrierAsync(io, io,

@@ -67,7 +67,7 @@ S1이 비어 있고 S2 → S3 도착 뒤 전단 반입이 가능하다면,
 ## 메인 컨베이어 상태
 
 전단 반입 요청은 **입구의 가장 앞 캐리어 센서 ON 또는 Front 2 SMEMA Available ON**이다.
-두 신호가 동시에 들어올 필요는 없다. SMEMA만 먼저 켜져도 벨트를 구동하고 실제 입구 도착을 확인한다.
+두 신호가 동시에 들어올 필요는 없다. SMEMA만 먼저 켜져도 벨트를 구동하며, 이후에는 S1 HS2 도착만 확인한다.
 반대로 입구에 캐리어가 이미 있으면 SMEMA를 기다리지 않고 반입한다.
 S1에 받을 공간이 있어야 하며, S3 검사 중의 벨트 정지와 후방 이송 우선순위는 유지한다.
 티칭에서는 기존처럼 Front 2 TEST Available을 사용하고, 자동에서는 실제 SMEMA DI를 사용한다.
@@ -77,7 +77,7 @@ Repeat는 외부 SMEMA로 새 캐리어를 받지 않고 현재 입구 센서의
 | --- | --- |
 | `WaitingForFrontCarrier` | 입구 센서 ON 또는 전단 SMEMA Available ON 대기. |
 | `SeatingCarriers` | 재실한 S1·S2 중 착좌되지 않은 곳을 동시에 상승·스토퍼 하강시킨다. |
-| `ReceivingFrontCarrier` | S1 DOWN/스토퍼 UP 준비 → 벨트 구동 → 입구 도착 확인 → S1 HS2 감지 후 추가 구동 → 정지·상승. |
+| `ReceivingFrontCarrier` | S1 DOWN/스토퍼 UP 준비 → 벨트 구동 → S1 HS2 감지 후 추가 구동 → 정지·상승. 도착 타임아웃은 벨트 구동부터 HS2 감지까지 적용한다. |
 | `MovingBoltFasteningToInspection` | 목적지 DOWN/스토퍼 UP 준비 → S2 하강 → 벨트 이송 → S3 HS2 감지와 추가 구동 → 결과 인계 → 정지. 그다음 다른 캐리어 이송과 검사 중 우선 동작을 판단한다. |
 | `RaisingInspectionCarrier` | 검사 전 다른 물류를 우선할 때, 또는 검사 완료 후 즉시 배출할 수 없을 때 검사 유닛에 착좌를 요청한다. 검사 유닛이 픽업 위치 이동 → S3 상승 → 스토퍼 하강을 수행한다. |
 | `PreparingInspectionCarrier` | 우선할 이송이 없을 때 픽업의 비어 있음·상승을 확인하고, 스토퍼 UP → 플레이트 DOWN 확인 후 해당 캐리어의 검사를 요청한다. 하강 중 새 이송 요청이 들어오면 검사 요청 전에 다시 우선 처리한다. |
