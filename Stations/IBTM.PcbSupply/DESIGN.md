@@ -197,7 +197,11 @@ unavailable throughout this move. After arrival, Supply holds the PCB until
 Placement confirms holding. No coordinate comparison is used to admit this restart.
 The next pickup scan always starts at PCB 1, including after this handoff; the
 previous slot is not resumed. Partial release, interrupted travel and Repeat-held
-PCBs still require removal. An empty new run moves to PCB 1 standby;
+PCBs still require removal. A confirmed open gripper is not considered to hold
+a PCB merely because the PCB detector or IPM fixer input is ON. On a new run,
+the open gripper's extended fixer is retracted and its feedback awaited before
+empty travel. Unknown gripper feedback still blocks a detected PCB at START.
+An empty new run moves to PCB 1 standby;
 Repeat then waits for Placement's return request. Grip loss during the pickup lift
 still stops the operation, and a missing returned PCB does not advance to another slot.
 

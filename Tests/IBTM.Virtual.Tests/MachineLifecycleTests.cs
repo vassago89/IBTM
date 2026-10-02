@@ -3469,11 +3469,12 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(true, false, StartCheckState.Empty)]
-    [InlineData(false, true, StartCheckState.MaterialRemaining)]
-    [InlineData(false, false, StartCheckState.MaterialRemaining)]
+    [InlineData(true, false, false, StartCheckState.Empty)]
+    [InlineData(true, false, true, StartCheckState.Empty)]
+    [InlineData(false, true, false, StartCheckState.MaterialRemaining)]
+    [InlineData(false, false, false, StartCheckState.MaterialRemaining)]
     public async Task StartReviewDistinguishesVisibleSupplyPcbFromHeldPcb(
-        bool gripperOpen, bool gripperClosed, StartCheckState expected)
+        bool gripperOpen, bool gripperClosed, bool fixerForward, StartCheckState expected)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -3490,7 +3491,7 @@ public sealed partial class MachineLifecycleTests
             io.SetInputs((InputIo.PcbSupplyPcbDetected, true),
                 (InputIo.PcbSupplyGripperOpen, gripperOpen),
                 (InputIo.PcbSupplyGripperClosed, gripperClosed),
-                (InputIo.PcbSupplyIpmFixerForward, false),
+                (InputIo.PcbSupplyIpmFixerForward, fixerForward),
                 (InputIo.PcbSupplyRotated, true), (InputIo.PcbSupplyUnrotated, false));
             machine.CheckStartMaterials();
             Assert.Equal(expected, machine.StartChecks[StartArea.Supply]);

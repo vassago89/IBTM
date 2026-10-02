@@ -219,7 +219,8 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         if (cancellationToken.IsCancellationRequested)
             return;
         var continueHandoff = !repeat && IsHandoffRestartAllowed;
-        if (_units.PcbSupply && Pcb != PcbSupplyPcbState.None && !PcbReleased && !continueHandoff)
+        if (_units.PcbSupply && Pcb != PcbSupplyPcbState.None
+            && Gripper != PcbSupplyCylinderState.Backward && !continueHandoff)
             throw new InvalidOperationException("Remove the Supply PCB before starting a new run.");
         Exception? failure = null;
         _repeat = repeat;
@@ -230,6 +231,11 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         {
             BeginRun(_units.PcbSupply ? Phase : PcbSupplyState.Disabled);
             placement.Changed += WakeRun;
+            // An open gripper can see a PCB below. Retract its fixer before empty travel.
+            if (_units.PcbSupply && !continueHandoff
+                && Gripper == PcbSupplyCylinderState.Backward
+                && Io.GetInput(InputIo.PcbSupplyIpmFixerForward))
+                await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, cancellationToken);
             while (!cancellationToken.IsCancellationRequested)
             {
                 // Pickup and return release check their support below; other partial grips require a live handoff.

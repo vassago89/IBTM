@@ -266,14 +266,21 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task NewRunAllowsVisiblePcbWithReleasedGripper(bool facingPickup)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task NewRunAllowsVisiblePcbWithReleasedGripper(bool facingPickup, bool fixerForward)
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
         await rig.Supplier.SetTeachingRotationAsync(facingPickup);
         rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, fixerForward);
+        rig.Motion.MovingChanged += moving =>
+        {
+            if (moving)
+                Assert.True(rig.Supplier.PcbReleased);
+        };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var waitingForCarrier = false;
         rig.Supplier.StepChanged += () =>
@@ -291,6 +298,25 @@ public sealed class PcbSupplyHandoffTests
         Assert.True(rig.Supplier.PcbReleased);
         Assert.Equal(PcbSupplyPcbState.Detected, rig.Supplier.Pcb);
         Assert.False(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+        Assert.False(rig.Io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
+    }
+
+    [Fact]
+    public async Task NewRunDoesNotMoveUntilOpenGripperFixerRetracts()
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+        rig.Io.AutoResponseEnabled = false;
+        var moved = false;
+        rig.Motion.MovingChanged += moving => moved |= moving;
+
+        await Assert.ThrowsAsync<IoTimeoutException>(() => rig.Supplier.RunAsync(rig.Placement));
+
+        Assert.False(moved);
+        Assert.False(rig.Io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
+        Assert.True(rig.Io.GetInput(InputIo.PcbSupplyIpmFixerForward));
     }
 
     [Fact]

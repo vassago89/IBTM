@@ -663,7 +663,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     : area switch
                     {
                         // An open Supply gripper can see a PCB below without holding it.
-                        StartArea.Supply => !_io.GetInput(InputIo.PcbSupplyPcbDetected) || _pcbSupply.PcbReleased
+                        StartArea.Supply => !_io.GetInput(InputIo.PcbSupplyPcbDetected)
+                            || _pcbSupply.Gripper == PcbSupplyCylinderState.Backward
                             ? StartCheckState.Empty
                             : !_state.RepeatEnabled && _pcbSupply.IsHandoffRestartAllowed
                                 ? StartCheckState.HandoffReady : StartCheckState.MaterialRemaining,
