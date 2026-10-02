@@ -867,6 +867,7 @@ public sealed class UiBindingTests
 
                 resources[windowType] = hiddenStyle;
                 diagnostics.Owner = null;
+                await Task.Run(() => machineState.AutomaticRunning = true);
                 open();
                 var reopened = Application.Current.Windows.Cast<Window>().Single(window => window.GetType() == windowType);
                 Assert.True(reopened.IsVisible);
@@ -888,6 +889,7 @@ public sealed class UiBindingTests
             }
             finally
             {
+                machineState.AutomaticRunning = false;
                 io.SetInput(InputIo.AutoMode, true);
                 diagnostics.Owner = null;
                 invalidOwner?.Close();
@@ -917,19 +919,17 @@ public sealed class UiBindingTests
         }
         try
         {
-            // Repeat production can run while the selector remains in MANUAL.
+            // MANUAL keeps menus available during a running sequence; device operations stay interlocked.
             await Task.Run(() => machineState.AutomaticRunning = true);
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => maintenanceButtons.All(button => !button.IsEnabled), TimeSpan.FromSeconds(2)));
+                () => maintenanceButtons.All(button => button.IsEnabled), TimeSpan.FromSeconds(2)));
             Assert.True(navigation.IsNavigateAllowed(AppPage.Operation));
             Assert.True(navigation.IsNavigateAllowed(AppPage.Inspection));
-            Assert.False(navigation.IsNavigateAllowed(AppPage.ManualHardware));
-            Assert.False(navigation.IsNavigateAllowed(AppPage.Teaching));
-            Assert.False(navigation.IsNavigateAllowed(AppPage.Settings));
-            foreach (var button in maintenanceButtons)
-                button.Command.Execute(null);
-            Assert.DoesNotContain(Application.Current.Windows.Cast<Window>(),
-                window => window is OutputWindow or MotionDiagnosticsWindow or AdcProtocolWindow);
+            Assert.True(navigation.IsNavigateAllowed(AppPage.ManualHardware));
+            Assert.True(navigation.IsNavigateAllowed(AppPage.Teaching));
+            Assert.True(navigation.IsNavigateAllowed(AppPage.Settings));
+            Assert.False(machineState.ManualSetupEnabled);
+            Assert.False(machineState.SetupEditingEnabled);
         }
         finally
         {

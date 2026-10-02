@@ -1323,6 +1323,9 @@
   <data name="ng carrier ready to eject" xml:space="preserve">
     <value>NG 캐리어 배출 가능</value>
   </data>
+  <data name="ng carrier removal required" xml:space="preserve">
+    <value>NG 배출 대기</value>
+  </data>
   <data name="ng carrier transfer" xml:space="preserve">
     <value>NG 캐리어 이송</value>
   </data>

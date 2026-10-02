@@ -1323,6 +1323,9 @@ Operation failed. Check controller status.</value>
   <data name="ng carrier ready to eject" xml:space="preserve">
     <value>NG Carrier Ready to Eject</value>
   </data>
+  <data name="ng carrier removal required" xml:space="preserve">
+    <value>Unload NG carriers</value>
+  </data>
   <data name="ng carrier transfer" xml:space="preserve">
     <value>NG Carrier Transfer</value>
   </data>

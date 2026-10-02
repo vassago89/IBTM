@@ -222,7 +222,7 @@
     <Style x:Key="MachineStateBadgeStyle" TargetType="Border" BasedOn="{StaticResource StateBadgeStyle}">
         <Style.Triggers>
             <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.Ready}">
-                <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
             </Trigger>
             <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.HomeRequired}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
@@ -248,6 +248,10 @@
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </Trigger>
             <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.Alarm}">
+                <Setter Property="Background" Value="{StaticResource AlarmStateBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.NgEjectionRequired}">
                 <Setter Property="Background" Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </Trigger>

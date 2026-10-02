@@ -894,6 +894,7 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnNgConveyorChanged()
     {
+        OnPropertyChanged(nameof(MachineDisplayState));
         if (!_active)
             return;
 
@@ -1053,7 +1054,7 @@ public partial class OperationViewModel : ObservableObject
                 case { IsRunning: true }:
                     return MachineDisplayState.Running;
                 default:
-                    return MachineDisplayState.Ready;
+                    return NgConveyor.AlarmRequired ? MachineDisplayState.NgEjectionRequired : MachineDisplayState.Ready;
             }
         }
     }

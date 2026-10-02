@@ -389,6 +389,22 @@
             <StackPanel Orientation="Horizontal">
                 <Button x:Name="CancelButton" Content="{ui:Text 'Cancel · Esc'}" IsCancel="True" IsDefault="True"
                     MinWidth="130" Height="44" Style="{StaticResource SecondaryButtonStyle}"/>
+                <Button Command="{Binding HomeCommand}" IsEnabled="{Binding Machine.IsHomeAllowed}"
+                    ToolTip="{Binding Machine.HomeBlock, Converter={StaticResource UiTextConverter}}"
+                    ToolTipService.ShowOnDisabled="True" MinWidth="160" Height="44" Margin="12,0,0,0">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                            <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State.IsHoming}" Value="True">
+                                    <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="{ui:Text 'STOP'}" Command="{Binding StopCommand}" MinWidth="110" Height="44"
+                    Margin="8,0,0,0" Style="{StaticResource SecondaryButtonStyle}"/>
             </StackPanel>
             <Button Grid.Column="1" Content="{ui:Text 'Check again'}" Command="{Binding CheckStartCommand}"
                 MinWidth="150" Height="44" Margin="0,0,10,0">

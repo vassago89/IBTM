@@ -13,11 +13,13 @@ public sealed class ManualHardwareViewModel : ObservableObject
     public ManualHardwareViewModel(
         IoSignals signals,
         MachineController machine,
+        OperationViewModel operation,
         PcbSupplier supply,
         MainConveyor conveyor,
         ILogger<ManualConveyorRow> conveyorLog)
     {
         Signals = signals;
+        Operation = operation;
         Supply = supply;
         Conveyor = conveyor;
         supply.Changed += OnSupplyChanged;
@@ -29,6 +31,7 @@ public sealed class ManualHardwareViewModel : ObservableObject
     }
 
     public IoSignals Signals { get; }
+    public OperationViewModel Operation { get; }
     public PcbSupplier Supply { get; }
     public MainConveyor Conveyor { get; }
     public ManualConveyorRow[] Conveyors { get; }

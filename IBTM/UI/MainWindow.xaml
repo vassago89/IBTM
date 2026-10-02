@@ -415,31 +415,6 @@
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox Content="{ui:Text 'REPEAT'}" Margin="0,0,18,0" VerticalAlignment="Center"
-                                ToolTip="{ui:Text 'Dry run · no bolt supply or pickup vacuum. Carrier returns to S3.'}"
-                                IsChecked="{Binding Operation.State.RepeatEnabled, BindingGroupName={x:Null}}"
-                                IsEnabled="{Binding Operation.State.SetupEditingEnabled}"/>
-                            <Button Command="{Binding Operation.HomeCommand}"
-                                IsEnabled="{Binding Operation.Machine.IsHomeAllowed}"
-                                ToolTipService.ShowOnDisabled="True" MinWidth="144" Height="48" Margin="0,0,8,0">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                        <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
-                                        <Setter Property="ToolTip" Value="{Binding Operation.Machine.HomeBlock, Converter={StaticResource UiTextConverter}}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
-                                            Value="{x:Static ui:MachineDisplayState.Finishing}">
-                                            <Setter Property="Background" Value="{StaticResource AttentionBackgroundBrush}"/>
-                                            <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-                                            <Setter Property="Foreground" Value="White"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding Operation.State.IsHoming}" Value="True">
-                                                <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
                             <Button Content="{ui:Text 'START'}"
                                 Command="{Binding Operation.StartCommand}"
                                 MinWidth="144" Height="48" Margin="0,0,8,0">

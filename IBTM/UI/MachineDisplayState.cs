@@ -33,6 +33,9 @@ public enum MachineDisplayState
 
     [Description("Alarm")]
     Alarm,
+
+    [Description("NG carrier removal required")]
+    NgEjectionRequired,
 }
 
 public enum HandlerDisplayState

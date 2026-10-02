@@ -81,7 +81,7 @@ public sealed class DiagnosticWindowManager
 
     public void OpenOutputs()
     {
-        if (_state.AutoMode || _state.AutomaticRunning)
+        if (_state.AutoMode)
             return;
         if (_output is not null)
         {
@@ -102,7 +102,7 @@ public sealed class DiagnosticWindowManager
 
     public void OpenMotion()
     {
-        if (_state.AutoMode || _state.AutomaticRunning)
+        if (_state.AutoMode)
             return;
         if (_motion is not null)
         {
@@ -121,7 +121,7 @@ public sealed class DiagnosticWindowManager
 
     public void OpenAdcProtocol()
     {
-        if (_state.AutoMode || _state.AutomaticRunning)
+        if (_state.AutoMode)
             return;
         if (_adc is not null)
         {

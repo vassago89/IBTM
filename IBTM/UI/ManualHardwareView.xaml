@@ -9,6 +9,26 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="16" MaxWidth="1100" HorizontalAlignment="Left">
             <TextBlock Text="{ui:Text 'Manual'}" Style="{StaticResource TitleStyle}" Margin="0,0,0,12"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <CheckBox Content="{ui:Text 'REPEAT'}" Margin="0,0,24,0" VerticalAlignment="Center"
+                    ToolTip="{ui:Text 'Dry run · no bolt supply or pickup vacuum. Carrier returns to S3.'}"
+                    IsChecked="{Binding Operation.State.RepeatEnabled, Mode=TwoWay}"
+                    IsEnabled="{Binding Operation.State.SetupEditingEnabled}"/>
+                <Button Command="{Binding Operation.HomeCommand}" IsEnabled="{Binding Operation.Machine.IsHomeAllowed}"
+                    ToolTip="{Binding Operation.Machine.HomeBlock, Converter={StaticResource UiTextConverter}}"
+                    ToolTipService.ShowOnDisabled="True" MinWidth="160" Height="40">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                            <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Operation.State.IsHoming}" Value="True">
+                                    <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
             <ItemsControl ItemsSource="{Binding Conveyors}" Margin="0,0,-10,0">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>

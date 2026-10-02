@@ -131,10 +131,10 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // Manual work may stay open during its own operations, but never during production.
+    // Menu access follows the mode selector; device commands keep their own run interlocks.
     public bool IsMaintenanceAccessAllowed
     {
-        get => !_shuttingDown && !IsClosing && !_state.AutoMode && !_state.AutomaticRunning;
+        get => !_shuttingDown && !IsClosing && !_state.AutoMode;
     }
 
     public bool CurrentPageEnabled
@@ -332,7 +332,7 @@ public partial class MainViewModel : ObservableObject
         if (SelectedPage == AppPage.Settings)
             _settingsViewModel.RefreshCommands();
 
-        if (e.PropertyName is not (nameof(MachineState.AutoMode) or nameof(MachineState.AutomaticRunning) or null))
+        if (e.PropertyName is not (nameof(MachineState.AutoMode) or null))
             return;
         // Window closing and page activation own WPF views/collections.
         Application.Current.Dispatcher.BeginInvoke(() =>
