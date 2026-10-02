@@ -50,6 +50,31 @@
         </DrawingBrush.Drawing>
     </DrawingBrush>
 
+    <!-- Animate the outline only; equipment labels and guidance remain steady. -->
+    <Style x:Key="AlarmOutlineStyle" TargetType="Border">
+        <Setter Property="BorderThickness" Value="3"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+        <Setter Property="Background" Value="#18EF8585"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Visibility" Value="Hidden"/>
+        <Style.Triggers>
+            <Trigger Property="Visibility" Value="Visible">
+                <Trigger.EnterActions>
+                    <BeginStoryboard x:Name="AlarmOutlinePulse">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.35" To="1"
+                                Duration="0:0:0.8" AutoReverse="True" RepeatBehavior="Forever"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <RemoveStoryboard BeginStoryboardName="AlarmOutlinePulse"/>
+                </Trigger.ExitActions>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="MapLabelStyle" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>

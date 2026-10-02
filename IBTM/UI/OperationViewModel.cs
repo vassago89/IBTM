@@ -347,28 +347,76 @@ public partial class OperationViewModel : ObservableObject
 
     public string ModeText => State.Available ? (State.AutoMode ? UiText.Get("AUTO") : UiText.Get("MANUAL")) : UiText.Get("UNKNOWN");
 
-    public bool HasAlarm
-    {
-        get
-        {
-            return State.Alarm != MachineAlarm.None
-                || State.ReadError is not null;
-        }
-    }
+    public bool HasAlarm => Alarm is not MachineAlarm.None;
 
     public Enum Alarm
     {
         get
         {
-            return State.ReadError is null
-                ? State.Alarm
-                : MachineDisplayState.Unavailable;
+            if (State.ReadError is not null)
+                return MachineDisplayState.Unavailable;
+            if (State.Alarm != MachineAlarm.None)
+                return State.Alarm;
+            if (State.PendingStop is { } pending)
+                return pending.Alarm;
+            return State.Available && State.FeedbackReadiness.Faulted
+                ? MachineAlarm.MotionUnavailable
+                : MachineAlarm.None;
         }
     }
 
     public string? AlarmDetail => State.ReadError?.ToString() ?? State.AlarmDetail ?? State.PendingStop?.Error.ToString();
 
     public string? AlarmMessage => State.ReadError?.Message ?? State.AlarmMessage ?? State.PendingStop?.Error.Message;
+
+    public string? AlarmAction
+    {
+        get
+        {
+            if (State.Alarm == MachineAlarm.None && State.PendingStop is not null && State.ReadError is null)
+                return UiText.Get("Current work is finishing. Wait for the machine to stop before checking the indicated equipment.");
+            switch (Alarm)
+            {
+                case MachineAlarm.EmergencyStop:
+                    return UiText.Get("Check why the emergency stop was pressed. When safe, release it and press RESET.");
+                case MachineAlarm.DoorOpen:
+                    return UiText.Get("Check the red door indicators above. Close the doors, then press RESET.");
+                case MachineAlarm.AirPressureLow:
+                    return UiText.Get("Check the air supply and pressure. Restore the pressure, then press RESET.");
+                case MachineAlarm.IoCommunication:
+                case MachineDisplayState.Unavailable:
+                    return UiText.Get("Check control I/O power and communication. Feedback is unavailable. After recovery, press RESET.");
+                case MachineAlarm.MotionUnavailable:
+                    return UiText.Get("Open MOTION to check the axis alarm and servo state. Correct the cause, then press RESET.");
+                case MachineAlarm.HomeFailed:
+                    return UiText.Get("Check the axis alarm, home sensor and travel path in MOTION. Correct the cause, then retry homing from MANUAL or Start Review.");
+                case MachineAlarm.PcbSupply:
+                    return UiText.Get("Check the PCB supply gripper, rotation and PCB position. Correct the cause, then press RESET and verify the material in Start Review.");
+                case MachineAlarm.PcbPlacement:
+                    return UiText.Get("Check placement vacuum, handler lift and PCB position. Correct the cause, then press RESET and verify the carrier in Start Review.");
+                case MachineAlarm.PickupBoltFeeder:
+                    return UiText.Get("Check pickup feeder bolts, jams and the bolt sensor. Stop motion before entering the machine. After service, press RESET and review unfinished carriers.");
+                case MachineAlarm.ShootingBoltFeeder:
+                    return UiText.Get("Check shooting feeder bolts, the tube and cylinder feedback. Stop motion before entering the machine. After service, press RESET and review unfinished carriers.");
+                case MachineAlarm.BoltFastening:
+                    return UiText.Get("Check the fastening controller alarm, bolt pickup and head cylinders. Correct the cause, then press RESET and review the remaining bolts in Start Review.");
+                case MachineAlarm.Inspection:
+                    return UiText.Get("Check the camera, lighting and inspection mechanism using the fault details. Correct the cause, then press RESET and review the carrier.");
+                case MachineAlarm.NgCarrierTransfer:
+                    return UiText.Get("Check the NG pickup gripper, lift and carrier support. Correct the cause, then press RESET and review the handler in Start Review.");
+                case MachineAlarm.NgShuttle:
+                    return UiText.Get("Check the shuttle lift sensors, carrier and inspection handler clearance. Correct the cause, then press RESET.");
+                case MachineAlarm.MainConveyor:
+                    return UiText.Get("Check the stopped carrier, arrival sensors, backup plates and stoppers. Correct the cause, then press RESET and review each carrier in Start Review.");
+                case MachineAlarm.NgConveyor:
+                    return UiText.Get("Check the NG carrier position, sensors, stopper and conveyor drive. Correct the cause, then press RESET. This is separate from the normal unloading request.");
+                case MachineAlarm.StopFailed:
+                    return UiText.Get("Motion may not have stopped. Press the emergency stop and confirm all motion has stopped before checking the equipment.");
+                default:
+                    return null;
+            }
+        }
+    }
 
     public bool SafetyBypass
     {
@@ -734,17 +782,20 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(nameof(MachineDisplayState));
         if (e.PropertyName is null or nameof(MachineState.AutoMode) or nameof(MachineState.Available))
             OnPropertyChanged(nameof(ModeText));
-        if (e.PropertyName is null or nameof(MachineState.Alarm) or nameof(MachineState.ReadError))
+        if (e.PropertyName is null or nameof(MachineState.Alarm) or nameof(MachineState.ReadError)
+            or nameof(MachineState.PendingStop) or nameof(MachineState.FeedbackReadiness) or nameof(MachineState.Available))
         {
             OnPropertyChanged(nameof(HasAlarm));
             OnPropertyChanged(nameof(Alarm));
+            OnPropertyChanged(nameof(AlarmAction));
         }
         if (e.PropertyName is null or nameof(MachineState.AlarmDetail) or nameof(MachineState.ReadError) or nameof(MachineState.PendingStop))
             OnPropertyChanged(nameof(AlarmDetail));
         if (e.PropertyName is null or nameof(MachineState.AlarmMessage) or nameof(MachineState.ReadError) or nameof(MachineState.PendingStop))
             OnPropertyChanged(nameof(AlarmMessage));
         if (e.PropertyName is null or nameof(MachineState.AutomaticRunning)
-            or nameof(MachineState.Alarm) or nameof(MachineState.Available))
+            or nameof(MachineState.Alarm) or nameof(MachineState.Available)
+            or nameof(MachineState.PendingStop) or nameof(MachineState.FeedbackReadiness))
         {
             OnPcbSupplyChanged();
             OnPcbPlacementChanged();
@@ -1123,7 +1174,8 @@ public partial class OperationViewModel : ObservableObject
         {
             if (!Units.PcbSupply)
                 return HandlerDisplayState.Disabled;
-            if (Alarm is MachineAlarm.PcbSupply)
+            if (Alarm is MachineAlarm.PcbSupply
+                || Supply.Motion.Axes.Values.Any(axis => axis.State is { Alarm: true } or { Emergency: true }))
                 return HandlerDisplayState.IoAlarm;
             if (!State.Available || !Supply.Motion.IsFeedbackAvailable)
                 return HandlerDisplayState.PositionUnknown;
@@ -1149,7 +1201,8 @@ public partial class OperationViewModel : ObservableObject
         {
             if (!Units.PcbPlacement)
                 return HandlerDisplayState.Disabled;
-            if (Alarm is MachineAlarm.PcbPlacement)
+            if (Alarm is MachineAlarm.PcbPlacement
+                || Placement.Motion.Axes.Values.Any(axis => axis.State is { Alarm: true } or { Emergency: true }))
                 return HandlerDisplayState.IoAlarm;
             if (!State.Available || !Placement.Motion.IsFeedbackAvailable)
                 return HandlerDisplayState.PositionUnknown;
@@ -1177,7 +1230,8 @@ public partial class OperationViewModel : ObservableObject
                 return StationDisplayState.Disabled;
             if (Alarm is MachineAlarm.PickupBoltFeeder
                 or MachineAlarm.ShootingBoltFeeder
-                or MachineAlarm.BoltFastening)
+                or MachineAlarm.BoltFastening
+                || Fastening.Motion.Axes.Values.Any(axis => axis.State is { Alarm: true } or { Emergency: true }))
                 return StationDisplayState.IoAlarm;
             if (!State.Available || !Fastening.Motion.IsFeedbackAvailable)
                 return StationDisplayState.PositionUnknown;
@@ -1221,7 +1275,8 @@ public partial class OperationViewModel : ObservableObject
         {
             if (!Units.Inspection)
                 return StationDisplayState.Disabled;
-            if (Alarm is MachineAlarm.Inspection or MachineAlarm.NgCarrierTransfer)
+            if (Alarm is MachineAlarm.Inspection or MachineAlarm.NgCarrierTransfer
+                || Inspection.Motion.Axes.Values.Any(axis => axis.State is { Alarm: true } or { Emergency: true }))
                 return StationDisplayState.IoAlarm;
             if (!State.Available || !Inspection.Motion.IsFeedbackAvailable)
                 return StationDisplayState.PositionUnknown;

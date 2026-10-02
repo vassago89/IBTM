@@ -227,6 +227,25 @@
                 </Border>
             </Grid>
         </Border>
+        <Border Grid.Row="1" Grid.Column="1" Margin="10,0,0,0" Padding="16"
+            Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource AccentRedBrush}" BorderThickness="2"
+            Visibility="{Binding HasAlarm, Converter={StaticResource BoolToVis}}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock Text="{ui:Text 'Equipment to check'}" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}" FontSize="22" FontWeight="SemiBold"
+                        Margin="0,6,0,16" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock Text="{Binding AlarmAction}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap"
+                        Foreground="{StaticResource AccentAmberBrush}" LineHeight="25" LineStackingStrategy="BlockLineHeight"/>
+                    <TextBlock Text="{ui:Text 'Fault details'}" FontSize="14" FontWeight="SemiBold" Margin="0,24,0,8"
+                        Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="{Binding AlarmMessage}" FontSize="14" TextWrapping="Wrap"
+                        Foreground="{StaticResource TextPrimaryBrush}" ToolTip="{Binding AlarmDetail}"/>
+                    <TextBlock Text="{ui:Text 'RESET silences the buzzer. The highlight remains until the fault clears.'}"
+                        FontSize="13" Margin="0,24,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
         <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="12,8" Height="108"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
             BorderThickness="0,0,0,1">

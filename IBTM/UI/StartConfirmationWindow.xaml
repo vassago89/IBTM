@@ -166,6 +166,8 @@
                                 <TextBlock Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
                                     FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}"
                                     Visibility="{Binding HasAlarm, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Text="{Binding AlarmAction}" TextWrapping="Wrap" Margin="0,6,0,8"
+                                    Foreground="{StaticResource AccentAmberBrush}"/>
                                 <TextBlock x:Name="StartAlarmMessage" Text="{Binding AlarmMessage}" TextWrapping="Wrap"
                                     Foreground="{StaticResource AccentRedBrush}"/>
                                 <TextBlock Text="{Binding ResetError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>

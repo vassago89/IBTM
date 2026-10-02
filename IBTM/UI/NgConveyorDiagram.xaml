@@ -3,7 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:ui="clr-namespace:IBTM.UI" xmlns:app="clr-namespace:IBTM"
     xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
     xmlns:ng="clr-namespace:IBTM.NgConveyor;assembly=IBTM.NgConveyor"
     mc:Ignorable="d"
@@ -141,6 +141,14 @@
                         <DataTrigger Binding="{Binding State.Available}" Value="False">
                             <Setter Property="Visibility" Value="Hidden"/>
                         </DataTrigger>
+                        <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.NgConveyor}">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="Text" Value="{ui:Text 'NG equipment fault. Check the fault details and recovery guidance.'}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.NgShuttle}">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="Text" Value="{ui:Text 'NG equipment fault. Check the fault details and recovery guidance.'}"/>
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </TextBlock.Style>
@@ -159,11 +167,9 @@
             <Border Grid.RowSpan="5" Width="{x:Static ui:MachineDiagramLayout.NgConveyorWidth}"
                 Tag="{Binding Signals.Outputs[NgConveyorRun].IsOn}"
                 Style="{StaticResource ConveyorBedStyle}"/>
-            <Border Grid.RowSpan="5" Margin="-4" BorderThickness="3" CornerRadius="4"
-                BorderBrush="{StaticResource AccentRedBrush}" Background="#18EF8585" IsHitTestVisible="False">
+            <Border Grid.RowSpan="5" Margin="-4">
                 <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Hidden"/>
+                    <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding NgConveyor.AlarmRequired}" Value="True">
                                 <Setter Property="Visibility" Value="Visible"/>
@@ -174,19 +180,12 @@
                             <DataTrigger Binding="{Binding State.Available}" Value="False">
                                 <Setter Property="Visibility" Value="Hidden"/>
                             </DataTrigger>
-                            <Trigger Property="Visibility" Value="Visible">
-                                <Trigger.EnterActions>
-                                    <BeginStoryboard x:Name="NgAttentionPulse">
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.35" To="1"
-                                                Duration="0:0:0.8" AutoReverse="True" RepeatBehavior="Forever"/>
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.EnterActions>
-                                <Trigger.ExitActions>
-                                    <RemoveStoryboard BeginStoryboardName="NgAttentionPulse"/>
-                                </Trigger.ExitActions>
-                            </Trigger>
+                            <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.NgConveyor}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.NgShuttle}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
