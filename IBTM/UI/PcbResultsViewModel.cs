@@ -153,7 +153,7 @@ public partial class PcbResultsViewModel : ObservableObject
             csv.AppendLine();
             AppendRow(UiText.Get("Bolt results"));
             AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Fastening type"),
-                UiText.Get("Fasten"), UiText.Get("Vision inspection"), UiText.Get("Total turns"),
+                UiText.Get("Stage"), UiText.Get("Fasten"), UiText.Get("Vision inspection"), UiText.Get("Combined turns"),
                 UiText.Get("Minimum turns"), UiText.Get("Maximum turns"), UiText.Get("Turns result"), UiText.Get("Result torque"),
                 UiText.Get("Target torque"), UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"),
                 UiText.Get("Angle A3 (°)"), UiText.Get("Recorded at"), UiText.Get("Result source"),
@@ -163,7 +163,7 @@ public partial class PcbResultsViewModel : ObservableObject
             {
                 var result = bolt.Result;
                 var controller = result.Controller;
-                AppendRow(++number, bolt.BoltLabel, bolt.HeadLabel, bolt.Verdict, bolt.VisionVerdict,
+                AppendRow(++number, bolt.BoltLabel, bolt.HeadLabel, UiText.Get(result.Stage), bolt.Verdict, bolt.VisionVerdict,
                     result.TotalTurns,
                     result.MinimumTurns, result.MaximumTurns, bolt.TurnsVerdict, result.Torque,
                     controller?.TargetTorque, controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds,
@@ -173,8 +173,27 @@ public partial class PcbResultsViewModel : ObservableObject
             }
             foreach (var bolt in InspectionOnlyResults)
             {
-                AppendRow(++number, bolt.BoltLabel, null, UiText.Get("Not recorded"), bolt.Present ? "OK" : "NG",
-                    null, null, UiText.Get("Not recorded"), null, null, null, null, null, null, null, null, null);
+                AppendRow(++number, bolt.BoltLabel, null, null, UiText.Get("Not recorded"), bolt.Present ? "OK" : "NG",
+                    null, null, null, UiText.Get("Not recorded"), null, null, null, null, null, null, null, null, null);
+            }
+
+            csv.AppendLine();
+            AppendRow(UiText.Get("Fastening stages"));
+            AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Stage"), UiText.Get("Preset"),
+                UiText.Get("Result"), UiText.Get("Stage turns"), UiText.Get("Result torque"), UiText.Get("Target torque"),
+                UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"), UiText.Get("Angle A3 (°)"),
+                UiText.Get("Recorded at"), UiText.Get("Result source"), UiText.Get("Error code"), UiText.Get("Error / message"));
+            number = 0;
+            foreach (var stage in BoltResults.SelectMany(bolt => bolt.StageResults).OrderBy(row => row.Result.RecordedAt))
+            {
+                var result = stage.Result;
+                var controller = result.Controller;
+                AppendRow(++number, stage.BoltLabel, UiText.Get(result.Stage), controller?.Preset,
+                    stage.StageVerdict, result.MeasuredTurns, result.Torque, controller?.TargetTorque,
+                    controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds, controller?.Angle3,
+                    result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
+                    string.Join(" · ", new[] { result.Error, controller?.ErrorCode > 0 ? stage.ControllerErrorDescription : null }
+                        .Where(message => !string.IsNullOrWhiteSpace(message))));
             }
 
             if (dialog.ShowDialog() != true)

@@ -3523,13 +3523,46 @@
   <data name="final tightening preset" xml:space="preserve">
     <value>본체결 프리셋</value>
   </data>
-  <data name="1-stage: final only. 2-stage: pre-tighten forward, finish in reverse." xml:space="preserve">
-    <value>1단: 본체결만 · 2단: 가체결 순서대로 → 본체결 역순</value>
-  </data>
   <data name="final tightening pending" xml:space="preserve">
     <value>본체결 대기</value>
   </data>
   <data name="remaining bolts: {0}" xml:space="preserve">
     <value>남은 볼트: {0}개</value>
+  </data>
+  <data name="pickup fastening" xml:space="preserve">
+    <value>픽업 볼트 체결</value>
+  </data>
+  <data name="1-stage: final preset only." xml:space="preserve">
+    <value>1단 체결은 본체결 프리셋만 사용합니다.</value>
+  </data>
+  <data name="pre 1 → pre 2 → final 2 → final 1 · per pcb" xml:space="preserve">
+    <value>PCB별 1 가체결 → 2 가체결 → 2 본체결 → 1 본체결</value>
+  </data>
+  <data name="2-stage turns = pre-tightening + final tightening" xml:space="preserve">
+    <value>2단 회전수 = 가체결 + 본체결</value>
+  </data>
+  <data name="pre-tightening ng: skip final tightening" xml:space="preserve">
+    <value>가체결 NG는 본체결을 건너뜁니다.</value>
+  </data>
+  <data name="pre-tightening ng" xml:space="preserve">
+    <value>가체결 NG</value>
+  </data>
+  <data name="dry run · ng" xml:space="preserve">
+    <value>공회전 · NG</value>
+  </data>
+  <data name="pre-tightening turns" xml:space="preserve">
+    <value>가체결 회전수</value>
+  </data>
+  <data name="combined turns" xml:space="preserve">
+    <value>회전수 합계</value>
+  </data>
+  <data name="fastening stages" xml:space="preserve">
+    <value>체결 단계</value>
+  </data>
+  <data name="stage" xml:space="preserve">
+    <value>단계</value>
+  </data>
+  <data name="stage turns" xml:space="preserve">
+    <value>단계 회전수</value>
   </data>
 </root>
