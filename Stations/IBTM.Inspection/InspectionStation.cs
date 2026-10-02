@@ -274,7 +274,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             while (!cancellationToken.IsCancellationRequested)
             {
                 var step = !_units.Inspection && !CarrierSeatingRequested
-                    ? InspectionStationState.Disabled : GetNextStep();
+                    ? InspectionStationState.Disabled : NextStep;
                 if (!await ExecuteStepAsync(step, cancellationToken))
                     await WaitForChangeAsync(cancellationToken);
             }
@@ -290,39 +290,42 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         }
     }
 
-    internal InspectionStationState GetNextStep()
+    internal InspectionStationState NextStep
     {
-        if (_waitingForShuttleDown && IsClear && Gripper == NgTransferGripperState.Open)
-            return _ngConveyor.ShuttleLift == StationCylinderState.Down
-                ? InspectionStationState.ReturningToWaitingPosition
-                : InspectionStationState.WaitingForShuttleDown;
-        if (CarrierSeatingRequested)
-            return InspectionStationState.SeatingCarrier;
-        if (!_units.Inspection)
-            return InspectionStationState.Disabled;
-        if (IsTransferPending)
+        get
         {
-            return !IsRaised || Gripper != NgTransferGripperState.Closed || _ngConveyor.IsReceiveAllowed
-                ? InspectionStationState.PlacingCarrier : InspectionStationState.WaitingForDestination;
-        }
-        if (!IsRaised || Gripper != NgTransferGripperState.Open)
-            return InspectionStationState.PreparingTransfer;
-        if (Station.CarrierSeated && Station.Completed && RouteToNg)
-        {
-            return IsSupportReady(NgTransferDestination.Station) && _ngConveyor.IsReceiveAllowed
-                ? InspectionStationState.PickingCarrier : InspectionStationState.WaitingForDestination;
-        }
+            if (_waitingForShuttleDown && IsClear && Gripper == NgTransferGripperState.Open)
+                return _ngConveyor.ShuttleLift == StationCylinderState.Down
+                    ? InspectionStationState.ReturningToWaitingPosition
+                    : InspectionStationState.WaitingForShuttleDown;
+            if (CarrierSeatingRequested)
+                return InspectionStationState.SeatingCarrier;
+            if (!_units.Inspection)
+                return InspectionStationState.Disabled;
+            if (IsTransferPending)
+            {
+                return !IsRaised || Gripper != NgTransferGripperState.Closed || _ngConveyor.IsReceiveAllowed
+                    ? InspectionStationState.PlacingCarrier : InspectionStationState.WaitingForDestination;
+            }
+            if (!IsRaised || Gripper != NgTransferGripperState.Open)
+                return InspectionStationState.PreparingTransfer;
+            if (Station.CarrierSeated && Station.Completed && RouteToNg)
+            {
+                return IsSupportReady(NgTransferDestination.Station) && _ngConveyor.IsReceiveAllowed
+                    ? InspectionStationState.PickingCarrier : InspectionStationState.WaitingForDestination;
+            }
 
-        if (!IsReadyToInspect)
-            return IsWaitingForConveyor
-                ? InspectionStationState.WaitingForConveyor : InspectionStationState.Waiting;
-        if (_runJob is null)
-            return InspectionStationState.PreparingInspection;
-        var target = InspectionTarget;
-        if (target.Pcb is null)
-            return InspectionStationState.CompletingInspection;
-        var taught = target.Bolt is null ? HasBarcodeRegion(target.Pcb.Value) : HasRegion(target.Bolt);
-        return taught ? InspectionStationState.InspectingPoint : InspectionStationState.TeachingRequired;
+            if (!IsReadyToInspect)
+                return IsWaitingForConveyor
+                    ? InspectionStationState.WaitingForConveyor : InspectionStationState.Waiting;
+            if (_runJob is null)
+                return InspectionStationState.PreparingInspection;
+            var target = InspectionTarget;
+            if (target.Pcb is null)
+                return InspectionStationState.CompletingInspection;
+            var taught = target.Bolt is null ? HasBarcodeRegion(target.Pcb.Value) : HasRegion(target.Bolt);
+            return taught ? InspectionStationState.InspectingPoint : InspectionStationState.TeachingRequired;
+        }
     }
 
     private async Task<bool> ExecuteStepAsync(

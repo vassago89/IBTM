@@ -624,7 +624,7 @@ public sealed class InspectionTests
         Assert.Empty(work.Assemblies);
         Assert.Null(station.ActivePcb);
         Assert.Null(station.ActiveBolt);
-        _ = station.GetNextStep();
+        _ = station.NextStep;
         Assert.Null(station.ActivePcb);
         Assert.Null(station.ActiveBolt);
         Assert.Empty(work.Assemblies);
@@ -726,28 +726,28 @@ public sealed class InspectionTests
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
-        Assert.Equal(InspectionStationState.WaitingForConveyor, transferStation.GetNextStep());
+        Assert.Equal(InspectionStationState.WaitingForConveyor, transferStation.NextStep);
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionStopperDown, true);
         transferWork.Complete(transferWork.CurrentJob);
-        Assert.Equal(InspectionStationState.PickingCarrier, transferStation.GetNextStep());
+        Assert.Equal(InspectionStationState.PickingCarrier, transferStation.NextStep);
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
-        Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.GetNextStep());
+        Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.NextStep);
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.GetNextStep());
-        Assert.Equal(transferStation.GetNextStep(), station.GetNextStep());
+        Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.NextStep);
+        Assert.Equal(transferStation.NextStep, station.NextStep);
         Assert.False(station.IsTransferPending);
 
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
-        Assert.Equal(transferStation.GetNextStep(), station.GetNextStep());
+        Assert.Equal(transferStation.NextStep, station.NextStep);
         Assert.False(station.IsTransferPending);
     }
 

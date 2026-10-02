@@ -868,7 +868,7 @@ public sealed class MachineLifecycleTests
             io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
             Assert.True(work.IsAtInspectionPosition);
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => work.Station.Completed, TimeSpan.FromSeconds(3)),
-                $"Alarm={state.Alarm}; inspection={inspector.GetNextStep()}; captures={string.Join(", ", captures)}; {state.AlarmDetail}");
+                $"Alarm={state.Alarm}; inspection={inspector.NextStep}; captures={string.Join(", ", captures)}; {state.AlarmDetail}");
             Assert.Equal(new (HeatSinkSlot, Guid?)[] {
                 (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTestSupport.BoltId(3)), (HeatSinkSlot.HeatSink1, VirtualTestSupport.BoltId(1)),
                 (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTestSupport.BoltId(4)), (HeatSinkSlot.HeatSink2, VirtualTestSupport.BoltId(2)),
@@ -992,7 +992,7 @@ public sealed class MachineLifecycleTests
         await initialRun;
         gantry.Motion.Feedback.PositionChanged -= StopDuringTransfer;
         Assert.False(initialTimeout.IsCancellationRequested,
-            $"Inspection={gantry.GetNextStep()}, Main={services.GetRequiredService<MainConveyor>().Step}, "
+            $"Inspection={gantry.NextStep}, Main={services.GetRequiredService<MainConveyor>().Step}, "
             + $"Completed={services.GetRequiredService<InspectionStation>().Station.Completed}, NG={services.GetRequiredService<InspectionStation>().HasNg}, "
             + $"Position={gantry.Motion.Feedback.Position}, Lift={gantry.Lift}, Gripper={gantry.Gripper}, Alarm={state.AlarmDetail}");
         var stoppedX = gantry.Motion.Feedback.Position.X;
@@ -1055,7 +1055,7 @@ public sealed class MachineLifecycleTests
             lift == StationCylinderState.Up
                 ? InspectionStationState.Waiting
                 : InspectionStationState.PreparingTransfer,
-            station.GetNextStep());
+            station.NextStep);
 
         using var stop = new CancellationTokenSource();
         var run = station.RunAsync(stop.Token);
@@ -1071,7 +1071,7 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
-        Assert.Equal(InspectionStationState.PreparingTransfer, station.GetNextStep());
+        Assert.Equal(InspectionStationState.PreparingTransfer, station.NextStep);
         await VerifyTransferReleaseAsync();
 
         async Task VerifyTransferReleaseAsync()
@@ -1081,7 +1081,7 @@ public sealed class MachineLifecycleTests
             var moveTask = move.RunAsync(moveStop.Token);
             try
             {
-                Assert.Equal(InspectionStationState.PreparingTransfer, move.GetNextStep());
+                Assert.Equal(InspectionStationState.PreparingTransfer, move.NextStep);
                 Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
             }
             finally
@@ -1168,7 +1168,7 @@ public sealed class MachineLifecycleTests
         work.Station.Complete(work.Station.CurrentJob);
 
         var expectNg = inspectionEnabled && ng;
-        Assert.Equal(expectNg, inspection.GetNextStep() == InspectionStationState.PickingCarrier);
+        Assert.Equal(expectNg, inspection.NextStep == InspectionStationState.PickingCarrier);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var run = inspectionEnabled && !ng ? inspection.RunAsync(stop.Token) : Task.CompletedTask;
         try
@@ -3097,7 +3097,7 @@ public sealed class MachineLifecycleTests
         {
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => transfer.Motion.Feedback.IsMoving, TimeSpan.FromSeconds(2)));
-            Assert.Equal(InspectionStationState.SeatingCarrier, station.GetNextStep());
+            Assert.Equal(InspectionStationState.SeatingCarrier, station.NextStep);
             Assert.False(raised);
             stop.Cancel();
             await run.WaitAsync(TimeSpan.FromSeconds(2));
@@ -3174,7 +3174,7 @@ public sealed class MachineLifecycleTests
             if (output == OutputIo.InspectionBackupPlateUp && on)
             {
                 Assert.True(work.Station.Completed);
-                Assert.Equal(InspectionStationState.SeatingCarrier, station.GetNextStep());
+                Assert.Equal(InspectionStationState.SeatingCarrier, station.NextStep);
                 Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.Step);
                 Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
                 Assert.True(VirtualTestSupport.IsAt(pickup.Motion.Feedback, services.GetRequiredService<NgCarrierTransferSettings>().CarrierPickupPosition!));
@@ -3332,7 +3332,7 @@ public sealed class MachineLifecycleTests
                 Assert.False(work.Station.Completed);
                 if (on)
                 {
-                    Assert.Equal(InspectionStationState.SeatingCarrier, inspection.GetNextStep());
+                    Assert.Equal(InspectionStationState.SeatingCarrier, inspection.NextStep);
                     Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.Step);
                     Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
                     Assert.True(VirtualTestSupport.IsAt(
@@ -3400,7 +3400,7 @@ public sealed class MachineLifecycleTests
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => work.IsRearDischargeReady, TimeSpan.FromSeconds(2)));
             Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, waitingPosition));
-            Assert.Equal(InspectionStationState.Waiting, station.GetNextStep());
+            Assert.Equal(InspectionStationState.Waiting, station.NextStep);
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
             var assembly = work.Station.GetAssembly(HeatSinkSlot.HeatSink1);
             assembly.PcbBarcode = "PCB-1";
@@ -6171,7 +6171,7 @@ public sealed class MachineLifecycleTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         Assert.False(move.IsTransferPending);
         await move.ExecuteTransferAsync(InspectionStationState.PickingCarrier, CancellationToken.None)!;
-        Assert.Equal(InspectionStationState.PlacingCarrier, move.GetNextStep());
+        Assert.Equal(InspectionStationState.PlacingCarrier, move.NextStep);
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.Equal(5, gantry.Motion.Feedback.Position.X);

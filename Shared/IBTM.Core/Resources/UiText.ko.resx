@@ -2062,12 +2062,6 @@
   <data name="returning / completing inspection" xml:space="preserve">
     <value>검사 후 복귀</value>
   </data>
-  <data name="returning carrier to entry" xml:space="preserve">
-    <value>캐리어 입구 복귀</value>
-  </data>
-  <data name="returning carrier to shuttle" xml:space="preserve">
-    <value>캐리어 셔틀 복귀</value>
-  </data>
   <data name="returning to waiting position" xml:space="preserve">
     <value>대기 위치 복귀</value>
   </data>

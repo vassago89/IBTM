@@ -5,7 +5,7 @@
 `InspectionStation.Station`의 Job이 캐리어별 결과와 완료 소유권을 보관한다. 검사 요청·착좌 요청과 NG 인터록 상태는 기본 파일 `InspectionStation.cs`에서 관리한다.
 검사와 NG 이송은 하나의 `InspectionStation`이 소유한다. 자동 순서·집기·놓기·장치 동작을
 기본 파일에 모은다.
-자동 루프는 `GetNextStep`으로 다음 동작을 선택하고 `ExecuteStepAsync`로 실행한다.
+자동 루프는 `NextStep`으로 다음 동작을 선택하고 `ExecuteStepAsync`로 실행한다.
 실행 내부의 `EnterStep`으로 현재 단계를 알리고, 순차 동작을 끝까지 기다린다.
 실행이 외부 조건 대기를 반환하면 루프에서 `WaitForChangeAsync`로 대기한다.
 현재 단계가 물리적 위치나 인계 완료를 대신하지 않는다.

@@ -499,8 +499,8 @@ Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고,
 | 인수 후 Z/Y 이탈 또는 Supply 복귀가 대기함 | `PcbPlacer.ExecuteStepAsync`, `PcbSupplier.RunAsync` | Supply `WaitingForPlacementClear`, Placement `Clear`와 `PreparingPlacement` |
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | `BoltFeederUnit.RunAsync`, `CheckEmptyTimeout` | 피더별 감지와 설정 제한시간, 슈팅 `runOnRemaining`, 이스케이프 후진 피드백 |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.ExecuteStepAsync`, `FastenAsync` | `Step`, `selectedBolt`, `_runJob`; 컨트롤러는 `AdcBoltHead.TightenAsync` |
-| Station 3 검사/NG 이송이 대기 | `InspectionStation.GetNextStep`, `ExecuteStepAsync` | `Step`, `InspectionTarget`, `_runJob`; 이송 또는 검사가 준비되지 않으면 피드백 대기 |
-| NG 이송 순서가 예상과 다름 | `InspectionStation.GetNextStep`, `ExecuteTransferAsync`, `MoveToCarrierAsync` | `state`, 현재 픽업 상승·그립·지지대 피드백, 인계 소유권; `NgCarrierDetected`는 표시용 |
+| Station 3 검사/NG 이송이 대기 | `InspectionStation.NextStep`, `ExecuteStepAsync` | `Step`, `InspectionTarget`, `_runJob`; 이송 또는 검사가 준비되지 않으면 피드백 대기 |
+| NG 이송 순서가 예상과 다름 | `InspectionStation.NextStep`, `ExecuteTransferAsync`, `MoveToCarrierAsync` | `state`, 현재 픽업 상승·그립·지지대 피드백, 인계 소유권; `NgCarrierDetected`는 표시용 |
 | NG 셔틀이 대기하거나 상승하지 않음 | `NgCarrierConveyor.GetNextStep`, `ExecuteStepAsync` | `Step`, 실제 Up/Down·캐리어·픽업 상승과 인계 해제 조건 |
 | NG 컨베이어 적재·배출이 막힘 | `NgCarrierConveyor.GetNextStep`, `ExecuteStepAsync`, `RunUntilAsync` | `Step`, `destination` 입력, `_movement`, `_ejectionPhase`, 현재 위치 센서 |
 | 실린더 타임아웃 | `IIoService.SetOutputAndWaitAsync`, `WaitForInputAsync` | 출력 `output`/`value`, 기다리는 입력 `input`/`value`, 제한시간 |

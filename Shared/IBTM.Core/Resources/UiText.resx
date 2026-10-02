@@ -2062,12 +2062,6 @@ Operation failed. Check controller status.</value>
   <data name="returning / completing inspection" xml:space="preserve">
     <value>Returning after inspection</value>
   </data>
-  <data name="returning carrier to entry" xml:space="preserve">
-    <value>Returning carrier to entry</value>
-  </data>
-  <data name="returning carrier to shuttle" xml:space="preserve">
-    <value>Returning carrier to shuttle</value>
-  </data>
   <data name="returning to waiting position" xml:space="preserve">
     <value>Returning to standby</value>
   </data>

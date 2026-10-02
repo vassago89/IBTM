@@ -233,12 +233,12 @@ public sealed class NgHandoffTests
         transfer.Station.Complete(transfer.Station.CurrentJob);
 
         Assert.False(system.Conveyor.IsReceiveAllowed);
-        Assert.Equal(InspectionStationState.WaitingForDestination, transfer.GetNextStep());
+        Assert.Equal(InspectionStationState.WaitingForDestination, transfer.NextStep);
         Assert.False(transfer.IsTransferPending);
 
         units.NgConveyor = true;
         Assert.True(system.Conveyor.IsReceiveAllowed);
-        Assert.Equal(InspectionStationState.PickingCarrier, transfer.GetNextStep());
+        Assert.Equal(InspectionStationState.PickingCarrier, transfer.NextStep);
     }
 
     [Fact]
@@ -337,7 +337,7 @@ public sealed class NgHandoffTests
         Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
         SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         Assert.Equal(InspectionStationState.PlacingCarrier,
-            transfer.GetNextStep());
+            transfer.NextStep);
 
         var changedDuringTravel = false;
         motion.PositionChanged += (x, y, z) =>
@@ -356,7 +356,7 @@ public sealed class NgHandoffTests
         Assert.True(changedDuringTravel);
         Assert.False(transfer.IsTransferPending);
         Assert.True(transfer.IsClear);
-        Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
+        Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.NextStep);
         Assert.Equal(io.GetInput(InputIo.NgCarrierDetected), signals.Inputs[InputIo.NgCarrierDetected].IsOn);
     }
 
@@ -431,7 +431,7 @@ public sealed class NgHandoffTests
         await transfer.ExecuteTransferAsync(InspectionStationState.PlacingCarrier, stop.Token);
         Assert.True(transfer.IsClear);
         Assert.Equal(NgTransferGripperState.Open, transfer.Gripper);
-        Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
+        Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.NextStep);
         Assert.Equal(NgConveyorState.LoweringShuttle, system.Conveyor.GetNextStep(system.Io.GetOutput(OutputIo.NgConveyorRun)));
 
         // Delay the real feedback after the shuttle receives its DOWN command.
@@ -445,7 +445,7 @@ public sealed class NgHandoffTests
         {
             firstRun.Cancel();
             await inspection.WaitAsync(TimeSpan.FromSeconds(1));
-            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.NextStep);
             inspection = transfer.RunAsync(stop.Token);
         }
         var conveyor = system.Conveyor.RunAsync(stop.Token);
@@ -454,16 +454,16 @@ public sealed class NgHandoffTests
             Assert.True(await WaitUntilAsync(
                 () => io.GetOutput(OutputIo.NgShuttleDown), TimeSpan.FromSeconds(1)));
             Assert.Equal((10d, 10d, 0d), motion.Position);
-            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.NextStep);
             io.SetInput(InputIo.NgShuttleUp, false);
-            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.NextStep);
             await Assert.ThrowsAsync<MotionInterlockException>(
                 () => transfer.MoveToAsync(new(), cancellationToken: stop.Token));
             io.SetInputs((InputIo.NgShuttleUp, true), (InputIo.NgShuttleDown, true));
-            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.NextStep);
             io.SetInput(InputIo.NgShuttleUp, false);
             Assert.True(await WaitUntilAsync(
-                () => VirtualTestSupport.IsAt(transfer.Motion.Feedback, new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
+                () => VirtualTestSupport.IsAt(transfer.Motion.Feedback, new()) && transfer.NextStep == InspectionStationState.Waiting,
                 TimeSpan.FromSeconds(1)));
             Assert.False(movedBeforeDown);
             if (full)
