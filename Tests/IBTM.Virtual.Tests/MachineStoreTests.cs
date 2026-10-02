@@ -354,6 +354,14 @@ public sealed class MachineStoreTests
         settings.BoltFastening.ShootingArrivalDelaySeconds = 0.75;
         settings.BoltFastening.ShootingHead.FasteningZ = 14;
         settings.BoltFastening.PickupHead.FasteningZ = 18;
+        Assert.Equal(3, settings.NgConveyor.AlarmCarrierCount);
+        settings.NgConveyor.AlarmCarrierCount = 1;
+        settings.NgConveyor.AlarmCarrierCount = 3;
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.AlarmCarrierCount = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.AlarmCarrierCount = 4);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.AlarmCarrierCount = 5);
+        Assert.Equal(3, settings.NgConveyor.AlarmCarrierCount);
+        settings.NgConveyor.AlarmCarrierCount = 2;
         Assert.Equal(5, settings.NgConveyor.EjectRunSeconds);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.EjectRunSeconds = 0);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.EjectRunSeconds = double.NaN);

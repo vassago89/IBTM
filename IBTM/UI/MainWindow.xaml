@@ -3,6 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
@@ -30,6 +31,7 @@
         </Style>
     </Window.Style>
     <Window.Resources>
+        <ui:SignalTextConverter x:Key="SignalText"/>
         <DataTemplate DataType="{x:Type ui:OperationViewModel}">
             <ui:OperationView/>
         </DataTemplate>
@@ -53,6 +55,24 @@
         </Style>
         <Style x:Key="NotificationTextStyle" TargetType="TextBlock" BasedOn="{StaticResource StatusMessageStyle}">
             <Setter Property="Margin" Value="0,2"/>
+        </Style>
+        <Style x:Key="TowerLampLensStyle" TargetType="Border">
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Height" Value="10"/>
+            <Setter Property="Margin" Value="0,0,0,1"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource EquipBgBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="Tag">
+                    <Trigger.Value><sys:Boolean>False</sys:Boolean></Trigger.Value>
+                    <Setter Property="Opacity" Value="0.25"/>
+                </Trigger>
+                <Trigger Property="Tag" Value="{x:Null}">
+                    <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 
@@ -174,7 +194,7 @@
             <Border Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
                 <Grid Margin="18,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="310"/>
+                        <ColumnDefinition Width="338"/>
                         <ColumnDefinition Width="18"/>
                         <ColumnDefinition Width="240"/>
                         <ColumnDefinition Width="24"/>
@@ -184,7 +204,36 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Tag="{Binding Operation.MachineDisplayState}" Style="{StaticResource MachineStateBadgeStyle}" Width="160">
+                        <StackPanel Width="20" Margin="0,0,8,0" VerticalAlignment="Center">
+                            <Border Tag="{Binding Operation.Signals.Outputs[TowerLampRed].IsOn}"
+                                ToolTip="{Binding Operation.Signals.Outputs[TowerLampRed].IsOn, Converter={StaticResource SignalText}}">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource TowerLampLensStyle}">
+                                        <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <Border Tag="{Binding Operation.Signals.Outputs[TowerLampYellow].IsOn}"
+                                ToolTip="{Binding Operation.Signals.Outputs[TowerLampYellow].IsOn, Converter={StaticResource SignalText}}">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource TowerLampLensStyle}">
+                                        <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <Border Tag="{Binding Operation.Signals.Outputs[TowerLampGreen].IsOn}"
+                                ToolTip="{Binding Operation.Signals.Outputs[TowerLampGreen].IsOn, Converter={StaticResource SignalText}}">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource TowerLampLensStyle}">
+                                        <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <Border Width="3" Height="5" Background="{StaticResource TextMutedBrush}"/>
+                            <Border Width="14" Height="3" CornerRadius="1" Background="{StaticResource TextMutedBrush}"/>
+                        </StackPanel>
+                        <Border Tag="{Binding Operation.MachineDisplayState}" Style="{StaticResource MachineStateBadgeStyle}"
+                            Width="160" BorderThickness="0" VerticalAlignment="Center">
                             <TextBlock
                                 Text="{Binding Operation.MachineDisplayState,
                                                      Converter={StaticResource UiTextConverter}}"
