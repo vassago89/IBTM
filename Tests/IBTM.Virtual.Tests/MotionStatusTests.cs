@@ -87,6 +87,28 @@ public sealed class MotionStatusTests
         Assert.Throws<IOException>(() => supply.IsRotationAllowed);
     }
 
+    [Fact]
+    public async Task SupplyRotationRetainsRejectedFeedbackAfterItRecovers()
+    {
+        var motion = new StatusMotion();
+        var io = new VirtualIoService(VirtualTestSupport.Outputs(new PcbSupplyHardwareSettings()), new());
+        io.Initialize();
+        var supply = VirtualTestSupport.CreateSupplier(motion, io, new() { HandoffPosition = new() { X = 12 } });
+        io.AutoResponseEnabled = false;
+        var rotation = supply.SetRotatedAsync(true);
+        motion.State = motion.State with { InPosition = false };
+        motion.Publish();
+        motion.State = motion.State with { InPosition = true };
+        motion.Publish();
+
+        var error = await Assert.ThrowsAsync<MotionInterlockException>(() => rotation);
+
+        Assert.Contains("X", error.Message);
+        Assert.Contains("InPosition = False", error.Message);
+        Assert.True(supply.IsRotationAllowed);
+        Assert.True(io.GetOutput(OutputIo.PcbSupplyRotate));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

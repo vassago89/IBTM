@@ -754,17 +754,31 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
     }
 
-    public bool IsRotationAllowed
+    public bool IsRotationAllowed => RotationBlockReason is null;
+
+    private string? RotationBlockReason
     {
         get
         {
-            if (!Io.IsReady || !MotionServiceBase.IsReadyAndStopped(_motion))
-                return false;
+            if (!Io.IsReady)
+                return UiText.Get("Supply rotation blocked: I/O is unavailable.");
+            if (!_motion.IsReady)
+                return UiText.Get("Supply rotation blocked: motion feedback is unavailable.");
+            if (_motion.IsMoving)
+                return UiText.Get("Supply rotation blocked: axes are moving.");
+            foreach (var axis in _motion.Axes)
+            {
+                var state = _motion.GetAxisState(axis);
+                if (state is not { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true })
+                    return UiText.Format($"Supply rotation blocked: {axis} axis is not ready. {state}");
+            }
             var current = _motion.Position;
             var handoff = _settings.HandoffPosition;
-            return Math.Abs(current.X - handoff.X) <= RotationPositionToleranceMillimeters
+            if (Math.Abs(current.X - handoff.X) <= RotationPositionToleranceMillimeters
                 && (!_motion.HasY || Math.Abs(current.Y - handoff.Y) <= RotationPositionToleranceMillimeters)
-                && (!_motion.HasZ || Math.Abs(current.Z - handoff.Z) <= RotationPositionToleranceMillimeters);
+                && (!_motion.HasZ || Math.Abs(current.Z - handoff.Z) <= RotationPositionToleranceMillimeters))
+                return null;
+            return UiText.Format($"Supply rotation blocked: current XYZ=({current.X:F3}, {current.Y:F3}, {current.Z:F3}), handoff XYZ=({handoff.X:F3}, {handoff.Y:F3}, {handoff.Z:F3}), tolerance={RotationPositionToleranceMillimeters:F3} mm.");
         }
     }
 
@@ -772,10 +786,14 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var rotation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        string? blockedReason = null;
         void CheckPosition()
         {
-            if (!IsRotationAllowed)
-                OperationCancellation.CancelIfNotDisposed(rotation);
+            if (rotation.IsCancellationRequested || RotationBlockReason is not { } reason)
+                return;
+            // Preserve the first rejected feedback, even if it recovers before the await resumes.
+            Interlocked.CompareExchange(ref blockedReason, reason, null);
+            OperationCancellation.CancelIfNotDisposed(rotation);
         }
         Changed += CheckPosition;
         try
@@ -788,7 +806,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new MotionInterlockException("Supply must remain at handoff XYZ while rotating.");
+            throw new MotionInterlockException(blockedReason ?? "Supply must remain at handoff XYZ while rotating.");
         }
         finally
         {

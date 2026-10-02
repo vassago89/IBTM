@@ -3566,4 +3566,19 @@ COMPLETE: finish</value>
   <data name="stage turns" xml:space="preserve">
     <value>Stage turns</value>
   </data>
+  <data name="supply rotation blocked: i/o is unavailable." xml:space="preserve">
+    <value>Supply rotation blocked: I/O is unavailable.</value>
+  </data>
+  <data name="supply rotation blocked: motion feedback is unavailable." xml:space="preserve">
+    <value>Supply rotation blocked: motion feedback is unavailable.</value>
+  </data>
+  <data name="supply rotation blocked: axes are moving." xml:space="preserve">
+    <value>Supply rotation blocked: axes are moving.</value>
+  </data>
+  <data name="supply rotation blocked: {0} axis is not ready. {1}" xml:space="preserve">
+    <value>Supply rotation blocked: {0} axis is not ready. {1}</value>
+  </data>
+  <data name="supply rotation blocked: current xyz=({0:f3}, {1:f3}, {2:f3}), handoff xyz=({3:f3}, {4:f3}, {5:f3}), tolerance={6:f3} mm." xml:space="preserve">
+    <value>Supply rotation blocked: current XYZ=({0:F3}, {1:F3}, {2:F3}), handoff XYZ=({3:F3}, {4:F3}, {5:F3}), tolerance={6:F3} mm.</value>
+  </data>
 </root>

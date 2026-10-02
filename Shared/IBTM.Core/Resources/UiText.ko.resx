@@ -3565,4 +3565,19 @@
   <data name="stage turns" xml:space="preserve">
     <value>단계 회전수</value>
   </data>
+  <data name="supply rotation blocked: i/o is unavailable." xml:space="preserve">
+    <value>공급 회전 불가: I/O 연결을 확인하세요.</value>
+  </data>
+  <data name="supply rotation blocked: motion feedback is unavailable." xml:space="preserve">
+    <value>공급 회전 불가: 모션 상태를 읽을 수 없습니다.</value>
+  </data>
+  <data name="supply rotation blocked: axes are moving." xml:space="preserve">
+    <value>공급 회전 불가: 축이 이동 중입니다.</value>
+  </data>
+  <data name="supply rotation blocked: {0} axis is not ready. {1}" xml:space="preserve">
+    <value>공급 회전 불가: {0}축 준비 상태를 확인하세요. {1}</value>
+  </data>
+  <data name="supply rotation blocked: current xyz=({0:f3}, {1:f3}, {2:f3}), handoff xyz=({3:f3}, {4:f3}, {5:f3}), tolerance={6:f3} mm." xml:space="preserve">
+    <value>공급 회전 불가: 현재 XYZ=({0:F3}, {1:F3}, {2:F3}), 인계 XYZ=({3:F3}, {4:F3}, {5:F3}), 허용 오차={6:F3} mm.</value>
+  </data>
 </root>

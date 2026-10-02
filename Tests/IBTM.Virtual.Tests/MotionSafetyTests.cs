@@ -310,8 +310,32 @@ public sealed class MotionSafetyTests
         motion.MovingChanged += moving => commanded |= moving;
         io.OutputChanged += (output, on) => commanded |= output == OutputIo.PcbSupplyRotate;
         Assert.False(supply.IsRotationAllowed);
-        await Assert.ThrowsAsync<MotionInterlockException>(() => supply.SetRotatedAsync(true));
+        var error = await Assert.ThrowsAsync<MotionInterlockException>(() => supply.SetRotatedAsync(true));
+        Assert.Contains("XYZ", error.Message);
+        Assert.Contains("0.050", error.Message);
         Assert.False(commanded);
+    }
+
+    [Fact]
+    public async Task SupplyRotationAllowsFourMicronsOfYPositionDifference()
+    {
+        var io = CreateIo();
+        var settings = new PcbSupplySettings
+        {
+            Motion = new() { HorizontalSpeed = 10_000, ZSpeed = 10_000 },
+            HandoffPosition = new() { X = 673.617, Y = -19.906, Z = 82.807 },
+        };
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        var supply = VirtualTestSupport.CreateSupplier(motion, io, settings);
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 1_000);
+        await supply.PrepareHandoffAsync(default);
+        await supply.MoveAxisAsync(MotionAxis.Y, -19.910);
+
+        Assert.True(supply.IsRotationAllowed);
+        await supply.SetRotatedAsync(true);
+        Assert.Equal(PcbSupplyRotationState.Rotated, supply.Rotation);
     }
 
     [Fact]
