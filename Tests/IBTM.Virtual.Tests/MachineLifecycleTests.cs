@@ -3468,6 +3468,54 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
+    [Theory]
+    [InlineData(true, false, StartCheckState.Empty)]
+    [InlineData(false, true, StartCheckState.MaterialRemaining)]
+    [InlineData(false, false, StartCheckState.MaterialRemaining)]
+    public async Task StartReviewDistinguishesVisibleSupplyPcbFromHeldPcb(
+        bool gripperOpen, bool gripperClosed, StartCheckState expected)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            io.SetInputs((InputIo.PcbSupplyPcbDetected, true),
+                (InputIo.PcbSupplyGripperOpen, gripperOpen),
+                (InputIo.PcbSupplyGripperClosed, gripperClosed),
+                (InputIo.PcbSupplyIpmFixerForward, false),
+                (InputIo.PcbSupplyRotated, true), (InputIo.PcbSupplyUnrotated, false));
+            machine.CheckStartMaterials();
+            Assert.Equal(expected, machine.StartChecks[StartArea.Supply]);
+
+            using var stop = new CancellationTokenSource();
+            var admitted = false;
+            state.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(MachineState.AutomaticRunning) && state.AutomaticRunning)
+                {
+                    admitted = true;
+                    stop.Cancel();
+                }
+            };
+            await machine.StartAsync(stop.Token).WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(expected == StartCheckState.Empty, admitted);
+            Assert.Equal(expected, machine.StartChecks[StartArea.Supply]);
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task StartReviewExcludesDisabledUnitsAndAllowsConveyorStartWithTheirMaterials()
     {
@@ -3550,6 +3598,7 @@ public sealed partial class MachineLifecycleTests
             await machine.HomeAsync(CancellationToken.None);
             await WaitUntilAsync(() => machine.IsStartAllowed);
             io.SetInputs((InputIo.PcbSupplyPcbDetected, true), (InputIo.PcbPlacementVacuumDetected, true),
+                (InputIo.PcbSupplyGripperClosed, true), (InputIo.PcbSupplyGripperOpen, false),
                 (InputIo.ShootingTubeBoltDetected, true), (InputIo.PcbPlacementHeatSink1Present, true),
                 (InputIo.BoltFasteningHeatSink1Present, true));
             fastening.Complete(fastening.CurrentJob);
@@ -3884,6 +3933,8 @@ public sealed partial class MachineLifecycleTests
             await WaitUntilAsync(() => machine.IsStartAllowed);
             // Completed carriers, NG shuttle/conveyor loads and feeder stock may remain.
             io.SetInputs(
+                (InputIo.PcbSupplyGripperClosed, true),
+                (InputIo.PcbSupplyGripperOpen, false),
                 (InputIo.PcbPlacementHeatSink1Present, true),
                 (InputIo.BoltFasteningHeatSink1Present, true),
                 (InputIo.InspectionHeatSink1Present, true),

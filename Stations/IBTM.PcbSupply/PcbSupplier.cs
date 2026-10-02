@@ -219,7 +219,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         if (cancellationToken.IsCancellationRequested)
             return;
         var continueHandoff = !repeat && IsHandoffRestartAllowed;
-        if (_units.PcbSupply && Pcb != PcbSupplyPcbState.None && !continueHandoff)
+        if (_units.PcbSupply && Pcb != PcbSupplyPcbState.None && !PcbReleased && !continueHandoff)
             throw new InvalidOperationException("Remove the Supply PCB before starting a new run.");
         Exception? failure = null;
         _repeat = repeat;

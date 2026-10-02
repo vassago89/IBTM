@@ -265,6 +265,34 @@ public sealed class PcbSupplyHandoffTests
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NewRunAllowsVisiblePcbWithReleasedGripper(bool facingPickup)
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        await rig.Supplier.SetRotatedAsync(facingPickup);
+        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var waitingForCarrier = false;
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.WaitingForCarrier)
+            {
+                waitingForCarrier = true;
+                stop.Cancel();
+            }
+        };
+
+        await rig.Supplier.RunAsync(rig.Placement, stop.Token);
+
+        Assert.True(waitingForCarrier);
+        Assert.True(rig.Supplier.PcbReleased);
+        Assert.Equal(PcbSupplyPcbState.Detected, rig.Supplier.Pcb);
+        Assert.False(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+    }
+
     [Fact]
     public async Task NewRunRejectsHeldPcbWithoutCompletedHandoff()
     {
