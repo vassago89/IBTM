@@ -26,8 +26,8 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 {
     private static readonly TimeSpan s_inputPollInterval;
     private static readonly TimeSpan s_outputPollInterval;
-    private static readonly TimeSpan s_motionPollInterval;
     private readonly UnitSettings _units;
+    private readonly MachineOptions _options;
     private readonly IIoService _io;
     private readonly ILogger<MachineFeedbackMonitor>? _log;
     private readonly CancellationTokenSource _lifetime;
@@ -42,11 +42,11 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
     {
         s_inputPollInterval = TimeSpan.FromMilliseconds(10);
         s_outputPollInterval = TimeSpan.FromMilliseconds(250);
-        s_motionPollInterval = TimeSpan.FromMilliseconds(250);
     }
 
     public MachineFeedbackMonitor(
         UnitSettings units,
+        MachineOptions options,
         IIoService io,
         IoSignals ioSignals,
         IReadOnlyDictionary<MotionGroup, MotionStatus> motions,
@@ -58,6 +58,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         _samples = new();
 
         _units = units;
+        _options = options;
         _io = io;
         Io = ioSignals;
         _log = log;
@@ -153,7 +154,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
     private async Task MonitorAsync(
         string name,
         TaskCompletionSource first,
-        TimeSpan interval,
+        TimeSpan? interval,
         AsyncAutoResetEvent? requested,
         Action read,
         Action<Exception> failed)
@@ -166,10 +167,12 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 read();
                 first.TrySetResult();
+                // Motion polling uses the current setting; fixed I/O intervals stay independent.
+                var delay = interval ?? TimeSpan.FromMilliseconds(_options.MotionPollMilliseconds);
                 if (requested is null)
-                    await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                 else
-                    await requested.WaitAsync(interval, cancellationToken).ConfigureAwait(false);
+                    await requested.WaitAsync(delay, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -253,7 +256,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
             await MonitorAsync(
                 $"Motion {group}",
                 first,
-                s_motionPollInterval,
+                null,
                 requested,
                 () => ReadMotion(group, motion),
                 error => FailMotion(group, motion, error)).ConfigureAwait(false);

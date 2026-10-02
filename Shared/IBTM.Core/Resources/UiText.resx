@@ -3503,4 +3503,7 @@ COMPLETE: finish</value>
   <data name="rework this station" xml:space="preserve">
     <value>Rework this station</value>
   </data>
+  <data name="motion refresh interval (ms, all units)" xml:space="preserve">
+    <value>Motion refresh interval (ms, all units)</value>
+  </data>
 </root>

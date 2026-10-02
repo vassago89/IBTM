@@ -414,6 +414,13 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <DockPanel Margin="0,0,0,12">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Text="{ui:Text 'Motion refresh interval (ms, all units)'}" Style="{StaticResource SettingFieldLabel}"
+                                VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBox IsEnabled="{Binding IsSettingsEditAllowed}" Width="100" ToolTip="10–1000 ms"
+                                Text="{Binding Settings.Options.MotionPollMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                VerticalAlignment="Center"/>
+                        </StackPanel>
                         <TextBlock Text="{ui:Text 'Motion group'}" Style="{StaticResource SettingFieldLabel}" DockPanel.Dock="Left"
                             VerticalAlignment="Center" Margin="0,0,12,0"/>
                         <ComboBox ItemsSource="{Binding MotionGroups}" SelectedItem="{Binding SelectedMotionGroup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

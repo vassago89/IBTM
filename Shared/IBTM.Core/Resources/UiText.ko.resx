@@ -3502,4 +3502,7 @@
   <data name="rework this station" xml:space="preserve">
     <value>이 공정 다시 작업</value>
   </data>
+  <data name="motion refresh interval (ms, all units)" xml:space="preserve">
+    <value>모션 갱신 주기 (ms, 공통)</value>
+  </data>
 </root>
