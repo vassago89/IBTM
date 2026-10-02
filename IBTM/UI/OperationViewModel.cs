@@ -62,7 +62,7 @@ public partial class OperationViewModel : ObservableObject
     {
         _countGate = new();
         ClearCountsCommand = new RelayCommand(ClearCounts);
-        OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest);
+        OpenBoltStationTestCommand = new RelayCommand<Window>(windows.OpenBoltStationTest);
         StartCommand = new AsyncRelayCommand(StartAsync);
         ConfirmStartCommand = new AsyncRelayCommand(machine.StartAsync);
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
@@ -417,7 +417,7 @@ public partial class OperationViewModel : ObservableObject
             [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
     }
 
-    public IRelayCommand OpenBoltStationTestCommand { get; }
+    public IRelayCommand<Window> OpenBoltStationTestCommand { get; }
 
     public IRelayCommand ClearCountsCommand { get; }
 

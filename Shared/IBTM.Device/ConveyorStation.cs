@@ -177,6 +177,10 @@ public sealed class ConveyorStation : INotifyPropertyChanged
     {
         await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
         await _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!CarrierPresent)
+            throw new MotionInterlockException(UiText.Format(
+                $"{UiText.Get(_backupPlateUp)}: carrier not detected after raising the backup plate."));
         await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
     }
 

@@ -164,13 +164,14 @@
                     <TranslateTransform X="{Binding InspectionGantryMapPosition.X, TargetNullValue=0, FallbackValue=0}"
                         Y="{Binding InspectionGantryMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                 </Canvas.RenderTransform>
-                <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.CameraLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CameraTop}">
+                <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.CameraLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CameraTop}"
+                    Orientation="Horizontal">
                     <Grid x:Name="InspectionCamera" Width="{x:Static ui:MachineDiagramLayout.CameraSize}" Height="{x:Static ui:MachineDiagramLayout.CameraSize}" Opacity="0.6">
                         <Ellipse Width="42" Height="42" Fill="{StaticResource MachineGhostBrush}" Stroke="{StaticResource AccentBlueBrush}"
                             StrokeThickness="2"/>
                         <Ellipse Width="16" Height="16" Fill="Transparent" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1"/>
                     </Grid>
-                    <TextBlock Margin="0,2,0,0" Text="{ui:Text 'Camera'}" HorizontalAlignment="Center" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    <TextBlock Margin="8,0,0,0" Text="{ui:Text 'Camera'}" VerticalAlignment="Center" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                 </StackPanel>
             </Canvas>
         </Canvas>

@@ -42,8 +42,8 @@
     </UserControl.Resources>
     <Grid>
         <Canvas>
-            <Grid Canvas.Left="0" Canvas.Top="276" Width="1552">
-                <Border HorizontalAlignment="Center" Style="{StaticResource StateBadgeStyle}">
+            <Grid Canvas.Left="18" Canvas.Top="260" Width="176" Height="48">
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource StateBadgeStyle}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{ui:Text 'CONVEYOR'}" Margin="0,0,9,0" VerticalAlignment="Center"
                             Style="{StaticResource EquipmentRoleLabelStyle}"/>
@@ -218,17 +218,18 @@
             <TextBlock Canvas.Left="1358" Canvas.Top="137" Width="80"
                 Text="OUT"
                 Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FirstPlateLeft}" Canvas.Top="224" Width="284" Height="48">
+            <Path Data="M 18,252 H 1534" Stroke="{StaticResource DividerBrush}" StrokeThickness="1"/>
+            <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FirstPlateLeft}" Canvas.Top="260" Width="284" Height="48">
                 <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
                 <Path Tag="{Binding Placement.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>
                 <Path Tag="{Binding Placement.Station.Stopper}" Style="{StaticResource StopperElevationStyle}"/>
             </Canvas>
-            <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="224" Width="284" Height="48">
+            <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="260" Width="284" Height="48">
                 <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
                 <Path Tag="{Binding Fastening.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>
                 <Path Tag="{Binding Fastening.Station.Stopper}" Style="{StaticResource StopperElevationStyle}"/>
             </Canvas>
-            <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionPlateLeft}" Canvas.Top="224" Width="284" Height="48">
+            <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionPlateLeft}" Canvas.Top="260" Width="284" Height="48">
                 <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
                 <Path Tag="{Binding Inspection.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>
                 <Path Tag="{Binding Inspection.Station.Stopper}" Style="{StaticResource StopperElevationStyle}"/>

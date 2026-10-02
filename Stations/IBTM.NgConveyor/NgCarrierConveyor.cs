@@ -366,14 +366,9 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         }
         switch (_movement)
         {
-            case Movement.ToPosition1:
-                return Io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                    ? NgConveyorState.WaitingForShuttleUp
-                    : NgConveyorState.MovingToPosition1;
-            case Movement.ToPosition2:
-                return Io.GetInput(InputIo.NgConveyorPosition2Occupied)
-                    ? NgConveyorState.WaitingForShuttleUp
-                    : NgConveyorState.MovingToPosition2;
+            case Movement.ToPosition1 or Movement.ToPosition2:
+                // RunUntilAsync already finished this move. Missing feedback cannot restart it.
+                return NgConveyorState.WaitingForShuttleUp;
             case Movement.Compacting:
                 return NgConveyorState.CompactingCarriers;
         }
@@ -439,6 +434,11 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             StartConveyor(cancellationToken, reverse);
             await arrived;
             await Task.Delay(TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            // An arrival pulse must not lead to another move after the timed stop.
+            if (!Io.GetInput(destination))
+                throw new MotionInterlockException(UiText.Format(
+                    $"{UiText.Get(destination)}: carrier not detected after the conveyor stop delay."));
         }
         catch (Exception exception)
         {

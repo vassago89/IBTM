@@ -236,7 +236,7 @@ public sealed class NgConveyorTests
     [Theory]
     [InlineData(false, 0.2)]
     [InlineData(true, 0)]
-    public async Task ArrivalPulseUsesConfiguredAdditionalRun(bool reverse, double delaySeconds)
+    public async Task ArrivalPulseRunsTheConfiguredDelayThenReportsMissingCarrier(bool reverse, double delaySeconds)
     {
         var system = CreateSystem(carrierStopDelaySeconds: delaySeconds);
         system.Io.AutoResponseEnabled = false;
@@ -260,12 +260,53 @@ public sealed class NgConveyorTests
         };
 
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await system.Conveyor.RunUntilAsync(destination, reverse, stop.Token);
+        await Assert.ThrowsAsync<MotionInterlockException>(
+            () => system.Conveyor.RunUntilAsync(destination, reverse, stop.Token));
         Assert.NotNull(stoppedAfter);
         Assert.True(stoppedAfter >= TimeSpan.FromSeconds(delaySeconds) - TimeSpan.FromMilliseconds(15));
         Assert.False(system.Io.GetInput(destination));
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         Assert.Equal(reverse, system.Io.GetOutput(OutputIo.NgConveyorReverse));
+    }
+
+    [Fact]
+    public async Task LostPosition2AfterArrivalStopsWithoutRestartingTheBelt()
+    {
+        var system = CreateSystem(carrierStopDelaySeconds: 0.1);
+        await system.Conveyor.SetShuttleDownAsync(true);
+        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true);
+        system.Io.AutoResponseEnabled = false;
+        system.Io.SetInputs((InputIo.NgConveyorPosition1Occupied, true),
+            (InputIo.NgShuttleCarrierDetected, true));
+        var starts = 0;
+        system.Io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.NgConveyorRun || !on)
+                return;
+            starts++;
+            if (starts == 1)
+            {
+                system.Io.SetInput(InputIo.NgShuttleCarrierDetected, false);
+                system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
+                system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, false);
+            }
+        };
+        using var stop = new CancellationTokenSource();
+        var run = system.Conveyor.RunAsync(stop.Token);
+        try
+        {
+            await Assert.ThrowsAsync<MotionInterlockException>(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(1, starts);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.True(system.Io.GetOutput(OutputIo.NgShuttleDown));
+            Assert.False(system.Conveyor.IsReceiveAllowed);
+        }
+        finally
+        {
+            stop.Cancel();
+            try { await run.WaitAsync(TimeSpan.FromSeconds(2)); }
+            catch (MotionInterlockException) { }
+        }
     }
 
     [Fact]
@@ -859,6 +900,11 @@ public sealed class NgConveyorTests
             Assert.True(system.Io.GetOutput(OutputIo.NgShuttleDown));
             Assert.False(system.Conveyor.IsReceiveAllowed);
 
+            // A later sensor loss while waiting for pickup/shuttle clearance must not repeat the move.
+            system.Io.SetInput(destination, false);
+            Assert.Equal(NgConveyorState.WaitingForShuttleUp, system.Conveyor.GetNextStep(false));
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+            system.Io.SetInput(destination, true);
             system.Io.SetInput(InputIo.NgShuttleCarrierDetected, false);
             await WaitForOutputAsync(system.Io, OutputIo.NgShuttleDown, false);
         }

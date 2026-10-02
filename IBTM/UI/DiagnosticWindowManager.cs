@@ -160,7 +160,7 @@ public sealed class DiagnosticWindowManager
         ShowWindow(_adc);
     }
 
-    public void OpenBoltStationTest()
+    public void OpenBoltStationTest(Window? owner)
     {
         if (!_state.ManualMode || _state.AutomaticRunning)
             return;
@@ -171,7 +171,7 @@ public sealed class DiagnosticWindowManager
         }
         _boltTest = new(_boltTestViewModel);
         _boltTest.Closed += (_, _) => _boltTest = null;
-        ShowWindow(_boltTest, modal: true);
+        ShowWindow(_boltTest, modal: true, owner: owner);
     }
 
     public void OpenLogs()
@@ -195,11 +195,11 @@ public sealed class DiagnosticWindowManager
         ShowWindow(_logs);
     }
 
-    private void ShowWindow(Window window, bool modal = false)
+    private void ShowWindow(Window window, bool modal = false, Window? owner = null)
     {
         try
         {
-            window.Owner = Owner;
+            window.Owner = owner ?? Owner;
             window.ShowInTaskbar = false;
             if (modal)
                 window.ShowDialog();

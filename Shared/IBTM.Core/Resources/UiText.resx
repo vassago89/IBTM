@@ -3432,4 +3432,10 @@ Clear results: run this station again</value>
   <data name="this image belongs to an earlier pcb record." xml:space="preserve">
     <value>This image belongs to an earlier PCB record.</value>
   </data>
+  <data name="{0}: carrier not detected after raising the backup plate." xml:space="preserve">
+    <value>{0}: carrier not detected after raising the backup plate.</value>
+  </data>
+  <data name="{0}: carrier not detected after the conveyor stop delay." xml:space="preserve">
+    <value>{0}: carrier not detected after the conveyor stop delay.</value>
+  </data>
 </root>

@@ -828,7 +828,7 @@ public sealed class UiBindingTests
             (typeof(MotionDiagnosticsWindow), diagnostics.OpenMotion),
             (typeof(AdcProtocolWindow), diagnostics.OpenAdcProtocol),
             (typeof(LogWindow), diagnostics.OpenLogs),
-            (typeof(BoltStationTestWindow), diagnostics.OpenBoltStationTest),
+            (typeof(BoltStationTestWindow), () => diagnostics.OpenBoltStationTest(null)),
         })
         {
             var hiddenStyle = new Style(windowType);

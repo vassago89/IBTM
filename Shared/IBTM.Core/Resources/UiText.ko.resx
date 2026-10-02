@@ -3432,4 +3432,10 @@
   <data name="this image belongs to an earlier pcb record." xml:space="preserve">
     <value>이전 PCB의 이미지가 잘못 연결되어 있습니다.</value>
   </data>
+  <data name="{0}: carrier not detected after raising the backup plate." xml:space="preserve">
+    <value>{0}: 플레이트 상승 후 캐리어 감지가 없습니다. 캐리어와 센서를 확인하세요.</value>
+  </data>
+  <data name="{0}: carrier not detected after the conveyor stop delay." xml:space="preserve">
+    <value>{0}: 추가 이송 후 캐리어 감지가 없습니다. 캐리어와 센서를 확인하세요.</value>
+  </data>
 </root>

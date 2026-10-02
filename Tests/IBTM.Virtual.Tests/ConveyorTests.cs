@@ -21,6 +21,93 @@ namespace IBTM.Virtual.Tests;
 public sealed class ConveyorTests
 {
     [Fact]
+    public async Task FrontWaitKeepsJobUntilEntryStartsReceipt()
+    {
+        var io = CreateIo();
+        io.Initialize();
+        var placement = ConveyorStation.CreatePcbPlacement(io);
+        var units = new UnitSettings();
+        var conveyor = new MainConveyor(io, new(), new(), placement,
+            ConveyorStation.CreateBoltFastening(io), CreateInspectionStation(io, units), units);
+        var job = placement.CurrentJob;
+        var assembly = placement.GetAssembly(HeatSinkSlot.HeatSink1);
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, true);
+            Assert.Same(job, placement.CurrentJob);
+            Assert.Same(assembly, Assert.Single(placement.Assemblies));
+            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            Assert.NotSame(job, placement.CurrentJob);
+            Assert.Empty(placement.Assemblies);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MissingCarrierDuringPlateRaiseStopsWithoutLoweringOrReplacingWork(bool fastening)
+    {
+        var io = CreateIo();
+        io.Initialize();
+        var placement = ConveyorStation.CreatePcbPlacement(io);
+        var boltStation = ConveyorStation.CreateBoltFastening(io);
+        var units = new UnitSettings();
+        var conveyor = new MainConveyor(io, new(), new(), placement, boltStation,
+            CreateInspectionStation(io, units), units);
+        var station = fastening ? boltStation : placement;
+        var input = fastening ? InputIo.BoltFasteningHeatSink1Present : InputIo.PcbPlacementHeatSink1Present;
+        var plate = fastening ? OutputIo.BoltFasteningBackupPlateUp : OutputIo.PcbPlacementBackupPlateUp;
+        var stopper = fastening ? OutputIo.BoltFasteningStopperUp : OutputIo.PcbPlacementStopperUp;
+        SetCarrier(io, input, true);
+        var job = station.CurrentJob;
+        var assembly = station.GetAssembly(HeatSinkSlot.HeatSink1);
+        var raises = 0;
+        var lowers = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != plate)
+                return;
+            if (on)
+            {
+                raises++;
+                SetCarrier(io, input, false);
+            }
+            else if (raises > 0)
+            {
+                lowers++;
+                SetCarrier(io, input, true);
+            }
+        };
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await Assert.ThrowsAsync<MotionInterlockException>(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(1, raises);
+            Assert.Equal(0, lowers);
+            Assert.True(io.GetOutput(plate));
+            Assert.True(io.GetOutput(stopper));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.Same(job, station.CurrentJob);
+            Assert.Same(assembly, Assert.Single(station.Assemblies));
+        }
+        finally
+        {
+            stop.Cancel();
+            try { await run.WaitAsync(TimeSpan.FromSeconds(2)); }
+            catch (MotionInterlockException) { }
+        }
+    }
+
+    [Fact]
     public async Task MaintenanceWithdrawsFrontReadyWithoutStartingAnEmptyBelt()
     {
         var io = CreateIo();

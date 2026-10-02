@@ -481,9 +481,9 @@ public sealed partial class MainConveyor : AutoUnit
             {
                 if (!receiving)
                     SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false, cancellationToken);
-                // A commanded receipt starts new work; sensor edges alone never replace it.
                 cancellationToken.ThrowIfCancellationRequested();
-                destination.ClearJob();
+                if (!receiving)
+                    destination.ClearJob();
                 // 목적지가 준비될 때까지 출발 캐리어는 벨트에서 분리해 둔다.
                 await destination.PrepareToReceiveAsync(cancellationToken);
                 RequireSeatingPushPosition(destination);
@@ -502,10 +502,8 @@ public sealed partial class MainConveyor : AutoUnit
                     RequireSeatingPushPosition(destination);
                 }
 
-                destination.Changed += ObserveArrival;
                 if (receiving)
                     Io.InputChanged += ObserveEntry;
-                ObserveArrival();
                 if (receiving && Io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                     entered.TrySetResult();
                 if (receiving)
@@ -540,8 +538,12 @@ public sealed partial class MainConveyor : AutoUnit
                         SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, !IsTransferPaused && IsRearDischargeAllowed, transfer.Token);
                         await WaitForChangeAsync(transfer.Token);
                     }
+                    // READY waiting alone does not replace the station's work.
+                    destination.ClearJob();
                     EnterStep(MainConveyorState.ReceivingFrontCarrier, waitingFor: "S1 Heat Sink 2 detected=ON");
                 }
+                destination.Changed += ObserveArrival;
+                ObserveArrival();
                 StartMotor(transfer.Token);
                 try
                 {
