@@ -325,7 +325,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             throw new InvalidOperationException("Supply lost the returned PCB before placement cleared the handoff.");
                         await WaitForChangeAsync(cancellationToken);
                         continue;
-                    case PcbSupplyState.PlacingReturnedPcb:
+                    case PcbSupplyState.ReturningToPickup:
                     {
                         var returnPosition = _pickStep == PickStep.Pcb1 ? recipe.Pcb1PickPosition : recipe.Pcb2PickPosition;
                         var support = new AxisPosition
@@ -339,7 +339,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         void CheckReturnSupport()
                         {
                             if (!releasing && !PcbSecured
-                                || Rotation != PcbSupplyRotationState.Rotated
+                                || Phase == PcbSupplyState.PlacingReturnedPcb && Rotation != PcbSupplyRotationState.Rotated
                                 || releasing && !MotionServiceBase.IsHoldingPosition(_motion, support))
                                 OperationCancellation.CancelIfNotDisposed(placing);
                         }
@@ -348,12 +348,11 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         {
                             CheckReturnSupport();
                             placing.Token.ThrowIfCancellationRequested();
-                            await MoveToPickupAsync(returnPosition, placing.Token);
+                            await MoveFromHandoffAsync(returnPosition, placing.Token);
+                            EnterStep(PcbSupplyState.PlacingReturnedPcb);
                             await MoveAxisAsync(MotionAxis.Z, returnPosition.Z, placing.Token);
                             CheckReturnSupport();
                             placing.Token.ThrowIfCancellationRequested();
-                            if (!MotionServiceBase.IsHoldingPosition(_motion, support))
-                                throw new MotionInterlockException("Supply must reach pickup XYZ before releasing the returned PCB.");
                             releasing = true;
                             await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, placing.Token);
                             await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, placing.Token);
@@ -465,7 +464,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         }
                         break;
                     }
-                    case PcbSupplyState.MovingToHandoff or PcbSupplyState.ReturningToPickup:
+                    case PcbSupplyState.MovingToHandoff:
                     {
                         using var carrying = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         void CheckHolding()
@@ -478,20 +477,11 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         {
                             CheckHolding();
                             carrying.Token.ThrowIfCancellationRequested();
-                            if (step == PcbSupplyState.ReturningToPickup)
-                            {
-                                var returnPosition = _pickStep == PickStep.Pcb1 ? recipe.Pcb1PickPosition : recipe.Pcb2PickPosition;
-                                await MoveFromHandoffAsync(returnPosition, carrying.Token);
-                                EnterStep(PcbSupplyState.PlacingReturnedPcb);
-                            }
-                            else
-                                await PrepareHandoffAsync(carrying.Token);
+                            await PrepareHandoffAsync(carrying.Token);
                         }
                         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                         {
-                            throw new InvalidOperationException(step == PcbSupplyState.ReturningToPickup
-                                ? "Supply lost PCB holding feedback during reverse travel."
-                                : "Supply lost PCB grip or IPM fixation during forward handoff.");
+                            throw new InvalidOperationException("Supply lost PCB grip or IPM fixation during forward handoff.");
                         }
                         finally
                         {
@@ -577,12 +567,8 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var recipe = _recipes.Current.PcbSupply;
-                var pickup = _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition;
                 if (Step is PcbSupplyState.WaitingForReturnedPcb && PcbReleased
-                    && Rotation == PcbSupplyRotationState.Rotated && pickup.Y is { } y
-                    && MotionServiceBase.IsHoldingPosition(_motion,
-                        new() { X = pickup.X, Y = y, Z = _settings.TravelZ }))
+                    && Rotation == PcbSupplyRotationState.Rotated)
                     return;
                 await changed.WaitAsync(cancellationToken);
             }
@@ -625,8 +611,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                     if (PcbSecured)
                         return PcbSupplyState.MovingToHandoff;
                     if (_units.PcbPlacement)
-                        return placement.ReturningPcb is not null
-                            ? PcbSupplyState.PreparingReturnReceipt : PcbSupplyState.WaitingForReturnedPcb;
+                        return PcbSupplyState.MovingToPickup;
                     break;
             }
         }

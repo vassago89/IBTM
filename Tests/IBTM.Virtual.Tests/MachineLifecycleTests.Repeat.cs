@@ -1108,7 +1108,7 @@ public sealed partial class MachineLifecycleTests
         supply.Motion.Feedback.StateChanged += () =>
         {
             if (supply.PcbSecured && supply.Rotation == PcbSupplyRotationState.Rotated
-                && !MotionServiceBase.IsAtZ(supply.Motion.Feedback, settings.PcbSupply.TravelZ))
+                && Math.Abs(supply.Motion.Feedback.Position.Z - settings.PcbSupply.TravelZ) > MotionServiceBase.PositionToleranceMillimeters)
                 descendedToSourceSlot = true;
             StopAtHandoff();
         };

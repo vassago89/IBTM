@@ -31,9 +31,6 @@ public enum PcbPlacementState
     [Description("Returning PCB to Supply")]
     ReturningToSupply,
 
-    [Description("Lowering PCB to Supply")]
-    PresentingToSupply,
-
     [Description("Waiting for Supply Grip")]
     WaitingForSupplyGrip,
 

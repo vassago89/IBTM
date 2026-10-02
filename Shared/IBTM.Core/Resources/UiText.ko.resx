@@ -1146,9 +1146,6 @@
   <data name="lowering ng shuttle" xml:space="preserve">
     <value>NG 셔틀 하강 중</value>
   </data>
-  <data name="lowering pcb to supply" xml:space="preserve">
-    <value>공급측으로 PCB 하강</value>
-  </data>
   <data name="machine" xml:space="preserve">
     <value>설비</value>
   </data>

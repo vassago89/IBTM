@@ -313,17 +313,6 @@ public sealed class PcbTransferTests
         {
             movedWithCylinderDown |= moving && placer.Lift != StationCylinderState.Up;
         };
-        for (var step = 0; step < 8 && !MotionServiceBase.IsAt(placer.Motion.Feedback, placementSettings.HandoffPosition); step++)
-        {
-            await placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token)!;
-        }
-
-        Assert.True(MotionServiceBase.IsAt(placer.Motion.Feedback, placementSettings.HandoffPosition));
-        Assert.Equal((50, 10, 8), placementMotion.Position);
-        Assert.Equal(StationCylinderState.Up, placer.Lift);
-        Assert.False(movedWithCylinderDown);
-        Assert.Equal(PcbPlacementState.ReceivingPcb, placer.Phase);
-        Assert.Equal(PcbPlacementHandoff.Unavailable, placer.Handoff);
         var receiveZ = placementSettings.ReceiveZ;
         placementSettings.ReceiveZ = null;
         await Assert.ThrowsAsync<MotionInterlockException>(() => placer.ExecuteStepAsync(
@@ -336,11 +325,6 @@ public sealed class PcbTransferTests
             if (output == OutputIo.PcbPlacementVacuumEjector)
                 io.SetInput(InputIo.PcbPlacementVacuumDetected, on);
         };
-        if (supplyFirst)
-        {
-            // An interrupted receipt at Receive Z finishes without raising away from Supply.
-            await placer.PrepareReceiptAsync(timeout.Token);
-        }
         var loweredDuringReceipt = false;
         io.OutputChanged += (output, on) => loweredDuringReceipt |= output == OutputIo.PcbPlacementHandlerDown && on;
         Assert.Equal(PcbPlacementState.ReceivingPcb, placer.Phase);
@@ -412,7 +396,7 @@ public sealed class PcbTransferTests
                 && io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
             {
                 readyDroppedBeforeClear |= !pcb2Visited
-                    || !MotionServiceBase.IsAtZ(supply.Motion.Feedback, supplySettings.TravelZ)
+                    || Math.Abs(supply.Motion.Feedback.Position.Z - supplySettings.TravelZ) > MotionServiceBase.PositionToleranceMillimeters
                     || supply.Pcb == PcbSupplyPcbState.Detected;
             }
         };
@@ -460,7 +444,7 @@ public sealed class PcbTransferTests
         var checkedBoth = await WaitUntilAsync(
             () => pcb1Visited && pcb2Visited && !io.GetOutput(OutputIo.PcbSupplyReadyToFront1),
             TimeSpan.FromSeconds(5));
-        var atTravelZ = MotionServiceBase.IsAtZ(supply.Motion.Feedback, supplySettings.TravelZ);
+        var atTravelZ = Math.Abs(supply.Motion.Feedback.Position.Z - supplySettings.TravelZ) <= MotionServiceBase.PositionToleranceMillimeters;
         var nextCarrierAccepted = true;
         if (secondPcbPresent && checkedBoth)
         {

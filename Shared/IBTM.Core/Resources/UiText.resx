@@ -1146,9 +1146,6 @@ Operation failed. Check controller status.</value>
   <data name="lowering ng shuttle" xml:space="preserve">
     <value>Lowering NG Shuttle</value>
   </data>
-  <data name="lowering pcb to supply" xml:space="preserve">
-    <value>Lowering PCB to Supply</value>
-  </data>
   <data name="machine" xml:space="preserve">
     <value>Machine</value>
   </data>

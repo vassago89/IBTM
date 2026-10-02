@@ -62,7 +62,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             return _units.PcbPlacement && IsRunning && _repeatTrip is { } trip
                 && Phase is PcbPlacementState.ReturningToSupply
-                    or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
+                    or PcbPlacementState.WaitingForSupplyGrip
                 ? trip.HeatSink : null;
         }
     }
@@ -358,7 +358,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         if (targetChanged)
             NotifyChanged();
         var requiresSecuredPcb = state is PcbPlacementState.ReturningToSupply
-            or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
+            or PcbPlacementState.WaitingForSupplyGrip
             or PcbPlacementState.PreparingPlacement;
         if (IsPcbGripUncertain || requiresSecuredPcb && !PcbSecured)
             throw new InvalidOperationException("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before moving or releasing it.");
@@ -412,9 +412,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     if (!_units.PcbSupply)
                         EnterStep(PcbPlacementState.PreparingPlacement);
                     break;
-                case PcbPlacementState.PresentingToSupply:
-                    await PrepareReceiptAsync(cancellationToken, returning: true);
-                    break;
                 case PcbPlacementState.ReleasingToSupply:
                     if (_handoffPosition is not { } returnHandoff
                         || !MotionServiceBase.IsHoldingPosition(_motion, returnHandoff))
@@ -433,19 +430,11 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     _handoffPosition = new() { X = departure.X, Y = departure.Y, Z = departure.Z };
                     EnterStep(PcbPlacementState.WaitingForSupplyDeparture);
                     break;
-                case PcbPlacementState.MovingToHandoff:
+                case PcbPlacementState.MovingToHandoff or PcbPlacementState.ReceivingPcb:
+                {
                     // During maintenance only the seated, unfinished carrier may receive another PCB.
                     if (!IsPrefetchAllowed && (!Station.CarrierSeated || Station.Completed || heatSink is null))
                         return false;
-                    if (_supply.Handoff != PcbSupplyHandoff.Holding)
-                        return false;
-                    await SetLiftDownAsync(false, cancellationToken);
-                    await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, cancellationToken);
-                    await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, !repeat, cancellationToken);
-                    await PrepareHandoffAsync(cancellationToken);
-                    break;
-                case PcbPlacementState.ReceivingPcb:
-                {
                     if (_supply.Handoff != PcbSupplyHandoff.Holding)
                         return false;
                     using var receipt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -460,10 +449,10 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     {
                         CheckSupplyHolding();
                         receipt.Token.ThrowIfCancellationRequested();
-                        var ipmDown = !repeat;
-                        if (IpmLift != (ipmDown ? StationCylinderState.Down : StationCylinderState.Up))
-                            await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, ipmDown, receipt.Token);
-                        await PrepareReceiptAsync(receipt.Token);
+                        await SetLiftDownAsync(false, receipt.Token);
+                        await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, receipt.Token);
+                        await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, !repeat, receipt.Token);
+                        await PrepareHandoffAsync(receipt.Token);
                         await Io.WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, receipt.Token, requireCurrent: true);
                         await SetVacuumAsync(true, receipt.Token);
                         receipt.Token.ThrowIfCancellationRequested();
@@ -649,49 +638,16 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             await MoveAxisAsync(MotionAxis.Y, _settings.HandoffPosition.Y, approach.Token);
             CheckSupply();
             approach.Token.ThrowIfCancellationRequested();
-            _handoffPosition = new()
-            {
-                X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = _settings.HandoffPosition.Z,
-            };
-            EnterStep(returning ? PcbPlacementState.PresentingToSupply : PcbPlacementState.ReceivingPcb);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new MotionInterlockException("Supply must remain ready at its unrotated handoff position while Placement approaches.");
-        }
-        finally
-        {
-            _supply.Changed -= CheckSupply;
-        }
-    }
-
-    public async Task PrepareReceiptAsync(CancellationToken cancellationToken = default, bool returning = false)
-    {
-        EnterStep(returning ? PcbPlacementState.PresentingToSupply : PcbPlacementState.ReceivingPcb);
-        cancellationToken.ThrowIfCancellationRequested();
-        var handoffAtCurrentZ = new AxisPosition
-        {
-            X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = _motion.Position.Z,
-        };
-        if (!MotionServiceBase.IsHoldingPosition(_motion, handoffAtCurrentZ))
-            throw new MotionInterlockException("Move Placement to handoff XY before lowering to receive Z.");
-        using var receipt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        void CheckSupply()
-        {
-            if (returning && _units.PcbSupply && _supply.Handoff != PcbSupplyHandoff.Released)
-                OperationCancellation.CancelIfNotDisposed(receipt);
-        }
-        _supply.Changed += CheckSupply;
-        try
-        {
-            CheckSupply();
-            receipt.Token.ThrowIfCancellationRequested();
+            if (returning && !_units.PcbSupply)
+                return;
+            if (!returning)
+                EnterStep(PcbPlacementState.ReceivingPcb);
             await MoveAxisAsync(
                 MotionAxis.Z,
                 _settings.ReceiveZ ?? throw new MotionInterlockException("Teach PCB Receive Z before receiving a PCB."),
-                receipt.Token);
+                approach.Token);
             CheckSupply();
-            receipt.Token.ThrowIfCancellationRequested();
+            approach.Token.ThrowIfCancellationRequested();
             _handoffPosition = new()
             {
                 X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = _settings.ReceiveZ!.Value,
@@ -706,8 +662,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             _supply.Changed -= CheckSupply;
         }
         // Publishing Returning permits Supply to grip; it no longer has to remain Released.
-        if (PcbSecured)
-            EnterStep(returning ? PcbPlacementState.WaitingForSupplyGrip : PcbPlacementState.WaitingForSupplyRelease);
+        if (returning && PcbSecured)
+            EnterStep(PcbPlacementState.WaitingForSupplyGrip);
     }
 
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)

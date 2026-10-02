@@ -40,13 +40,6 @@ public abstract class MotionServiceBase : IXyMotion
             && (!motion.HasZ || Math.Abs(current.Z - position.Z) <= PositionToleranceMillimeters);
     }
 
-    public static bool IsAtZ(IMotionFeedback motion, double z)
-    {
-        return !motion.HasZ
-            || motion.GetAxisState(MotionAxis.Z).Homed
-            && Math.Abs(motion.Position.Z - z) <= PositionToleranceMillimeters;
-    }
-
     private int _activeMotions;
     private int _activeHorizontalMotions;
     private MotionCommand _command = MotionCommand.Positioning;

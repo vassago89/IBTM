@@ -287,7 +287,7 @@ public sealed class TeachingTests
             Assert.Equal(StationCylinderState.Down, placement.Lift);
             Assert.Equal(MachineAlarm.None, state.Alarm);
             await Assert.ThrowsAsync<MotionInterlockException>(
-                () => placement.PrepareReceiptAsync());
+                () => placement.PrepareHandoffAsync());
             await placement.SetLiftDownAsync(false);
             await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
             Assert.True(teaching.IsMoveToHorizontalZAllowed);

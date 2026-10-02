@@ -256,7 +256,7 @@ public sealed class PcbSupplyRepeatTests
         };
         if (loseHolding)
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            await Assert.ThrowsAsync<MotionInterlockException>(
                 () => supplier.RunAsync(new NoPlacement(), stop.Token, repeat: true));
             Assert.True(lost);
             Assert.Equal(0, releases);

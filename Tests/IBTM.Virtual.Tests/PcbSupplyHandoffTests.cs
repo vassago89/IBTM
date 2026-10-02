@@ -13,6 +13,50 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbSupplyHandoffTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RepeatEndWaitsForWithdrawalToFinish(bool stopDuringMove)
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var end = rig.Supplier.WaitForRepeatEndAsync(stop.Token);
+        var moved = false;
+        rig.Motion.MovingChanged += moving =>
+        {
+            if (!moving)
+                return;
+            moved = true;
+            Assert.False(end.IsCompleted);
+            if (stopDuringMove)
+                stop.Cancel();
+        };
+        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token, repeat: true);
+        try
+        {
+            if (stopDuringMove)
+            {
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => end);
+                Assert.NotEqual(PcbSupplyState.WaitingForReturnedPcb, rig.Supplier.Phase);
+            }
+            else
+            {
+                await end;
+                var pickup = rig.Recipes.Current.PcbSupply.Pcb1PickPosition;
+                Assert.Equal((pickup.X, pickup.Y!.Value, rig.Settings.TravelZ), rig.Motion.Position);
+                Assert.Equal(PcbSupplyState.WaitingForReturnedPcb, rig.Supplier.Phase);
+                Assert.True(rig.Supplier.PcbReleased);
+            }
+            Assert.True(moved);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+    }
+
     [Fact]
     public async Task HandoffMoveDoesNotSkipSmallPositionError()
     {

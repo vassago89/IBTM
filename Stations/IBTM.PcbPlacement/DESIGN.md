@@ -12,7 +12,7 @@ the other units. Each axis must finish successfully before the next starts.
 Individual Placement HOME still homes Z first, followed by X/Y together.
 
 1. Wait outside the handoff until Supply reports `Holding`: settled at its give XYZ, Unrotated, and securing the PCB. Then raise the handler, reach standby Z, prepare the IPM and move to standby X followed by Y. Loss of Supply readiness during this approach stops movement.
-2. Confirm actual handoff X/Y and settled axes before lowering Z to `ReceiveZ`, including after STOP. Keep the handler cylinder Up, detect the PCB and confirm vacuum holding.
+2. After the awaited X/Y moves, lower Z to `ReceiveZ` in the same approach operation. Keep the handler cylinder Up, detect the PCB and confirm vacuum holding. STOP cancels the operation; a new START does not resume its descent.
 3. After Supply fixer and gripper retract, return Z to standby and move only Y to the selected heat sink's placement Y. Keep `PreparingPlacement` until Y settles; only then publish `Clear` for Supply withdrawal. A prefetched PCB without a carrier target waits at Heat Sink 1 Y.
 4. With the carrier seated, finish the move to the selected heat sink X, descend to placement Z and lower the handler.
 5. Release vacuum, raise IPM and lower IPM to press using the existing IPM Down output. Record the placement, then raise IPM and handler and return Z followed by X to standby, keeping the placement Y. There is no IPM gripper output or open/closed feedback.
@@ -24,8 +24,9 @@ the current execution/wait and becomes null after STOP. Both are updated through
 `EnterStep`; `GetNextStep` and `Handoff` only read state and feedback.
 Coordinates do not select stages or heat sinks. `MovingToHandoff` waits for Supply's
 `Holding` before approach; `ReturningToSupply` waits for `Released` for a Repeat return.
-Completed approach enters `ReceivingPcb` or `PresentingToSupply` directly, with no second
-Supply-wait stage at standby XYZ. Live handoff/position checks remain in the receipt operation.
+`PrepareHandoffAsync` awaits standby Z, X, Y and receive Z in sequence while monitoring
+Supply readiness. Normal receipt continues to PCB detection and vacuum; Repeat publishes
+`WaitingForSupplyGrip` only after the receive Z move completes. There is no separate descent stage.
 `ExecuteStepAsync` returns Z to standby followed by placement Y once Supply is `Released`. Placement publishes `Holding` while securing the PCB at the receiving
 position, and `Clear` after the Y departure settles. Internal placement/press stages
 are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
