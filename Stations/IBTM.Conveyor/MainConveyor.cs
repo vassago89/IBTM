@@ -461,8 +461,9 @@ public sealed partial class MainConveyor : AutoUnit
         using var transfer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void ObserveEntry(InputIo input, bool value)
         {
-            if (input == InputIo.MainConveyorEntryCarrierDetected && value)
-                entered.TrySetResult();
+            // The base I/O notification may wake the loop before this subscriber records entry.
+            if (input == InputIo.MainConveyorEntryCarrierDetected && value && entered.TrySetResult())
+                WakeRun();
         }
         void ObserveArrival()
         {

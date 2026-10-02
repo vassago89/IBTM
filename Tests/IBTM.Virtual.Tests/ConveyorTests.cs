@@ -1228,6 +1228,59 @@ public sealed class ConveyorTests
         Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
     }
 
+    [Fact]
+    public async Task EntryDuringFasteningStartsBeltWhenWakePrecedesEntryRecording()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io);
+        io.Initialize();
+        await SetSeatedCarrierAsync(io, io,
+            InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
+        Assert.Equal(MainConveyorState.WaitingForBoltFastening, conveyor.GetNextStep(false));
+
+        var waitingForEntry = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var wokeBeforeEntryRecording = new ManualResetEventSlim();
+        conveyor.Trace += message =>
+        {
+            if (!message.StartsWith("Waiting for feedback / work change:", StringComparison.Ordinal)
+                || !message.Contains("Entry carrier detected=ON", StringComparison.Ordinal))
+                return;
+            waitingForEntry.TrySetResult();
+            if (message.Contains(nameof(MainConveyorState.ReceivingFrontCarrier), StringComparison.Ordinal))
+                wokeBeforeEntryRecording.Set();
+        };
+        // AutoUnit subscribed first; the receipt subscribes after RunAsync starts.
+        // Let the first wake finish before that receipt records the same input edge.
+        io.InputChanged += (input, on) =>
+        {
+            if (input == InputIo.MainConveyorEntryCarrierDetected && on)
+                Assert.True(wokeBeforeEntryRecording.Wait(TimeSpan.FromSeconds(2)));
+        };
+
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await waitingForEntry.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            await Task.Run(() => io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true));
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+
+            Assert.Equal(MainConveyorState.ReceivingFrontCarrier, conveyor.Step);
+            Assert.True(io.GetInput(InputIo.BoltFasteningBackupPlateUp));
+            Assert.True(io.GetInput(InputIo.BoltFasteningStopperDown));
+            Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateDown));
+            Assert.True(io.GetInput(InputIo.PcbPlacementStopperUp));
+            Assert.False(conveyor.UpstreamCarrierAvailable);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+    }
+
     [Theory]
     [InlineData(InputIo.MainConveyorEntryCarrierDetected)]
     [InlineData(InputIo.PcbPlacementHeatSink2Present)]
