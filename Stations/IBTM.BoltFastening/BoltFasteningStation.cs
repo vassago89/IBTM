@@ -81,6 +81,27 @@ public sealed class BoltFasteningStation : AutoUnit
 
     private bool IsReadyToFasten => Station.CarrierSeated && !Station.Completed;
 
+    // Recorded NG/dry-run results count as finished work, not as a passing verdict.
+    public bool IsFasteningRecorded
+    {
+        get
+        {
+            var targets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
+            if (targets.Length == 0)
+                return false;
+            foreach (var heatSink in targets)
+            {
+                var bolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => bolt.HeatSink == heatSink).ToArray();
+                var assembly = Station.Assemblies.FirstOrDefault(item => item.HeatSink == heatSink);
+                if (bolts.Length == 0 || assembly is null
+                    || bolts.Any(bolt => !assembly.ShootingBoltResults.ContainsKey(bolt.Id)
+                        && !assembly.PickupBoltResults.ContainsKey(bolt.Id)))
+                    return false;
+            }
+            return true;
+        }
+    }
+
     private void InitializeRecipeBoltPositions()
     {
         // Older recipes have only inspection XY. Never overwrite independently taught coordinates.
@@ -173,17 +194,18 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         if (cancellationToken.IsCancellationRequested)
             return;
-        var testJob = selectedBolts is null ? null : Station.CurrentJob;
+        var resumeJob = selectedBolts is null ? null : Station.CurrentJob;
         if (selectedBolts is not null)
         {
             var bolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => selectedBolts.Contains(bolt.Id)).ToArray();
-            if (repeat || !_units.BoltFastening || selectedBolts.Count == 0
+            if (repeat || !_units.BoltFastening
+                || selectedBolts.Count == 0 && (!IsFasteningRecorded || Station.Completed)
                 || bolts.Length != selectedBolts.Distinct().Count())
-                throw new InvalidOperationException("Select current recipe bolts for a single fastening test.");
+                throw new InvalidOperationException("Select current recipe bolts to resume fastening.");
             if (!Station.CarrierSeated || bolts.Any(bolt => !Station.IsHeatSinkPresent(bolt.HeatSink)))
-                throw new InvalidOperationException("Seat the carrier and load every selected PCB before testing.");
+                throw new InvalidOperationException("Seat the carrier and load every selected PCB before resuming fastening.");
             if (bolts.Any(bolt => !bolt.IsFasteningPositionDefined))
-                throw new InvalidOperationException("Teach the fastening position of every selected bolt before testing.");
+                throw new InvalidOperationException("Teach the fastening position of every selected bolt before resuming fastening.");
         }
         Exception? failure = null;
         try
@@ -196,8 +218,8 @@ public sealed class BoltFasteningStation : AutoUnit
                     && (selectedBolts is null || _recipes.Current.Pcb.BoltPoints.Any(
                         bolt => bolt.Head == FasteningHead.Shooting && selectedBolts.Contains(bolt.Id))))
                     Io.SetOutput(OutputIo.ShootingEscapeForward, false);
-                if (selectedBolts is not null)
-                    Station.Restart(Station.CurrentJob);
+                if (resumeJob is not null)
+                    Station.Restart(resumeJob);
                 if (StandbyBolt is { IsFasteningPositionDefined: true } standby)
                 {
                     var position = _settings.GetBoltPosition(standby);
@@ -226,24 +248,17 @@ public sealed class BoltFasteningStation : AutoUnit
                     cancellationToken.ThrowIfCancellationRequested();
                     Station.StartRepeat(completedJob);
                 }
-                if (testJob is not null)
+                if (resumeJob is not null)
                 {
-                    Station.RequireCurrentJob(testJob);
+                    Station.RequireCurrentJob(resumeJob);
                     if (!Station.CarrierSeated)
-                        throw new MotionInterlockException("The test carrier is no longer seated.");
-                    // A selected-bolt test never completes or transfers the whole carrier.
-                    if (_runBolts is not null && _boltIndex == _runBolts.Length)
-                    {
-                        var started = Stopwatch.GetTimestamp();
-                        await MoveZAsync(_settings.SafeZ, cancellationToken);
-                        _log?.LogInformation("Bolt timing {Job}: selected test final Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
-                            testJob.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                        break;
-                    }
+                        throw new MotionInterlockException("The fastening carrier is no longer seated.");
                 }
                 var step = NextStep;
                 if (!await ExecuteStepAsync(step, repeat, cancellationToken, selectedBolts, resultReceived))
                     await WaitForChangeAsync(cancellationToken);
+                if (resumeJob is not null && step == BoltFasteningState.CompletingCarrier)
+                    break;
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -368,8 +383,6 @@ public sealed class BoltFasteningStation : AutoUnit
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     var completionStarted = Stopwatch.GetTimestamp();
-                    foreach (var heatSink in _runTargets!)
-                        Station.GetAssembly(job, heatSink).CompleteFastening();
                     await FinishFasteningAsync(FasteningHead.Pickup, token);
                     await FinishFasteningAsync(FasteningHead.Shooting, token);
                     var started = Stopwatch.GetTimestamp();
@@ -385,7 +398,14 @@ public sealed class BoltFasteningStation : AutoUnit
                         await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, token);
                     }
                     token.ThrowIfCancellationRequested();
-                    Station.Complete(job, Stopwatch.GetElapsedTime(_cycleStartedAt));
+                    // A partial selection still returns to standby, but cannot release an unfinished carrier.
+                    if (selectedBolts is null || IsFasteningRecorded)
+                    {
+                        foreach (var heatSink in _runTargets!)
+                            Station.GetAssembly(job, heatSink).CompleteFastening();
+                        token.ThrowIfCancellationRequested();
+                        Station.Complete(job, Stopwatch.GetElapsedTime(_cycleStartedAt));
+                    }
                     await ClearCarrierOperationAsync();
                     _log?.LogInformation("Bolt timing {Job}: carrier completion complete, total={ElapsedMs:F1} ms.",
                         job.Id, Stopwatch.GetElapsedTime(completionStarted).TotalMilliseconds);

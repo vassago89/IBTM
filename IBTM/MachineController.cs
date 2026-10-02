@@ -1705,7 +1705,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
     }
 
-    internal async Task<bool> RunSelectedBoltsAsync(
+    internal async Task<bool> ResumeFasteningAsync(
+        ConveyorStation.Job job,
         IReadOnlyCollection<Guid> selectedBolts,
         Action<BoltPoint, BoltResult> resultReceived,
         CancellationToken cancellationToken)
@@ -1716,8 +1717,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
         try
         {
             operation.Token.ThrowIfCancellationRequested();
+            _fasteningStation.Station.RequireCurrentJob(job);
             if (_state.IsRunningFor(includeOperations: false))
-                throw new InvalidOperationException("Stop the machine before starting a bolt test.");
+                throw new InvalidOperationException("Stop the machine before resuming fastening.");
             _state.BoltTestRunning = true;
             using var cycle = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
             var heads = _recipes.Current.Pcb.BoltPoints
@@ -1735,7 +1737,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 {
                     var first = await Task.WhenAny(feeding, fastening);
                     if (first == feeding && feeding.IsCompletedSuccessfully && !cycle.IsCancellationRequested)
-                        throw new InvalidOperationException("The bolt feeder stopped before the test completed.");
+                        throw new InvalidOperationException("The bolt feeder stopped before fastening completed.");
                 }
             }
             finally

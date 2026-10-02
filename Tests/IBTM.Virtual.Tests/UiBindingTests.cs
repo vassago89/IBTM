@@ -828,7 +828,7 @@ public sealed class UiBindingTests
             (typeof(MotionDiagnosticsWindow), diagnostics.OpenMotion),
             (typeof(AdcProtocolWindow), diagnostics.OpenAdcProtocol),
             (typeof(LogWindow), diagnostics.OpenLogs),
-            (typeof(BoltStationTestWindow), () => diagnostics.OpenBoltStationTest(null)),
+            (typeof(FasteningResumeWindow), () => diagnostics.OpenFasteningResume(null)),
         })
         {
             var hiddenStyle = new Style(windowType);
@@ -843,7 +843,7 @@ public sealed class UiBindingTests
             var previousStyle = resources[windowType];
             // These windows declare a local Style. Exercise their owner-assignment
             // failure instead of replacing the shutdown style used by the window.
-            var invalidOwner = windowType == typeof(MotionDiagnosticsWindow) || windowType == typeof(BoltStationTestWindow)
+            var invalidOwner = windowType == typeof(MotionDiagnosticsWindow) || windowType == typeof(FasteningResumeWindow)
                 ? new Window() : null;
             try
             {
@@ -861,7 +861,7 @@ public sealed class UiBindingTests
                 resources[windowType] = hiddenStyle;
                 diagnostics.Owner = null;
                 Window? reopened = null;
-                if (windowType == typeof(BoltStationTestWindow))
+                if (windowType == typeof(FasteningResumeWindow))
                 {
                     _ = Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                     {
@@ -870,7 +870,7 @@ public sealed class UiBindingTests
                     }));
                 }
                 open();
-                if (windowType != typeof(BoltStationTestWindow))
+                if (windowType != typeof(FasteningResumeWindow))
                 {
                     reopened = Application.Current.Windows.Cast<Window>().Single(window => window.GetType() == windowType);
                     Assert.True(reopened.IsVisible);

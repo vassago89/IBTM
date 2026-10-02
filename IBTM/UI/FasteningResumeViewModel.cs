@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -9,19 +10,19 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
 using IBTM.Core;
+using IBTM.Device;
 using IBTM.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
-public partial class BoltTestRow : ObservableObject
+public partial class FasteningResumeRow : ObservableObject
 {
-    public BoltTestRow(BoltPoint bolt, string label)
+    public FasteningResumeRow(BoltPoint bolt, string label)
     {
         Bolt = bolt;
         Label = label;
-        IsSelected = true;
-        Status = "Not run";
+        Status = "Not recorded";
     }
 
     public BoltPoint Bolt { get; }
@@ -31,37 +32,39 @@ public partial class BoltTestRow : ObservableObject
     [ObservableProperty] public partial BoltResult? Result { get; set; }
 }
 
-public partial class BoltStationTestViewModel : ObservableObject
+public partial class FasteningResumeViewModel : ObservableObject
 {
     private readonly MachineController _machine;
     private readonly RecipeManager _recipes;
     private readonly BoltFasteningStation _station;
-    private readonly ILogger<BoltStationTestViewModel> _log;
+    private readonly ILogger<FasteningResumeViewModel> _log;
+    private ConveyorStation.Job _job;
 
-    public BoltStationTestViewModel(
+    public FasteningResumeViewModel(
         MachineController machine, MachineState state, UnitSettings units,
-        RecipeManager recipes, BoltFasteningStation station, ILogger<BoltStationTestViewModel> log)
+        RecipeManager recipes, BoltFasteningStation station, ILogger<FasteningResumeViewModel> log)
     {
         _machine = machine;
         State = state;
         Units = units;
         _recipes = recipes;
         _station = station;
+        _job = station.Station.CurrentJob;
         _log = log;
         Bolts = new();
         RunCommand = new AsyncRelayCommand(RunAsync);
         StopCommand = new AsyncRelayCommand(StopAsync);
-        SelectAllCommand = new RelayCommand(SelectAll);
+        SelectPendingCommand = new RelayCommand(SelectPending);
         ClearSelectionCommand = new RelayCommand(ClearSelection);
         Message = string.Empty;
     }
 
     public MachineState State { get; }
     public UnitSettings Units { get; }
-    public ObservableCollection<BoltTestRow> Bolts { get; }
+    public ObservableCollection<FasteningResumeRow> Bolts { get; }
     public IAsyncRelayCommand RunCommand { get; }
     public IAsyncRelayCommand StopCommand { get; }
-    public IRelayCommand SelectAllCommand { get; }
+    public IRelayCommand SelectPendingCommand { get; }
     public IRelayCommand ClearSelectionCommand { get; }
     [ObservableProperty] public partial bool IsClosing { get; private set; }
     [ObservableProperty] public partial string Message { get; private set; }
@@ -76,7 +79,9 @@ public partial class BoltStationTestViewModel : ObservableObject
         {
             return !IsClosing && State.ManualSetupEnabled
                 && _machine.IsManualMotionReady(MotionGroup.BoltFastening, live: false)
-                && _station.Station.CarrierSeated && SelectedCount > 0
+                && ReferenceEquals(_job, _station.Station.CurrentJob)
+                && _station.Station.CarrierSeated
+                && (SelectedCount > 0 || _station.IsFasteningRecorded && !_station.Station.Completed)
                 && Bolts.Where(row => row.IsSelected).All(row => row.Bolt.IsFasteningPositionDefined
                     && _station.Station.IsHeatSinkPresent(row.Bolt.HeatSink));
         }
@@ -96,11 +101,18 @@ public partial class BoltStationTestViewModel : ObservableObject
                 return UiText.Get("Check station enablement, homing and servo feedback.");
             if (!_station.Station.CarrierSeated)
                 return UiText.Get("Load the S2 carrier and raise the backup plate.");
+            if (!ReferenceEquals(_job, _station.Station.CurrentJob))
+                return UiText.Get("The carrier changed. Reopen the fastening resume window.");
             if (Bolts.Any(row => row.IsSelected && !_station.Station.IsHeatSinkPresent(row.Bolt.HeatSink)))
                 return UiText.Get("Selected PCB not detected at S2.");
             if (Bolts.Any(row => row.IsSelected && !row.Bolt.IsFasteningPositionDefined))
                 return UiText.Get("Selected bolt is not taught.");
-            return SelectedCount == 0 ? UiText.Get("Select a bolt.") : string.Empty;
+            if (SelectedCount > 0)
+                return string.Empty;
+            if (!_station.IsFasteningRecorded)
+                return UiText.Get("Select a bolt.");
+            return _station.Station.Completed ? UiText.Get("Fastening completed.")
+                : UiText.Get("All results received. Finish fastening to return to standby.");
         }
     }
 
@@ -113,12 +125,19 @@ public partial class BoltStationTestViewModel : ObservableObject
         foreach (var row in Bolts)
             row.PropertyChanged -= OnRowChanged;
         Bolts.Clear();
+        _job = _station.Station.CurrentJob;
         foreach (var bolt in _recipes.Current.Pcb.FasteningPoints)
         {
-            var row = new BoltTestRow(bolt, _recipes.Current.Pcb.GetBoltName(bolt.Id));
+            var row = new FasteningResumeRow(bolt, _recipes.Current.Pcb.GetBoltName(bolt.Id));
             row.PropertyChanged += OnRowChanged;
             Bolts.Add(row);
+            var assembly = _station.Station.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
+            var result = assembly?.ShootingBoltResults.GetValueOrDefault(bolt.Id)
+                ?? assembly?.PickupBoltResults.GetValueOrDefault(bolt.Id);
+            if (result is not null)
+                OnResultReceived(bolt, result);
         }
+        SelectPending();
         State.Changed += Refresh;
         _station.Changed += Refresh;
         RunCommand.PropertyChanged += OnRunChanged;
@@ -134,12 +153,12 @@ public partial class BoltStationTestViewModel : ObservableObject
             row.PropertyChanged -= OnRowChanged;
     }
 
-    private void SelectAll()
+    private void SelectPending()
     {
         if (RunCommand.IsRunning || IsClosing)
             return;
         foreach (var row in Bolts)
-            row.IsSelected = true;
+            row.IsSelected = row.Result is null && _station.Station.IsHeatSinkPresent(row.Bolt.HeatSink);
     }
 
     private void ClearSelection()
@@ -152,7 +171,7 @@ public partial class BoltStationTestViewModel : ObservableObject
 
     private void OnRowChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(BoltTestRow.IsSelected))
+        if (e.PropertyName == nameof(FasteningResumeRow.IsSelected))
             Refresh();
     }
 
@@ -167,7 +186,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         if (RunCommand.IsRunning && _station.ActiveBolt is { } active)
         {
             var row = Bolts.FirstOrDefault(item => item.Bolt.Id == active.Id);
-            if (row is not null && row.Result is null)
+            if (row is { IsSelected: true })
                 row.Status = "Running";
         }
         OnPropertyChanged(nameof(SelectedCount));
@@ -182,6 +201,7 @@ public partial class BoltStationTestViewModel : ObservableObject
             return;
         row.Result = result;
         row.Status = result.Source == BoltResultSource.DryRun ? "Dry run" : result.Success ? "OK" : "NG";
+        row.IsSelected = false;
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)
@@ -191,36 +211,40 @@ public partial class BoltStationTestViewModel : ObservableObject
         TotalRunSeconds = null;
         foreach (var row in selected)
         {
-            row.Result = null;
             row.Status = "Queued";
         }
-        Message = UiText.Format($"Testing {selected.Length} selected bolts...");
+        Message = selected.Length == 0 ? UiText.Get("Returning to standby...")
+            : UiText.Format($"Fastening {selected.Length} selected bolts...");
         var started = Stopwatch.GetTimestamp();
         try
         {
-            var completed = await _machine.RunSelectedBoltsAsync(
-                selected.Select(row => row.Bolt.Id).ToArray(), OnResultReceived, cancellationToken);
-            Message = completed ? UiText.Get("Test completed.") : UiText.Get("Test stopped.");
+            var completed = await _machine.ResumeFasteningAsync(
+                _job, selected.Select(row => row.Bolt.Id).ToArray(), OnResultReceived, cancellationToken);
+            Message = !completed ? UiText.Get("Fastening stopped. Received results are retained.")
+                : _station.Station.Completed ? UiText.Get("Fastening completed.")
+                : UiText.Get("Selected bolts finished. The carrier still has unfinished bolts.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            Message = UiText.Get("Test stopped.");
+            Message = UiText.Get("Fastening stopped. Received results are retained.");
         }
         catch (Exception exception)
         {
             Error = exception.Message;
-            Message = UiText.Get("Test failed.");
-            _log.LogError(exception, "Selected-bolt test failed.");
+            Message = UiText.Get("Fastening failed.");
+            _log.LogError(exception, "Fastening resume failed.");
             _machine.ReportManualFailure(MachineAlarm.BoltFastening, exception);
         }
         finally
         {
             var elapsed = Stopwatch.GetElapsedTime(started);
             TotalRunSeconds = elapsed.TotalSeconds;
-            _log.LogInformation("Selected-bolt test timing: selected={Count}, elapsed={ElapsedMs:F1} ms, outcome={Outcome}.",
+            _log.LogInformation("Fastening resume timing: selected={Count}, elapsed={ElapsedMs:F1} ms, outcome={Outcome}.",
                 selected.Length, elapsed.TotalMilliseconds, Message);
-            foreach (var row in selected.Where(row => row.Result is null))
-                row.Status = row.Status == "Running" ? (Error is null ? "Stopped" : "Error") : "Not run";
+            foreach (var row in selected.Where(row => row.IsSelected))
+                row.Status = row.Result is { } result
+                    ? result.Source == BoltResultSource.DryRun ? "Dry run" : result.Success ? "OK" : "NG"
+                    : row.Status == "Running" ? (Error is null ? "Stopped" : "Error") : "Not recorded";
             Refresh();
         }
     }
@@ -235,7 +259,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         catch (Exception exception)
         {
             Error = exception.Message;
-            _log.LogError(exception, "Bolt station test STOP failed.");
+            _log.LogError(exception, "Fastening resume STOP failed.");
             _machine.ReportManualFailure(MachineAlarm.StopFailed, exception);
         }
     }
@@ -257,7 +281,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         {
             IsClosing = false;
             Error = exception.Message;
-            _log.LogError(exception, "Bolt station test shutdown failed.");
+            _log.LogError(exception, "Fastening resume shutdown failed.");
             _machine.ReportManualFailure(MachineAlarm.StopFailed, exception);
             return false;
         }

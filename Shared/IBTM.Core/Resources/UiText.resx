@@ -294,17 +294,11 @@ Operation failed. Check controller status.</value>
   <data name="bolt station" xml:space="preserve">
     <value>Bolt station</value>
   </data>
-  <data name="bolt station · selected bolt test" xml:space="preserve">
-    <value>Bolt Fastening Test</value>
-  </data>
   <data name="bolt supply" xml:space="preserve">
     <value>BOLT SUPPLY</value>
   </data>
   <data name="bolt supply command" xml:space="preserve">
     <value>Bolt supply command</value>
-  </data>
-  <data name="bolt test shutdown failed" xml:space="preserve">
-    <value>Bolt test shutdown failed</value>
   </data>
   <data name="bolt {0}" xml:space="preserve">
     <value>Bolt {0}</value>
@@ -757,9 +751,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="fasten ok" xml:space="preserve">
     <value>FASTEN OK</value>
-  </data>
-  <data name="fasten selected bolts" xml:space="preserve">
-    <value>Fasten Selected Bolts</value>
   </data>
   <data name="fastening" xml:space="preserve">
     <value>Fastening</value>
@@ -2572,23 +2563,8 @@ Operation failed. Check controller status.</value>
   <data name="teaching values were not saved: {0}" xml:space="preserve">
     <value>Teaching values were not saved: {0}</value>
   </data>
-  <data name="test bolts" xml:space="preserve">
-    <value>Test bolts</value>
-  </data>
   <data name="test channel (1–9)" xml:space="preserve">
     <value>Test channel (1–9)</value>
-  </data>
-  <data name="test completed." xml:space="preserve">
-    <value>Test completed.</value>
-  </data>
-  <data name="test failed." xml:space="preserve">
-    <value>Test failed.</value>
-  </data>
-  <data name="test stopped." xml:space="preserve">
-    <value>Test stopped.</value>
-  </data>
-  <data name="testing {0} selected bolts..." xml:space="preserve">
-    <value>Testing {0} selected bolts...</value>
   </data>
   <data name="threshold (0–255)" xml:space="preserve">
     <value>Threshold (0–255)</value>
@@ -3437,5 +3413,44 @@ Clear results: run this station again</value>
   </data>
   <data name="{0}: carrier not detected after the conveyor stop delay." xml:space="preserve">
     <value>{0}: carrier not detected after the conveyor stop delay.</value>
+  </data>
+  <data name="resume fastening" xml:space="preserve">
+    <value>Resume fastening</value>
+  </data>
+  <data name="finish fastening" xml:space="preserve">
+    <value>Finish fastening</value>
+  </data>
+  <data name="select bolts without results" xml:space="preserve">
+    <value>Select bolts without results</value>
+  </data>
+  <data name="bolts without results are selected. selecting a recorded bolt will fasten it again." xml:space="preserve">
+    <value>Bolts without results are selected. Selecting a recorded bolt will fasten it again.</value>
+  </data>
+  <data name="fastening {0} selected bolts..." xml:space="preserve">
+    <value>Fastening {0} selected bolts...</value>
+  </data>
+  <data name="returning to standby..." xml:space="preserve">
+    <value>Returning to standby...</value>
+  </data>
+  <data name="fastening completed." xml:space="preserve">
+    <value>Fastening completed.</value>
+  </data>
+  <data name="fastening stopped. received results are retained." xml:space="preserve">
+    <value>Fastening stopped. Received results are retained.</value>
+  </data>
+  <data name="selected bolts finished. the carrier still has unfinished bolts." xml:space="preserve">
+    <value>Selected bolts finished. The carrier still has unfinished bolts.</value>
+  </data>
+  <data name="fastening failed." xml:space="preserve">
+    <value>Fastening failed.</value>
+  </data>
+  <data name="fastening shutdown failed" xml:space="preserve">
+    <value>Fastening shutdown failed</value>
+  </data>
+  <data name="all results received. finish fastening to return to standby." xml:space="preserve">
+    <value>All results received. Finish fastening to return to standby.</value>
+  </data>
+  <data name="the carrier changed. reopen the fastening resume window." xml:space="preserve">
+    <value>The carrier changed. Reopen the fastening resume window.</value>
   </data>
 </root>

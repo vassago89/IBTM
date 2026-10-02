@@ -2833,19 +2833,19 @@ public sealed class BoltFasteningTests
     }
 
     [Fact]
-    public async Task BoltTestMatchesRecreatedPointsByGuidRatherThanNameOrReference()
+    public async Task FasteningResumeMatchesRecreatedPointsByGuidRatherThanNameOrReference()
     {
         await using var services = MachineTestSupport.CreateDiagnosticServices();
         var recipes = services.GetRequiredService<RecipeManager>();
         var first = new BoltPoint { Name = "Same name" };
         var second = new BoltPoint { Name = "Same name" };
         recipes.Current.Pcb.BoltPoints = [first, second];
-        var test = services.GetRequiredService<BoltStationTestViewModel>();
+        var test = services.GetRequiredService<FasteningResumeViewModel>();
         test.Activate();
         try
         {
             var result = new BoltResult(true, 8);
-            var callback = typeof(BoltStationTestViewModel).GetMethod("OnResultReceived",
+            var callback = typeof(FasteningResumeViewModel).GetMethod("OnResultReceived",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
             callback.Invoke(test, [new BoltPoint(second.Id) { Name = "Renamed" }, result]);
             Assert.Null(test.Bolts[0].Result);

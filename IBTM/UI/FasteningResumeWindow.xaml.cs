@@ -5,12 +5,12 @@ using System.Windows;
 
 namespace IBTM.UI;
 
-public partial class BoltStationTestWindow : Window
+public partial class FasteningResumeWindow : Window
 {
-    private readonly BoltStationTestViewModel _viewModel;
+    private readonly FasteningResumeViewModel _viewModel;
     private bool _closeApproved;
 
-    public BoltStationTestWindow(BoltStationTestViewModel viewModel)
+    public FasteningResumeWindow(FasteningResumeViewModel viewModel)
     {
         _viewModel = viewModel;
         InitializeComponent();
@@ -36,7 +36,7 @@ public partial class BoltStationTestWindow : Window
         }
         else
         {
-            MessageBox.Show(this, _viewModel.Error, UiText.Get("Bolt test shutdown failed"),
+            MessageBox.Show(this, _viewModel.Error, UiText.Get("Fastening shutdown failed"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

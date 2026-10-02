@@ -345,7 +345,7 @@
             <StackPanel Orientation="Horizontal">
                 <Button x:Name="CancelButton" Content="{ui:Text 'Cancel · Esc'}" IsCancel="True" IsDefault="True"
                     MinWidth="130" Height="44" Style="{StaticResource SecondaryButtonStyle}"/>
-                <Button Content="{ui:Text 'Test bolts'}" Command="{Binding OpenBoltStationTestCommand}"
+                <Button Content="{ui:Text 'Resume fastening'}" Command="{Binding OpenFasteningResumeCommand}"
                     CommandParameter="{Binding ElementName=StartReviewWindow}"
                     Visibility="{Binding State.ManualMode, Converter={StaticResource BoolToVis}}"
                     IsEnabled="{Binding State.ManualSetupEnabled}"
