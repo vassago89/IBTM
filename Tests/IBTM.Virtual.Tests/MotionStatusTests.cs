@@ -8,6 +8,7 @@ using IBTM.Ajin;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using IBTM.PcbSupply;
 using IBTM.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
