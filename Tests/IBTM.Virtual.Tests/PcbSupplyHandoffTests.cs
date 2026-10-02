@@ -266,14 +266,17 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Fact]
-    public async Task NewRunRejectsHeldPcbAwayFromHandoffWithoutMovingOrReleasing()
+    public async Task NewRunRejectsHeldPcbWithoutCompletedHandoff()
     {
         using var rig = new HandoffRig();
-        await rig.InitializeAsync();
+        rig.Io.Initialize();
+        rig.Motion.Initialize();
+        await HomeAsync(rig.Motion, 2_000);
         await rig.Supplier.MoveAxisAsync(MotionAxis.X, rig.Settings.HandoffPosition.X + 10);
         rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+        Assert.False(rig.Supplier.IsHandoffRestartAllowed);
         var commanded = false;
         rig.Motion.MovingChanged += moving => commanded |= moving;
         rig.Io.OutputChanged += (output, on) => commanded = true;
@@ -286,7 +289,7 @@ public sealed class PcbSupplyHandoffTests
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
-    public async Task RestartFinishesWaitingHandoffThenStartsPickupFromPcbOne(int stoppedPcb)
+    public async Task RestartRepeatsForwardMoveBeforeHandoffThenStartsPickupFromPcbOne(int stoppedPcb)
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
@@ -316,13 +319,21 @@ public sealed class PcbSupplyHandoffTests
         };
         await rig.Supplier.RunAsync(rig.Placement, stop.Token);
         Assert.Equal(stoppedPcb, handoffs);
+        // Stopped manual movement must not require a position snapshot to admit the next START.
+        if (stoppedPcb == 2)
+            await rig.Supplier.MoveAxisAsync(MotionAxis.X, rig.Settings.HandoffPosition.X + 10);
         Assert.True(rig.Supplier.IsHandoffRestartAllowed);
         Assert.Equal(PcbSupplyHandoff.Holding, rig.Supplier.Handoff);
 
         restarting = true;
         var moved = false;
         var changedGripOrRotation = false;
-        rig.Motion.MovingChanged += moving => moved |= moving;
+        rig.Motion.MovingChanged += moving =>
+        {
+            moved |= moving;
+            if (moving)
+                Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
+        };
         rig.Io.OutputChanged += (output, on) => changedGripOrRotation |= output
             is OutputIo.PcbSupplyRotate or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward;
         var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -345,7 +356,10 @@ public sealed class PcbSupplyHandoffTests
         try
         {
             await waiting.Task.WaitAsync(restart.Token);
-            Assert.False(moved);
+            Assert.True(moved);
+            Assert.Equal(
+                (rig.Settings.HandoffPosition.X, rig.Settings.HandoffPosition.Y, rig.Settings.HandoffPosition.Z),
+                rig.Motion.Position);
             Assert.False(changedGripOrRotation);
             Assert.True(rig.Supplier.PcbSecured);
             rig.Placement.Handoff = PcbPlacementHandoff.Holding;
@@ -410,7 +424,7 @@ public sealed class PcbSupplyHandoffTests
         rig.Motion.SetServo(MotionAxis.X, false);
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
         rig.Motion.SetServo(MotionAxis.X, true);
-        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(VirtualTestSupport.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
         Assert.Equal(PcbSupplyHandoff.Released, rig.Supplier.Handoff);
     }
 
@@ -428,7 +442,7 @@ public sealed class PcbSupplyHandoffTests
         await rig.Motion.MoveToXYAsync(target.X, target.Y, rig.Settings.Motion.HorizontalSpeed);
         await rig.Motion.MoveAxisAsync(MotionAxis.Z, target.Z, rig.Settings.Motion.ZSpeed);
 
-        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(VirtualTestSupport.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
         Assert.True(rig.Supplier.PcbSecured);
         Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.Phase);
         Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.GetNextStep(rig.Placement, repeat: true));
@@ -439,9 +453,44 @@ public sealed class PcbSupplyHandoffTests
         Assert.True(rig.Supplier.IsHandoffRestartAllowed);
         await rig.Motion.MoveAxisAsync(MotionAxis.X, target.X + 10, 2_000);
         Assert.Equal(PcbSupplyState.HandingOff, rig.Supplier.Phase);
-        Assert.False(rig.Supplier.IsHandoffRestartAllowed);
-        await rig.Motion.MoveAxisAsync(MotionAxis.X, target.X, 2_000);
         Assert.True(rig.Supplier.IsHandoffRestartAllowed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InterruptedRestartDoesNotOfferPcbToPlacement(bool loseGrip)
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var interrupted = false;
+        rig.Motion.PositionChanged += (x, y, z) =>
+        {
+            if (interrupted || !rig.Motion.IsMoving)
+                return;
+            interrupted = true;
+            Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
+            if (loseGrip)
+                rig.Io.SetInput(InputIo.PcbSupplyIpmFixerForward, false);
+            else
+                stop.Cancel();
+        };
+
+        if (loseGrip)
+            await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Supplier.RunAsync(rig.Placement, stop.Token));
+        else
+            await rig.Supplier.RunAsync(rig.Placement, stop.Token);
+
+        Assert.True(interrupted);
+        Assert.False(rig.Motion.IsMoving);
+        Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
+        Assert.False(rig.Supplier.IsHandoffRestartAllowed);
+        Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+        Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
     }
 
     [Theory]
@@ -572,7 +621,7 @@ public sealed class PcbSupplyHandoffTests
         Assert.True(lost);
         Assert.False(commanded);
         Assert.True(rig.Supplier.PcbSecured);
-        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(VirtualTestSupport.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
     }
 
     [Fact]
@@ -602,7 +651,7 @@ public sealed class PcbSupplyHandoffTests
 
         Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
-        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(VirtualTestSupport.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
     }
 
     [Theory]
@@ -651,7 +700,7 @@ public sealed class PcbSupplyHandoffTests
         {
             if (output == OutputIo.PcbSupplyRotate && !on)
             {
-                Assert.True(MotionServiceBase.IsHoldingPosition(rig.Motion, rig.Settings.HandoffPosition));
+                Assert.True(VirtualTestSupport.IsAt(rig.Motion, rig.Settings.HandoffPosition));
                 rotationStarted.TrySetResult();
             }
         };
@@ -667,13 +716,13 @@ public sealed class PcbSupplyHandoffTests
                 rig.Io.SetInputs((InputIo.PcbSupplyRotated, false), (InputIo.PcbSupplyUnrotated, true));
                 Assert.True(await WaitUntilAsync(
                     () => rig.Supplier.Handoff == PcbSupplyHandoff.Released, TimeSpan.FromSeconds(1)));
-                Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+                Assert.True(VirtualTestSupport.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
             }
             else
             {
                 await Assert.ThrowsAsync<IoTimeoutException>(() => run);
                 Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
-                Assert.True(MotionServiceBase.IsHoldingPosition(rig.Motion, rig.Settings.HandoffPosition));
+                Assert.True(VirtualTestSupport.IsAt(rig.Motion, rig.Settings.HandoffPosition));
             }
         }
         finally
@@ -765,7 +814,7 @@ public sealed class PcbSupplyHandoffTests
                 await released.Task.WaitAsync(stop.Token);
                 Assert.True(rig.Supplier.PcbReleased);
                 Assert.Equal(PcbSupplyState.WaitingForPlacementClear, rig.Supplier.Phase);
-                Assert.True(MotionServiceBase.IsHoldingPosition(rig.Motion, rig.Settings.HandoffPosition));
+                Assert.True(VirtualTestSupport.IsAt(rig.Motion, rig.Settings.HandoffPosition));
                 rig.Placement.Handoff = PcbPlacementHandoff.Clear;
                 await run;
                 Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.Phase);

@@ -632,7 +632,7 @@ public sealed class BoltFasteningTests
                 if (on && bus.StartWrites == 2 && arrivalDelaySeconds > 0)
                 {
                     Assert.True(Stopwatch.GetElapsedTime(secondPassageAt).TotalSeconds >= arrivalDelaySeconds);
-                    Assert.True(MotionServiceBase.IsAt(motion, settings.GetBoltPosition(bolts[2])));
+                    Assert.True(VirtualTestSupport.IsAt(motion, settings.GetBoltPosition(bolts[2])));
                 }
             }
             if (output == OutputIo.PickupTableDown)
@@ -2288,7 +2288,7 @@ public sealed class BoltFasteningTests
         motion.PositionChanged += (_, _, z) =>
             movedBelowTravelZ |= motion.IsMovingHorizontal
                 // Startup travels at Z=0, above the normal Safe Z.
-                && z > settings.SafeZ + MotionServiceBase.PositionToleranceMillimeters;
+                && z > settings.SafeZ + VirtualTestSupport.PositionToleranceMillimeters;
         await station.CheckReadyAsync();
         shootingBus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);

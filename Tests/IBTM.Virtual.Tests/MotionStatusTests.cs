@@ -17,57 +17,57 @@ namespace IBTM.Virtual.Tests;
 public sealed class MotionStatusTests
 {
     [Fact]
-    public void HoldingPositionRequiresCurrentHealthyStationaryFeedback()
+    public void SupplyRotationRequiresCurrentHealthyStationaryFeedback()
     {
         var motion = new StatusMotion();
         var status = new MotionStatus(motion);
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         var target = new AxisPosition { X = 12 };
-        Assert.True(MotionServiceBase.IsHoldingPosition(motion, target));
+        var io = new VirtualIoService(VirtualTestSupport.Outputs(new PcbSupplyHardwareSettings()), new());
+        io.Initialize();
+        var supply = VirtualTestSupport.CreateSupplier(motion, io, new() { HandoffPosition = target });
+        Assert.True(supply.IsRotationAllowed);
 
         motion.ReportedPosition = (15, 0, 0); // External encoder change, without an application move event.
         Assert.Equal(12, status.Position.X);
-        Assert.False(MotionServiceBase.IsHoldingPosition(motion, target));
+        Assert.False(supply.IsRotationAllowed);
         motion.ReportedPosition = (12, 0, 0);
         motion.State = motion.State with { ServoOn = false };
         Assert.True(status.Axes[MotionAxis.X].State?.ServoOn);
-        Assert.False(MotionServiceBase.IsHoldingPosition(motion, target));
+        Assert.False(supply.IsRotationAllowed);
         motion.State = motion.State with { ServoOn = true, Alarm = true };
-        Assert.False(MotionServiceBase.IsHoldingPosition(motion, target));
+        Assert.False(supply.IsRotationAllowed);
         motion.State = motion.State with { Alarm = false, InMotion = true };
-        Assert.False(MotionServiceBase.IsHoldingPosition(motion, target));
+        Assert.False(supply.IsRotationAllowed);
         motion.State = motion.State with { InMotion = false };
-        Assert.True(MotionServiceBase.IsHoldingPosition(motion, target));
+        Assert.True(supply.IsRotationAllowed);
         motion.Failure = new IOException("Current feedback is unavailable.");
-        Assert.Throws<IOException>(() => MotionServiceBase.IsHoldingPosition(motion, target));
+        Assert.Throws<IOException>(() => supply.IsRotationAllowed);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PositionChecksOnlyInstalledAxesAndRequiresTheirHomeFeedback(bool hasY)
+    public async Task MotionReadinessRequiresHomeFeedbackForEveryInstalledAxis(bool hasY)
     {
         using var motion = new VirtualMotionService(new(), new(), hasY: hasY, hasZ: false);
         var status = new MotionStatus(motion);
         motion.Initialize();
-        var target = new AxisPosition { X = 0, Y = hasY ? 0 : 123, Z = 456 };
-        Assert.False(MotionServiceBase.IsAt(motion, target));
+        Assert.False(MotionServiceBase.IsReadyAndStopped(motion));
         Assert.False(status.IsFeedbackAvailable);
         await motion.HomeAsync(MotionAxis.X, 1_000);
         if (hasY)
         {
-            Assert.False(MotionServiceBase.IsAt(motion, target));
+            Assert.False(MotionServiceBase.IsReadyAndStopped(motion));
             await motion.HomeAsync(MotionAxis.Y, 1_000);
         }
-        Assert.True(MotionServiceBase.IsAt(motion, target));
+        Assert.True(MotionServiceBase.IsReadyAndStopped(motion));
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         Assert.True(status.IsFeedbackAvailable);
         Assert.True(status.XyHomed);
         Assert.Equal(0, status.Position.X);
-        target.X = 10;
-        Assert.False(MotionServiceBase.IsAt(motion, target));
     }
 
     [Fact]

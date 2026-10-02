@@ -82,6 +82,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         ngConveyor.Changed += NotifyChanged;
         recipes.Changed += NotifyChanged;
         recipes.InspectionSettingsChanged += NotifyChanged;
+        StepChanged += NotifyChanged;
     }
 
     public BoltPoint? ActiveBolt => InspectionTarget.Bolt;
@@ -226,7 +227,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
     }
 
-    public bool IsTransferAtWaitingPosition
+    public bool IsRearDischargeReady
     {
         get
         {
@@ -234,8 +235,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 return false;
             if (!_units.Inspection)
                 return true;
-            return _settings.WaitingPosition is { } position
-                && MotionServiceBase.IsAt(_motion, position);
+            // Waiting is entered only after the return move completes in this run.
+            return Step is InspectionStationState.Waiting
+                && MotionServiceBase.IsReadyAndStopped(_motion);
         }
     }
 

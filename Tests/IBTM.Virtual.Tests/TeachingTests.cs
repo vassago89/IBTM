@@ -147,8 +147,8 @@ public sealed class TeachingTests
                 await move.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.False(motion.IsMoving);
                 Assert.Equal(settings.PcbSupply.TravelZ, motion.Position.Z);
-                Assert.False(MotionServiceBase.IsAt(motion, points[TeachingTarget.SupplyPcb1Pick].Coordinates!));
-                Assert.False(MotionServiceBase.IsAt(motion, points[TeachingTarget.SupplyPcb2Pick].Coordinates!));
+                Assert.False(VirtualTestSupport.IsAt(motion, points[TeachingTarget.SupplyPcb1Pick].Coordinates!));
+                Assert.False(VirtualTestSupport.IsAt(motion, points[TeachingTarget.SupplyPcb2Pick].Coordinates!));
                 Assert.False(pneumaticCommanded);
                 Assert.Null(teaching.SaveError);
                 Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -210,13 +210,13 @@ public sealed class TeachingTests
             if (duringDescent is null)
             {
                 Assert.Equal(MachineAlarm.None, state.Alarm);
-                Assert.True(MotionServiceBase.IsAt(motion, settings.BoltFastening.PickupPosition));
+                Assert.True(VirtualTestSupport.IsAt(motion, settings.BoltFastening.PickupPosition));
                 Assert.Equal(StationCylinderState.Down, station.PickupTablePosition);
             }
             else
             {
                 Assert.Equal(MachineAlarm.BoltFastening, state.Alarm);
-                Assert.False(MotionServiceBase.IsAt(motion, settings.BoltFastening.PickupPosition));
+                Assert.False(VirtualTestSupport.IsAt(motion, settings.BoltFastening.PickupPosition));
                 if (duringDescent == false)
                     Assert.Equal(settings.BoltFastening.SafeZ, motion.Position.Z);
                 else
@@ -1264,7 +1264,7 @@ public sealed class TeachingTests
 
             Assert.True(axesMovedTogether);
             Assert.Empty(feedback.AxisMoves);
-            Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, shuttlePosition));
+            Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, shuttlePosition));
         }
         finally
         {
@@ -1312,7 +1312,7 @@ public sealed class TeachingTests
 
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
 
-                Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, recipe.GetInspectionPosition(fov)));
+                Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, recipe.GetInspectionPosition(fov)));
                 Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipe));
             }
 
@@ -1344,7 +1344,7 @@ public sealed class TeachingTests
                 await gantry.MoveToAsync(new() { X = 1, Y = 2 });
                 await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
-                Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, bolt.InspectionPosition!));
+                Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, bolt.InspectionPosition!));
 
                 bolt.X = null;
                 Assert.False(teaching.SelectedPoint.Position.HasPosition);
@@ -1600,7 +1600,7 @@ public sealed class TeachingTests
             new(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full), handoff);
         await WaitUntilAsync(() => rotation.IsToggleOutputAllowed);
         await rotation.ToggleOutputCommand.ExecuteAsync(null);
-        Assert.True(MotionServiceBase.IsHoldingPosition(handler.Motion.Feedback, handoff));
+        Assert.True(VirtualTestSupport.IsAt(handler.Motion.Feedback, handoff));
         Assert.Equal(wasRotated ? PcbSupplyRotationState.Unrotated : PcbSupplyRotationState.Rotated, handler.Rotation);
         await rotation.ToggleOutputCommand.ExecuteAsync(null);
         await handler.MoveAxisAsync(MotionAxis.X, handoff.X + 80);
@@ -1905,8 +1905,8 @@ public sealed class TeachingTests
             await placement.MoveToTeachingPositionAsync(
                 new(TeachingTarget.PlacementHandoff, MotionGroup.PcbPlacementHandler, TeachMode.Full),
                 settings.PcbPlacementHandler.HandoffPosition);
-            Assert.True(MotionServiceBase.IsAt(supply.Motion.Feedback, settings.PcbSupply.HandoffPosition));
-            Assert.True(MotionServiceBase.IsAt(placement.Motion.Feedback, settings.PcbPlacementHandler.HandoffPosition));
+            Assert.True(VirtualTestSupport.IsAt(supply.Motion.Feedback, settings.PcbSupply.HandoffPosition));
+            Assert.True(VirtualTestSupport.IsAt(placement.Motion.Feedback, settings.PcbPlacementHandler.HandoffPosition));
 
             foreach (var group in new[] { HardwareArea.PcbSupply, HardwareArea.PcbPlacementHandler })
             {

@@ -9,40 +9,16 @@ namespace IBTM.Device;
 
 public abstract class MotionServiceBase : IXyMotion
 {
-    public const double PositionToleranceMillimeters = 0.05;
-
     // Sequence checks always use current device feedback, never display snapshots.
     public static bool IsSettled(IMotionFeedback motion, params IReadOnlyList<MotionAxis> axes)
     {
         return !motion.IsMoving && axes.All(axis => motion.GetAxisState(axis).InPosition);
     }
 
-    public static bool IsAt(IMotionFeedback motion, AxisPosition target)
-    {
-        if (!motion.IsReady
-            || motion.Axes.Any(axis => !motion.GetAxisState(axis).Homed)
-            || !IsSettled(motion, motion.Axes))
-            return false;
-        var current = motion.Position;
-        return Math.Abs(current.X - target.X) <= PositionToleranceMillimeters
-            && (!motion.HasY || Math.Abs(current.Y - target.Y) <= PositionToleranceMillimeters)
-            && (!motion.HasZ || Math.Abs(current.Z - target.Z) <= PositionToleranceMillimeters);
-    }
-
     public static bool IsReadyAndStopped(IMotionFeedback motion)
     {
         return motion.IsReady && !motion.IsMoving && motion.Axes.All(axis => motion.GetAxisState(axis)
             is { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true });
-    }
-
-    public static bool IsHoldingPosition(IMotionFeedback motion, AxisPosition position)
-    {
-        if (!IsReadyAndStopped(motion))
-            return false;
-        var current = motion.Position;
-        return Math.Abs(current.X - position.X) <= PositionToleranceMillimeters
-            && (!motion.HasY || Math.Abs(current.Y - position.Y) <= PositionToleranceMillimeters)
-            && (!motion.HasZ || Math.Abs(current.Z - position.Z) <= PositionToleranceMillimeters);
     }
 
     private int _activeMotions;

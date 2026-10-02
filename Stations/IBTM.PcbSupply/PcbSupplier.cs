@@ -10,6 +10,8 @@ namespace IBTM.PcbSupply;
 
 public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 {
+    private const double RotationPositionToleranceMillimeters = 0.05;
+
     private readonly IXyMotion _motion;
     private readonly PcbSupplySettings _settings;
     private readonly UnitSettings _units;
@@ -194,8 +196,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     }
 
     public bool IsHandoffRestartAllowed => !_repeat && Phase == PcbSupplyState.HandingOff
-        && Handoff == PcbSupplyHandoff.Holding
-        && MotionServiceBase.IsHoldingPosition(_motion, _settings.HandoffPosition);
+        && Handoff == PcbSupplyHandoff.Holding;
 
     // START is fresh except for a secured PCB already waiting for Placement.
     public PcbSupplyState Phase { get; private set; }
@@ -223,8 +224,8 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         Exception? failure = null;
         _repeat = repeat;
         _pickStep = PickStep.Pcb1;
-        if (!continueHandoff)
-            Phase = PcbSupplyState.MovingToPickup;
+        // A retained PCB follows the normal forward move before Placement may approach.
+        Phase = continueHandoff ? PcbSupplyState.MovingToHandoff : PcbSupplyState.MovingToPickup;
         try
         {
             BeginRun(_units.PcbSupply ? Phase : PcbSupplyState.Disabled);
@@ -755,7 +756,16 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     public bool IsRotationAllowed
     {
-        get => Io.IsReady && MotionServiceBase.IsHoldingPosition(_motion, _settings.HandoffPosition);
+        get
+        {
+            if (!Io.IsReady || !MotionServiceBase.IsReadyAndStopped(_motion))
+                return false;
+            var current = _motion.Position;
+            var handoff = _settings.HandoffPosition;
+            return Math.Abs(current.X - handoff.X) <= RotationPositionToleranceMillimeters
+                && (!_motion.HasY || Math.Abs(current.Y - handoff.Y) <= RotationPositionToleranceMillimeters)
+                && (!_motion.HasZ || Math.Abs(current.Z - handoff.Z) <= RotationPositionToleranceMillimeters);
+        }
     }
 
     public async Task SetRotatedAsync(bool rotated, CancellationToken cancellationToken = default)

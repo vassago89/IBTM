@@ -70,7 +70,7 @@ public sealed partial class MainConveyor : AutoUnit
             return !_repeat
                 && !IsNgTransferRequired
                 && _inspection.IsTransferAllowed
-                && _inspection.IsTransferAtWaitingPosition;
+                && _inspection.IsRearDischargeReady;
         }
     }
 
@@ -214,7 +214,7 @@ public sealed partial class MainConveyor : AutoUnit
                             _inspection.Station.RequireCurrentJob(departingJob);
                             if (_inspection.Station.BackupPlate != StationCylinderState.Down
                                 || _inspection.Station.Stopper != StationCylinderState.Down
-                                || !_inspection.IsTransferAtWaitingPosition)
+                                || !_inspection.IsRearDischargeReady)
                             {
                                 throw new MotionInterlockException(
                                     "Rear discharge lost support release or inspection pickup clearance before starting the belt.");
@@ -370,7 +370,7 @@ public sealed partial class MainConveyor : AutoUnit
                 && !IsNgTransferRequired
                 && _inspection.IsTransferAllowed
                 && DownstreamReady)
-                return _inspection.IsTransferAtWaitingPosition
+                return _inspection.IsRearDischargeReady
                     ? MainConveyorState.DischargingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
         }

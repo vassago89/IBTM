@@ -549,7 +549,7 @@ public sealed class PcbPlacementStateSafetyTests
         rig.Motion.SetAlarm(MotionAxis.Y, true);
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
         rig.Motion.SetAlarm(MotionAxis.Y, false);
-        Assert.True(MotionServiceBase.IsAt(rig.Placer.Motion.Feedback, new() { X = 50, Y = 10, Z = 12 }));
+        Assert.True(VirtualTestSupport.IsAt(rig.Placer.Motion.Feedback, new() { X = 50, Y = 10, Z = 12 }));
         Assert.Equal(PcbPlacementHandoff.Holding, rig.Placer.Handoff);
     }
 

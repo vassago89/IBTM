@@ -290,7 +290,7 @@ public sealed class PcbTransferTests
             {
                 Assert.True(await WaitUntilAsync(
                     () => !io.GetOutput(OutputIo.PcbSupplyRotate), TimeSpan.FromSeconds(2)));
-                Assert.True(MotionServiceBase.IsHoldingPosition(supplyMotion, supplySettings.HandoffPosition));
+                Assert.True(VirtualTestSupport.IsAt(supplyMotion, supplySettings.HandoffPosition));
                 Assert.Equal(PcbSupplyRotationState.Rotated, supplier.Rotation);
                 Assert.False(preparation.IsCompleted);
                 Assert.False(await placer.ExecuteStepAsync(
@@ -333,13 +333,13 @@ public sealed class PcbTransferTests
         io.OutputChanged += (output, on) => loweredDuringReceipt |= output == OutputIo.PcbPlacementHandlerDown && on;
         Assert.Equal(PcbPlacementState.ReceivingPcb, placer.Phase);
         var receipt = placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token);
-        Assert.True(await WaitUntilAsync(() => MotionServiceBase.IsAt(placer.Motion.Feedback, Position(50, 10, 12)), TimeSpan.FromSeconds(2)));
+        Assert.True(await WaitUntilAsync(() => VirtualTestSupport.IsAt(placer.Motion.Feedback, Position(50, 10, 12)), TimeSpan.FromSeconds(2)));
         Assert.False(receipt.IsCompleted);
         Assert.Equal(StationCylinderState.Up, placer.Lift);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.True(await receipt);
-        Assert.True(MotionServiceBase.IsAt(placer.Motion.Feedback, Position(50, 10, 12)) && placer.PcbSecured);
-        Assert.False(MotionServiceBase.IsAt(placer.Motion.Feedback, placementSettings.HandoffPosition));
+        Assert.True(VirtualTestSupport.IsAt(placer.Motion.Feedback, Position(50, 10, 12)) && placer.PcbSecured);
+        Assert.False(VirtualTestSupport.IsAt(placer.Motion.Feedback, placementSettings.HandoffPosition));
         Assert.False(loweredDuringReceipt);
         Assert.False(movedWithCylinderDown);
         Assert.Equal((50, 10, placementSettings.ReceiveZ!.Value), placementMotion.Position);
@@ -400,7 +400,7 @@ public sealed class PcbTransferTests
                 && io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
             {
                 readyDroppedBeforeClear |= !pcb2Visited
-                    || Math.Abs(supply.Motion.Feedback.Position.Z - supplySettings.TravelZ) > MotionServiceBase.PositionToleranceMillimeters
+                    || Math.Abs(supply.Motion.Feedback.Position.Z - supplySettings.TravelZ) > VirtualTestSupport.PositionToleranceMillimeters
                     || supply.Pcb == PcbSupplyPcbState.Detected;
             }
         };
@@ -448,7 +448,7 @@ public sealed class PcbTransferTests
         var checkedBoth = await WaitUntilAsync(
             () => pcb1Visited && pcb2Visited && !io.GetOutput(OutputIo.PcbSupplyReadyToFront1),
             TimeSpan.FromSeconds(5));
-        var atTravelZ = Math.Abs(supply.Motion.Feedback.Position.Z - supplySettings.TravelZ) <= MotionServiceBase.PositionToleranceMillimeters;
+        var atTravelZ = Math.Abs(supply.Motion.Feedback.Position.Z - supplySettings.TravelZ) <= VirtualTestSupport.PositionToleranceMillimeters;
         var nextCarrierAccepted = true;
         if (secondPcbPresent && checkedBoth)
         {
@@ -530,13 +530,13 @@ public sealed class PcbTransferTests
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PcbSupplyRotate && !on)
-                unrotatedAtHandoff = MotionServiceBase.IsHoldingPosition(supply.Motion.Feedback, supplySettings.HandoffPosition);
+                unrotatedAtHandoff = VirtualTestSupport.IsAt(supply.Motion.Feedback, supplySettings.HandoffPosition);
         };
         supplyMotion.PositionChanged += (x, y, z) =>
         {
             rotationChangedDuringTravel |= supply.Rotation != PcbSupplyRotationState.Rotated;
             travelledAtWrongZ |= supplyMotion.IsMovingHorizontal
-                && Math.Abs(z - supplySettings.TravelZ) > MotionServiceBase.PositionToleranceMillimeters;
+                && Math.Abs(z - supplySettings.TravelZ) > VirtualTestSupport.PositionToleranceMillimeters;
             if (!interrupted && x >= 45)
             {
                 interrupted = true;
@@ -547,7 +547,7 @@ public sealed class PcbTransferTests
         supplyRecipes.Current.PcbSupply = recipe;
         await supply.RunAsync(placement, firstStop.Token);
         Assert.True(interrupted);
-        Assert.False(MotionServiceBase.IsAt(supply.Motion.Feedback, supplySettings.HandoffPosition));
+        Assert.False(VirtualTestSupport.IsAt(supply.Motion.Feedback, supplySettings.HandoffPosition));
         var stoppedPosition = supplyMotion.Position;
         Assert.InRange(stoppedPosition.Y, 0.1, supplySettings.HandoffPosition.Y - 0.1);
         Assert.False(supplyMotion.IsMoving);
@@ -597,8 +597,8 @@ public sealed class PcbTransferTests
         double targetY,
         double targetZ)
     {
-        return Math.Abs(x - targetX) <= MotionServiceBase.PositionToleranceMillimeters
-            && Math.Abs(y - targetY) <= MotionServiceBase.PositionToleranceMillimeters
-            && Math.Abs(z - targetZ) <= MotionServiceBase.PositionToleranceMillimeters;
+        return Math.Abs(x - targetX) <= VirtualTestSupport.PositionToleranceMillimeters
+            && Math.Abs(y - targetY) <= VirtualTestSupport.PositionToleranceMillimeters
+            && Math.Abs(z - targetZ) <= VirtualTestSupport.PositionToleranceMillimeters;
     }
 }

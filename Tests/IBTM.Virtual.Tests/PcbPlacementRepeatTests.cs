@@ -366,7 +366,7 @@ public sealed class PcbPlacementRepeatTests
             if (output != OutputIo.PcbPlacementHandlerDown || !on)
                 return;
             var position = rig.Recipe.HeatSink1PcbPlacementPosition;
-            descendedAtPickup = MotionServiceBase.IsAt(rig.Placer.Motion.Feedback, position);
+            descendedAtPickup = VirtualTestSupport.IsAt(rig.Placer.Motion.Feedback, position);
             stop.Cancel();
         };
         await rig.Placer.RunAsync(stop.Token, repeat: true);

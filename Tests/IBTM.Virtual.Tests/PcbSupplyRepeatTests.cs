@@ -134,7 +134,7 @@ public sealed class PcbSupplyRepeatTests
             if (input != InputIo.PcbSupplyGripperClosed || !on)
                 return;
             var pickup = recipe.Pcb1PickPosition;
-            grippedAtPickup = MotionServiceBase.IsAt(supplier.Motion.Feedback, new() { X = pickup.X, Y = pickup.Y!.Value, Z = pickup.Z })
+            grippedAtPickup = VirtualTestSupport.IsAt(supplier.Motion.Feedback, new() { X = pickup.X, Y = pickup.Y!.Value, Z = pickup.Z })
                 && supplier.Rotation == PcbSupplyRotationState.Rotated;
         };
 
@@ -153,7 +153,7 @@ public sealed class PcbSupplyRepeatTests
         };
         motion.StateChanged += () =>
         {
-            if (!MotionServiceBase.IsAt(supplier.Motion.Feedback, settings.HandoffPosition) || !supplier.PcbSecured)
+            if (!VirtualTestSupport.IsAt(supplier.Motion.Feedback, settings.HandoffPosition) || !supplier.PcbSecured)
                 return;
             reachedHandoff = true;
             finish.Cancel();

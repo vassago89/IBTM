@@ -19,6 +19,18 @@ namespace IBTM.Virtual.Tests;
 
 internal static class VirtualTestSupport
 {
+    public const double PositionToleranceMillimeters = 0.05;
+
+    public static bool IsAt(IMotionFeedback motion, AxisPosition target)
+    {
+        if (!MotionServiceBase.IsReadyAndStopped(motion))
+            return false;
+        var current = motion.Position;
+        return Math.Abs(current.X - target.X) <= PositionToleranceMillimeters
+            && (!motion.HasY || Math.Abs(current.Y - target.Y) <= PositionToleranceMillimeters)
+            && (!motion.HasZ || Math.Abs(current.Z - target.Z) <= PositionToleranceMillimeters);
+    }
+
     public static Guid BoltId(int number, HeatSinkSlot pcb = HeatSinkSlot.HeatSink1)
     {
         return new Guid(number, (short)pcb, 0, 0x49, 0x42, 0x54, 0x4d, 0x54, 0x45, 0x53, 0x54);

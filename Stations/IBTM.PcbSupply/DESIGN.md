@@ -76,7 +76,7 @@ Program startup and manual motion do not reconstruct progress from matching teac
 Sensor feedback still validates each operation and handoff.
 Handoff readiness uses the completed sequence stage and current axis, rotation and grip feedback.
 It does not store or continuously compare a handoff coordinate snapshot. Axis faults make it unavailable;
-restoring feedback does not require repeating the stage. START separately validates a retained PCB's taught handoff XYZ.
+restoring feedback does not require repeating the stage. START sends a retained PCB through the normal forward move before publishing handoff readiness again.
 Only `Handoff` and `Changed` cross the boundary through Core's
 `IPcbSupplyHandoff` / `IPcbPlacementHandoff`. These interfaces expose no handler,
 motion commands, or internal sequence stages, and do not store duplicate state.
@@ -188,9 +188,11 @@ release occurs at the taught pickup XYZ even if no physical support is present.
 The virtual model represents fixed supports at those pickup positions.
 
 After STOP, remove the PCB from Supply before START, except for a normal-mode PCB
-already secured at the completed forward handoff. START rechecks settled handoff
-XYZ, Unrotated feedback, gripper and IPM fixation before allowing that receipt to
-continue. Supply stays still and holds the PCB until Placement confirms holding.
+already secured at the completed forward handoff. START checks ready axes,
+Unrotated feedback, gripper and IPM fixation, then reuses `MovingToHandoff`:
+Travel Z -> handoff XY -> handoff Z -> rotation confirmation. Handoff stays
+unavailable throughout this move. After arrival, Supply holds the PCB until
+Placement confirms holding. No coordinate comparison is used to admit this restart.
 The next pickup scan always starts at PCB 1, including after this handoff; the
 previous slot is not resumed. Partial release, interrupted travel and Repeat-held
 PCBs still require removal. An empty new run moves to PCB 1 standby;

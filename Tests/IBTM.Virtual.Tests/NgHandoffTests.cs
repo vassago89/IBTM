@@ -15,34 +15,51 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class NgHandoffTests
 {
-    [Fact]
-    public async Task InspectionReturnsOnceBeforeWaitingEvenWithSmallPositionError()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RearDischargeWaitsForCompletedReturnMove(bool cancelReturn)
     {
         var system = await CreateAsync();
         using var motion = system.Motion;
         var transfer = system.Inspection;
         await motion.AdjustAxisAsync(MotionAxis.X, 0.04, 1_000);
+        Assert.False(transfer.IsRearDischargeReady);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var moves = 0;
         motion.MovingChanged += moving =>
         {
             if (moving)
+            {
+                Assert.Equal(InspectionStationState.ReturningToWaitingPosition, transfer.Step);
+                Assert.False(transfer.IsRearDischargeReady);
                 Interlocked.Increment(ref moves);
+                if (cancelReturn)
+                    stop.Cancel();
+            }
         };
         var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        transfer.StepChanged += () =>
+        transfer.Changed += () =>
         {
-            if (transfer.Step is InspectionStationState.Waiting)
+            if (transfer.IsRearDischargeReady)
                 waiting.TrySetResult();
         };
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var run = transfer.RunAsync(stop.Token);
         try
         {
-            await waiting.Task.WaitAsync(TimeSpan.FromSeconds(1));
-            Assert.Equal(0, motion.Position.X);
-            Assert.False(motion.IsMoving);
-            system.Io.SetOutput(OutputIo.MainConveyorRun, true);
-            await Task.Delay(50);
+            if (cancelReturn)
+            {
+                await run.WaitAsync(TimeSpan.FromSeconds(1));
+                Assert.False(waiting.Task.IsCompleted);
+            }
+            else
+            {
+                await waiting.Task.WaitAsync(TimeSpan.FromSeconds(1));
+                Assert.Equal(0, motion.Position.X);
+                Assert.False(motion.IsMoving);
+                system.Io.SetOutput(OutputIo.MainConveyorRun, true);
+                await Task.Delay(50);
+            }
             Assert.Equal(1, Volatile.Read(ref moves));
         }
         finally
@@ -50,6 +67,7 @@ public sealed class NgHandoffTests
             stop.Cancel();
             await run.WaitAsync(TimeSpan.FromSeconds(1));
         }
+        Assert.False(transfer.IsRearDischargeReady);
     }
 
     [Fact]
@@ -188,14 +206,14 @@ public sealed class NgHandoffTests
 
         Assert.True(transfer.IsTransferPending);
         Assert.False(transfer.IsReceiveAllowed);
-        Assert.False(transfer.IsTransferAtWaitingPosition);
+        Assert.False(transfer.IsRearDischargeReady);
 
         await transfer.SetGripperOpenAsync(true);
         await transfer.SetLiftUpAsync(false);
-        Assert.False(transfer.IsTransferAtWaitingPosition);
+        Assert.False(transfer.IsRearDischargeReady);
         await transfer.SetLiftUpAsync(true);
         Assert.True(transfer.IsReceiveAllowed);
-        Assert.True(transfer.IsTransferAtWaitingPosition);
+        Assert.True(transfer.IsRearDischargeReady);
     }
 
     [Fact]
@@ -450,7 +468,7 @@ public sealed class NgHandoffTests
             Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
             io.SetInput(InputIo.NgShuttleUp, false);
             Assert.True(await WaitUntilAsync(
-                () => MotionServiceBase.IsAt(transfer.Motion.Feedback, new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
+                () => VirtualTestSupport.IsAt(transfer.Motion.Feedback, new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
                 TimeSpan.FromSeconds(1)));
             Assert.False(movedBeforeDown);
         }

@@ -205,27 +205,27 @@ public sealed class MotionSafetyTests
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        Assert.False(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.False(VirtualTestSupport.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
 
         await supply.MoveToXYAsync(10, 10, settings.HorizontalSpeed);
         await supply.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.False(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff));
-        Assert.False(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.False(VirtualTestSupport.IsAt(supplyHandler.Motion.Feedback, supplyHandoff));
+        Assert.False(VirtualTestSupport.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
         await supply.MoveAxisAsync(MotionAxis.Z, 3, settings.ZSpeed);
-        Assert.True(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.True(VirtualTestSupport.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, true);
-        Assert.False(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.False(VirtualTestSupport.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, false);
-        Assert.True(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.True(VirtualTestSupport.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
 
         await placement.MoveToXYAsync(10, 10, settings.HorizontalSpeed);
         await placement.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.True(MotionServiceBase.IsAt(placementHandler.Motion.Feedback, handoff));
-        Assert.False(MotionServiceBase.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
+        Assert.True(VirtualTestSupport.IsAt(placementHandler.Motion.Feedback, handoff));
+        Assert.False(VirtualTestSupport.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
         io.SetInputs(
             (InputIo.PcbPlacementPcbDetected, true),
             (InputIo.PcbPlacementVacuumDetected, true));
-        Assert.True(MotionServiceBase.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
+        Assert.True(VirtualTestSupport.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public sealed class MotionSafetyTests
         {
             if (output != OutputIo.PcbSupplyRotate)
                 return;
-            Assert.True(MotionServiceBase.IsHoldingPosition(motion, settings.HandoffPosition));
+            Assert.True(VirtualTestSupport.IsAt(motion, settings.HandoffPosition));
             rotationCommands++;
         };
         var xyMovedTogether = false;
@@ -271,7 +271,7 @@ public sealed class MotionSafetyTests
         Assert.Equal((10, 30, 5), motion.Position);
         await supply.PrepareHandoffAsync(default);
         Assert.Equal(PcbSupplyRotationState.Unrotated, supply.Rotation);
-        Assert.True(MotionServiceBase.IsHoldingPosition(motion, settings.HandoffPosition));
+        Assert.True(VirtualTestSupport.IsAt(motion, settings.HandoffPosition));
         await supply.MoveFromHandoffAsync(new() { X = 10, Y = 30, Z = 5 });
         Assert.Equal((10, 30, settings.TravelZ), motion.Position);
         Assert.Equal(PcbSupplyRotationState.Rotated, supply.Rotation);

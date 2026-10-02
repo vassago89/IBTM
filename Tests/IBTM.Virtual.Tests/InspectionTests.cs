@@ -486,7 +486,7 @@ public sealed class InspectionTests
             movements = 0;
             var image = await inspector.CaptureCarrierImageAsync();
             Assert.Equal((center.X, center.Y), (image.Center.X, image.Center.Y));
-            Assert.True(MotionServiceBase.IsAt(inspector.Motion.Feedback, center));
+            Assert.True(VirtualTestSupport.IsAt(inspector.Motion.Feedback, center));
             Assert.Equal(live, inspector.IsLiveView);
             Assert.Equal(0, movements);
             Assert.NotEmpty(image.Frame.Pixels);
@@ -497,7 +497,7 @@ public sealed class InspectionTests
         var taughtPosition = fov.Center!;
         fov.Center = null;
         var capturedFov = await inspector.InspectAsync(bolt);
-        Assert.True(MotionServiceBase.IsAt(inspector.Motion.Feedback, taughtPosition)); // ROI pixels do not alter the taught camera XY.
+        Assert.True(VirtualTestSupport.IsAt(inspector.Motion.Feedback, taughtPosition)); // ROI pixels do not alter the taught camera XY.
         Assert.Equal(fov.Region, capturedFov.Region);
         Assert.NotEmpty(capturedFov.Frame.Pixels);
         Assert.NotNull(bolt.InspectionPosition);
@@ -520,7 +520,7 @@ public sealed class InspectionTests
         fov.BoltId = null;
         fov.Region = new(180, 40, 80, 80);
         var barcodeResult = await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
-        Assert.True(MotionServiceBase.IsAt(inspector.Motion.Feedback, fov.Center));
+        Assert.True(VirtualTestSupport.IsAt(inspector.Motion.Feedback, fov.Center));
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-000123", barcodeResult.Barcode);
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
@@ -634,11 +634,11 @@ public sealed class InspectionTests
 
         await station.HomeHorizontalAsync();
         var barcodeResult = await station.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None);
-        Assert.True(MotionServiceBase.IsAt(station.Motion.Feedback, recipes.Current.GetInspectionPosition(station.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
+        Assert.True(VirtualTestSupport.IsAt(station.Motion.Feedback, recipes.Current.GetInspectionPosition(station.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-2", barcodeResult.Barcode);
         var boltResult = await station.InspectAsync(bolts[0]);
-        Assert.True(MotionServiceBase.IsAt(station.Motion.Feedback, bolts[0].InspectionPosition!));
+        Assert.True(VirtualTestSupport.IsAt(station.Motion.Feedback, bolts[0].InspectionPosition!));
         Assert.NotEmpty(boltResult.Frame.Pixels);
         Assert.Empty(work.Assemblies);
 
@@ -806,8 +806,8 @@ public sealed class InspectionTests
         {
             var image = await _camera.CaptureAsync(cancellationToken);
             var current = _position();
-            var missing = Math.Abs(current.X - _missingPosition.X) <= MotionServiceBase.PositionToleranceMillimeters
-                && Math.Abs(current.Y - _missingPosition.Y) <= MotionServiceBase.PositionToleranceMillimeters;
+            var missing = Math.Abs(current.X - _missingPosition.X) <= VirtualTestSupport.PositionToleranceMillimeters
+                && Math.Abs(current.Y - _missingPosition.Y) <= VirtualTestSupport.PositionToleranceMillimeters;
             var captured = missing
                 ? image with
                 {
