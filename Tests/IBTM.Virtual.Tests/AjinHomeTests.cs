@@ -33,9 +33,10 @@ public sealed class AjinHomeTests
     {
         var motion = new TestCompletion(new() { TimeoutMilliseconds = 25 });
         motion.Feedback = (false, false, false);
-        await Assert.ThrowsAsync<TimeoutException>(() => motion.Wait(CancellationToken.None));
+        var timeout = await Assert.ThrowsAsync<MotionException>(() => motion.Wait(CancellationToken.None));
+        Assert.IsType<TimeoutException>(timeout.InnerException);
         motion.Feedback = (false, true, true);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => motion.Wait(CancellationToken.None));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => motion.Wait(CancellationToken.None));
     }
 
     [Fact]

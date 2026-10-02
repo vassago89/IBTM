@@ -25,30 +25,7 @@ public enum PcbSupplyState
     [Description("Waiting for Placement Y Departure")]
     WaitingForPlacementClear,
 
-    [Description("Waiting for Returned PCB")]
-    WaitingForReturnedPcb,
-
-    [Description("Preparing to Receive Returned PCB")]
-    PreparingReturnReceipt,
-
-    [Description("Waiting for Placement to Present PCB")]
-    WaitingForReturnedPcbGrip,
-
-    [Description("Gripping Returned PCB")]
-    ReceivingReturnedPcb,
-
-    [Description("Waiting for Return Handoff Clearance")]
-    WaitingForReturnClear,
-
-    [Description("Returning Above Pickup with PCB")]
-    ReturningToPickup,
-
     [Description("Disabled")]
     Disabled,
 
-    [Description("Placing PCB at Pickup")]
-    PlacingReturnedPcb,
-
-    [Description("Picking PCB")]
-    PickingReturnedPcb,
 }

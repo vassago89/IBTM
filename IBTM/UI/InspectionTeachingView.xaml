@@ -209,9 +209,23 @@
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
                                 <CheckBox Content="{ui:Text 'Pure barcode'}" IsChecked="{Binding DataMatrix.PureBarcode, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
+                            </WrapPanel>
+                            <WrapPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
+                                    <TextBlock Text="{ui:Text 'Min. threshold'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Width="60" Text="{Binding Preview.DataMatrixThresholdMinimum, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
+                                    <TextBlock Text="{ui:Text 'Max. threshold'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Width="60" Text="{Binding DataMatrix.ThresholdMaximum, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
+                                    <TextBlock Text="{ui:Text 'Threshold step'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Width="60" Text="{Binding DataMatrix.ThresholdStep, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <TextBlock Text="{ui:Text 'Binary (0–255; blank = auto)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox Width="70" Text="{Binding Preview.DataMatrixThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                    <TextBlock Text="{ui:Text 'Dilation radius (px; 0 = off)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Width="60" Text="{Binding DataMatrix.DilationRadius, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                 </StackPanel>
                             </WrapPanel>
                             <WrapPanel>

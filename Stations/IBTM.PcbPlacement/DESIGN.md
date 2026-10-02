@@ -5,8 +5,8 @@ outside Supply's handoff area. START raises IPM and handler, reaches standby Z,
 moves Y to the first present heat sink (Heat Sink 1 without a target), then X to
 handoff X. After placement, keep that heat sink's Y and return Z followed by X.
 This Z is also the XY travel height. `HandoffPosition.Y` is used only for receiving
-or returning a PCB. `ReceiveZ` is taught separately at the same handoff X/Y.
-Handler Rotate output stays OFF during automatic, repeat and manual operation.
+a PCB. `ReceiveZ` is taught separately at the same handoff X/Y.
+Handler Rotate output stays OFF during automatic and manual operation.
 HOME ALL homes Placement in Z -> Y -> X order to avoid interference, then starts
 the other units. Each axis must finish successfully before the next starts.
 Individual Placement HOME still homes Z first, followed by X/Y together.
@@ -23,12 +23,11 @@ Individual Placement HOME still homes Z first, followed by X/Y together.
 the current execution/wait and becomes null after STOP. Both are updated through
 `EnterStep`; `GetNextStep` and `Handoff` only read state and feedback.
 Coordinates do not select stages or heat sinks. `MovingToHandoff` waits for Supply's
-`Holding` before approach; `ReturningToSupply` waits for `Released` for a Repeat return.
+`Holding` before approach.
 `PrepareHandoffAsync` awaits standby Z, IPM preparation, X, Y and receive Z in sequence,
 then PCB detection and vacuum for normal receipt. One feedback monitor and cancellation
 scope covers the operation: Supply must stay ready through descent, then until Placement
-confirms its own grip. A Repeat return publishes
-`WaitingForSupplyGrip` only after the receive Z move completes. There is no separate descent stage.
+confirms its own grip. There is no separate descent stage.
 `ExecuteStepAsync` returns Z to standby followed by placement Y once Supply is `Released`. Placement publishes `Holding` while securing the PCB at the receiving
 position, and `Clear` after the Y departure settles. Internal placement/press stages
 are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
@@ -57,45 +56,20 @@ the next PCB or completing the carrier. START uses the same standby movement;
 an already completed carrier keeps its completion and is not placed again. A new START does not resume the interrupted rise or placement.
 The placement feedback check requires PCB presence through completion; the sensor
 may clear during retraction. The operation uses its selected carrier and heat-sink target;
-it never guesses a heat sink from X/Y. Repeat uses the same switch in `PcbPlacer.cs` and
-picks PCBs from the existing carrier.
-With Supply disabled, it visits handoff and places each PCB back on its heat sink.
-With Supply enabled, `ReturningPcb` requests the original heat sink's return before
-Placement approaches. Placement waits until Supply reports `Released` at its settled,
-Unrotated handoff XYZ, then approaches in Z, X, Y order with the same readiness monitoring.
-Supply must remain `Released` before and throughout the final descent to Receive Z.
-Only after descent completes does Placement publish `Returning`, allowing Supply to grip.
-`Returning` confirms a held PCB at Receive Z. Supply secures it before Placement releases and
-rises and moves to the original heat sink Y before allowing Supply to withdraw. Placement waits for Supply's departure and next forward handoff, then places
-the same PCB without pressing. Supply then completes normal empty withdrawal to
-pickup XY and Travel Z before waiting for another return. Repeat keeps IPM Up during pickup, both handoff directions,
-travel and placement. Handoff feedback requires an unambiguous IPM endpoint;
-the sequence prepares Up for Repeat and Down for normal receipt.
-PCB detection and vacuum still confirm holding. Normal production retains the IPM press.
-Forward receipt and Repeat pickup both confirm PCB detection and vacuum after
-vacuum completes. Only then may Supply release, or Repeat enter `ReturningToSupply`.
-Return release requires ready, stopped Placement axes and Supply `Holding` before releasing vacuum.
-A missing PCB signal with vacuum ON stops at pickup instead of raising the handler
-and trying the pickup again.
-Supply returns each PCB to its corresponding pickup XYZ, releases it there and
-picks it up again before the forward handoff. Repeat does not use upstream SMEMA
-to infer support presence. Placement retains the original carrier and heat-sink
-target throughout this round trip.
-Main Conveyor OFF repeats the completed seated carrier
-with a new work record; it does not clear incomplete work.
+it never guesses a heat sink from X/Y. Receipt confirms PCB detection and vacuum
+before Supply may release. IPM Down prepares receipt and pressing; unknown or
+contradictory IPM endpoint feedback blocks handoff readiness.
 
 `MovingToHandoff`, `ReceivingPcb`, `PreparingPlacement`, `PlacingPcb` and
 `Retracting` execute their full actuator/motion sequence before the next
-state selection. `PickingPcb` is the repeat pickup operation. Forward receipt waits
+state selection. Forward receipt waits
 for Supply arrival, release, acknowledgement of departure and a seated carrier. `ExecuteStepAsync` returns
 false for those waits; it does not split axis moves or vacuum/IPM actions into
 separate state-machine ticks. Placement keeps the original job and cancels its
 remaining commands if carrier identity or seating changes.
-The Repeat argument controls IPM commands throughout the step; there is no second
-mode field. After STOP, remove PCBs from the handler and clear vacuum before START.
+After STOP, remove PCBs from the handler and clear vacuum before START.
 Machine START also rejects an unfinished carrier still present at S1/S2/S3.
 Carrier or support feedback changes during active work stop the run, including waits
 between PCBs and the final standby return. Sensor edges never reset the target index
 or clear its job. A new admitted carrier starts at the
-first present heat sink; recorded results do not select a resume point. A completed carrier stays complete. The original destination
-for a Repeat round trip is retained only while that run is active.
+first present heat sink; recorded results do not select a resume point. A completed carrier stays complete.

@@ -2,7 +2,7 @@
 
 장비를 실행하지 않고 `Virtual` 구성 또는 SDK 대역으로 검증한다. 변경한 동작의 테스트만 선택하고, 같은 테스트를 Debug/Release로 반복 실행하지 않는다. `dotnet test`가 의존 프로젝트도 빌드하므로 별도 전체 빌드는 필요 없다.
 
-테스트는 검증 대상별 클래스에 모으며, 별도의 반복 시험만 `.Repeat.cs`에 둔다.
+테스트는 검증 대상별 클래스에 모은다.
 위치를 옮겨도 안전·취소·오류 복구 검증과 `Category=MachineFlow` 구분은 유지한다.
 
 테스트는 `MachineTestSupport.AddVirtualApplication`에서 가상 장치를 주입한다. 앱의 `AddIbtmApplication`은 공통 서비스만 등록하고, 실행 시 `AddIbtmHardware`가 실제 장치를 연결한다. 가상 카메라 이미지·센서·체결 결과 지정은 테스트 대역을 직접 사용한다. 앱의 가상 실행 프로필은 제거했다.

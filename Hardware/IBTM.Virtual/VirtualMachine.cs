@@ -15,7 +15,6 @@ public sealed class VirtualMachine
 
     private readonly VirtualIoService _io;
     private readonly IReadOnlyList<VirtualMotionService> _motions;
-    private readonly Func<bool>? _incomingCarrierHasPcbs;
     private readonly bool[] _supplyPcbs;
     private int _supplySmemaVersion;
     private int _mainConveyorTransferVersion;
@@ -43,8 +42,7 @@ public sealed class VirtualMachine
 
     public VirtualMachine(
         VirtualIoService io,
-        IReadOnlyList<VirtualMotionService> motions,
-        Func<bool>? incomingCarrierHasPcbs = null)
+        IReadOnlyList<VirtualMotionService> motions)
     {
         _supplyPcbs = new bool[2];
         _carrierPcbs = [];
@@ -52,7 +50,6 @@ public sealed class VirtualMachine
 
         _io = io;
         _motions = motions;
-        _incomingCarrierHasPcbs = incomingCarrierHasPcbs;
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
         io.OutputApplied += ApplyPhysicalOutput;
@@ -560,13 +557,11 @@ public sealed class VirtualMachine
                             }
 
                             _io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
-                            // Repeat starts with PCBs already seated on the incoming carrier.
-                            var hasPcbs = _incomingCarrierHasPcbs?.Invoke() == true;
                             var carrier = _mainEntryCarrier ?? (
                                 HeatSink1: true,
                                 HeatSink2: true,
-                                Pcb1: hasPcbs,
-                                Pcb2: hasPcbs);
+                                Pcb1: false,
+                                Pcb2: false);
                             _mainEntryCarrier = null;
                             _placedPcbs[0] = carrier.Pcb1;
                             _placedPcbs[1] = carrier.Pcb2;

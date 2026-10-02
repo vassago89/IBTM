@@ -197,7 +197,6 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public async Task RunAsync(
         CancellationToken cancellationToken = default,
-        bool repeat = false,
         IReadOnlyCollection<Guid>? selectedBolts = null,
         Action<BoltPoint, BoltResult>? resultReceived = null,
         bool continueAfterSelection = false)
@@ -208,7 +207,7 @@ public sealed class BoltFasteningStation : AutoUnit
         if (selectedBolts is not null)
         {
             var bolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => selectedBolts.Contains(bolt.Id)).ToArray();
-            if (repeat || !_units.BoltFastening
+            if (!_units.BoltFastening
                 || selectedBolts.Count == 0 && (!IsFasteningRecorded || Station.Completed)
                 || bolts.Length != selectedBolts.Distinct().Count())
                 throw new InvalidOperationException("Select current recipe bolts to resume fastening.");
@@ -224,7 +223,7 @@ public sealed class BoltFasteningStation : AutoUnit
             if (_units.BoltFastening)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!repeat && _units.ShootingBoltFeeder
+                if (_units.ShootingBoltFeeder
                     && (selectedBolts is null || _recipes.Current.Pcb.BoltPoints.Any(
                         bolt => bolt.Head == FasteningHead.Shooting && selectedBolts.Contains(bolt.Id))))
                     Io.SetOutput(OutputIo.ShootingEscapeForward, false);
@@ -249,15 +248,6 @@ public sealed class BoltFasteningStation : AutoUnit
             }
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (_units.BoltFastening && repeat && !_units.MainConveyor && Station.Completed)
-                {
-                    if (!Station.CarrierSeated || !IsHorizontalMoveAllowed)
-                        throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads raised.");
-                    var completedJob = Station.CurrentJob;
-                    await MoveZAsync(_settings.SafeZ, cancellationToken);
-                    cancellationToken.ThrowIfCancellationRequested();
-                    Station.StartRepeat(completedJob);
-                }
                 if (resumeJob is not null)
                 {
                     Station.RequireCurrentJob(resumeJob);
@@ -265,7 +255,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         throw new MotionInterlockException("The fastening carrier is no longer seated.");
                 }
                 var step = NextStep;
-                if (!await ExecuteStepAsync(step, repeat, cancellationToken, selectedBolts, resultReceived, continueAfterSelection))
+                if (!await ExecuteStepAsync(step, cancellationToken, selectedBolts, resultReceived, continueAfterSelection))
                     await WaitForChangeAsync(cancellationToken);
                 if (resumeJob is not null && step == BoltFasteningState.CompletingCarrier)
                 {
@@ -351,7 +341,7 @@ public sealed class BoltFasteningStation : AutoUnit
     }
 
     private async Task<bool> ExecuteStepAsync(
-        BoltFasteningState step, bool repeat, CancellationToken cancellationToken,
+        BoltFasteningState step, CancellationToken cancellationToken,
         IReadOnlyCollection<Guid>? selectedBolts,
         Action<BoltPoint, BoltResult>? resultReceived, bool continueAfterSelection)
     {
@@ -478,7 +468,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     var cycleStarted = Stopwatch.GetTimestamp();
                     _log?.LogInformation("Bolt timing {Job}/{Bolt}: begin, PCB={Pcb}, head={Head}, safe Z={SafeZ}.",
                         job.Id, bolt.Id, bolt.HeatSink, bolt.Head, _settings.GetSafeZ(bolt.Head));
-                    var feeding = !repeat && _units.IsBoltFeederEnabled(bolt.Head);
+                    var feeding = _units.IsBoltFeederEnabled(bolt.Head);
                     switch (bolt.Head)
                     {
                         case FasteningHead.Shooting:
@@ -688,7 +678,7 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 CheckPickupTable();
-                                var dryRunMilliseconds = repeat || !_units.IsBoltFeederEnabled(bolt.Head)
+                                var dryRunMilliseconds = !_units.IsBoltFeederEnabled(bolt.Head)
                                     ? _settings.DryRunMilliseconds : 0;
                                 _log?.LogInformation(
                                     "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",

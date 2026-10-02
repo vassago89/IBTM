@@ -13,49 +13,6 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbSupplyHandoffTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RepeatEndWaitsForWithdrawalToFinish(bool stopDuringMove)
-    {
-        using var rig = new HandoffRig();
-        await rig.InitializeAsync();
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var end = rig.Supplier.WaitForRepeatEndAsync(stop.Token);
-        var moved = false;
-        rig.Motion.MovingChanged += moving =>
-        {
-            if (!moving)
-                return;
-            moved = true;
-            Assert.False(end.IsCompleted);
-            if (stopDuringMove)
-                stop.Cancel();
-        };
-        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token, repeat: true);
-        try
-        {
-            if (stopDuringMove)
-            {
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => end);
-                Assert.NotEqual(PcbSupplyState.WaitingForReturnedPcb, rig.Supplier.Phase);
-            }
-            else
-            {
-                await end;
-                var pickup = rig.Recipes.Current.PcbSupply.Pcb1PickPosition;
-                Assert.Equal((pickup.X, pickup.Y!.Value, rig.Settings.TravelZ), rig.Motion.Position);
-                Assert.Equal(PcbSupplyState.WaitingForReturnedPcb, rig.Supplier.Phase);
-                Assert.True(rig.Supplier.PcbReleased);
-            }
-            Assert.True(moved);
-        }
-        finally
-        {
-            stop.Cancel();
-            await run;
-        }
-    }
 
     [Fact]
     public async Task HandoffMoveDoesNotSkipSmallPositionError()
@@ -335,7 +292,6 @@ public sealed class PcbSupplyHandoffTests
         rig.Motion.MovingChanged += moving => commanded |= moving;
         rig.Io.OutputChanged += (output, on) => commanded = true;
         await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Supplier.RunAsync(rig.Placement));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Supplier.RunAsync(rig.Placement, repeat: true));
         Assert.False(commanded);
         Assert.True(rig.Supplier.PcbSecured);
     }
@@ -499,7 +455,6 @@ public sealed class PcbSupplyHandoffTests
         Assert.True(VirtualTestSupport.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
         Assert.True(rig.Supplier.PcbSecured);
         Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.Phase);
-        Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.GetNextStep(rig.Placement, repeat: true));
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
 
         await rig.Supplier.PrepareHandoffAsync(CancellationToken.None);
@@ -609,34 +564,6 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Fact]
-    public async Task ReturnReceiptAxisFaultStopsBeforeFixerAdvances()
-    {
-        using var rig = new HandoffRig();
-        await rig.InitializeAsync();
-        rig.Placement.ReturningPcb = HeatSinkSlot.HeatSink1;
-        rig.Supplier.StepChanged += () =>
-        {
-            if (rig.Supplier.Step is PcbSupplyState.WaitingForReturnedPcbGrip)
-            {
-                rig.Placement.Handoff = PcbPlacementHandoff.Returning;
-                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-            }
-        };
-        rig.Io.OutputChanged += (output, on) =>
-        {
-            if (output == OutputIo.PcbSupplyGripperClosed && on)
-                rig.Motion.SetServo(MotionAxis.X, false);
-        };
-
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await Assert.ThrowsAsync<MotionInterlockException>(
-            () => rig.Supplier.RunAsync(rig.Placement, stop.Token, repeat: true));
-
-        Assert.False(rig.Io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
-        Assert.Equal(PcbSupplyState.ReceivingReturnedPcb, rig.Supplier.Phase);
-    }
-
-    [Fact]
     public async Task NormalHandoffRejectsWrongRotationWithoutMovingOrReleasing()
     {
         using var rig = new HandoffRig();
@@ -737,85 +664,6 @@ public sealed class PcbSupplyHandoffTests
         Assert.True(lost);
         Assert.False(rig.Motion.IsMoving);
         Assert.NotEqual(leaving ? pickup.X : rig.Settings.HandoffPosition.X, rig.Motion.Position.X);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task RepeatPreparesAndConfirmsRotationAtExistingHandoff(bool feedbackArrives)
-    {
-        using var rig = new HandoffRig();
-        await rig.InitializeAsync();
-        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true);
-        rig.Io.AutoResponseEnabled = false;
-        rig.Placement.ReturningPcb = HeatSinkSlot.HeatSink1;
-        var rotationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        rig.Io.OutputChanged += (output, on) =>
-        {
-            if (output == OutputIo.PcbSupplyRotate && !on)
-            {
-                Assert.True(VirtualTestSupport.IsAt(rig.Motion, rig.Settings.HandoffPosition));
-                rotationStarted.TrySetResult();
-            }
-        };
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token, repeat: true);
-        try
-        {
-            await rotationStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
-            Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
-            Assert.False(run.IsCompleted);
-            if (feedbackArrives)
-            {
-                rig.Io.SetInputs((InputIo.PcbSupplyRotated, false), (InputIo.PcbSupplyUnrotated, true));
-                Assert.True(await WaitUntilAsync(
-                    () => rig.Supplier.Handoff == PcbSupplyHandoff.Released, TimeSpan.FromSeconds(1)));
-                Assert.True(VirtualTestSupport.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
-            }
-            else
-            {
-                await Assert.ThrowsAsync<IoTimeoutException>(() => run);
-                Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
-                Assert.True(VirtualTestSupport.IsAt(rig.Motion, rig.Settings.HandoffPosition));
-            }
-        }
-        finally
-        {
-            stop.Cancel();
-            // Observe a device timeout in the assertion above without rethrowing it in cleanup.
-            if (!run.IsFaulted)
-                await run.WaitAsync(TimeSpan.FromSeconds(1));
-        }
-    }
-
-    [Fact]
-    public async Task RepeatDoesNotRotateWhilePlacementIsReturningThePcb()
-    {
-        using var rig = new HandoffRig();
-        await rig.InitializeAsync();
-        var blocked = false;
-        rig.Supplier.StepChanged += () =>
-        {
-            if (rig.Supplier.Step is PcbSupplyState.WaitingForReturnedPcb)
-            {
-                blocked = true;
-                rig.Io.SetInputs((InputIo.PcbSupplyRotated, true), (InputIo.PcbSupplyUnrotated, true));
-                rig.Placement.ReturningPcb = HeatSinkSlot.HeatSink1;
-                rig.Placement.Handoff = PcbPlacementHandoff.Returning;
-            }
-        };
-        var commanded = false;
-        rig.Motion.MovingChanged += moving => commanded |= blocked && moving;
-        rig.Io.OutputChanged += (output, on) => commanded |= blocked && output is OutputIo.PcbSupplyRotate
-            or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward;
-
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await Assert.ThrowsAsync<MotionInterlockException>(
-            () => rig.Supplier.RunAsync(rig.Placement, timeout.Token, repeat: true));
-
-        Assert.False(commanded);
-        Assert.True(blocked);
-        Assert.Equal((10.0, 10.0, 3.0), rig.Motion.Position);
     }
 
     [Theory]
@@ -983,6 +831,5 @@ public sealed class PcbSupplyHandoffTests
                 Changed?.Invoke();
             }
         }
-        public HeatSinkSlot? ReturningPcb { get; set; }
     }
 }

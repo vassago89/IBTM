@@ -49,10 +49,8 @@ public sealed class InspectionTests
         Assert.Equal(routeToNg, station.RouteToNg);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task StartupNotificationFailureClearsInspectionRun(bool repeatReturn)
+    [Fact]
+    public async Task StartupNotificationFailureClearsInspectionRun()
     {
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         using var motion = new VirtualMotionService(new(), new(), hasZ: false);
@@ -64,9 +62,7 @@ public sealed class InspectionTests
                 throw failure;
         };
 
-        var error = await Record.ExceptionAsync(() => repeatReturn
-            ? station.ReturnToStationAsync(CancellationToken.None)
-            : station.RunAsync());
+        var error = await Record.ExceptionAsync(() => station.RunAsync());
 
         Assert.Same(failure, error);
         Assert.False(station.IsRunning);
@@ -379,18 +375,16 @@ public sealed class InspectionTests
                     ? (byte)(255 - image.Pixels[row * image.Stride + column])
                     : image.Pixels[row * image.Stride + column];
         var padded = new ImageFrame(image.Width, image.Height, stride, pixels);
-        var binary = DataMatrixReader.CreateBinaryImage(padded, new(180, 40, 80, 80), threshold: null);
-        Assert.NotNull(binary);
+        var binary = BinaryRegionAnalyzer.Check(padded, new(180, 40, 80, 80), 128).Image;
         Assert.Equal((80, 80), (binary.Width, binary.Height));
         Assert.All(binary.Pixels, pixel => Assert.True(pixel is 0 or 255));
-        Assert.Equal("PCB-000123", DataMatrixReader.Read(binary, new(0, 0, 80, 80), new()));
-        var manual = DataMatrixReader.CreateBinaryImage(padded, new(180, 40, 80, 80), threshold: 128);
-        Assert.Equal(BinaryRegionAnalyzer.Check(padded, new(180, 40, 80, 80), 128).Image.Pixels, manual!.Pixels);
-        Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80), new()));
+        Assert.Equal("PCB-000123", DataMatrixReader.Read(binary, new(0, 0, 80, 80), new())?.Text);
+        Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80), new())?.Text);
         Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80),
-            new() { BinaryThreshold = 128, AutoRotate = true }));
-        Assert.Null(DataMatrixReader.Read(padded, new(180, 40, 80, 80), new() { BinaryThreshold = 0 }));
-        Assert.Null(DataMatrixReader.Read(padded, new(120, 80, 80, 80), new()));
+            new() { ThresholdMinimum = 128, ThresholdMaximum = 128, AutoRotate = true }).Text);
+        Assert.Null(DataMatrixReader.Read(padded, new(180, 40, 80, 80),
+            new() { ThresholdMinimum = 0, ThresholdMaximum = 0, DilationRadius = 0 }).Text);
+        Assert.Null(DataMatrixReader.Read(padded, new(120, 80, 80, 80), new()).Text);
         Assert.Throws<ArgumentOutOfRangeException>(() => DataMatrixReader.Read(padded, new(300, 0, 80, 80), new()));
     }
 
@@ -747,7 +741,7 @@ public sealed class InspectionTests
 
         Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.GetNextStep());
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.Equal(InspectionStationState.PlacingCarrier, transferStation.GetNextStep());
+        Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.GetNextStep());
         Assert.Equal(transferStation.GetNextStep(), station.GetNextStep());
         Assert.False(station.IsTransferPending);
 

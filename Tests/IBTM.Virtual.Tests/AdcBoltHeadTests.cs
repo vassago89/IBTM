@@ -734,7 +734,7 @@ public sealed class AdcBoltHeadTests
     public async Task StatusRejectionAfterStopCannotEraseTheMeasuredResult()
     {
         using var bus = new AdcControllerStub();
-        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10, ResponseTimeoutMilliseconds = 50 });
         await head.SelectPresetAsync(1);
         var rejection = "Status read rejected after START OFF";
         void RejectAfterStop(OutputIo output, bool on)
@@ -750,8 +750,8 @@ public sealed class AdcBoltHeadTests
             Assert.NotNull(result.Torque);
             Assert.NotNull(result.Controller);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-            var error = await Assert.ThrowsAsync<IOException>(() => head.SelectPresetAsync(1));
-            Assert.Equal(rejection, error.Message);
+            var error = await Assert.ThrowsAsync<TimeoutException>(() => head.SelectPresetAsync(1));
+            Assert.Contains(rejection, error.Message);
             Assert.Equal(1, bus.ResultReads);
             Assert.Equal(1, bus.StartWrites);
         }

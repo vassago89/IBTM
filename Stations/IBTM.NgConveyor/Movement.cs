@@ -6,5 +6,4 @@ internal enum Movement
     ToPosition1,
     ToPosition2,
     Compacting,
-    ReturningToShuttle,
 }

@@ -53,7 +53,7 @@ public sealed class InspectionTeachingTests
             Assert.False(inspection.IsInspectAllowed);
         }
         inspection.SelectedPoint = inspection.Points.First();
-        inspection.DataMatrix!.BinaryThreshold = 73;
+        inspection.DataMatrix!.ThresholdMinimum = 73;
         await inspection.SaveCommand.ExecuteAsync(null);
         Assert.Null(inspection.Error);
 
@@ -154,7 +154,7 @@ public sealed class InspectionTeachingTests
         var removedId = editor.Preview.Recipe.Pcb.BoltPoints[0].Id;
         editor.Preview.Recipe.Pcb.BoltPoints[0].BrightnessThreshold = 91;
         editor.Preview.Recipe.CarrierImages[1].Region = new(2, 2, 10, 10);
-        editor.Preview.Recipe.BoltInspection.DataMatrix1.BinaryThreshold = 73;
+        editor.Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 73;
 
         recipes.Current.Pcb.BoltPoints.Clear();
         recipes.Current.CarrierImages.RemoveAll(tile => !tile.IsBarcode);
@@ -175,7 +175,7 @@ public sealed class InspectionTeachingTests
         Assert.Equal(replacement.Id, editor.Preview.Recipe.Pcb.BoltPoints[0].Id);
         Assert.Equal(180, editor.Preview.Recipe.Pcb.BoltPoints[0].BrightnessThreshold);
         Assert.Null(editor.Preview.Recipe.CarrierImages[1].Region);
-        Assert.Equal(73, editor.Preview.Recipe.BoltInspection.DataMatrix1.BinaryThreshold);
+        Assert.Equal(73, editor.Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum);
 
         await editor.SaveCommand.ExecuteAsync(null);
         var saved = store.LoadRecipe("Inspection");
@@ -199,11 +199,11 @@ public sealed class InspectionTeachingTests
         Assert.Equal("Inspection", Assert.Single(editor.Recipes));
         Assert.Single(store.RecipeNames);
 
-        inspection.Preview.Recipe.BoltInspection.DataMatrix1.BinaryThreshold = 73;
+        inspection.Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 73;
         await inspection.SaveCommand.ExecuteAsync(null);
         Assert.Null(inspection.Error);
-        Assert.Equal(73, recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold);
-        Assert.Equal(73, store.LoadRecipe("Inspection").BoltInspection.DataMatrix1.BinaryThreshold);
+        Assert.Equal(73, recipes.Current.BoltInspection.DataMatrix1.ThresholdMinimum);
+        Assert.Equal(73, store.LoadRecipe("Inspection").BoltInspection.DataMatrix1.ThresholdMinimum);
 
         // Unsaved point deletion belongs to the same active recipe despite the name casing.
         recipes.Current.Pcb.BoltPoints.Clear();
@@ -237,16 +237,16 @@ public sealed class InspectionTeachingTests
         Assert.Equal(3, editor.Recipes.Count);
         Assert.Equal(3, store.RecipeNames.Count);
         Assert.Equal(png, store.LoadRecipeImage("검사ä", 1));
-        var originalThreshold = recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold;
+        var originalThreshold = recipes.Current.BoltInspection.DataMatrix1.ThresholdMinimum;
         inspection.SelectedRecipeName = "검사Ä";
         await inspection.LoadRecipeCommand.ExecuteAsync(null);
         Assert.NotSame(recipes.Current, inspection.Preview.Recipe);
-        inspection.Preview.Recipe.BoltInspection.DataMatrix1.BinaryThreshold = 73;
+        inspection.Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 73;
         await inspection.SaveCommand.ExecuteAsync(null);
         Assert.Null(inspection.Error);
-        Assert.Equal(73, store.LoadRecipe("검사Ä").BoltInspection.DataMatrix1.BinaryThreshold);
-        Assert.Equal(originalThreshold, recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold);
-        Assert.Equal(originalThreshold, store.LoadRecipe("검사ä").BoltInspection.DataMatrix1.BinaryThreshold);
+        Assert.Equal(73, store.LoadRecipe("검사Ä").BoltInspection.DataMatrix1.ThresholdMinimum);
+        Assert.Equal(originalThreshold, recipes.Current.BoltInspection.DataMatrix1.ThresholdMinimum);
+        Assert.Equal(originalThreshold, store.LoadRecipe("검사ä").BoltInspection.DataMatrix1.ThresholdMinimum);
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public sealed class InspectionTeachingTests
         ];
         var edited = recipes.Current;
         edited.CarrierImages[0].Region = new(4, 5, 6, 7);
-        edited.BoltInspection.DataMatrix1.BinaryThreshold = 81;
+        edited.BoltInspection.DataMatrix1.ThresholdMinimum = 81;
         await recipes.SaveInspectionAsync(edited);
 
         await recipes.SaveAsync("Inspection", captured, [new(1, png), new(2, png)]);
@@ -270,7 +270,7 @@ public sealed class InspectionTeachingTests
         foreach (var recipe in new[] { recipes.Current, store.LoadRecipe("Inspection") })
         {
             Assert.Equal(new PixelRegion(4, 5, 6, 7), recipe.CarrierImages[0].Region);
-            Assert.Equal(81, recipe.BoltInspection.DataMatrix1.BinaryThreshold);
+            Assert.Equal(81, recipe.BoltInspection.DataMatrix1.ThresholdMinimum);
             Assert.Equal(30, recipe.CarrierImages[0].Center!.X);
         }
         Assert.Equal(new PixelRegion(4, 5, 6, 7), captured[0].Region);
@@ -324,8 +324,8 @@ public sealed class InspectionTeachingTests
         var store = VirtualTestSupport.OpenMachineStore();
         var png = await SaveRecipeAsync(store);
         var recipe = store.LoadRecipe("Inspection");
-        recipe.BoltInspection.DataMatrix1.BinaryThreshold = 51;
-        recipe.BoltInspection.DataMatrix2.BinaryThreshold = 180;
+        recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 51;
+        recipe.BoltInspection.DataMatrix2.ThresholdMinimum = 180;
         recipe.BoltInspection.DataMatrix2.TryInverted = false;
         recipe.Pcb.BoltPoints[0].BrightnessThreshold = 91;
         recipe.Pcb.BoltPoints[0].MinimumBrightRatio = 0.25;
@@ -356,7 +356,7 @@ public sealed class InspectionTeachingTests
                 BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
             });
             var matrixThreshold = new TextBox();
-            matrixThreshold.SetBinding(TextBox.TextProperty, new Binding("Preview.DataMatrixThreshold")
+            matrixThreshold.SetBinding(TextBox.TextProperty, new Binding("Preview.DataMatrixThresholdMinimum")
             {
                 BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
             });
@@ -377,7 +377,7 @@ public sealed class InspectionTeachingTests
             list.SelectedItem = editor.Points.Single(point => point.IsDataMatrix && point.HeatSink == HeatSinkSlot.HeatSink2);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             Assert.Equal("180", matrixThreshold.Text);
-            Assert.Equal(73, editor.Preview.Recipe.BoltInspection.DataMatrix1.BinaryThreshold);
+            Assert.Equal(73, editor.Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum);
             Assert.False(inverted.IsChecked);
             list.SelectedItem = editor.Points.Single(point => point.Bolt?.Id == VirtualTestSupport.BoltId(1));
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -399,7 +399,7 @@ public sealed class InspectionTeachingTests
     [InlineData(HeatSinkSlot.HeatSink1, false)]
     [InlineData(HeatSinkSlot.HeatSink2, false)]
     [InlineData(HeatSinkSlot.HeatSink1, true)]
-    public async Task EditedDataMatrixThresholdIsSharedWithAutomaticInspection(HeatSinkSlot heatSink, bool editDuringPreparation)
+    public async Task EditedDataMatrixThresholdMinimumIsSharedWithAutomaticInspection(HeatSinkSlot heatSink, bool editDuringPreparation)
     {
         await using var services = MachineTestSupport.CreateDiagnosticServices();
         var recipes = services.GetRequiredService<RecipeManager>();
@@ -408,8 +408,10 @@ public sealed class InspectionTeachingTests
             () => (13, 15, 0), () => [],
             () => [new(new() { X = 13, Y = 15 }, 4, 4, "PCB-123")]).CaptureAsync();
         var image = InspectionPreviewViewModel.CreateBitmap(camera.SourceImage);
-        recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold = 0;
-        recipes.Current.BoltInspection.DataMatrix2.BinaryThreshold = 0;
+        recipes.Current.BoltInspection.DataMatrix1.ThresholdMinimum = 0;
+        recipes.Current.BoltInspection.DataMatrix2.ThresholdMinimum = 0;
+        recipes.Current.BoltInspection.DataMatrix1.ThresholdMaximum = 0;
+        recipes.Current.BoltInspection.DataMatrix2.ThresholdMaximum = 0;
         var recipeEditor = services.GetRequiredService<RecipeEditorViewModel>();
         Assert.True(await recipeEditor.SaveAsync(Enum.GetValues<HeatSinkSlot>().Select((pcb, index) =>
             new RecipeImageItem(new CarrierImageTile
@@ -455,29 +457,32 @@ public sealed class InspectionTeachingTests
                         DataContext = editor, Content = input,
                         BindingGroup = new BindingGroup { Name = "InspectionInputs" },
                     };
-                    input.SetBinding(TextBox.TextProperty, new Binding("Preview.DataMatrixThreshold")
+                    input.SetBinding(TextBox.TextProperty, new Binding("Preview.DataMatrixThresholdMinimum")
                     {
                         BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
                         ValidatesOnExceptions = true,
                     });
                     Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                     input.Text = threshold.ToString();
+                    editor.DataMatrix!.ThresholdMaximum = threshold;
                     Assert.False(Validation.GetHasError(input));
-                    Assert.Equal(threshold, editor.Preview.DataMatrixThreshold);
+                    Assert.Equal(threshold, editor.Preview.DataMatrixThresholdMinimum);
                     GC.KeepAlive(root);
                 });
                 Assert.Same(recipes.Current, editor.Preview.Recipe);
-                Assert.Equal(threshold, recipes.Current.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold);
+                Assert.Equal(threshold, recipes.Current.BoltInspection.GetDataMatrix(heatSink).ThresholdMinimum);
                 context.Release();
                 var result = await (pending ?? inspector.ReadBarcodeAsync(heatSink, CancellationToken.None));
                 Assert.Equal(threshold == 128 ? "PCB-123" : null, result.Barcode);
                 Assert.Equal(threshold == 128, result.Success);
+                Assert.Equal(threshold, result.Threshold);
+                Assert.Equal(threshold == 0, result.Dilated);
                 await editor.SaveCommand.ExecuteAsync(null);
                 Assert.Null(editor.Error);
                 var stored = services.GetRequiredService<MachineStore>().LoadRecipe(recipes.Current.Name);
-                Assert.Equal(threshold, stored.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold);
+                Assert.Equal(threshold, stored.BoltInspection.GetDataMatrix(heatSink).ThresholdMinimum);
                 var other = heatSink == HeatSinkSlot.HeatSink1 ? HeatSinkSlot.HeatSink2 : HeatSinkSlot.HeatSink1;
-                Assert.Equal(0, recipes.Current.BoltInspection.GetDataMatrix(other).BinaryThreshold);
+                Assert.Equal(0, recipes.Current.BoltInspection.GetDataMatrix(other).ThresholdMinimum);
             }
             finally
             {
@@ -494,7 +499,7 @@ public sealed class InspectionTeachingTests
         var recipe = new Recipe();
         var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1), BrightnessThreshold = 128 };
         recipe.Pcb.BoltPoints.Add(bolt);
-        recipe.BoltInspection.DataMatrix1.BinaryThreshold = 128;
+        recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 128;
         var pixels = Enumerable.Repeat((byte)90, 20 * 20 * 3).ToArray();
         var frame = new ImageFrame(20, 20, 60, pixels);
         var original = InspectionPreviewViewModel.CreateBitmap(frame);
@@ -503,9 +508,9 @@ public sealed class InspectionTeachingTests
         preview.SetSavedImage(original, new(2, 3, 10, 12));
         Assert.Equal((10, 12), (preview.Overlay!.PixelWidth, preview.Overlay.PixelHeight));
         Assert.All(InspectionPreviewViewModel.CreateFrame(preview.Overlay).Pixels, pixel => Assert.Equal(0, pixel));
-        preview.DataMatrixThreshold = 80;
+        preview.DataMatrixThresholdMinimum = 80;
         Assert.All(InspectionPreviewViewModel.CreateFrame(preview.Overlay!).Pixels, pixel => Assert.Equal(255, pixel));
-        Assert.Equal(80, recipe.BoltInspection.DataMatrix1.BinaryThreshold);
+        Assert.Equal(80, recipe.BoltInspection.DataMatrix1.ThresholdMinimum);
         await preview.InspectAsync(CancellationToken.None);
         Assert.NotNull(preview.Overlay);
         Assert.Same(original, preview.Image);
@@ -539,7 +544,10 @@ public sealed class InspectionTeachingTests
         Assert.True(editor.Preview.HasImage);
         editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
         editor.DataMatrix!.TryInverted = false;
-        editor.DataMatrix.BinaryThreshold = 72;
+        editor.DataMatrix.ThresholdMinimum = 72;
+        editor.DataMatrix.ThresholdMaximum = 80;
+        editor.DataMatrix.ThresholdStep = 5;
+        editor.DataMatrix.DilationRadius = 2;
         editor.SelectedPoint = editor.Points.Single(point => !point.IsDataMatrix);
         editor.Preview.BrightnessThreshold = 214;
         editor.Preview.MinimumBrightPercent = 40;
@@ -584,7 +592,11 @@ public sealed class InspectionTeachingTests
             Assert.Equal(61, recipe.BoltInspection.DataMatrix2.LightLevel);
             Assert.Equal(99, recipe.BoltInspection.LightLevel);
             Assert.False(recipe.BoltInspection.DataMatrix1.TryInverted);
-            Assert.Equal(72, recipe.BoltInspection.DataMatrix1.BinaryThreshold);
+            Assert.Equal(72, recipe.BoltInspection.DataMatrix1.ThresholdMinimum);
+            Assert.Equal(80, recipe.BoltInspection.DataMatrix1.ThresholdMaximum);
+            Assert.Equal(5, recipe.BoltInspection.DataMatrix1.ThresholdStep);
+            Assert.Equal(2, recipe.BoltInspection.DataMatrix1.DilationRadius);
+            Assert.Equal(0, recipe.BoltInspection.DataMatrix2.ThresholdMinimum);
             Assert.Equal(87, recipe.Pcb.BoltPoints[0].LightLevel);
             Assert.Equal(214, recipe.Pcb.BoltPoints[0].BrightnessThreshold);
             Assert.Equal(0.4, recipe.Pcb.BoltPoints[0].MinimumBrightRatio);
@@ -610,7 +622,7 @@ public sealed class InspectionTeachingTests
         Assert.Null(editor.Error);
         Assert.NotNull(editor.Message);
         var before = JsonSerializer.Serialize(recipes.Current);
-        editor.DataMatrix!.BinaryThreshold = 17;
+        editor.DataMatrix!.ThresholdMinimum = 17;
         using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
         await connection.OpenAsync();
         using var command = connection.CreateCommand();
@@ -622,7 +634,7 @@ public sealed class InspectionTeachingTests
         Assert.NotNull(editor.Error);
         Assert.Null(editor.Message);
         Assert.Same(recipes.Current, editor.Preview.Recipe);
-        Assert.Equal(17, recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold);
+        Assert.Equal(17, recipes.Current.BoltInspection.DataMatrix1.ThresholdMinimum);
         Assert.Equal(before, JsonSerializer.Serialize(store.LoadRecipe("Inspection")));
     }
 
@@ -731,7 +743,7 @@ public sealed class InspectionTeachingTests
         var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.LoadRecipeCommand.ExecuteAsync(null);
         editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
-        editor.DataMatrix!.BinaryThreshold = 73;
+        editor.DataMatrix!.ThresholdMinimum = 73;
         editor.SelectedPoint = editor.Points.Single(point => point.Bolt?.Id == VirtualTestSupport.BoltId(1));
 
         // Remove Bolt edits the active recipe before the operator saves it to the database.
@@ -749,7 +761,7 @@ public sealed class InspectionTeachingTests
         Assert.Null(editor.SelectedPoint!.Bolt);
         Assert.True(editor.IsDataMatrixSelected);
         Assert.True(editor.Preview.HasImage);
-        Assert.Equal(73, editor.DataMatrix!.BinaryThreshold);
+        Assert.Equal(73, editor.DataMatrix!.ThresholdMinimum);
         Assert.Equal(new PixelRegion(6, 6, 8, 8), editor.SelectedPoint!.Metadata!.Region);
 
         await recipes.SaveAsync("Inspection");
@@ -779,7 +791,7 @@ public sealed class InspectionTeachingTests
         await recipes.LoadAsync("Inspection");
         await recipes.SaveAsync("Other");
         recipes.Current.Pcb.BoltPoints[0].X = 99;
-        recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold = 73;
+        recipes.Current.BoltInspection.DataMatrix1.ThresholdMinimum = 73;
         await recipes.SaveAsync("Other");
         await recipes.LoadAsync("Inspection");
         var editor = new InspectionTeachingViewModel(store, recipes,
@@ -798,7 +810,7 @@ public sealed class InspectionTeachingTests
         Assert.NotSame(previousBolt, point.Bolt);
         Assert.Same(recipes.Current.Pcb.BoltPoints[0], point.Bolt);
         Assert.Equal(99, point.Position!.X);
-        Assert.Equal(73, editor.Preview.DataMatrixThreshold);
+        Assert.Equal(73, editor.Preview.DataMatrixThresholdMinimum);
     }
 
     [Fact]
@@ -830,8 +842,8 @@ public sealed class InspectionTeachingTests
         await recipes.LoadAsync("Inspection");
         await editor.RefreshImagesCommand.ExecutionTask!;
         Assert.Same(recipes.Current, editor.Preview.Recipe);
-        editor.Preview.DataMatrixThreshold = 73;
-        Assert.Equal(73, recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold);
+        editor.Preview.DataMatrixThresholdMinimum = 73;
+        Assert.Equal(73, recipes.Current.BoltInspection.DataMatrix1.ThresholdMinimum);
     }
 
     [Fact]

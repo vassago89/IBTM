@@ -625,6 +625,8 @@ public sealed class UiBindingTests
             station.Restart(job);
         }
 
+        var placementEnabled = operation.Units.PcbPlacement;
+        operation.Units.PcbPlacement = true;
         io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
         var reviewLanguage = UiText.Culture.Name == "ko" ? UiLanguage.Korean : UiLanguage.English;
         UiText.Apply(UiLanguage.Korean);
@@ -690,6 +692,7 @@ public sealed class UiBindingTests
             review.Close();
             UiText.Apply(reviewLanguage);
             io.SetInput(InputIo.PcbPlacementVacuumDetected, false);
+            operation.Units.PcbPlacement = placementEnabled;
         }
 
         var hiddenReview = new Style(typeof(StartConfirmationWindow));
@@ -709,11 +712,11 @@ public sealed class UiBindingTests
             Assert.False(services.GetRequiredService<MachineState>().AutomaticRunning);
 
             // Exercise the final START through the same modal window and command bindings as production.
-            await using var startServices = MachineTestSupport.CreateServices(new MachineSettings
-            {
-                Units = MachineTestSupport.EnableOnly(MachineTestSupport.MachineUnit.MainConveyor),
-                Options = new() { TimeoutMilliseconds = 300 },
-            });
+            var startSettings = MachineTestSupport.FlowSettings();
+            startSettings.Units = MachineTestSupport.EnableOnly(MachineTestSupport.MachineUnit.MainConveyor);
+            startSettings.Units.PcbPlacement = true;
+            startSettings.Options.TimeoutMilliseconds = 300;
+            await using var startServices = MachineTestSupport.CreateServices(startSettings);
             var startMachine = startServices.GetRequiredService<MachineController>();
             var startState = startServices.GetRequiredService<MachineState>();
             var startIo = startServices.GetRequiredService<VirtualIoService>();

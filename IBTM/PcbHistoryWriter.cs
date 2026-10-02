@@ -163,7 +163,8 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                     using var output = new MemoryStream();
                     encoder.Save(output);
                     var image = new PcbInspectionImage(capture.BoltId, capture.CapturedAt, capture.Region,
-                        capture.Success, capture.Barcode, capture.BrightRatio, capture.MinimumBrightRatio, output.ToArray());
+                        capture.Success, capture.Barcode, capture.BrightRatio, capture.MinimumBrightRatio, output.ToArray(),
+                        capture.Threshold, capture.Dilated);
                     _store.SavePcbImage(file, number, image);
                     ImageSaved?.Invoke(number);
                 }

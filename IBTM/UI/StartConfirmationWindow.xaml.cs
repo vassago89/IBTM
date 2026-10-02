@@ -47,6 +47,7 @@ public partial class StartConfirmationWindow : Window
         _viewModel.CheckStartCommand.Cancel();
         _viewModel.ChangeCarrierWorkCommand.Cancel();
         _viewModel.SetStartBackupPlateCommand.Cancel();
+        _viewModel.SetStartStopperCommand.Cancel();
         if (DialogResult != true)
             _viewModel.ConfirmStartCommand.Cancel();
     }

@@ -26,9 +26,14 @@ public sealed record PcbInspectionImageItem(
         {
             if (Error is not null)
                 return Error;
-            return Record.BoltId.HasValue
-                ? UiText.Format($"Bright {Record.BrightRatio:P2} · Required ≥ {Record.MinimumBrightRatio:P2}")
-                : Record.Barcode ?? UiText.Get("Data Matrix not read");
+            if (Record.BoltId.HasValue)
+                return UiText.Format($"Bright {Record.BrightRatio:P2} · Required ≥ {Record.MinimumBrightRatio:P2}");
+            var details = Record.Barcode ?? UiText.Get("Data Matrix not read");
+            if (Record.Threshold is { } threshold)
+                details += UiText.Format($" · Threshold {threshold}");
+            if (Record.Dilated is { } dilated)
+                details += UiText.Get(dilated ? " · Dilate ON" : " · Dilate OFF");
+            return details;
         }
     }
 

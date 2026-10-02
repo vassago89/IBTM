@@ -31,9 +31,6 @@ public enum StartBlockReason
     [Description("Close doors, then press RESET")]
     DoorOpen,
 
-    [Description("Select TEACHING (MANUAL) mode for REPEAT")]
-    TeachingMode,
-
     [Description("Enable a unit in Settings")]
     NoUnitEnabled,
 

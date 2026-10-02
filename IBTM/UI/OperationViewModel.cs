@@ -77,6 +77,7 @@ public partial class OperationViewModel : ObservableObject
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
         SetStartBackupPlateCommand = new AsyncRelayCommand<bool>(SetStartBackupPlateAsync);
+        SetStartStopperCommand = new AsyncRelayCommand<bool>(SetStartStopperAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         ResetCommand = new AsyncRelayCommand(ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
@@ -303,7 +304,8 @@ public partial class OperationViewModel : ObservableObject
                 else if (results is not null && results.TryGetValue(bolt.Id, out var result))
                     state = result switch
                     {
-                        { Success: false } or { TurnsResult: AssemblyResult.Ng } => BoltTargetState.Ng,
+                        { Source: BoltResultSource.DryRun } or { Success: false }
+                            or { TurnsResult: AssemblyResult.Ng } => BoltTargetState.Ng,
                         { IsComplete: false } or { TurnsResult: AssemblyResult.Pending } => BoltTargetState.Pending,
                         _ => BoltTargetState.Ok,
                     };
@@ -464,7 +466,7 @@ public partial class OperationViewModel : ObservableObject
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
             [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
-                SetStartBackupPlateCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand]);
+                SetStartBackupPlateCommand, SetStartStopperCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand]);
     }
 
     public ObservableCollection<FasteningResumeRow> FasteningResumeBolts { get; }
@@ -522,6 +524,7 @@ public partial class OperationViewModel : ObservableObject
     public IRelayCommand<StartArea> SelectStartAreaCommand { get; }
     public IAsyncRelayCommand<CarrierWorkAction> ChangeCarrierWorkCommand { get; }
     public IAsyncRelayCommand<bool> SetStartBackupPlateCommand { get; }
+    public IAsyncRelayCommand<bool> SetStartStopperCommand { get; }
 
     private Task SetStartBackupPlateAsync(bool up, CancellationToken cancellationToken)
     {
@@ -530,6 +533,21 @@ public partial class OperationViewModel : ObservableObject
             StartArea.Station1 => OutputIo.PcbPlacementBackupPlateUp,
             StartArea.Station2 => OutputIo.BoltFasteningBackupPlateUp,
             StartArea.Station3 => OutputIo.InspectionBackupPlateUp,
+            _ => null,
+        };
+        if (output is not { } signal)
+            return Task.CompletedTask;
+        StartActionMessage = null;
+        return Machine.SetTeachingOutputAsync(Signals.Outputs[signal], cancellationToken, requestedValue: up);
+    }
+
+    private Task SetStartStopperAsync(bool up, CancellationToken cancellationToken)
+    {
+        OutputIo? output = SelectedStartArea switch
+        {
+            StartArea.Station1 => OutputIo.PcbPlacementStopperUp,
+            StartArea.Station2 => OutputIo.BoltFasteningStopperUp,
+            StartArea.Station3 => OutputIo.InspectionStopperUp,
             _ => null,
         };
         if (output is not { } signal)
@@ -645,7 +663,7 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
-                SetStartBackupPlateCommand, HomeCommand];
+                SetStartBackupPlateCommand, SetStartStopperCommand, HomeCommand];
             var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
                 commands,
@@ -766,8 +784,7 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(MachineState.IsRunning) or nameof(MachineState.Available)
-            or nameof(MachineState.RepeatEnabled))
+        if (e.PropertyName is nameof(MachineState.IsRunning) or nameof(MachineState.Available))
         {
             OnPropertyChanged(nameof(IsFasteningResumeAvailable));
             OnPropertyChanged(nameof(IsStartReviewAllowed));
@@ -791,7 +808,7 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(nameof(AlarmMessage));
         if (e.PropertyName is null or nameof(MachineState.AutomaticRunning)
             or nameof(MachineState.Alarm) or nameof(MachineState.Available)
-            or nameof(MachineState.PendingStop) or nameof(MachineState.FeedbackReadiness))
+            or nameof(MachineState.PendingStop))
         {
             OnPcbSupplyChanged();
             OnPcbPlacementChanged();
@@ -800,13 +817,16 @@ public partial class OperationViewModel : ObservableObject
             OnMainConveyorChanged();
             OnNgConveyorChanged();
         }
+        if (e.PropertyName == nameof(MachineState.FeedbackReadiness))
+        {
+            OnPcbSupplyChanged();
+            OnPcbPlacementChanged();
+            OnPropertyChanged(nameof(BoltDisplayState));
+            OnPropertyChanged(nameof(InspectionDisplayState));
+            OnPropertyChanged(nameof(InspectionStatus));
+        }
         if (e.PropertyName == nameof(MachineState.BoltTestRunning))
             OnPropertyChanged(nameof(BoltDisplayState));
-        if (e.PropertyName == nameof(MachineState.RepeatEnabled))
-        {
-            OnInspectionChanged();
-            OnMainConveyorChanged();
-        }
     }
 
     private void OnMachinePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1183,9 +1203,6 @@ public partial class OperationViewModel : ObservableObject
                 or PcbSupplyState.WaitingForCarrierExit
                 or PcbSupplyState.HandingOff
                 or PcbSupplyState.WaitingForPlacementClear
-                or PcbSupplyState.WaitingForReturnedPcb
-                or PcbSupplyState.WaitingForReturnedPcbGrip
-                or PcbSupplyState.WaitingForReturnClear
                 ? HandlerDisplayState.Waiting
                 : HandlerDisplayState.Working;
         }
@@ -1207,11 +1224,9 @@ public partial class OperationViewModel : ObservableObject
             if (!State.AutomaticRunning)
                 return HandlerDisplayState.Stopped;
             return PlacementState is PcbPlacementState.MovingToHandoff
-                or PcbPlacementState.ReturningToSupply
                 or PcbPlacementState.WaitingForSupplyRelease
                 or PcbPlacementState.PreparingPlacement
                 or PcbPlacementState.WaitingForCarrier
-                or PcbPlacementState.WaitingForSupplyGrip
                 or PcbPlacementState.WaitingForSupplyDeparture
                 ? HandlerDisplayState.Waiting
                 : HandlerDisplayState.Working;

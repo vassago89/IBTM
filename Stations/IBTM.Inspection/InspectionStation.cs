@@ -15,7 +15,7 @@ namespace IBTM.Inspection;
 
 public sealed record CarrierImage(AxisPosition Center, ImageFrame Frame);
 
-public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeedback
+public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
 {
     private readonly ILogger<InspectionStation>? _log;
     private readonly IXyMotion _motion;
@@ -100,8 +100,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public ConveyorStation Station { get; }
 
-    public bool IsEmptyRepeatAllowed => !_units.MainConveyor && !_units.NgConveyor;
-
     public StationCylinderState Lift
     {
         get
@@ -134,13 +132,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     return NgTransferGripperState.Between;
             }
         }
-    }
-
-    public bool IsCarrierPresent(NgTransferDestination location)
-    {
-        return location == NgTransferDestination.Station
-            ? Station.CarrierPresent
-            : Io.GetInput(InputIo.NgShuttleCarrierDetected);
     }
 
     public MotionStatus Motion { get; }
@@ -273,8 +264,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     }
 
     public async Task RunAsync(
-        CancellationToken cancellationToken = default,
-        bool repeat = false)
+        CancellationToken cancellationToken = default)
     {
         if (cancellationToken.IsCancellationRequested)
             return;
@@ -284,8 +274,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             while (!cancellationToken.IsCancellationRequested)
             {
                 var step = !_units.Inspection && !CarrierSeatingRequested
-                    ? InspectionStationState.Disabled : GetNextStep(repeat);
-                if (!await ExecuteStepAsync(step, repeat, cancellationToken))
+                    ? InspectionStationState.Disabled : GetNextStep();
+                if (!await ExecuteStepAsync(step, cancellationToken))
                     await WaitForChangeAsync(cancellationToken);
             }
         }
@@ -300,7 +290,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
     }
 
-    internal InspectionStationState GetNextStep(bool repeat = false)
+    internal InspectionStationState GetNextStep()
     {
         if (_waitingForShuttleDown && IsClear && Gripper == NgTransferGripperState.Open)
             return _ngConveyor.ShuttleLift == StationCylinderState.Down
@@ -308,34 +298,18 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 : InspectionStationState.WaitingForShuttleDown;
         if (CarrierSeatingRequested)
             return InspectionStationState.SeatingCarrier;
-        if (repeat && _units.Inspection && !_units.MainConveyor
-            && (IsEmptyRepeatAllowed || Station.CarrierPresent) && IsClear)
-        {
-            if (Station.Completed || IsEmptyRepeatAllowed && !Station.CarrierPresent)
-            {
-                if (Station.BackupPlate != StationCylinderState.Up
-                    || Station.Stopper != StationCylinderState.Down)
-                    return InspectionStationState.SeatingCarrier;
-            }
-            else if (Station.BackupPlate != StationCylinderState.Down
-                || Station.Stopper != StationCylinderState.Up)
-                return InspectionStationState.PreparingInspectionPosition;
-        }
         if (!_units.Inspection)
             return InspectionStationState.Disabled;
-        if (repeat && Step is InspectionStationState.HoldingAtDestination)
-            return InspectionStationState.HoldingAtDestination;
         if (IsTransferPending)
         {
-            return repeat || !IsRaised || Gripper != NgTransferGripperState.Closed || _ngConveyor.IsReceiveAllowed
+            return !IsRaised || Gripper != NgTransferGripperState.Closed || _ngConveyor.IsReceiveAllowed
                 ? InspectionStationState.PlacingCarrier : InspectionStationState.WaitingForDestination;
         }
         if (!IsRaised || Gripper != NgTransferGripperState.Open)
             return InspectionStationState.PreparingTransfer;
-        if (repeat && IsEmptyRepeatAllowed && !Station.CarrierPresent
-            || Station.CarrierSeated && Station.Completed && (repeat || RouteToNg))
+        if (Station.CarrierSeated && Station.Completed && RouteToNg)
         {
-            return IsSupportReady(NgTransferDestination.Station) && (repeat || _ngConveyor.IsReceiveAllowed)
+            return IsSupportReady(NgTransferDestination.Station) && _ngConveyor.IsReceiveAllowed
                 ? InspectionStationState.PickingCarrier : InspectionStationState.WaitingForDestination;
         }
 
@@ -353,7 +327,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     private async Task<bool> ExecuteStepAsync(
         InspectionStationState state,
-        bool repeat,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -367,14 +340,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 case InspectionStationState.PreparingTransfer
                     or InspectionStationState.PickingCarrier
                     or InspectionStationState.PlacingCarrier
-                    or InspectionStationState.WaitingForDestination
-                    or InspectionStationState.HoldingAtDestination:
-                    return await ExecuteTransferAsync(
-                        NgTransferDestination.Shuttle, state, cancellationToken, repeat);
-                case InspectionStationState.PreparingInspectionPosition:
-                    EnterStep(state, workId: Station.CurrentJob.Id);
-                    await Station.PrepareToReceiveAsync(cancellationToken);
-                    return true;
+                    or InspectionStationState.WaitingForDestination:
+                    return await ExecuteTransferAsync(state, cancellationToken);
                 case InspectionStationState.PreparingInspection:
                     EnterStep(state, workId: Station.CurrentJob.Id);
                     ClearInspectionOperation();
@@ -546,18 +513,14 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     // Each operation completes its moves before advancing; coordinates do not select a step.
     internal async Task<bool> ExecuteTransferAsync(
-        NgTransferDestination destination,
         InspectionStationState state,
-        CancellationToken cancellationToken,
-        bool repeat = false)
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var allowEmpty = repeat && IsEmptyRepeatAllowed;
-        var holdAtShuttle = repeat && destination == NgTransferDestination.Shuttle;
         switch (state)
         {
             case InspectionStationState.PreparingTransfer:
-                EnterStep(state, destination.ToString());
+                EnterStep(state, nameof(NgTransferDestination.Shuttle));
                 if (!IsRaised)
                     await SetLiftUpAsync(true, cancellationToken);
                 if (!IsTransferPending && Gripper != NgTransferGripperState.Open)
@@ -565,31 +528,29 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 break;
             case InspectionStationState.PickingCarrier:
             {
-                EnterStep(state, destination.ToString());
+                EnterStep(state, nameof(NgTransferDestination.Shuttle));
                 if (IsTransferPending)
                     throw new InvalidOperationException("Finish the pending NG transfer before picking another carrier.");
-                var source = GetOppositeDestination(destination);
                 await SetLiftUpAsync(true, cancellationToken);
                 await SetGripperOpenAsync(true, cancellationToken);
-                await MoveToCarrierAsync(source, cancellationToken);
-                if (!IsSupportReady(source) || !allowEmpty && !IsCarrierPresent(source))
+                await MoveToCarrierAsync(NgTransferDestination.Station, cancellationToken);
+                if (!IsSupportReady(NgTransferDestination.Station) || !Station.CarrierPresent)
                     return false;
                 await SetLiftUpAsync(false, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 // Descent can outlive the source's support or carrier feedback.
-                if (!IsSupportReady(source) || !allowEmpty && !IsCarrierPresent(source))
+                if (!IsSupportReady(NgTransferDestination.Station) || !Station.CarrierPresent)
                     return false;
                 IsTransferPending = true;
                 await SetGripperOpenAsync(false, cancellationToken);
                 await SetLiftUpAsync(true, cancellationToken);
                 // The raised pickup now supports the carrier; lower S3 before travelling to the shuttle.
-                if (source == NgTransferDestination.Station)
-                    await Io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
+                await Io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
                 break;
             }
             case InspectionStationState.PlacingCarrier:
             {
-                EnterStep(state, destination.ToString());
+                EnterStep(state, nameof(NgTransferDestination.Shuttle));
                 using var carrying = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 void CheckGrip()
                 {
@@ -604,36 +565,19 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     // A stopped, lowered release is not resumed by guessing its XY location.
                     if (!IsRaised)
                         throw new InvalidOperationException("Raise the gripped NG carrier before transferring it.");
-                    if (destination == NgTransferDestination.Station)
-                    {
-                        while (Station.CarrierPresent)
-                        {
-                            EnterStep(InspectionStationState.WaitingForDestination, destination.ToString());
-                            await WaitForChangeAsync(carrying.Token);
-                        }
-                    }
-                    EnterStep(state, destination.ToString());
-                    if (destination == NgTransferDestination.Station)
-                        await SeatStationAsync(carrying.Token);
-                    else
-                        await MoveToAsync(_settings.ShuttlePlacePosition, cancellationToken: carrying.Token);
+                    await MoveToAsync(_settings.ShuttlePlacePosition, cancellationToken: carrying.Token);
                     carrying.Token.ThrowIfCancellationRequested();
-                    if (holdAtShuttle)
-                    {
-                        EnterStep(InspectionStationState.HoldingAtDestination, destination.ToString());
-                        return true;
-                    }
                     // Keep the closed gripper while waiting for the receiving support.
-                    while (!IsSupportReady(destination))
+                    while (!IsSupportReady(NgTransferDestination.Shuttle))
                     {
-                        EnterStep(InspectionStationState.WaitingForDestination, destination.ToString());
+                        EnterStep(InspectionStationState.WaitingForDestination, nameof(NgTransferDestination.Shuttle));
                         await WaitForChangeAsync(carrying.Token);
                     }
-                    EnterStep(state, destination.ToString());
+                    EnterStep(state, nameof(NgTransferDestination.Shuttle));
                     await SetLiftUpAsync(false, carrying.Token);
                     carrying.Token.ThrowIfCancellationRequested();
-                    if (!IsSupportReady(destination) || Lift != StationCylinderState.Down
-                        || !allowEmpty && !IsCarrierPresent(destination))
+                    if (!IsSupportReady(NgTransferDestination.Shuttle) || Lift != StationCylinderState.Down
+                        || !Io.GetInput(InputIo.NgShuttleCarrierDetected))
                         throw new InvalidOperationException("Confirm the destination supports the pending NG carrier before releasing it.");
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -645,27 +589,16 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     Changed -= CheckGrip;
                 }
 
-                if (destination == NgTransferDestination.Shuttle)
-                    _waitingForShuttleDown = true;
+                _waitingForShuttleDown = true;
                 await SetGripperOpenAsync(true, cancellationToken);
-                if (!allowEmpty)
-                {
-                    if (destination == NgTransferDestination.Shuttle)
-                        await Io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true, cancellationToken, requireCurrent: true);
-                    else
-                        await Station.WaitForCarrierAsync(cancellationToken);
-                }
+                await Io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true, cancellationToken, requireCurrent: true);
                 await SetLiftUpAsync(true, cancellationToken);
                 break;
             }
-            case InspectionStationState.HoldingAtDestination:
-                if (!IsTransferPending || !IsRaised || Gripper != NgTransferGripperState.Closed)
-                    throw new InvalidOperationException("Keep the NG carrier raised and gripped until the repeat return starts.");
-                return false;
             case InspectionStationState.WaitingForDestination:
-                EnterStep(state, destination.ToString(), waitingFor:
-                    $"source support={IsSupportReady(GetOppositeDestination(destination))}, "
-                        + $"destination support={IsSupportReady(destination)}, destination occupied={IsCarrierPresent(destination)}, "
+                EnterStep(state, nameof(NgTransferDestination.Shuttle), waitingFor:
+                    $"source support={IsSupportReady(NgTransferDestination.Station)}, "
+                        + $"destination support={IsSupportReady(NgTransferDestination.Shuttle)}, destination occupied={Io.GetInput(InputIo.NgShuttleCarrierDetected)}, "
                         + $"shuttle={_ngConveyor.ShuttleLift}, receive={_ngConveyor.IsReceiveAllowed}, "
                         + $"pickup={Lift}, gripper={Gripper}, pending={IsTransferPending}");
                 return false;
@@ -673,13 +606,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported inspection transfer step.");
         }
         return true;
-    }
-
-    private static NgTransferDestination GetOppositeDestination(NgTransferDestination destination)
-    {
-        return destination == NgTransferDestination.Shuttle
-            ? NgTransferDestination.Station
-            : NgTransferDestination.Shuttle;
     }
 
     public async Task SeatStationAsync(CancellationToken cancellationToken)
@@ -899,11 +825,16 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             var region = fov.Region!;
             var decoder = _recipes.Current.BoltInspection.GetDataMatrix(pcb);
             _log?.LogInformation(
-                "Data Matrix inspection: recipe={Recipe}, PCB={Pcb}, threshold={Threshold}, ROI={Region}.",
-                _recipes.Current.Name, pcb, decoder.BinaryThreshold?.ToString() ?? "auto", region);
-            var text = DataMatrixReader.Read(image, region, decoder);
+                "Data Matrix inspection: recipe={Recipe}, PCB={Pcb}, thresholds={Minimum}..{Maximum}, step={Step}, dilation radius={Radius}, ROI={Region}.",
+                _recipes.Current.Name, pcb, decoder.ThresholdMinimum, decoder.ThresholdMaximum,
+                decoder.ThresholdStep, decoder.DilationRadius, region);
+            var result = DataMatrixReader.Read(image, region, decoder, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            return new InspectionCapture(null, capturedAt, image, region, !string.IsNullOrEmpty(text), Barcode: text);
+            _log?.LogInformation(
+                "Data Matrix result: PCB={Pcb}, read={Read}, threshold={Threshold}, dilated={Dilated}.",
+                pcb, !string.IsNullOrEmpty(result.Text), result.Threshold, result.Dilated);
+            return new InspectionCapture(null, capturedAt, image, region, !string.IsNullOrEmpty(result.Text),
+                Barcode: result.Text, Threshold: result.Threshold, Dilated: result.Dilated);
         }, cancellationToken);
     }
 

@@ -49,7 +49,4 @@ public enum MainConveyorState
     [Description("Waiting for transfer at NG pickup")]
     WaitingForInspectionTransfer,
 
-    [Description("Returning carrier to entry")]
-    ReturningToEntry,
-
 }

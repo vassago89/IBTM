@@ -470,7 +470,8 @@ public sealed class AlarmRecoveryTests
                 stop();
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-                Assert.False(state.IsRunning);
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                    () => !state.IsRunning, TimeSpan.FromSeconds(2)));
                 Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
             }
         }

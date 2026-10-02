@@ -1,4 +1,4 @@
-# Station 3 / NG / Repeat 현장 확인
+# Station 3 / NG 현장 확인
 
 현재 구현의 현장 확인 항목이다. 상세 순서와 책임은
 [MAIN_CONVEYOR_INSPECTION_SEQUENCE.md](MAIN_CONVEYOR_INSPECTION_SEQUENCE.md)에 둔다.
@@ -23,7 +23,7 @@ Virtual 검증은 실제 배선·센서·기구 간섭 확인을 대신하지 �
   출구 센서는 사용하지 않는다. 추가 시간 기본값은 0.3초이며 밀착 시간과 별도다.
   Ready가 다시 ON되어도 추가 시간을 다시 시작하지 않는다.
   지지 해제 중 Ready가 먼저 OFF되면 벨트를 새로 켜지 않는다.
-- STOP은 반입·이송·밀착·배출·역송 중에도 모터를 정지한다.
+- STOP은 반입·이송·밀착·배출 중에도 모터를 정지한다.
   새 START는 현재 피드백으로 다음 동작을 고르며 이전 배출 타이머를 이어 쓰지 않는다.
 - S2 → S3 결과는 도착·밀착 완료 뒤 벨트 OFF 통지 전에 전달한다.
   중단 뒤 들어온 센서만으로 이전 결과를 다른 캐리어에 전달하지 않는다.
@@ -35,7 +35,7 @@ Virtual 검증은 실제 배선·센서·기구 간섭 확인을 대신하지 �
 ## 검사와 NG 인계
 
 - `WaitingPosition`과 `CarrierPickupPosition`은 별도 좌표다. 검사 후에는 대기 위치로 복귀한다.
-  S3 상승·집기·반환은 픽업 위치에서 수행한다. 셔틀 좌표는 `ShuttlePlacePosition`이다.
+  S3 상승·집기는 픽업 위치에서 수행한다. 셔틀 좌표는 `ShuttlePlacePosition`이다.
 - 각 위치로 이동할 때 X/Y는 동시에 움직인다. 티칭 Move To도 같은 이동 경로를 사용한다.
 - 검사는 PCB 1의 Data Matrix·볼트 번호순 검사를 마친 뒤 PCB 2로 넘어간다.
   판독 실패·볼트 검사 NG는 결과로 남기고 다음 포인트를 검사한다.
@@ -52,41 +52,15 @@ Virtual 검증은 실제 배선·센서·기구 간섭 확인을 대신하지 �
 
 검사·NG 트랜스퍼는 `InspectionStation`, 셔틀·NG 벨트는 `NgCarrierConveyor`가 각각 한 루프로 처리한다.
 
-## Repeat
-
-Repeat 반환 순서는 `MachineController.Repeat.cs`가 조정하고 각 유닛의 `.Repeat.cs`가 실행한다.
-메인 정방향 유닛들의 취소·정리 완료 후 역송을 시작한다.
-
-| 활성 범위 | 반환 전 동작 |
-| --- | --- |
-| 메인 + Placement까지 | S1 PCB 왕복·압착 완료 후 메인 역송 |
-| 메인 + Bolt Fastening까지 | S2 드라이런·헤드 상승 완료 후 메인 역송 |
-| Inspection 활성 | 검사 후 S3에서 집어 셔틀 위치까지 상승·그립 상태로 이동. 셔틀에 놓지 않고 S3 픽업 위치로 돌아와 내려놓고 상승·대기 위치 복귀 |
-| NG Conveyor 활성, Inspection 비활성 | NG 컨베이어와 셔틀의 독립 왕복. 메인 역송과 별도로 실행 |
-
-- 검사 Repeat는 셔틀 위치에서 하강·그리퍼 해제를 하지 않고 비활성 셔틀 피드백을 기다리지 않는다.
-  Main Conveyor와 NG Conveyor가 모두 꺼진 검사 단독 Repeat는 빈 집기·왕복도 허용한다.
-  픽업 상하·그리퍼·S3 지지 피드백은 유지한다.
-- 체결 Repeat는 두 피더를 OFF로 취급한다. 픽업 위치 왕복은 하지만 진공 ON·공급 대기는 생략한다.
-  슈팅 공급·이스케이프·발사도 생략한다. 모터는 설정된 드라이런 시간 후 START OFF하고 헤드를 올린다.
-- 메인 역송은 별도 도착 타임아웃 없이 **입구 센서 ON에서 즉시 정지**한다.
-  다음 전진은 S1 HS2 감지 후 밀착 시간을 적용한 뒤 플레이트를 올린다.
-- NG Shuttle과 NG Conveyor는 별도 Enabled가 없다. 하나의 NG Conveyor 유닛이다.
-- 셔틀에 놓인 캐리어는 NG 확정 상태로 보고 현재 센서에 따라 배출한다.
-  센서 사이 정지 위치를 복원하거나 별도 확인을 기다리는 처리는 두지 않는다.
-- Supply·Placement의 소재 인계와 왕복은 각 유닛의 [Supply 설계](../Stations/IBTM.PcbSupply/DESIGN.md),
-  [Placement 설계](../Stations/IBTM.PcbPlacement/DESIGN.md)를 참고한다.
-
 ## 짧은 확인 순서
 
 1. 저장된 축·I/O 매핑, 대기·픽업·셔틀 티칭 좌표와 실제 피드백을 대조한다.
 2. S3 도착 → 다른 이송이 있으면 픽업 위치 이동·상승 → 앞쪽 이송 → S3 하강·검사 순서를 확인한다.
 3. 검사 → 전용 대기 위치 복귀 → OK 즉시 배출 / OK 상승 대기 / NG 상승 집기를 확인한다.
 4. 일반 NG 인계 후 셔틀 DOWN까지 XY가 기다리는지 확인한다.
-5. 검사 Repeat는 셔틀에 놓지 않고 S3 픽업 위치에 돌아와 내려놓는지 확인한다.
-6. START를 누를 때 Supply·Placement의 PCB, 헤드 볼트 또는 미완료 캐리어가 남으면 구동 전 거절되는지 확인한다.
+5. START를 누를 때 Supply·Placement의 PCB, 헤드 볼트 또는 미완료 캐리어가 남으면 구동 전 거절되는지 확인한다.
    들었다 놓아도 이력은 유지하며, 제거 후 START를 다시 눌러 확인한다. 완료 캐리어와 NG 셔틀은 배출 흐름을 유지한다.
-7. 메인 역송 입구 즉시 정지와 재전진 S1 밀착, 후방 Ready OFF 추가 운전을 각각 확인한다.
+6. S1 밀착과 후방 Ready OFF 추가 운전을 각각 확인한다.
 
 알람·대기가 생기면 같은 시각의 `Step`, `target`, `waitFor`, DI/DO, 축 피드백을 대조한다.
 로그의 `work=`는 앱의 결과 추적용 Job 번호이며 실물 캐리어 일련번호가 아니다.

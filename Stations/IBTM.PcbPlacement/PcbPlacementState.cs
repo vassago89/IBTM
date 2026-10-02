@@ -19,23 +19,11 @@ public enum PcbPlacementState
     [Description("Waiting for Carrier")]
     WaitingForCarrier,
 
-    [Description("Picking PCB for Repeat")]
-    PickingPcb,
-
     [Description("Placing and Pressing PCB")]
     PlacingPcb,
 
     [Description("Moving to standby")]
     Retracting,
-
-    [Description("Returning PCB to Supply")]
-    ReturningToSupply,
-
-    [Description("Waiting for Supply Grip")]
-    WaitingForSupplyGrip,
-
-    [Description("Releasing PCB / leaving supply")]
-    ReleasingToSupply,
 
     [Description("Waiting for Supply Departure")]
     WaitingForSupplyDeparture,

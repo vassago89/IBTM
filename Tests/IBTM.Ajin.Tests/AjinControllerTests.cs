@@ -420,6 +420,7 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         foreach (var axis in new[] { 9, 10, 11 })
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        AjinSdk.HomeMethods[11] = new(0, 4, 0, 0, 0);
         var z = new AxisHardware { Number = 11, MoveUnit = 10, MovePulse = 100 };
         var motion = new AjinMotionService(
             controller, new() { Number = 9 }, new() { Number = 10 }, z,

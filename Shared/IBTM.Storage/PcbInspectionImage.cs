@@ -12,4 +12,6 @@ public sealed record PcbInspectionImage(
     string? Barcode,
     double? BrightRatio,
     double? MinimumBrightRatio,
-    [property: JsonIgnore] byte[] Png);
+    [property: JsonIgnore] byte[] Png,
+    int? Threshold = null,
+    bool? Dilated = null);

@@ -10,4 +10,6 @@ public sealed record InspectionCapture(
     bool Success,
     string? Barcode = null,
     double? BrightRatio = null,
-    double? MinimumBrightRatio = null);
+    double? MinimumBrightRatio = null,
+    int? Threshold = null,
+    bool? Dilated = null);

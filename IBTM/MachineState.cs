@@ -102,18 +102,6 @@ public sealed class MachineState : INotifyPropertyChanged
     public event Action? Changed;
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public bool RepeatEnabled
-    {
-        get;
-        set
-        {
-            if (field == value || !SetupEditingEnabled)
-                return;
-            field = value;
-            PropertyChanged?.Invoke(this, new(nameof(RepeatEnabled)));
-        }
-    }
-
     public bool Available
     {
         get

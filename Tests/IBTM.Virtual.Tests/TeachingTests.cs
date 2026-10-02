@@ -315,7 +315,7 @@ public sealed class TeachingTests
         io.SetInput(InputIo.Door1Open, false);
         Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
-        Assert.True(state.FeedbackReadiness.Homed);
+        await WaitUntilAsync(() => state.FeedbackReadiness.Homed);
         io.SetInput(InputIo.Door1Open, true);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
@@ -1589,7 +1589,7 @@ public sealed class TeachingTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var handler = services.GetRequiredService<PcbSupplier>();
-        Assert.True(state.FeedbackReadiness.Homed, state.AlarmDetail);
+        await WaitUntilAsync(() => state.FeedbackReadiness.Homed);
         var rotation = TeachingRows(teaching)[OutputIo.PcbSupplyRotate];
         var wasRotated = io.GetOutput(OutputIo.PcbSupplyRotate);
         await handler.MoveAxisAsync(MotionAxis.Z, 5);
@@ -2295,11 +2295,13 @@ public sealed class TeachingTests
         await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
 
         await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+        await WaitUntilAsync(() => teaching.IsStepYMinusAllowed);
         await teaching.StepCommand.ExecuteAsync(TeachingDirection.YMinus);
         var adjusted = gantry.Motion.Feedback.Position;
         Assert.Equal(20.1, adjusted.X, 6);
         Assert.Equal(19.9, adjusted.Y, 6);
         Assert.Equal(10, adjusted.Z);
+        await WaitUntilAsync(() => teaching.IsJogXAllowed);
         var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
         await WaitUntilAsync(() => gantry.Motion.Feedback.Position.X > 20.1);
         Assert.Equal(MotionCommand.Adjustment, gantry.Motion.Feedback.Command);
@@ -2387,6 +2389,7 @@ public sealed class TeachingTests
 
             Assert.Null(teaching.SaveError);
             Assert.Equal(before.X + teaching.StepDistance, motion.Position.X, 3);
+            await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
 
             settings.Motion.HorizontalSpeed = 100;
             teaching.JogSpeed = 0;

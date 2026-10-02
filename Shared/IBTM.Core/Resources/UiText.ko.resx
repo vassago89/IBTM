@@ -351,9 +351,6 @@
   <data name="carrier count for alarm" xml:space="preserve">
     <value>알람 발생 개수 (1–3)</value>
   </data>
-  <data name="carrier held at destination" xml:space="preserve">
-    <value>목적지에서 캐리어 유지</value>
-  </data>
   <data name="carrier pickup (s3)" xml:space="preserve">
     <value>캐리어 픽업 (S3)</value>
   </data>
@@ -662,9 +659,6 @@
   <data name="dry run motor duration (s)" xml:space="preserve">
     <value>공회전 시간 (s)</value>
   </data>
-  <data name="dry run · no bolt supply or pickup vacuum. carrier returns to s3." xml:space="preserve">
-    <value>공회전 · 볼트 공급·픽업 진공 생략. 캐리어는 S3로 복귀합니다.</value>
-  </data>
   <data name="dry run · not measured" xml:space="preserve">
     <value>공회전 · 미측정</value>
   </data>
@@ -800,9 +794,6 @@
   <data name="forward" xml:space="preserve">
     <value>전진</value>
   </data>
-  <data name="forward repeat transfer" xml:space="preserve">
-    <value>반복 정방향 이송</value>
-  </data>
   <data name="frame log" xml:space="preserve">
     <value>통신 로그</value>
   </data>
@@ -823,9 +814,6 @@
   </data>
   <data name="gantry waiting position" xml:space="preserve">
     <value>갠트리 대기 위치</value>
-  </data>
-  <data name="gripping returned pcb" xml:space="preserve">
-    <value>반환 PCB 파지 중</value>
   </data>
   <data name="handing pcb to placement" xml:space="preserve">
     <value>안착측으로 PCB 인계</value>
@@ -1656,9 +1644,6 @@
   <data name="picking pcb" xml:space="preserve">
     <value>PCB 픽업 중</value>
   </data>
-  <data name="picking pcb for repeat" xml:space="preserve">
-    <value>반복용 PCB 픽업</value>
-  </data>
   <data name="pickup" xml:space="preserve">
     <value>픽업</value>
   </data>
@@ -1818,9 +1803,6 @@
   <data name="preparing inspection points" xml:space="preserve">
     <value>검사 위치 준비</value>
   </data>
-  <data name="preparing inspection supports" xml:space="preserve">
-    <value>검사 지지대 준비</value>
-  </data>
   <data name="preparing pickup" xml:space="preserve">
     <value>픽업 준비</value>
   </data>
@@ -1829,9 +1811,6 @@
   </data>
   <data name="preparing s3: plate down" xml:space="preserve">
     <value>S3 플레이트 하강</value>
-  </data>
-  <data name="preparing to receive returned pcb" xml:space="preserve">
-    <value>반환 PCB 수신 준비</value>
   </data>
   <data name="preset" xml:space="preserve">
     <value>프리셋</value>
@@ -2011,9 +1990,6 @@
   <data name="release or stop to stop rotation." xml:space="preserve">
     <value>버튼을 놓거나 정지를 누르면 회전이 멈춥니다.</value>
   </data>
-  <data name="releasing pcb / leaving supply" xml:space="preserve">
-    <value>PCB 해제·공급측 이탈</value>
-  </data>
   <data name="remote start" xml:space="preserve">
     <value>원격 시작</value>
   </data>
@@ -2022,9 +1998,6 @@
   </data>
   <data name="remove carrier · eject next / complete to resume" xml:space="preserve">
     <value>배출 완료 확인 대기</value>
-  </data>
-  <data name="repeat" xml:space="preserve">
-    <value>반복</value>
   </data>
   <data name="replace the recorded x/y with the current coordinates." xml:space="preserve">
     <value>현재 X/Y 좌표로 덮어씁니다.</value>
@@ -2089,20 +2062,11 @@
   <data name="returning / completing inspection" xml:space="preserve">
     <value>검사 후 복귀</value>
   </data>
-  <data name="returning above pickup with pcb" xml:space="preserve">
-    <value>PCB 픽업 상부로 복귀</value>
-  </data>
   <data name="returning carrier to entry" xml:space="preserve">
     <value>캐리어 입구 복귀</value>
   </data>
   <data name="returning carrier to shuttle" xml:space="preserve">
     <value>캐리어 셔틀 복귀</value>
-  </data>
-  <data name="returning pcb to supply" xml:space="preserve">
-    <value>공급측으로 PCB 반환</value>
-  </data>
-  <data name="returning to entry sensor" xml:space="preserve">
-    <value>입구 센서로 복귀 중</value>
   </data>
   <data name="returning to waiting position" xml:space="preserve">
     <value>대기 위치 복귀</value>
@@ -2226,9 +2190,6 @@
   </data>
   <data name="select preset 1" xml:space="preserve">
     <value>프리셋 1 선택</value>
-  </data>
-  <data name="select teaching (manual) mode for repeat" xml:space="preserve">
-    <value>반복 운전은 수동 모드로 전환하세요</value>
   </data>
   <data name="selected bolt is not taught." xml:space="preserve">
     <value>선택 볼트 티칭 필요.</value>
@@ -2387,9 +2348,6 @@
   <data name="shuttle" xml:space="preserve">
     <value>셔틀</value>
   </data>
-  <data name="shuttle → station 3" xml:space="preserve">
-    <value>셔틀 → 스테이션 3</value>
-  </data>
   <data name="silence buzzer / recover stopped hardware; servos may turn on." xml:space="preserve">
     <value>부저 해제 / 정지된 장비 복구. 서보가 켜질 수 있습니다.</value>
   </data>
@@ -2442,9 +2400,6 @@
   </data>
   <data name="station 3" xml:space="preserve">
     <value>스테이션 3</value>
-  </data>
-  <data name="station 3 → waiting position" xml:space="preserve">
-    <value>스테이션 3 → 대기 위치</value>
   </data>
   <data name="status" xml:space="preserve">
     <value>상태</value>
@@ -2764,17 +2719,8 @@
   <data name="waiting for ng shuttle up" xml:space="preserve">
     <value>NG 셔틀 상승 대기</value>
   </data>
-  <data name="waiting for placement to present pcb" xml:space="preserve">
-    <value>안착측 PCB 전달 대기</value>
-  </data>
   <data name="waiting for placement y departure" xml:space="preserve">
     <value>안착 Y 이탈 대기</value>
-  </data>
-  <data name="waiting for return handoff clearance" xml:space="preserve">
-    <value>반환 경로 비움 대기</value>
-  </data>
-  <data name="waiting for returned pcb" xml:space="preserve">
-    <value>반환 PCB 대기</value>
   </data>
   <data name="waiting for s1 placement" xml:space="preserve">
     <value>S1 안착 완료 대기</value>
@@ -2793,9 +2739,6 @@
   </data>
   <data name="waiting for supply departure" xml:space="preserve">
     <value>공급측 이탈 대기</value>
-  </data>
-  <data name="waiting for supply grip" xml:space="preserve">
-    <value>공급측 파지 대기</value>
   </data>
   <data name="waiting for supply release" xml:space="preserve">
     <value>공급측 PCB 해제 대기</value>
@@ -3206,9 +3149,6 @@
   <data name="확인 / 조치" xml:space="preserve">
     <value>확인 / 조치</value>
   </data>
-  <data name="placing pcb at pickup" xml:space="preserve">
-    <value>픽업 위치에 PCB 내려놓는 중</value>
-  </data>
   <data name="move supply to handoff xyz before rotating." xml:space="preserve">
     <value>회전하려면 공급기를 인계 X/Y/Z로 이동하세요.</value>
   </data>
@@ -3490,6 +3430,12 @@
   <data name="lower plate" xml:space="preserve">
     <value>플레이트 하강</value>
   </data>
+  <data name="raise stopper" xml:space="preserve">
+    <value>스토퍼 상승</value>
+  </data>
+  <data name="lower stopper" xml:space="preserve">
+    <value>스토퍼 하강</value>
+  </data>
   <data name="skip this station" xml:space="preserve">
     <value>이 공정 건너뛰기</value>
   </data>
@@ -3576,5 +3522,29 @@
   </data>
   <data name="supply rotation blocked: current xyz=({0:f3}, {1:f3}, {2:f3}), handoff xyz=({3:f3}, {4:f3}, {5:f3}), tolerance={6:f3} mm." xml:space="preserve">
     <value>공급 회전 불가: 현재 XYZ=({0:F3}, {1:F3}, {2:F3}), 인계 XYZ=({3:F3}, {4:F3}, {5:F3}), 허용 오차={6:F3} mm.</value>
+  </data>
+  <data name="min. threshold" xml:space="preserve">
+    <value>최소 임계값</value>
+  </data>
+  <data name="max. threshold" xml:space="preserve">
+    <value>최대 임계값</value>
+  </data>
+  <data name="threshold step" xml:space="preserve">
+    <value>임계값 증가폭</value>
+  </data>
+  <data name="dilation radius (px; 0 = off)" xml:space="preserve">
+    <value>점 확장 반경 (픽셀; 0 = 끔)</value>
+  </data>
+  <data name=" · black dot dilation" xml:space="preserve">
+    <value> · 검은 점 확장</value>
+  </data>
+  <data name=" · threshold {0}" xml:space="preserve">
+    <value> · 임계값 {0}</value>
+  </data>
+  <data name=" · dilate on" xml:space="preserve">
+    <value> · 확장 사용</value>
+  </data>
+  <data name=" · dilate off" xml:space="preserve">
+    <value> · 확장 안 함</value>
   </data>
 </root>

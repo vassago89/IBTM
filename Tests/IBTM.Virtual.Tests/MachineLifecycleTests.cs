@@ -24,7 +24,7 @@ using static IBTM.Virtual.Tests.VirtualTestSupport;
 namespace IBTM.Virtual.Tests;
 
 [Collection("Machine integration")]
-public sealed partial class MachineLifecycleTests
+public sealed class MachineLifecycleTests
 {
     [Theory]
     [InlineData(FasteningHead.Pickup, false)]
@@ -73,6 +73,70 @@ public sealed partial class MachineLifecycleTests
         {
             machine.Stop();
             await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProductionAllowsBothModesAndSelectorChangeStops(
+        bool manual)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Units.Inspection = true;
+        settings.Units.NgConveyor = true;
+        await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        Task run = Task.CompletedTask;
+        try
+        {
+            await machine.InitializeAsync();
+            await machine.HomeAsync(CancellationToken.None);
+            VirtualTestSupport.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+            var placement = services.GetRequiredService<PcbPlacer>().Station;
+            placement.Complete(placement.CurrentJob);
+
+            // The physical selector is ON in TEACHING/MANUAL, OFF in AUTO.
+            io.SetInput(InputIo.AutoMode, manual);
+            if (manual)
+            {
+                io.SetInput(InputIo.Door1Open, false);
+                Assert.True(state.DoorInterlockReady);
+            }
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            run = machine.StartAsync();
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(3)),
+                state.AlarmDetail);
+            Assert.True(state.AutomaticRunning);
+
+            if (manual)
+            {
+                io.SetInput(InputIo.Door1Open, true);
+                io.SetInput(InputIo.Door1Open, false);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+                Assert.True(state.AutomaticRunning);
+                io.SetInput(InputIo.Door1Open, true);
+            }
+            io.SetInput(InputIo.AutoMode, !manual);
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(state.AutomaticRunning);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
             await machine.ShutdownAsync();
         }
     }
@@ -601,7 +665,6 @@ public sealed partial class MachineLifecycleTests
             var plate = io.GetOutputFeedback(station.Plate)!;
             var stopper = io.GetOutputFeedback(station.Stopper)!;
             var inspecting = unit == MachineUnit.Inspection;
-            io.SetInput(station.HeatSink, true);
             io.SetInput(plate.OffInput!.Value, inspecting);
             io.SetInput(plate.OnInput, !inspecting);
             io.SetInput(stopper.OnInput, inspecting);
@@ -610,7 +673,10 @@ public sealed partial class MachineLifecycleTests
                 await VirtualTestSupport.WaitUntilAsync(() => machine.IsStartAllowed, TimeSpan.FromSeconds(2)),
                 $"START blocked: {machine.StartBlock}; busy={state.IsRunning}; alarm={state.AlarmDetail}");
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            await machine.StartAsync(stop.Token);
+            var run = machine.StartAsync(stop.Token);
+            await WaitUntilAsync(() => state.AutomaticRunning);
+            io.SetInput(station.HeatSink, true);
+            await run;
             Assert.False(work.Completed);
             Assert.Equal(unit == MachineUnit.Inspection ? MachineAlarm.Inspection : MachineAlarm.BoltFastening, state.Alarm);
             Assert.Contains("no taught bolts", state.AlarmMessage);
@@ -788,7 +854,7 @@ public sealed partial class MachineLifecycleTests
                 view.InspectionImageCaption);
             if (boltId is null && pcb != unreadPcb)
                 Assert.Equal(pcb == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2",
-                    DataMatrixReader.Read(image, fov.Region!, recipe.BoltInspection.GetDataMatrix(pcb)));
+                    DataMatrixReader.Read(image, fov.Region!, recipe.BoltInspection.GetDataMatrix(pcb))?.Text);
         };
         await work.Station.PrepareToReceiveAsync(CancellationToken.None);
         io.SetInput(InputIo.AutoMode, false);
@@ -1048,7 +1114,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(machine.IsManualMotionReady(MotionGroup.InspectionGantry));
 
         io.SetInput(InputIo.AutoMode, false);
-        Assert.True(machine.IsStartAllowed);
+        await WaitUntilAsync(() => machine.IsStartAllowed);
         var run = machine.StartAsync();
         try
         {
@@ -1077,6 +1143,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
         settings.Units.Inspection = inspectionEnabled;
+        settings.Units.NgConveyor = inspectionEnabled;
         await using var services = CreateServices(settings);
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<InspectionStation>();
@@ -1102,7 +1169,20 @@ public sealed partial class MachineLifecycleTests
 
         var expectNg = inspectionEnabled && ng;
         Assert.Equal(expectNg, inspection.GetNextStep() == InspectionStationState.PickingCarrier);
-        Assert.Equal(!expectNg, conveyor.GetNextStep(io.GetOutput(OutputIo.MainConveyorRun)) == MainConveyorState.DischargingInspectionCarrier);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var run = inspectionEnabled && !ng ? inspection.RunAsync(stop.Token) : Task.CompletedTask;
+        try
+        {
+            if (inspectionEnabled && !ng)
+                await WaitUntilAsync(() => inspection.IsRearDischargeReady);
+            Assert.Equal(!expectNg,
+                conveyor.GetNextStep(io.GetOutput(OutputIo.MainConveyorRun)) == MainConveyorState.DischargingInspectionCarrier);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
         await machine.ShutdownAsync();
     }
 
@@ -1121,7 +1201,10 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var station = services.GetRequiredService<BoltFasteningStation>();
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        recipe.Pcb.BoltPoints = [new() { Id = VirtualTestSupport.BoltId(1), Head = selected, X = 0, Y = 0 }];
+        recipe.Pcb.BoltPoints = [new()
+        {
+            Id = VirtualTestSupport.BoltId(1), Head = selected, X = 0, Y = 0, FasteningX = 0, FasteningY = 0,
+        }];
         var bus = services.GetRequiredKeyedService<IAdcBus>(selected);
         var slave = selected == FasteningHead.Pickup
             ? settings.Hantas.PickupSlaveAddress
@@ -1427,6 +1510,7 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync();
         try
         {
+            await WaitUntilAsync(() => shuttle.Step is NgConveyorState.WaitingForTransferRelease);
             Assert.Equal(NgConveyorState.WaitingForTransferRelease, shuttle.Step);
             Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
             Assert.False(gantry.Motion.Feedback.GetAxisState(MotionAxis.X).ServoOn);
@@ -1715,7 +1799,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(machine.IsResetAllowed);
 
         await machine.HomeAsync(CancellationToken.None);
-        Assert.True(state.FeedbackReadiness.Homed);
+        await WaitUntilAsync(() => state.FeedbackReadiness.Homed);
 
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.IsStartAllowed);
@@ -1906,7 +1990,7 @@ public sealed partial class MachineLifecycleTests
             Assert.DoesNotContain(nameof(OperationViewModel.BoltTargets), notifications);
             Assert.DoesNotContain(nameof(OperationViewModel.InspectionTargets), notifications);
             Assert.DoesNotContain(nameof(OperationViewModel.ModeText), notifications);
-            Assert.DoesNotContain(nameof(OperationViewModel.Alarm), notifications);
+            Assert.Contains(nameof(OperationViewModel.Alarm), notifications);
         }
         finally
         {
@@ -2422,19 +2506,18 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
-    [InlineData(false, false, false)]
-    [InlineData(true, true, true)]
-    public async Task FeedersOffOrRepeatKeepPickupMotionAndStartBothIoHeads(
-        bool pickupEnabled, bool shootingEnabled, bool repeat)
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    public async Task FeedersOffKeepPickupMotionAndStartBothIoHeads(
+        bool pickupEnabled, bool shootingEnabled)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = pickupEnabled;
         settings.Units.ShootingBoltFeeder = shootingEnabled;
-        var pickupFeeding = pickupEnabled && !repeat;
-        var shootingFeeding = shootingEnabled && !repeat;
+        var pickupFeeding = pickupEnabled;
+        var shootingFeeding = shootingEnabled;
         // Leave time for the simulated 200 ms vacuum response before reaching Safe Z.
         if (pickupFeeding)
             settings.BoltFastening.Motion.ZSpeed = 20;
@@ -2445,7 +2528,8 @@ public sealed partial class MachineLifecycleTests
                 FasteningX = 10.5, FasteningY = 9.5, FasteningZOffset = 0.25 },
             new() { Id = VirtualTestSupport.BoltId(2), Head = FasteningHead.Pickup, X = 20, Y = 10,
                 FasteningX = 21, FasteningY = 11, FasteningZOffset = -0.5 },
-            new() { Id = VirtualTestSupport.BoltId(3), Head = FasteningHead.Pickup, X = 30, Y = 10 },
+            new() { Id = VirtualTestSupport.BoltId(3), Head = FasteningHead.Pickup, X = 30, Y = 10,
+                FasteningX = 30, FasteningY = 10 },
         ];
         settings.BoltFastening.ShootingHead.FasteningZ = 8;
         settings.BoltFastening.PickupHead.FasteningZ = 12;
@@ -2465,9 +2549,8 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.PickupFeederBoltDetected, pickupFeeding);
         io.SetInput(InputIo.ShootingFeederBoltDetected, shootingFeeding);
-        io.SetInput(InputIo.AutoMode, repeat);
-        state.RepeatEnabled = repeat;
-        await work.SeatAsync(CancellationToken.None);
+        io.SetInput(InputIo.AutoMode, false);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningBackupPlateUp, true);
         // Standalone fastening starts from plate UP even if the stopper is still UP.
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningStopperUp, true);
         gantry.Motion.Feedback.PositionChanged += (x, y, _) =>
@@ -2515,7 +2598,6 @@ public sealed partial class MachineLifecycleTests
         };
         try
         {
-            Assert.Equal(repeat, state.RepeatEnabled);
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var run = machine.StartAsync(timeout.Token);
@@ -2534,7 +2616,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(pickupFeeding ? BoltResultSource.Controller : BoltResultSource.DryRun, result.Source));
             Assert.All(assembly.ShootingBoltResults.Values.Concat(assembly.PickupBoltResults.Values), result =>
                 Assert.Equal(result.Source == BoltResultSource.Controller, result.Torque is not null));
-            Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
+            Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
             var positions = new[]
             {
                 (FasteningHead.Shooting, 10.5, 9.5, 8.25),
@@ -2544,7 +2626,10 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(positions, descents.ToArray());
             Assert.Equal(positions, starts.ToArray());
             var operation = services.GetRequiredService<OperationViewModel>();
-            Assert.All(operation.BoltTargets, bolt => Assert.Equal(BoltTargetState.Ok, bolt.State));
+            Assert.All(operation.BoltTargets, bolt => Assert.Equal(
+                (bolt.Head == FasteningHead.Pickup ? pickupFeeding : shootingFeeding)
+                    ? BoltTargetState.Ok : BoltTargetState.Ng,
+                bolt.State));
             Assert.True(visitedPickupFeeder);
             if (pickupFeeding)
                 Assert.Equal(new[] { (100d, 50d, 10d), (100d, 50d, 10d) }, pickups.ToArray());
@@ -2749,7 +2834,9 @@ public sealed partial class MachineLifecycleTests
             Assert.False(vacuumRequested);
             Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
             Assert.Equal(1, starts); // Only the new carrier reaches fastening START.
-            Assert.Equal(AssemblyResult.Ok, work.GetAssembly(HeatSinkSlot.HeatSink1).FasteningResult);
+            Assert.Equal(AssemblyResult.Ng, work.GetAssembly(HeatSinkSlot.HeatSink1).FasteningResult);
+            Assert.Equal(BoltResultSource.DryRun,
+                Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults).Value.Source);
             Assert.True(station.IsHorizontalMoveAllowed);
             Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
         }
@@ -2781,6 +2868,8 @@ public sealed partial class MachineLifecycleTests
         };
         FastHomes(settings);
         settings.InspectionGantry.Motion = FastMotion();
+        settings.Conveyor.CarrierStopDelaySeconds = 0;
+        settings.NgConveyor.CarrierStopDelaySeconds = 0;
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 5, Y = 20 };
@@ -2788,8 +2877,7 @@ public sealed partial class MachineLifecycleTests
         settings.NgCarrierTransfer.WaitingPosition = new() { X = 5, Y = 20 };
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        recipe.Pcb.BoltPoints = [new() { Id = VirtualTestSupport.BoltId(1), X = 10, Y = 10 },];
-        TeachInspectionFovs(recipe);
+        PrepareCarrierTeaching(settings, recipe);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -2811,7 +2899,7 @@ public sealed partial class MachineLifecycleTests
                 ref adcFrames);
         io.OutputChanged += (output, value) =>
         {
-            if (value && disabledOutputs.Contains(output))
+            if (disabledOutputs.Contains(output) && (output == OutputIo.ShootingFeederOff ? !value : value))
                 unexpectedOutputs.Add(output);
         };
         var arrived = 0;
@@ -2850,12 +2938,13 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.MainConveyorReadyFromRear, false);
         io.SetInput(InputIo.AutoMode, false);
-        Assert.True(machine.IsStartAllowed);
+        await WaitUntilAsync(() => machine.IsStartAllowed);
         var run = machine.StartAsync();
         try
         {
             Assert.True(
-                await VirtualTestSupport.WaitUntilAsync(() => inspection.Station.Completed, TimeSpan.FromSeconds(10)));
+                await VirtualTestSupport.WaitUntilAsync(() => inspection.Station.Completed, TimeSpan.FromSeconds(10)),
+                $"Arrived={arrived}; Inspection={inspection.Step}; Main={services.GetRequiredService<MainConveyor>().Step}; {state.AlarmDetail}");
             Assert.Equal(7, arrived);
             Assert.Equal(missingBolts, inspection.HasNg);
             Assert.Equal(2, inspection.Station.Assemblies.Count());
@@ -2877,7 +2966,8 @@ public sealed partial class MachineLifecycleTests
                         () => io.GetInput(InputIo.NgConveyorPosition1Occupied)
                             && io.GetInput(InputIo.NgShuttleUp)
                             && !io.GetOutput(OutputIo.NgConveyorRun),
-                        TimeSpan.FromSeconds(5)));
+                        TimeSpan.FromSeconds(5)),
+                    $"Inspection={inspection.Step}; NG={services.GetRequiredService<NgCarrierConveyor>().Step}; {state.AlarmDetail}");
                 Assert.False(exited);
             }
             else
@@ -3048,7 +3138,8 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.MainConveyorReadyFromRear, rearReady);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         // Raise S3 before arrival; the main sequence must lower it for inspection.
-        await work.Station.SeatAsync(CancellationToken.None);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, false);
         var inspectedAssembly = work.Station.GetAssembly(HeatSinkSlot.HeatSink1);
         inspectedAssembly.PcbBarcode = "PCB-1";
 
@@ -3441,12 +3532,6 @@ public sealed partial class MachineLifecycleTests
                 (InputIo.PcbSupplyGripperClosed, true), (InputIo.PcbSupplyGripperOpen, false),
                 (InputIo.PcbSupplyIpmFixerForward, true));
             Assert.True(supplier.IsHandoffRestartAllowed);
-            state.RepeatEnabled = true;
-            await machine.StartAsync();
-            Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
-            Assert.False(state.AutomaticRunning);
-
-            state.RepeatEnabled = false;
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             var admitted = false;
             state.PropertyChanged += (sender, args) =>
@@ -3643,8 +3728,10 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task StartReviewBackupPlateUsesSelectedStationAndExplicitDirection()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartReviewCylinderUsesSelectedStationAndExplicitDirection(bool stopper)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgConveyor);
@@ -3653,44 +3740,45 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var review = services.GetRequiredService<OperationViewModel>();
-        (StartArea Area, OutputIo Output)[] plates = [
-            (StartArea.Station1, OutputIo.PcbPlacementBackupPlateUp),
-            (StartArea.Station2, OutputIo.BoltFasteningBackupPlateUp),
-            (StartArea.Station3, OutputIo.InspectionBackupPlateUp),
+        var command = stopper ? review.SetStartStopperCommand : review.SetStartBackupPlateCommand;
+        (StartArea Area, OutputIo Output)[] cylinders = [
+            (StartArea.Station1, stopper ? OutputIo.PcbPlacementStopperUp : OutputIo.PcbPlacementBackupPlateUp),
+            (StartArea.Station2, stopper ? OutputIo.BoltFasteningStopperUp : OutputIo.BoltFasteningBackupPlateUp),
+            (StartArea.Station3, stopper ? OutputIo.InspectionStopperUp : OutputIo.InspectionBackupPlateUp),
         ];
         await machine.InitializeAsync();
         try
         {
             await WaitUntilAsync(() => state.ManualSetupEnabled);
-            foreach (var plate in plates)
-                await ((IIoService)io).SetOutputAndWaitAsync(plate.Output, false);
-            foreach (var (area, output) in plates)
+            foreach (var cylinder in cylinders)
+                await ((IIoService)io).SetOutputAndWaitAsync(cylinder.Output, false);
+            foreach (var (area, output) in cylinders)
             {
                 review.SelectStartAreaCommand.Execute(area);
                 var station = Assert.IsType<ConveyorStation>(review.StartStation);
                 var job = station.CurrentJob;
-                await review.SetStartBackupPlateCommand.ExecuteAsync(true);
-                Assert.Equal(StationCylinderState.Up, station.BackupPlate);
-                foreach (var other in plates.Where(plate => plate.Output != output))
+                await command.ExecuteAsync(true);
+                Assert.Equal(StationCylinderState.Up, stopper ? station.Stopper : station.BackupPlate);
+                foreach (var other in cylinders.Where(cylinder => cylinder.Output != output))
                     Assert.False(io.GetOutput(other.Output));
-                await review.SetStartBackupPlateCommand.ExecuteAsync(true);
+                await command.ExecuteAsync(true);
                 Assert.True(io.GetOutput(output)); // Repeating UP must never toggle it DOWN.
-                await review.SetStartBackupPlateCommand.ExecuteAsync(false);
-                Assert.Equal(StationCylinderState.Down, station.BackupPlate);
+                await command.ExecuteAsync(false);
+                Assert.Equal(StationCylinderState.Down, stopper ? station.Stopper : station.BackupPlate);
                 Assert.Same(job, station.CurrentJob);
             }
 
             review.SelectStartAreaCommand.Execute(StartArea.Supply);
-            await review.SetStartBackupPlateCommand.ExecuteAsync(true);
-            Assert.All(plates, plate => Assert.False(io.GetOutput(plate.Output)));
+            await command.ExecuteAsync(true);
+            Assert.All(cylinders, cylinder => Assert.False(io.GetOutput(cylinder.Output)));
             review.SelectStartAreaCommand.Execute(StartArea.Station1);
             state.AutomaticRunning = true;
-            await review.SetStartBackupPlateCommand.ExecuteAsync(true);
-            Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
+            await command.ExecuteAsync(true);
+            Assert.False(io.GetOutput(cylinders[0].Output));
             state.AutomaticRunning = false;
             io.SetInput(InputIo.AutoMode, false);
-            await review.SetStartBackupPlateCommand.ExecuteAsync(true);
-            Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
+            await command.ExecuteAsync(true);
+            Assert.False(io.GetOutput(cylinders[0].Output));
         }
         finally
         {
@@ -3699,8 +3787,10 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task StartReviewBackupPlateWaitCancelsAndReportsMissingFeedback()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartReviewCylinderWaitCancelsAndReportsMissingFeedback(bool stopper)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgConveyor);
@@ -3709,28 +3799,34 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var review = services.GetRequiredService<OperationViewModel>();
+        var command = stopper ? review.SetStartStopperCommand : review.SetStartBackupPlateCommand;
+        var output = stopper ? OutputIo.InspectionStopperUp : OutputIo.InspectionBackupPlateUp;
         await machine.InitializeAsync();
         try
         {
             await WaitUntilAsync(() => state.ManualSetupEnabled);
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false);
+            await ((IIoService)io).SetOutputAndWaitAsync(output, false);
             io.AutoResponseEnabled = false;
             review.SelectStartAreaCommand.Execute(StartArea.Station3);
-            var raising = review.SetStartBackupPlateCommand.ExecuteAsync(true);
-            await WaitForOutputAsync(io, OutputIo.InspectionBackupPlateUp, true);
+            var raising = command.ExecuteAsync(true);
+            await WaitForOutputAsync(io, output, true);
             Assert.False(raising.IsCompleted);
-            Assert.Equal(StationCylinderState.Down, review.StartStation!.BackupPlate);
+            Assert.Equal(StationCylinderState.Down, stopper ? review.StartStation!.Stopper : review.StartStation!.BackupPlate);
             review.SelectStartAreaCommand.Execute(StartArea.Station1);
-            review.SetStartBackupPlateCommand.Cancel();
+            if (stopper)
+                await review.StopCommand.ExecuteAsync(null);
+            else
+                command.Cancel();
             await raising.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(io.GetOutput(output)); // Cancellation must not reverse the cylinder.
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
             Assert.Equal(MachineAlarm.None, state.Alarm);
 
             review.SelectStartAreaCommand.Execute(StartArea.Station3);
             settings.Options.TimeoutMilliseconds = 50;
-            await review.SetStartBackupPlateCommand.ExecuteAsync(true).WaitAsync(TimeSpan.FromSeconds(2));
+            await command.ExecuteAsync(true).WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
-            Assert.Equal(StationCylinderState.Down, review.StartStation!.BackupPlate);
+            Assert.Equal(StationCylinderState.Down, stopper ? review.StartStation!.Stopper : review.StartStation!.BackupPlate);
         }
         finally
         {
@@ -5117,7 +5213,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task StartRaisesCylindersBeforeAutomaticAndPreservesHeldPcb(bool holdingPcb)
+    public async Task StartRaisesEmptyCylindersAndBlocksUnownedHeldPcb(bool holdingPcb)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -5148,8 +5244,16 @@ public sealed partial class MachineLifecycleTests
         state.Changed += StopAtAutomaticStart;
         try
         {
-            Assert.True(machine.IsStartAllowed);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
             await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(3));
+            if (holdingPcb)
+            {
+                Assert.False(started);
+                Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+                Assert.True(io.GetInput(InputIo.PcbPlacementPcbDetected));
+                Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmDown));
+                return;
+            }
             Assert.True(started);
             Assert.True(readyBeforeStarting);
             Assert.Equal(holdingPcb, io.GetOutput(OutputIo.PcbPlacementIpmDown));
@@ -5236,8 +5340,8 @@ public sealed partial class MachineLifecycleTests
         var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        Assert.True(state.FeedbackReadiness.Homed);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+        await WaitUntilAsync(() => state.FeedbackReadiness.Homed);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.False(machine.IsHomeAllowed);
         Assert.Equal(HomeBlockReason.PlacementHoldingPcb, machine.HomeBlock);
@@ -5686,11 +5790,11 @@ public sealed partial class MachineLifecycleTests
         await machine.ResetAsync();
         await machine.HomeAsync(CancellationToken.None);
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.True(state.Ready);
+        await WaitUntilAsync(() => state.Ready);
         Assert.Equal(failedCalls, probes[MotionGroup.PcbSupply].HardwareCalls);
         // Re-enabling the same faulty hardware makes it mandatory again.
         settings.Units.PcbSupply = true;
-        Assert.True(state.FeedbackReadiness.Faulted);
+        await WaitUntilAsync(() => state.FeedbackReadiness.Faulted);
         Assert.False(state.Ready);
         var placementResets = probes[MotionGroup.PcbPlacementHandler].ResetCalls;
         await machine.ResetAsync();
@@ -5707,10 +5811,10 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(NgTransferDestination.Shuttle, InputIo.InspectionHeatSink1Present)]
-    [InlineData(NgTransferDestination.Station, InputIo.NgShuttleUp)]
+    [InlineData(InputIo.InspectionHeatSink1Present)]
+    [InlineData(InputIo.InspectionBackupPlateUp)]
     public async Task NgPickupRechecksSourceAfterDescent(
-        NgTransferDestination destination, InputIo lostInput)
+        InputIo lostInput)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -5721,10 +5825,9 @@ public sealed partial class MachineLifecycleTests
         var transfer = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await transfer.Station.SeatAsync(CancellationToken.None);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        await transfer.SeatStationAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
-        io.SetInput(destination == NgTransferDestination.Shuttle
-            ? InputIo.InspectionHeatSink1Present : InputIo.NgShuttleCarrierDetected, true);
         // Detection can remain ON even though the pickup has not gripped anything.
         io.SetInput(InputIo.NgCarrierDetected, true);
         var lost = false;
@@ -5746,7 +5849,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.False(await transfer.ExecuteTransferAsync(
-                destination, InspectionStationState.PickingCarrier, timeout.Token));
+                InspectionStationState.PickingCarrier, timeout.Token));
             Assert.True(lost);
             Assert.False(closed);
             Assert.False(raisedAfterLoss);
@@ -5756,7 +5859,7 @@ public sealed partial class MachineLifecycleTests
             io.OutputChanged -= LoseSourceDuringDescent;
             io.SetInput(lostInput, true);
             Assert.True(await transfer.ExecuteTransferAsync(
-                destination, InspectionStationState.PickingCarrier, timeout.Token));
+                InspectionStationState.PickingCarrier, timeout.Token));
             Assert.True(transfer.IsTransferPending);
             Assert.True(transfer.IsRaised);
             Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
@@ -5787,7 +5890,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, timeout.Token);
+        await move.ExecuteTransferAsync(InspectionStationState.PickingCarrier, timeout.Token);
         var lost = false;
         var lowered = false;
         gantry.Motion.Feedback.PositionChanged += (x, y, z) =>
@@ -5801,8 +5904,7 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += (output, on) => lowered |= output == OutputIo.NgCarrierPickupDown && on;
         try
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteTransferAsync(
-                NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, timeout.Token));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteTransferAsync(InspectionStationState.PlacingCarrier, timeout.Token));
             Assert.True(lost);
             Assert.False(lowered);
             Assert.False(gantry.Motion.Feedback.IsMoving);
@@ -5811,9 +5913,7 @@ public sealed partial class MachineLifecycleTests
             io.OutputChanged += (output, on) => restarted |= output is OutputIo.NgCarrierGripperClose
                 or OutputIo.NgCarrierPickupDown;
             gantry.Motion.Feedback.MovingChanged += moving => restarted |= moving;
-            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteTransferAsync(
-                NgTransferDestination.Shuttle,
-                InspectionStationState.PlacingCarrier, timeout.Token));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteTransferAsync(InspectionStationState.PlacingCarrier, timeout.Token));
             Assert.False(restarted);
         }
         finally
@@ -6018,86 +6118,6 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RepeatNgTransferReturnsToPickupThenSeparateWaitingPosition(bool hasWaitingPosition)
-    {
-        await using var services = CreateDisplayServices(out var feedback);
-        var machine = services.GetRequiredService<MachineController>();
-        var move = services.GetRequiredService<InspectionStation>();
-        var settings = services.GetRequiredService<NgCarrierTransferSettings>();
-        var gantry = services.GetRequiredService<InspectionStation>();
-        var pickup = services.GetRequiredService<InspectionStation>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        settings.WaitingPosition = hasWaitingPosition ? new() { X = 15, Y = 30 } : null;
-        await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
-        // Repeat holds the carrier above the shuttle and returns without releasing it.
-        io.SetInputs(
-            (InputIo.InspectionHeatSink1Present, true),
-            (InputIo.InspectionHeatSink2Present, true));
-        await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
-        await gantry.MoveToAsync(settings.CarrierPickupPosition!, 10_000);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
-        using var transferTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle,
-            InspectionStationState.PickingCarrier, transferTimeout.Token, repeat: true);
-        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle,
-            InspectionStationState.PlacingCarrier, transferTimeout.Token, repeat: true);
-        Assert.True(move.IsTransferPending);
-        Assert.Equal(NgTransferGripperState.Closed, pickup.Gripper);
-        Assert.True(pickup.IsRaised);
-        Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, settings.ShuttlePlacePosition));
-        Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
-        await move.Station.PrepareToReceiveAsync(transferTimeout.Token);
-        var raisedAtPickup = false;
-        io.OutputChanged += (output, on) =>
-        {
-            if (output != OutputIo.InspectionBackupPlateUp || !on)
-                return;
-            Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, settings.CarrierPickupPosition!));
-            Assert.True(pickup.IsRaised);
-            raisedAtPickup = true;
-        };
-        feedback.AxisMoves.Clear();
-        var movedBeforeGrip = false;
-        gantry.Motion.Feedback.PositionChanged += (_, _, _) =>
-        {
-            if (pickup.Gripper != NgTransferGripperState.Closed)
-                movedBeforeGrip = true;
-        };
-
-        await move.ReturnToStationAsync(transferTimeout.Token).WaitAsync(TimeSpan.FromSeconds(3));
-
-        Assert.False(move.IsTransferPending);
-        Assert.True(raisedAtPickup);
-        Assert.False(movedBeforeGrip);
-        Assert.Empty(feedback.AxisMoves);
-        Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
-        Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
-        Assert.True(pickup.IsRaised);
-        Assert.Equal(NgTransferGripperState.Open, pickup.Gripper);
-        Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, settings.CarrierPickupPosition!));
-        if (!hasWaitingPosition)
-        {
-            var position = settings.CarrierPickupPosition!;
-            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ClearStationAsync(CancellationToken.None));
-            Assert.Empty(feedback.AxisMoves);
-            Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, position));
-            return;
-        }
-
-        var movedAfterReturn = false;
-        gantry.Motion.Feedback.PositionChanged += (x, y, z) => movedAfterReturn = true;
-        await move.ClearStationAsync(CancellationToken.None);
-        Assert.True(movedAfterReturn);
-        Assert.Empty(feedback.AxisMoves);
-        Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, settings.WaitingPosition!));
-        Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
-        Assert.False(io.GetInput(InputIo.NgCarrierDetected));
-    }
-
     [Fact]
     public async Task NgPickupMovesXyTogetherAndResumesBeforeGripping()
     {
@@ -6113,7 +6133,7 @@ public sealed partial class MachineLifecycleTests
 
         settings.CarrierPickupPosition = null;
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None)!);
+            () => move.ExecuteTransferAsync(InspectionStationState.PickingCarrier, CancellationToken.None)!);
         Assert.Empty(feedback.AxisMoves);
         Assert.Equal((50, 60, 0), gantry.Motion.Feedback.Position);
 
@@ -6130,7 +6150,7 @@ public sealed partial class MachineLifecycleTests
         }
         gantry.Motion.Feedback.PositionChanged += StopDuringPickupMove;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, cancellation.Token)!);
+            () => move.ExecuteTransferAsync(InspectionStationState.PickingCarrier, cancellation.Token)!);
         gantry.Motion.Feedback.PositionChanged -= StopDuringPickupMove;
         Assert.Empty(feedback.AxisMoves);
         var stopped = gantry.Motion.Feedback.Position;
@@ -6140,18 +6160,17 @@ public sealed partial class MachineLifecycleTests
         Assert.False(io.GetInput(InputIo.NgCarrierDetected));
 
         feedback.AxisMoves.Clear();
-        Assert.False(await move.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None));
+        Assert.False(await move.ExecuteTransferAsync(InspectionStationState.PickingCarrier, CancellationToken.None));
         Assert.Empty(feedback.AxisMoves);
         Assert.True(VirtualTestSupport.IsAt(gantry.Motion.Feedback, pickupPosition));
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.Equal(settings.CarrierPickupPosition!.X, gantry.Motion.Feedback.Position.X);
 
+        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
-        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         Assert.False(move.IsTransferPending);
-        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None)!;
+        await move.ExecuteTransferAsync(InspectionStationState.PickingCarrier, CancellationToken.None)!;
         Assert.Equal(InspectionStationState.PlacingCarrier, move.GetNextStep());
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
@@ -6168,7 +6187,7 @@ public sealed partial class MachineLifecycleTests
         gantry.Motion.Feedback.PositionChanged += ObserveShuttleMove;
         try
         {
-            await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, CancellationToken.None)!;
+            await move.ExecuteTransferAsync(InspectionStationState.PlacingCarrier, CancellationToken.None)!;
         }
         finally
         {
@@ -6180,12 +6199,10 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(NgTransferDestination.Station, false)]
-    [InlineData(NgTransferDestination.Shuttle, false)]
-    [InlineData(NgTransferDestination.Station, true)]
-    [InlineData(NgTransferDestination.Shuttle, true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task NgTransferReleasesOnlyAfterMoveAndSupportedDescent(
-        NgTransferDestination destination, bool loseSupport)
+        bool loseSupport)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -6196,16 +6213,12 @@ public sealed partial class MachineLifecycleTests
         var transfer = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await transfer.Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
-        io.SetInput(InputIo.InspectionHeatSink1Present, true);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
-        if (destination == NgTransferDestination.Station)
-            await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
-                InspectionStationState.PlacingCarrier, stop.Token, repeat: true);
-        var target = destination == NgTransferDestination.Station
-            ? settings.NgCarrierTransfer.CarrierPickupPosition! : settings.NgCarrierTransfer.ShuttlePlacePosition;
+        await transfer.ExecuteTransferAsync(InspectionStationState.PickingCarrier, stop.Token);
+        var target = settings.NgCarrierTransfer.ShuttlePlacePosition;
         var lowered = false;
         var opened = false;
         io.OutputChanged += (output, on) =>
@@ -6218,20 +6231,19 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
                 lowered = true;
                 if (loseSupport)
-                    io.SetInput(destination == NgTransferDestination.Station
-                        ? InputIo.InspectionBackupPlateUp : InputIo.NgShuttleUp, false);
+                    io.SetInput(InputIo.NgShuttleUp, false);
             }
             if (output == OutputIo.NgCarrierGripperClose && !on)
             {
                 Assert.True(lowered);
                 Assert.Equal(StationCylinderState.Down, transfer.Lift);
-                Assert.True(transfer.IsCarrierPresent(destination));
+                Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
                 opened = true;
             }
         };
         try
         {
-            var placing = transfer.ExecuteTransferAsync(destination, InspectionStationState.PlacingCarrier, stop.Token);
+            var placing = transfer.ExecuteTransferAsync( InspectionStationState.PlacingCarrier, stop.Token);
             if (loseSupport)
             {
                 await Assert.ThrowsAsync<InvalidOperationException>(() => placing);

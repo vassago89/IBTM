@@ -19,6 +19,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
     private HeatSinkSlot? _dataMatrixHeatSink;
     private BoltPoint? _bolt;
     private PixelRegion? _sourceRegion;
+    private DataMatrixReadResult? _dataMatrixResult;
     [ObservableProperty]
     public partial BitmapSource? Image { get; set; }
     [ObservableProperty]
@@ -49,28 +50,29 @@ public partial class InspectionPreviewViewModel : ObservableObject
     {
         get
         {
+            if (_dataMatrixResult is { } result)
+            {
+                var description = UiText.Format($"Binary ROI · threshold {result.Threshold}");
+                return result.Dilated ? description + UiText.Get(" · black dot dilation") : description;
+            }
             if (_dataMatrixHeatSink is null)
             {
                 return _bolt is null
                     ? UiText.Get("Binary ROI · no inspection target")
                     : UiText.Format($"Binary ROI · threshold {BrightnessThreshold}");
             }
-            if (DataMatrixThreshold is { } threshold)
-                return UiText.Format($"Binary ROI · threshold {threshold}");
-            if (HasImage && Overlay is null)
-                return UiText.Get("Automatic binary unavailable · set a threshold");
-            return UiText.Get("Binary ROI · automatic");
+            return UiText.Format($"Binary ROI · threshold {DataMatrixThresholdMinimum}");
         }
     }
 
-    public int? DataMatrixThreshold
+    public int DataMatrixThresholdMinimum
     {
-        get => _dataMatrixHeatSink is { } heatSink ? Recipe.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold : null;
+        get => _dataMatrixHeatSink is { } heatSink ? Recipe.BoltInspection.GetDataMatrix(heatSink).ThresholdMinimum : 0;
         set
         {
             if (_dataMatrixHeatSink is not { } heatSink)
                 throw new InvalidOperationException(UiText.Get("Select a Data Matrix before changing its threshold."));
-            Recipe.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold = value;
+            Recipe.BoltInspection.GetDataMatrix(heatSink).ThresholdMinimum = value;
             RefreshBinaryImage();
             OnPropertyChanged();
         }
@@ -117,7 +119,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         OnPropertyChanged(nameof(HasImage));
         OnPropertyChanged(nameof(BrightnessThreshold));
         OnPropertyChanged(nameof(MinimumBrightPercent));
-        OnPropertyChanged(nameof(DataMatrixThreshold));
+        OnPropertyChanged(nameof(DataMatrixThresholdMinimum));
         OnPropertyChanged(nameof(BinaryDescription));
     }
 
@@ -137,15 +139,21 @@ public partial class InspectionPreviewViewModel : ObservableObject
             throw new InvalidOperationException(UiText.Get("Select an image linked to a Data Matrix or bolt before inspecting."));
         Result = null;
         Success = null;
+        _dataMatrixResult = null;
+        OnPropertyChanged(nameof(BinaryDescription));
         var frame = _frame!;
         var region = _sourceRegion ?? throw new InvalidOperationException(UiText.Get("Draw the FOV ROI before inspecting."));
         if (_dataMatrixHeatSink is { } heatSink)
         {
             var settings = Recipe.BoltInspection.GetDataMatrix(heatSink);
-            var text = await Task.Run(() => DataMatrixReader.Read(frame, region, settings), token);
+            var result = await Task.Run(() => DataMatrixReader.Read(frame, region, settings, token), token);
             token.ThrowIfCancellationRequested();
-            Result = string.IsNullOrEmpty(text) ? UiText.Get("Not Read") : text;
-            Success = !string.IsNullOrEmpty(text);
+            // Show the successful attempt, or the last attempt if the whole search failed.
+            _dataMatrixResult = result;
+            Overlay = CreateBitmap(result.BinaryImage);
+            Result = result.Text ?? UiText.Get("Not Read");
+            Success = !string.IsNullOrEmpty(result.Text);
+            OnPropertyChanged(nameof(BinaryDescription));
             return;
         }
 
@@ -164,6 +172,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
 
     private void ClearResult()
     {
+        _dataMatrixResult = null;
         _brightRatio = null;
         Overlay = null;
         Result = null;
@@ -177,8 +186,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         {
             if (_dataMatrixHeatSink is not null)
             {
-                var binary = DataMatrixReader.CreateBinaryImage(_frame, region, DataMatrixThreshold);
-                Overlay = binary is null ? null : CreateBitmap(binary);
+                Overlay = CreateBitmap(BinaryRegionAnalyzer.Check(_frame, region, DataMatrixThresholdMinimum).Image);
             }
             else if (_bolt is not null)
             {

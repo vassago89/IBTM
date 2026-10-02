@@ -830,8 +830,8 @@ public sealed class MachineHomeTests
             }
         };
         await machine.HomeAsync(CancellationToken.None);
-        Assert.True(state.FeedbackReadiness.Homed);
         Assert.False(unsafeMovement);
+        await WaitUntilAsync(() => state.FeedbackReadiness.Homed);
         Assert.True(transfer.IsRaised);
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));

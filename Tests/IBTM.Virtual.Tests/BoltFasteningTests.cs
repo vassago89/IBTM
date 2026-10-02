@@ -817,7 +817,9 @@ public sealed class BoltFasteningTests
                 settings.Motion.ZSpeed = !on && bus.StartWrites == 1 ? 10 : 20_000;
                 if (on && bus.StartWrites == 2 && arrivalDelaySeconds > 0)
                 {
-                    Assert.True(Stopwatch.GetElapsedTime(secondPassageAt).TotalSeconds >= arrivalDelaySeconds);
+                    // Task.Delay uses the system timer's resolution.
+                    Assert.InRange(Stopwatch.GetElapsedTime(secondPassageAt).TotalSeconds,
+                        arrivalDelaySeconds - 0.02, double.MaxValue);
                     Assert.True(VirtualTestSupport.IsAt(motion, settings.GetBoltPosition(bolts[2])));
                 }
             }
@@ -2204,7 +2206,7 @@ public sealed class BoltFasteningTests
                     restartedStop.Cancel();
             }
         };
-        await station.RunAsync(restartedStop.Token, repeat: !selectedTest, selectedBolts: selectedBolts);
+        await station.RunAsync(restartedStop.Token, selectedBolts: selectedBolts);
         Assert.True(xyAtZero);
         Assert.True(loweredAfterXy);
         Assert.Equal((10d, 20d, 5d), motion.Position);

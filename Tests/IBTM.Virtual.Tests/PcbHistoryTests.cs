@@ -22,6 +22,40 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbHistoryTests
 {
     [Fact]
+    public async Task DataMatrixThresholdAndDilationSurviveHistoryWriterAndReload()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.PcbHistory.Directory = store.DatabaseFile + ".results";
+        await using var services = new ServiceCollection().AddSingleton(store)
+            .AddVirtualApplication(settings).BuildServiceProvider();
+        var history = services.GetRequiredService<PcbHistoryWriter>();
+        var assembly = services.GetRequiredService<InspectionStation>().Station.GetAssembly(HeatSinkSlot.HeatSink2);
+        assembly.PcbBarcode = "PCB-DOTS-123";
+        assembly.RecordInspectionCapture(new(null, DateTimeOffset.Now,
+            new ImageFrame(1, 1, 3, [20, 20, 20]), new(0, 0, 1, 1), true,
+            Barcode: "PCB-DOTS-123", Threshold: 55, Dilated: true));
+        await history.FlushAsync();
+        var reopened = new MachineStore(store.DatabaseFile);
+        var record = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        var image = Assert.Single(reopened.LoadPcbImages(record));
+        Assert.Equal(55, image.Threshold);
+        Assert.True(image.Dilated);
+        Assert.Equal("PCB-DOTS-123", image.Barcode);
+        Assert.True(image.Success);
+        var details = new PcbInspectionImageItem(image, null, new Recipe()).Details;
+        Assert.Contains("55", details);
+        Assert.Contains(UiText.Get(" · Dilate ON"), details);
+
+        // Older records carry no attempt metadata; missing feedback must remain unknown.
+        var legacy = System.Text.Json.JsonSerializer.Deserialize<PcbInspectionImage>(
+            """{"BoltId":null,"CapturedAt":"2026-10-02T00:00:00Z","Region":{"X":0,"Y":0,"Width":1,"Height":1},"Success":true,"Barcode":"OLD"}""")!;
+        Assert.Null(legacy.Threshold);
+        Assert.Null(legacy.Dilated);
+        Assert.Equal("OLD", new PcbInspectionImageItem(legacy, null, new Recipe()).Details);
+    }
+
+    [Fact]
     public async Task ProductionCountsClearWithoutChangingPcbHistory()
     {
         var store = VirtualTestSupport.OpenMachineStore();
@@ -186,7 +220,7 @@ public sealed class PcbHistoryTests
             details.BoltResults.Select(row => row.TurnsVerdict));
         Assert.All(details.BoltResults, row =>
         {
-            Assert.Equal(dryRun ? UiText.Get("DRY RUN") : "OK", row.Verdict);
+            Assert.Equal(dryRun ? UiText.Get("Dry run · NG") : "OK", row.Verdict);
             Assert.Equal("OK", row.VisionVerdict);
         });
         await details.LoadImagesCommand.ExecuteAsync(null);
@@ -713,10 +747,10 @@ public sealed class PcbHistoryTests
     }
 
     [Fact]
-    public async Task StationaryRepeatGetsNewNumberButRestartKeepsTheSamePcb()
+    public async Task RestartKeepsPcbNumberAndRecordedResults()
     {
         var settings = new MachineSettings();
-        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-repeat-{Guid.NewGuid():N}");
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-restart-{Guid.NewGuid():N}");
         var store = VirtualTestSupport.OpenMachineStore();
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddVirtualApplication(settings).BuildServiceProvider();
@@ -728,12 +762,8 @@ public sealed class PcbHistoryTests
         work.Restart(work.CurrentJob);
         Assert.Same(first, work.GetAssembly(HeatSinkSlot.HeatSink1));
         work.Complete(work.CurrentJob);
-        work.StartRepeat(work.CurrentJob);
-        var next = work.GetAssembly(HeatSinkSlot.HeatSink1);
         await history.FlushAsync();
-        Assert.Equal(first.PcbNumber + 1, next.PcbNumber);
-        Assert.Empty(next.ShootingBoltResults);
-        Assert.Equal("Timeout", store.LoadPcbs(settings.PcbHistory.Directory)[1].ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
+        Assert.Equal("Timeout", Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
     }
 
     [Theory]

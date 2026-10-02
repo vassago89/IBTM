@@ -9,7 +9,7 @@ using IBTM.Inspection;
 
 namespace IBTM.Conveyor;
 
-public sealed partial class MainConveyor : AutoUnit
+public sealed class MainConveyor : AutoUnit
 {
     private readonly ConveyorSettings _settings;
     private readonly OperationCancellation _operations;
@@ -18,7 +18,6 @@ public sealed partial class MainConveyor : AutoUnit
     private readonly InspectionStation _inspection;
     private readonly UnitSettings _units;
     private OperationCancellation.Operation? _runCancellation;
-    private bool _repeat;
     // Commissioning inputs, kept only for this application session.
     private volatile bool _testUpstreamCarrierAvailable;
     private volatile bool _testDownstreamReady;
@@ -67,8 +66,7 @@ public sealed partial class MainConveyor : AutoUnit
     {
         get
         {
-            return !_repeat
-                && !IsNgTransferRequired
+            return !IsNgTransferRequired
                 && _inspection.IsTransferAllowed
                 && _inspection.IsRearDischargeReady;
         }
@@ -131,15 +129,13 @@ public sealed partial class MainConveyor : AutoUnit
     }
 
     public async Task RunAsync(
-        CancellationToken cancellationToken = default,
-        bool repeat = false)
+        CancellationToken cancellationToken = default)
     {
         using var runCancellation = BeginConveyorOperation(cancellationToken);
         cancellationToken = runCancellation.Token;
         var motor = new ConveyorRun(
             Io, OutputIo.MainConveyorRun, cancellationToken,
             OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
-        _repeat = repeat;
         try
         {
             BeginRun();
@@ -313,7 +309,7 @@ public sealed partial class MainConveyor : AutoUnit
                         or MainConveyorState.WaitingForRearEquipment
                         or MainConveyorState.WaitingForBoltFastening
                         or MainConveyorState.WaitingForInspectionClear
-                    && !_repeat && !_placement.CarrierPresent
+                    && !_placement.CarrierPresent
                     && (!_inspection.Station.CarrierPresent || _inspection.Station.CarrierSeated))
                 {
                     await TransferAsync(null, _placement, cancellationToken);
@@ -340,7 +336,6 @@ public sealed partial class MainConveyor : AutoUnit
             }
             finally
             {
-                _repeat = false;
                 _inspection.ClearInspectionRequest();
                 EndRun(cancellationToken);
             }
@@ -366,8 +361,7 @@ public sealed partial class MainConveyor : AutoUnit
             // 검사 완료: 바로 배출할 수 없으면 플레이트를 올려 벨트에서 분리한다.
             if (IsTransferPaused || _inspection.Station.CarrierSeated)
                 return transfer;
-            if (!_repeat
-                && !IsNgTransferRequired
+            if (!IsNgTransferRequired
                 && _inspection.IsTransferAllowed
                 && DownstreamReady)
                 return _inspection.IsRearDischargeReady
@@ -406,14 +400,12 @@ public sealed partial class MainConveyor : AutoUnit
             {
                 if (IsRearDischargeAllowed && DownstreamReady)
                     return MainConveyorState.DischargingInspectionCarrier;
-                if ((!_repeat || ReferenceEquals(RepeatEndStation, _inspection.Station))
-                    && _fastening.Completed && _inspection.IsReceiveAllowed)
+                if (_fastening.Completed && _inspection.IsReceiveAllowed)
                     return MainConveyorState.MovingBoltFasteningToInspection;
-                if ((!_repeat || !ReferenceEquals(RepeatEndStation, _placement))
-                    && _placement.Completed && !_fastening.CarrierPresent)
+                if (_placement.Completed && !_fastening.CarrierPresent)
                     return MainConveyorState.MovingPcbPlacementToBoltFastening;
                 if (!_placement.CarrierPresent
-                    && (Io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable))
+                    && (Io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || UpstreamCarrierAvailable))
                     return MainConveyorState.ReceivingFrontCarrier;
             }
             if (IsRearDischargeAllowed)
@@ -514,7 +506,7 @@ public sealed partial class MainConveyor : AutoUnit
                         return;
                     }
                     // Arm entry detection before READY; this call owns the whole receipt.
-                    if (!_repeat && !entered.Task.IsCompleted)
+                    if (!entered.Task.IsCompleted)
                         SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, true, transfer.Token);
                     while (!entered.Task.IsCompleted && !UpstreamCarrierAvailable)
                     {
@@ -683,12 +675,12 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    private void StartMotor(CancellationToken cancellationToken, bool reverse = false)
+    private void StartMotor(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
         cancellationToken.ThrowIfCancellationRequested();
-        Io.SetOutput(OutputIo.MainConveyorForward, !reverse);
+        Io.SetOutput(OutputIo.MainConveyorForward, true);
         cancellationToken.ThrowIfCancellationRequested();
         Io.SetOutput(OutputIo.MainConveyorRun, true);
     }

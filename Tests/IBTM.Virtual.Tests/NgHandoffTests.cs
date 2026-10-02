@@ -132,8 +132,7 @@ public sealed class NgHandoffTests
             transfer.MoveToCarrierAsync(NgTransferDestination.Station, CancellationToken.None));
 
         // A new pickup starts by raising, then moving to its source.
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
+        await transfer.ExecuteTransferAsync(InspectionStationState.PickingCarrier, CancellationToken.None);
         Assert.True(transfer.IsTransferPending);
         Assert.True(transfer.IsRaised);
         Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
@@ -168,8 +167,7 @@ public sealed class NgHandoffTests
                 loweringPlate.TrySetResult();
             }
         };
-        var pickup = transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        var pickup = transfer.ExecuteTransferAsync(InspectionStationState.PickingCarrier, stop.Token);
         try
         {
             await rising.Task.WaitAsync(stop.Token);
@@ -208,8 +206,7 @@ public sealed class NgHandoffTests
         var system = await CreateAsync();
         using var motion = system.Motion;
         var transfer = system.Inspection;
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
+        await transfer.ExecuteTransferAsync(InspectionStationState.PickingCarrier, CancellationToken.None);
         system.Io.SetInputs(
             (InputIo.NgCarrierGripperClosed, false), (InputIo.NgCarrierGripperOpen, false));
         var commanded = false;
@@ -225,63 +222,7 @@ public sealed class NgHandoffTests
     }
 
     [Fact]
-    public async Task InspectionRepeatEndRequiresActiveHoldingStepAndWakesOnStepChange()
-    {
-        var system = await CreateAsync();
-        using var motion = system.Motion;
-        var transfer = system.Inspection;
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
-        SetCarrier(system.Io, InputIo.InspectionHeatSink1Present, false);
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token,
-            repeat: true);
-        Assert.True(transfer.IsTransferPending);
-        Assert.True(transfer.IsRaised);
-        Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
-        Assert.Null(transfer.Step);
-
-        var end = transfer.WaitForRepeatEndAsync(stop.Token);
-        var run = Task.CompletedTask;
-        try
-        {
-            // The same physical position while idle is not an active Repeat completion.
-            Assert.False(end.IsCompleted);
-            run = transfer.RunAsync(stop.Token, repeat: true);
-            // Entering the holding step changes no sensor; StepChanged must wake the waiter.
-            await end.WaitAsync(TimeSpan.FromSeconds(1));
-            Assert.Equal(InspectionStationState.HoldingAtDestination, transfer.Step);
-        }
-        finally
-        {
-            stop.Cancel();
-            await run.WaitAsync(TimeSpan.FromSeconds(1));
-            try
-            {
-                await end;
-            }
-            catch (OperationCanceledException) when (stop.IsCancellationRequested)
-            {
-            }
-        }
-
-        Assert.Null(transfer.Step);
-        using var next = new CancellationTokenSource();
-        var nextEnd = transfer.WaitForRepeatEndAsync(next.Token);
-        try
-        {
-            Assert.False(nextEnd.IsCompleted);
-        }
-        finally
-        {
-            next.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => nextEnd);
-        }
-    }
-
-    [Fact]
-    public async Task DisabledNgConveyorBlocksProductionHandoffButAllowsInspectionRepeat()
+    public async Task DisabledNgConveyorBlocksProductionHandoff()
     {
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
         var system = await CreateAsync(units);
@@ -293,7 +234,6 @@ public sealed class NgHandoffTests
 
         Assert.False(system.Conveyor.IsReceiveAllowed);
         Assert.Equal(InspectionStationState.WaitingForDestination, transfer.GetNextStep());
-        Assert.Equal(InspectionStationState.PickingCarrier, transfer.GetNextStep(repeat: true));
         Assert.False(transfer.IsTransferPending);
 
         units.NgConveyor = true;
@@ -308,8 +248,7 @@ public sealed class NgHandoffTests
         var system = await CreateAsync(units);
         using var motion = system.Motion;
         var transfer = system.Inspection;
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
+        await transfer.ExecuteTransferAsync(InspectionStationState.PickingCarrier, CancellationToken.None);
         SetCarrier(system.Io, InputIo.InspectionHeatSink1Present, false);
         units.Inspection = false;
 
@@ -323,47 +262,6 @@ public sealed class NgHandoffTests
         await transfer.SetLiftUpAsync(true);
         Assert.True(transfer.IsReceiveAllowed);
         Assert.True(transfer.IsRearDischargeReady);
-    }
-
-    [Fact]
-    public async Task NgRepeatEndWakesWhenOnlyTransferOwnershipClears()
-    {
-        var system = await CreateAsync();
-        using var motion = system.Motion;
-        var transfer = system.Inspection;
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
-        // Feedback alone must not clear an unfinished commanded handoff.
-        system.Io.AutoResponseEnabled = false;
-        system.Io.SetInputs(
-            (InputIo.NgConveyorPosition1Occupied, true),
-            (InputIo.NgCarrierGripperClosed, false),
-            (InputIo.NgCarrierGripperOpen, true));
-        Assert.True(transfer.IsTransferPending);
-        using var stop = new CancellationTokenSource();
-        var run = system.Conveyor.RunAsync(stop.Token, repeat: true);
-        var end = system.Conveyor.WaitForRepeatEndAsync(stop.Token);
-        try
-        {
-            Assert.Equal(NgConveyorState.ReadyToEject, system.Conveyor.Step);
-            Assert.False(end.IsCompleted);
-            // Inputs and the conveyor step stay unchanged; only command ownership changes.
-            await transfer.SetGripperOpenAsync(true);
-            Assert.True(transfer.IsClear);
-            await end.WaitAsync(TimeSpan.FromSeconds(1));
-        }
-        finally
-        {
-            stop.Cancel();
-            await run.WaitAsync(TimeSpan.FromSeconds(1));
-            try
-            {
-                await end;
-            }
-            catch (OperationCanceledException) when (stop.IsCancellationRequested)
-            {
-            }
-        }
     }
 
     [Theory]
@@ -433,8 +331,7 @@ public sealed class NgHandoffTests
         Assert.Equal(0, workChanges);
 
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        await transfer.ExecuteTransferAsync(InspectionStationState.PickingCarrier, stop.Token);
         Assert.True(transfer.IsTransferPending);
         Assert.True(transfer.IsRaised);
         Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
@@ -448,26 +345,19 @@ public sealed class NgHandoffTests
             changedDuringTravel = true;
             io.SetInput(InputIo.NgCarrierDetected, !io.GetInput(InputIo.NgCarrierDetected));
         };
-        await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
-            InspectionStationState.PlacingCarrier, stop.Token, repeat: true);
-        Assert.True(changedDuringTravel);
-        Assert.True(transfer.IsRaised);
-        Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
-        Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
         foreach (var value in new[] { false, true })
         {
             io.SetInput(InputIo.NgCarrierDetected, value);
             Assert.True(transfer.IsTransferPending);
             Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
         }
-
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
+        await transfer.ExecuteTransferAsync(InspectionStationState.PlacingCarrier, stop.Token);
+        Assert.True(changedDuringTravel);
         Assert.False(transfer.IsTransferPending);
         Assert.True(transfer.IsClear);
         Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
-        Assert.True(signals.Inputs[InputIo.NgCarrierDetected].IsOn);
+        Assert.Equal(io.GetInput(InputIo.NgCarrierDetected), signals.Inputs[InputIo.NgCarrierDetected].IsOn);
     }
 
     [Fact]
@@ -478,11 +368,8 @@ public sealed class NgHandoffTests
         var transfer = system.Inspection;
         var io = system.Io;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        await transfer.ExecuteTransferAsync(InspectionStationState.PickingCarrier, stop.Token);
         SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-        await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
-            InspectionStationState.PlacingCarrier, stop.Token, repeat: true);
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
         var releaseRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         io.OutputChanged += (output, on) =>
@@ -497,8 +384,7 @@ public sealed class NgHandoffTests
         {
             await Task.Factory.StartNew(async () =>
             {
-                var placing = transfer.ExecuteTransferAsync(
-                    NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
+                var placing = transfer.ExecuteTransferAsync(InspectionStationState.PlacingCarrier, stop.Token);
                 try
                 {
                     await releaseRequested.Task.WaitAsync(stop.Token);
@@ -539,12 +425,10 @@ public sealed class NgHandoffTests
         var transfer = system.Inspection;
         io.SetInputs((InputIo.NgConveyorPosition1Occupied, full), (InputIo.NgConveyorPosition2Occupied, full));
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        await transfer.ExecuteTransferAsync(InspectionStationState.PickingCarrier, stop.Token);
         SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        await transfer.ExecuteTransferAsync(
-            NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
+        await transfer.ExecuteTransferAsync(InspectionStationState.PlacingCarrier, stop.Token);
         Assert.True(transfer.IsClear);
         Assert.Equal(NgTransferGripperState.Open, transfer.Gripper);
         Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
@@ -601,10 +485,9 @@ public sealed class NgHandoffTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public async Task ShuttleWaitsForCommandedReleaseAndRaisedOpenPickup(bool repeat, bool full)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ShuttleWaitsForCommandedReleaseAndRaisedOpenPickup(bool full)
     {
         var system = await CreateAsync();
         using var motion = system.Motion;
@@ -613,7 +496,7 @@ public sealed class NgHandoffTests
         io.SetInputs((InputIo.NgConveyorPosition1Occupied, full), (InputIo.NgConveyorPosition2Occupied, full));
         io.SetInput(InputIo.NgCarrierDetected, true);
         Assert.False(transfer.IsTransferPending); // Presence alone never establishes pickup ownership.
-        await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
+        await transfer.ExecuteTransferAsync(InspectionStationState.PickingCarrier, CancellationToken.None);
         await transfer.MoveToAsync(new() { X = 10, Y = 10 });
         io.AutoResponseEnabled = false;
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
@@ -632,14 +515,12 @@ public sealed class NgHandoffTests
             lowering.TrySetResult();
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var run = repeat ? system.Conveyor.RunRepeatAsync(stop.Token)
-            : system.Conveyor.RunAsync(stop.Token);
+        var run = system.Conveyor.RunAsync(stop.Token);
         try
         {
             Assert.Equal(NgConveyorState.WaitingForTransferRelease, system.Conveyor.Step);
             Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
             await Assert.ThrowsAsync<MotionInterlockException>(() => system.Conveyor.SetShuttleDownAsync(true));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.ReturnFromConveyorAsync(stop.Token));
 
             // Unexpected Open feedback is not a commanded handoff.
             io.SetInputs((InputIo.NgCarrierGripperClosed, false), (InputIo.NgCarrierGripperOpen, true));
@@ -666,10 +547,7 @@ public sealed class NgHandoffTests
         finally
         {
             stop.Cancel();
-            if (repeat)
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
-            else
-                await run.WaitAsync(TimeSpan.FromSeconds(1));
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
         }
     }
 

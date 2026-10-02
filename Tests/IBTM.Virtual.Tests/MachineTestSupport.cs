@@ -30,8 +30,7 @@ public static class MachineTestSupport
                 var motions = settings.MotionSections.ToDictionary(
                     section => section.Hardware.Group,
                     section => (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(section.Hardware.Group));
-                var machine = new VirtualMachine(io, motions.Values.ToArray(),
-                    () => provider.GetRequiredService<MachineState>().RepeatEnabled);
+                var machine = new VirtualMachine(io, motions.Values.ToArray());
                 var recipes = provider.GetRequiredService<RecipeManager>();
                 motions[MotionGroup.PcbSupply].PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
                     x, y, z,

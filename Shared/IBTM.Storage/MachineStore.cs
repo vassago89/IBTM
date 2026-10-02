@@ -209,6 +209,8 @@ public sealed class MachineStore
     public void SaveInspectionSettings(Recipe edited, CancellationToken cancellationToken = default)
     {
         edited.ValidateBoltIds();
+        edited.BoltInspection.DataMatrix1.Validate();
+        edited.BoltInspection.DataMatrix2.Validate();
         using var db = new MachineDbContext(_options);
         using var transaction = db.Database.BeginTransaction();
         var row = db.Recipes.Single(item => item.Name == edited.Name);
@@ -225,7 +227,10 @@ public sealed class MachineStore
             target.TryInverted = source.TryInverted;
             target.AutoRotate = source.AutoRotate;
             target.PureBarcode = source.PureBarcode;
-            target.BinaryThreshold = source.BinaryThreshold;
+            target.ThresholdMinimum = source.ThresholdMinimum;
+            target.ThresholdMaximum = source.ThresholdMaximum;
+            target.ThresholdStep = source.ThresholdStep;
+            target.DilationRadius = source.DilationRadius;
         }
         foreach (var bolt in saved.Pcb.BoltPoints)
         {
@@ -267,6 +272,8 @@ public sealed class MachineStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         recipe.ValidateBoltIds();
+        recipe.BoltInspection.DataMatrix1.Validate();
+        recipe.BoltInspection.DataMatrix2.Validate();
         name ??= recipe.Name;
         tiles ??= recipe.CarrierImages;
         var imageNumbers = tiles.Select(tile => tile.Number).ToArray();

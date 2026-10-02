@@ -302,10 +302,16 @@ public partial class InspectionTeachingViewModel : ObservableObject
         {
             await _recipes.SaveInspectionAsync(Preview.Recipe, token);
             _log.LogInformation(
-                "Inspection settings saved: recipe={Recipe}, active={Active}, DataMatrix1 threshold={Threshold1}, DataMatrix2 threshold={Threshold2}.",
+                "Inspection settings saved: recipe={Recipe}, active={Active}, DataMatrix1={Minimum1}..{Maximum1}/{Step1}, dilation radius={Radius1}, DataMatrix2={Minimum2}..{Maximum2}/{Step2}, dilation radius={Radius2}.",
                 Preview.Recipe.Name, MachineStore.IsSameRecipeName(_recipes.Current.Name, Preview.Recipe.Name),
-                Preview.Recipe.BoltInspection.DataMatrix1.BinaryThreshold?.ToString() ?? "auto",
-                Preview.Recipe.BoltInspection.DataMatrix2.BinaryThreshold?.ToString() ?? "auto");
+                Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum,
+                Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMaximum,
+                Preview.Recipe.BoltInspection.DataMatrix1.ThresholdStep,
+                Preview.Recipe.BoltInspection.DataMatrix1.DilationRadius,
+                Preview.Recipe.BoltInspection.DataMatrix2.ThresholdMinimum,
+                Preview.Recipe.BoltInspection.DataMatrix2.ThresholdMaximum,
+                Preview.Recipe.BoltInspection.DataMatrix2.ThresholdStep,
+                Preview.Recipe.BoltInspection.DataMatrix2.DilationRadius);
             Message = UiText.Format($"Saved to recipe '{Preview.Recipe.Name}'.");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

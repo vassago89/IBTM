@@ -22,7 +22,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
-public sealed partial class MachineController : INotifyPropertyChanged
+public sealed class MachineController : INotifyPropertyChanged
 {
     private static readonly InputIo[] s_carrierInputs;
     private readonly MachineState _state;
@@ -271,7 +271,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         var readinessChanged = e.PropertyName is null or nameof(MachineState.Ready)
             or nameof(MachineState.SafetyReady) or nameof(MachineState.DoorInterlockReady)
-            or nameof(MachineState.Alarm) or nameof(MachineState.RepeatEnabled);
+            or nameof(MachineState.Alarm);
         if (readinessChanged)
             PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
         if (readinessChanged || e.PropertyName == nameof(MachineState.IsRunning))
@@ -668,7 +668,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                         StartArea.Supply => !_io.GetInput(InputIo.PcbSupplyPcbDetected)
                             || _pcbSupply.Gripper == PcbSupplyCylinderState.Backward
                             ? StartCheckState.Empty
-                            : !_state.RepeatEnabled && _pcbSupply.IsHandoffRestartAllowed
+                            : _pcbSupply.IsHandoffRestartAllowed
                                 ? StartCheckState.HandoffReady : StartCheckState.MaterialRemaining,
                         StartArea.Placement => _io.GetInput(InputIo.PcbPlacementPcbDetected)
                             || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
@@ -792,8 +792,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
             return StartBlockReason.DoorOpen;
         if (!motion.Homed)
             return StartBlockReason.HomeRequired;
-        if (_state.RepeatEnabled && !_state.ManualMode)
-            return StartBlockReason.TeachingMode;
         if (!TeachingReady)
             return StartBlockReason.TeachingIncomplete;
         return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
@@ -801,7 +799,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     public bool IsFasteningResumeAllowed(ConveyorStation.Job job)
     {
-        return _units.BoltFastening && !_state.RepeatEnabled
+        return _units.BoltFastening
             && ReferenceEquals(job, _fasteningStation.Station.CurrentJob)
             && _fasteningStation.Station.CarrierSeated && !_fasteningStation.Station.Completed;
     }
@@ -845,7 +843,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     if (station.IsRestartAllowed)
                         station.Restart(station.CurrentJob);
 
-                var repeat = _state.RepeatEnabled;
                 var startedInManual = _state.ManualMode;
                 var feedbackStartedAt = Stopwatch.GetTimestamp();
                 void StopWhenOperationBecomesUnavailable()
@@ -969,15 +966,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     operation.Token.ThrowIfCancellationRequested();
                     failureAlarm = MachineAlarm.IoCommunication;
                     _state.AutomaticRunning = true;
-                    if (repeat)
-                    {
-                        await RunRepeatAsync(operation.Token);
-                    }
-                    else
-                    {
-                        using var cycle = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
-                        await RunAutomaticUnitsAsync(cycle, repeat: false, resumeFastening);
-                    }
+                    using var cycle = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
+                    await RunAutomaticUnitsAsync(cycle, resumeFastening);
                 }
                 finally
                 {
@@ -1013,7 +1003,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     }
 
     private async Task RunAutomaticUnitsAsync(
-        CancellationTokenSource cycle, bool repeat, ConveyorStation.Job? resumeFastening = null)
+        CancellationTokenSource cycle, ConveyorStation.Job? resumeFastening = null)
     {
         var runningUnits = new List<Task>();
         AutoUnit[] workUnits = [_conveyor, _pcbSupply, _pcbPlacement,
@@ -1032,29 +1022,29 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _feedback.Sampled += OnFeedbackSampled;
         try
         {
-            if (!cycle.IsCancellationRequested && _units.PcbSupply && (!repeat || _units.PcbPlacement))
+            if (!cycle.IsCancellationRequested && _units.PcbSupply)
             {
                 runningUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.PcbSupply,
-                    _pcbSupply.RunAsync(_pcbPlacement, cycle.Token, repeat),
-                    cycle, repeat));
+                    _pcbSupply.RunAsync(_pcbPlacement, cycle.Token),
+                    cycle));
             }
 
             if (!cycle.IsCancellationRequested)
             {
                 runningUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.PcbPlacement,
-                    _pcbPlacement.RunAsync(cycle.Token, repeat),
-                    cycle, repeat));
+                    _pcbPlacement.RunAsync(cycle.Token),
+                    cycle));
             }
 
-            if (!cycle.IsCancellationRequested && !repeat
+            if (!cycle.IsCancellationRequested
                 && (_units.PickupBoltFeeder || _units.ShootingBoltFeeder))
             {
                 runningUnits.Add(ObserveAutomaticUnitAsync(
                     _units.ShootingBoltFeeder ? MachineAlarm.ShootingBoltFeeder : MachineAlarm.PickupBoltFeeder,
                     _boltFeeder.RunAsync(cycle.Token),
-                    cycle, repeat));
+                    cycle));
             }
 
             if (!cycle.IsCancellationRequested)
@@ -1074,33 +1064,33 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     _log?.LogInformation("Operator confirmed fastening resume: job={Job}, remaining={Count}.",
                         resumeFastening.Id, remainingBolts.Length);
                 }
-                if (_units.BoltFastening && (repeat || !_units.PickupBoltFeeder))
+                if (_units.BoltFastening && !_units.PickupBoltFeeder)
                     _log?.LogInformation(
                         "Pickup bolt feeding is disabled for this run; pickup motion remains active without vacuum ON or bolt detection waits. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
-                if (_units.BoltFastening && (repeat || !_units.ShootingBoltFeeder))
+                if (_units.BoltFastening && !_units.ShootingBoltFeeder)
                     _log?.LogInformation(
                         "Shooting bolt feeding is disabled for this run; bolt supply and shooting are skipped. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
                 runningUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.BoltFastening,
-                    _fasteningStation.RunAsync(cycle.Token, repeat,
+                    _fasteningStation.RunAsync(cycle.Token,
                         selectedBolts: remainingBolts, continueAfterSelection: true),
-                    cycle, repeat));
+                    cycle));
             }
 
             if (!cycle.IsCancellationRequested)
             {
                 runningUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.Inspection,
-                    _inspectionStation.RunAsync(cycle.Token, repeat),
-                    cycle, repeat));
+                    _inspectionStation.RunAsync(cycle.Token),
+                    cycle));
             }
 
-            if (!cycle.IsCancellationRequested && _units.NgConveyor && !repeat)
+            if (!cycle.IsCancellationRequested && _units.NgConveyor)
             {
                 runningUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.NgConveyor,
-                    _ngConveyor.RunAsync(cycle.Token, repeat),
-                    cycle, repeat));
+                    _ngConveyor.RunAsync(cycle.Token),
+                    cycle));
             }
 
             // Stations report existing carrier work before the conveyor selects its first transfer.
@@ -1108,8 +1098,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
             {
                 runningUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.MainConveyor,
-                    _conveyor.RunAsync(cycle.Token, repeat),
-                    cycle, repeat));
+                    _conveyor.RunAsync(cycle.Token),
+                    cycle));
             }
 
             while (!cycle.IsCancellationRequested)
@@ -1180,8 +1170,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private async Task ObserveAutomaticUnitAsync(
         MachineAlarm alarm,
         Task running,
-        CancellationTokenSource cycle,
-        bool repeat = false)
+        CancellationTokenSource cycle)
     {
         try
         {
@@ -1202,7 +1191,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 alarm = MachineAlarm.PickupBoltFeeder;
             else if (timeout?.Input == InputIo.ShootingFeederBoltDetected)
                 alarm = MachineAlarm.ShootingBoltFeeder;
-            if (!repeat && (!cycle.IsCancellationRequested || _state.PendingStop is not null)
+            if ((!cycle.IsCancellationRequested || _state.PendingStop is not null)
                 && (exception is MaintenanceStopException
                     || exception is IoTimeoutException
                         { Input: InputIo.PickupFeederBoltDetected or InputIo.ShootingFeederBoltDetected }))

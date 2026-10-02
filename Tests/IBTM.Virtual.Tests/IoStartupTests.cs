@@ -814,9 +814,11 @@ public sealed class IoStartupTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
         var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
+        services.GetRequiredService<VirtualIoService>().SetInput(InputIo.ServoMainContactorOn, true);
         await machine.InitializeAsync();
         // Physical SMEMA outputs are enabled in automatic mode, not teaching mode.
         services.GetRequiredService<VirtualIoService>().SetInput(InputIo.AutoMode, false);
+        await WaitUntilAsync(() => machine.IsStartAllowed);
         var running = Record.ExceptionAsync(() => machine.StartAsync());
         try
         {
@@ -846,69 +848,6 @@ public sealed class IoStartupTests
             io.BeforeOutputWrite = null;
             machine.Stop();
             await running;
-            await machine.ShutdownAsync();
-        }
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RepeatReturnKeepsOperationAndStopFailuresWithoutReplacingSafetyAlarm(bool safetyStop)
-    {
-        await using var services = CreateServices(new MachineSettings
-        {
-            NgCarrierTransfer = new() { CarrierPickupPosition = new(), WaitingPosition = new() },
-            Units = new UnitSettings
-            {
-                PcbSupply = false,
-                PcbPlacement = false,
-                PickupBoltFeeder = false,
-                ShootingBoltFeeder = false,
-                BoltFastening = false,
-                Inspection = false,
-            },
-        });
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<StartupIo>();
-        var inputs = services.GetRequiredService<VirtualIoService>();
-        var log = services.GetRequiredService<ApplicationLog>();
-        await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
-        inputs.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-        io.SetOutput(OutputIo.NgShuttleDown, false);
-        state.RepeatEnabled = true;
-        // The carrier is already at the forward route's endpoint.
-        Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
-        var returning = false;
-        var runFailure = new IOException("Shuttle lowering failed during repeat return.");
-        var stopFailure = new IOException("NG conveyor STOP failed during return cleanup.");
-        io.BeforeOutputWrite = (output, on) =>
-        {
-            if (output == OutputIo.NgShuttleDown && on)
-            {
-                returning = true;
-                if (safetyStop)
-                    inputs.SetInput(InputIo.EmergencyStop1Pressed, true);
-                throw runFailure;
-            }
-            if (returning && output == OutputIo.NgConveyorRun && !on)
-                throw stopFailure;
-        };
-        try
-        {
-            await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
-
-            Assert.True(returning, state.AlarmDetail);
-            Assert.Equal(safetyStop ? MachineAlarm.EmergencyStop : MachineAlarm.NgConveyor, state.Alarm);
-            Assert.Contains(log.Snapshot(), entry => entry.Detail?.Contains(runFailure.Message) == true);
-            Assert.Contains(log.Snapshot(), entry => entry.Detail?.Contains(stopFailure.Message) == true);
-            Assert.False(state.AutomaticRunning);
-            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-        }
-        finally
-        {
-            io.BeforeOutputWrite = null;
             await machine.ShutdownAsync();
         }
     }
@@ -1336,6 +1275,8 @@ public sealed class IoStartupTests
         var trigger = !manual
             ? OutputIo.NgCarrierEjectCompleteLamp
             : motor == OutputIo.MainConveyorRun ? OutputIo.MainConveyorForward : OutputIo.NgConveyorReverse;
+        if (!manual)
+            io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, true);
         var attempted = false;
         io.BeforeOutputWrite = (output, on) =>
         {
@@ -1349,12 +1290,13 @@ public sealed class IoStartupTests
         };
         try
         {
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             var run = motor == OutputIo.MainConveyorRun
-                ? services.GetRequiredService<IBTM.Conveyor.MainConveyor>().RunMotorAsync()
+                ? services.GetRequiredService<IBTM.Conveyor.MainConveyor>().RunMotorAsync(stop.Token)
                 : manual
-                    ? services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>().RunMotorAsync(CancellationToken.None)
-                    : services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>().RunAsync();
-            var failure = await Assert.ThrowsAsync<AggregateException>(() => run);
+                    ? services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>().RunMotorAsync(stop.Token)
+                    : services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>().RunAsync(stop.Token);
+            var failure = await Assert.ThrowsAsync<AggregateException>(() => run.WaitAsync(TimeSpan.FromSeconds(3)));
             Assert.Equal(new[] { runError, stopError }, failure.Flatten().InnerExceptions);
         }
         finally
@@ -1368,7 +1310,6 @@ public sealed class IoStartupTests
     [InlineData(TransferFailureStep.Receive)]
     [InlineData(TransferFailureStep.Transfer)]
     [InlineData(TransferFailureStep.Discharge)]
-    [InlineData(TransferFailureStep.Return)]
     [InlineData(TransferFailureStep.NgConveyor)]
     [InlineData(TransferFailureStep.ShootBolt)]
     [InlineData(TransferFailureStep.PcbSupply)]
@@ -1399,8 +1340,6 @@ public sealed class IoStartupTests
             work.Station.Complete(work.Station.CurrentJob);
             physicalIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
         }
-        if (step == TransferFailureStep.Return)
-            VirtualTestSupport.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
         if (step == TransferFailureStep.BoltFeeder)
             physicalIo.SetInput(InputIo.ShootingEscapeBackward, true);
         if (step == TransferFailureStep.ShootBolt)
@@ -1449,9 +1388,8 @@ public sealed class IoStartupTests
         {
             var run = step switch
             {
-                TransferFailureStep.Return => conveyor.ReturnToStartAsync(timeout.Token),
                 TransferFailureStep.NgConveyor => services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>()
-                    .RunUntilAsync(InputIo.NgConveyorPosition1Occupied, false, timeout.Token),
+                    .RunUntilAsync(InputIo.NgConveyorPosition1Occupied, timeout.Token),
                 TransferFailureStep.ShootBolt => services.GetRequiredService<IBTM.BoltFastening.BoltFasteningStation>()
                     .ShootBoltAsync(timeout.Token),
                 TransferFailureStep.PcbSupply => services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>()
@@ -1948,7 +1886,9 @@ public sealed class IoStartupTests
         var state = services.GetRequiredService<MachineState>();
         var operations = services.GetRequiredService<OperationCancellation>();
         var io = services.GetRequiredService<StartupIo>();
+        services.GetRequiredService<VirtualIoService>().SetInput(InputIo.ServoMainContactorOn, true);
         await machine.InitializeAsync();
+        await WaitUntilAsync(() => machine.IsHomeAllowed);
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         Assert.True(machine.IsHomeAllowed);
         var failure = new IOException("PCB input became unavailable before cylinder raise.");
@@ -2000,7 +1940,9 @@ public sealed class IoStartupTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
+        services.GetRequiredService<VirtualIoService>().SetInput(InputIo.ServoMainContactorOn, true);
         await machine.InitializeAsync();
+        await WaitUntilAsync(() => machine.IsHomeAllowed);
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         await machine.HomeAsync(CancellationToken.None);
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
@@ -2073,9 +2015,7 @@ public sealed class IoStartupTests
         foreach (var group in station.TeachingUnits)
         {
             station.SelectedTeachingUnit = group;
-            Assert.Equal(
-                group == HardwareArea.InspectionGantry ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable,
-                station.MotionHint);
+            Assert.Equal(TeachingMotionHint.MotionUnavailable, station.MotionHint);
             Assert.False(station.IsTeachCurrentPositionAllowed);
             foreach (var point in station.FilteredPoints.Where(point => point.Storage == TeachingStorage.Handoff))
             {
@@ -2532,7 +2472,6 @@ public sealed class IoStartupTests
         Receive,
         Transfer,
         Discharge,
-        Return,
         NgConveyor,
         ShootBolt,
         PcbSupply,

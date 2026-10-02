@@ -1,19 +1,27 @@
 using System;
+using System.Threading;
 using IBTM.Core;
 using ZXing;
 using ZXing.Common;
 
 namespace IBTM.Inspection;
 
+public sealed record DataMatrixReadResult(string? Text, int Threshold, bool Dilated, ImageFrame BinaryImage);
+
 public static class DataMatrixReader
 {
-    public static string? Read(ImageFrame image, PixelRegion region, DataMatrixInspectionRecipe settings)
+    public static DataMatrixReadResult Read(
+        ImageFrame image, PixelRegion region, DataMatrixInspectionRecipe settings,
+        CancellationToken cancellationToken = default)
     {
-        if (settings.BinaryThreshold is { } threshold)
-        {
-            image = BinaryRegionAnalyzer.Check(image, region, threshold).Image;
-            region = new(0, 0, image.Width, image.Height);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        // One captured image and one set of options throughout the retry sequence.
+        var minimum = settings.ThresholdMinimum;
+        var maximum = settings.ThresholdMaximum;
+        var step = settings.ThresholdStep;
+        var radius = settings.DilationRadius;
+        if (minimum > maximum)
+            throw new InvalidOperationException("Data Matrix threshold minimum must not exceed maximum.");
         var reader = new BarcodeReaderGeneric
         {
             AutoRotate = settings.AutoRotate,
@@ -25,39 +33,48 @@ public static class DataMatrixReader
                 PureBarcode = settings.PureBarcode,
             },
         };
-        return reader.Decode(CreateLuminanceSource(image, region))?.Text;
-    }
-
-    public static ImageFrame? CreateBinaryImage(ImageFrame image, PixelRegion region, int? threshold)
-    {
-        if (threshold is { } value)
-            return BinaryRegionAnalyzer.Check(image, region, value).Image;
-        var matrix = new HybridBinarizer(CreateLuminanceSource(image, region)).BlackMatrix;
-        if (matrix is null)
-            return null;
-        var stride = matrix.Width * ImageFrame.ColorChannelCount;
-        var pixels = new byte[stride * matrix.Height];
-        for (var y = 0; y < matrix.Height; y++)
+        var candidate = minimum;
+        while (true)
         {
-            for (var x = 0; x < matrix.Width; x++)
-            {
-                var offset = y * stride + x * ImageFrame.ColorChannelCount;
-                var pixel = matrix[x, y] ? (byte)0 : (byte)255;
-                pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = pixel;
-            }
-        }
-        return new(matrix.Width, matrix.Height, stride, pixels);
-    }
+            cancellationToken.ThrowIfCancellationRequested();
+            var binary = BinaryRegionAnalyzer.Check(image, region, candidate).Image;
+            var text = reader.Decode(new RGBLuminanceSource(
+                binary.Pixels, binary.Width, binary.Height, RGBLuminanceSource.BitmapFormat.BGR24))?.Text;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!string.IsNullOrEmpty(text))
+                return new(text, candidate, false, binary);
 
-    private static RGBLuminanceSource CreateLuminanceSource(ImageFrame image, PixelRegion region)
-    {
-        if (!region.IsInside(image.Width, image.Height))
-            throw new ArgumentOutOfRangeException(nameof(region), "Data Matrix region must fit inside the camera FOV.");
-        var stride = region.Width * ImageFrame.ColorChannelCount;
-        var pixels = new byte[stride * region.Height];
-        for (var row = 0; row < region.Height; row++)
-            Array.Copy(image.Pixels, (region.Y + row) * image.Stride + region.X * ImageFrame.ColorChannelCount,
-                pixels, row * stride, stride);
-        return new RGBLuminanceSource(pixels, region.Width, region.Height, RGBLuminanceSource.BitmapFormat.BGR24);
+            if (radius > 0)
+            {
+                // Retry this threshold after expanding black dots, before advancing to the next one.
+                var pixels = new byte[binary.Pixels.Length];
+                for (var y = 0; y < binary.Height; y++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    for (var x = 0; x < binary.Width; x++)
+                    {
+                        byte value = 255;
+                        for (var sourceY = Math.Max(0, y - radius); sourceY <= Math.Min(binary.Height - 1, y + radius); sourceY++)
+                        {
+                            for (var sourceX = Math.Max(0, x - radius); sourceX <= Math.Min(binary.Width - 1, x + radius); sourceX++)
+                                value = Math.Min(value, binary.Pixels[sourceY * binary.Stride + sourceX * ImageFrame.ColorChannelCount]);
+                        }
+                        var offset = y * binary.Stride + x * ImageFrame.ColorChannelCount;
+                        pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = value;
+                    }
+                }
+                binary = binary with { Pixels = pixels };
+                text = reader.Decode(new RGBLuminanceSource(
+                    binary.Pixels, binary.Width, binary.Height, RGBLuminanceSource.BitmapFormat.BGR24))?.Text;
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!string.IsNullOrEmpty(text))
+                    return new(text, candidate, true, binary);
+            }
+
+            if (candidate == maximum)
+                return new(null, candidate, radius > 0, binary);
+            // Include the upper bound even when the step does not divide the range evenly.
+            candidate = Math.Min(candidate + step, maximum);
+        }
     }
 }

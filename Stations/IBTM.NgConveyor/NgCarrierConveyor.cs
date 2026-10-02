@@ -6,14 +6,13 @@ using IBTM.Device;
 
 namespace IBTM.NgConveyor;
 
-public sealed partial class NgCarrierConveyor : AutoUnit
+public sealed class NgCarrierConveyor : AutoUnit
 {
     private readonly NgConveyorSettings _settings;
     private INgCarrierTransferFeedback? _transfer;
     private readonly UnitSettings _units;
     private volatile Movement _movement;
     private volatile EjectionPhase _ejectionPhase;
-    private bool _repeat;
     private int _ejectRequested;
     private int _ejectCompleteRequested;
 
@@ -116,7 +115,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             && _ejectionPhase == EjectionPhase.Idle
             && Volatile.Read(ref _ejectRequested) == 0
             && !NeedsCompaction
-            && (_repeat || !Io.GetInput(InputIo.NgCarrierEjectButton))
+            && !Io.GetInput(InputIo.NgCarrierEjectButton)
             && !(runCommandOn ?? Io.GetOutput(OutputIo.NgConveyorRun));
     }
 
@@ -124,7 +123,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
     {
         // InputChanged supplies button edges; held buttons and presses during movement
         // must not become another ejection when the current operation ends.
-        if (value && IsRunning && _units.NgConveyor && !_repeat)
+        if (value && IsRunning && _units.NgConveyor)
         {
             switch (input)
             {
@@ -147,21 +146,18 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         }
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
+    public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        _repeat = repeat;
         var motor = new ConveyorRun(Io, OutputIo.NgConveyorRun, cancellationToken, OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (repeat && _ejectionPhase != EjectionPhase.Idle)
-                throw new InvalidOperationException("Complete NG carrier ejection before starting Repeat.");
             BeginRun();
             _movement = Movement.None;
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (!repeat && Volatile.Read(ref _ejectRequested) != 0)
+                if (Volatile.Read(ref _ejectRequested) != 0)
                 {
                     _ejectionPhase = EjectionPhase.Ejecting;
                     Interlocked.Exchange(ref _ejectRequested, 0);
@@ -169,7 +165,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                 }
                 var state = GetNextStep(Io.GetOutput(OutputIo.NgConveyorRun));
                 cancellationToken.ThrowIfCancellationRequested();
-                var buttonsEnabled = _units.NgConveyor && !_repeat;
+                var buttonsEnabled = _units.NgConveyor;
                 var ejectLamp = buttonsEnabled
                     && state is NgConveyorState.ReadyToEject or NgConveyorState.Full or NgConveyorState.WaitingForEjectConfirmation
                     && Volatile.Read(ref _ejectCompleteRequested) == 0
@@ -204,7 +200,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         await Io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
                         await RunUntilAsync(
                             toPosition1 ? InputIo.NgConveyorPosition1Occupied : InputIo.NgConveyorPosition2Occupied,
-                            false, cancellationToken);
+                            cancellationToken);
                         NotifyChanged();
                         break;
                     case NgConveyorState.WaitingForShuttleUp:
@@ -249,7 +245,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         EnterStep(state);
                         _movement = Movement.Compacting;
                         await Io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
-                        await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, false, cancellationToken);
+                        await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, cancellationToken);
                         _movement = Movement.None;
                         NotifyChanged();
                         break;
@@ -306,7 +302,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             }
             finally
             {
-                _repeat = false;
                 _movement = Movement.None;
                 // An interrupted ejection still needs operator confirmation, not an
                 // automatic refill on START. This records permission, not carrier position.
@@ -417,7 +412,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 
     internal async Task RunUntilAsync(
         InputIo destination,
-        bool reverse,
         CancellationToken cancellationToken)
     {
         if (Io.GetInput(destination))
@@ -429,7 +423,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         var arrived = Io.WaitForInputAsync(destination, true, arrival.Token);
         try
         {
-            StartConveyor(cancellationToken, reverse);
+            StartConveyor(cancellationToken);
             await arrived;
             await Task.Delay(TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
@@ -447,12 +441,12 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         }
     }
 
-    private void StartConveyor(CancellationToken cancellationToken, bool reverse = false)
+    private void StartConveyor(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
         cancellationToken.ThrowIfCancellationRequested();
-        Io.SetOutput(OutputIo.NgConveyorReverse, reverse);
+        Io.SetOutput(OutputIo.NgConveyorReverse, false);
         cancellationToken.ThrowIfCancellationRequested();
         Io.SetOutput(OutputIo.NgConveyorRun, true);
     }

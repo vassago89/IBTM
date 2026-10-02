@@ -331,18 +331,6 @@ public sealed class ConveyorStation : INotifyPropertyChanged
         Changed?.Invoke();
     }
 
-    public void StartRepeat(Job job)
-    {
-        lock (s_jobGate)
-        {
-            RequireCurrentJob(job);
-            if (!CarrierPresent || !job.Completed)
-                throw new InvalidOperationException("Finish the current carrier work before starting another stationary repeat.");
-            _job = new();
-        }
-        Changed?.Invoke();
-    }
-
     public sealed class Job
     {
         private static long s_nextId;

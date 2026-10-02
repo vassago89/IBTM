@@ -52,10 +52,6 @@
                 <Border Background="{StaticResource ControlBgBrush}" Padding="12,8" Margin="20,0,0,0">
                     <TextBlock Text="{Binding ModeText}"/>
                 </Border>
-                <Border Background="{StaticResource AttentionBackgroundBrush}" Padding="12,8" Margin="8,0,0,0"
-                    Visibility="{Binding State.RepeatEnabled, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{ui:Text 'REPEAT'}" Foreground="{StaticResource AccentAmberBrush}"/>
-                </Border>
             </StackPanel>
         </Grid>
         <Border Grid.Row="1" Background="{StaticResource ControlBgBrush}" Padding="14,10" Margin="0,0,0,12">
@@ -346,6 +342,16 @@
                                         <Button.CommandParameter><sys:Boolean>True</sys:Boolean></Button.CommandParameter>
                                     </Button>
                                     <Button Content="{ui:Text 'Lower plate'}" Command="{Binding SetStartBackupPlateCommand}"
+                                        Height="40" Padding="8,4" Margin="4,0,0,0" Style="{StaticResource SecondaryButtonStyle}">
+                                        <Button.CommandParameter><sys:Boolean>False</sys:Boolean></Button.CommandParameter>
+                                    </Button>
+                                </UniformGrid>
+                                <UniformGrid Columns="2" Margin="0,8,0,0" IsEnabled="{Binding State.ManualSetupEnabled}">
+                                    <Button Content="{ui:Text 'Raise stopper'}" Command="{Binding SetStartStopperCommand}"
+                                        Height="40" Padding="8,4" Margin="0,0,4,0" Style="{StaticResource SecondaryButtonStyle}">
+                                        <Button.CommandParameter><sys:Boolean>True</sys:Boolean></Button.CommandParameter>
+                                    </Button>
+                                    <Button Content="{ui:Text 'Lower stopper'}" Command="{Binding SetStartStopperCommand}"
                                         Height="40" Padding="8,4" Margin="4,0,0,0" Style="{StaticResource SecondaryButtonStyle}">
                                         <Button.CommandParameter><sys:Boolean>False</sys:Boolean></Button.CommandParameter>
                                     </Button>

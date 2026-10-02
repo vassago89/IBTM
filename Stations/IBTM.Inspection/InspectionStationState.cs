@@ -28,9 +28,6 @@ public enum InspectionStationState
     [Description("Moving and Placing Carrier")]
     PlacingCarrier,
 
-    [Description("Carrier Held at Destination")]
-    HoldingAtDestination,
-
     [Description("Returning to Waiting Position")]
     ReturningToWaitingPosition,
 
@@ -42,9 +39,6 @@ public enum InspectionStationState
 
     [Description("Disabled")]
     Disabled,
-
-    [Description("Preparing Inspection Supports")]
-    PreparingInspectionPosition,
 
     [Description("Preparing Inspection Points")]
     PreparingInspection,

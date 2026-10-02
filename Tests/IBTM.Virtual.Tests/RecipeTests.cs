@@ -184,8 +184,8 @@ public sealed class RecipeTests
         var secondPoint = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.BoltReference, MotionGroup.InspectionGantry, TeachMode.Image) { Bolt = second }, new(), recipe);
 
-        Assert.Equal("Bolt 1 Inspection", firstPoint.Name);
-        Assert.Equal("Bolt 2 Inspection", secondPoint.Name);
+        Assert.Equal("Bolt 1", firstPoint.Name);
+        Assert.Equal("Bolt 2", secondPoint.Name);
         Assert.True(firstPoint.Position.HasPosition);
         Assert.Equal((148.637, 244.938), (firstPoint.MovePosition.X, firstPoint.MovePosition.Y));
         Assert.DoesNotContain("Not taught", firstPoint.PositionLabel);

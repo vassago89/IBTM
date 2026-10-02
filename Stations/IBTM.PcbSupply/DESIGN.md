@@ -97,17 +97,16 @@ to the other. Each loop listens for the peer's own changes to wake its wait;
 it never relays those changes back to the peer.
 Supply reaches its handoff XYZ and confirms Unrotated before Placement approaches.
 Placement waits outside the handoff while Supply is unavailable: forward receipt requires
-`Holding`; a Repeat return requires `Released`. Placement monitors this condition through
+`Holding`. Placement monitors this condition through
 its Z, X, then Y approach and cancels movement if Supply readiness is lost.
 Every Placement axis movement requires its handler cylinder Up. Both handlers must settle at
 their own taught standby/give XYZ before Placement moves Z to `ReceiveZ`.
 
 Supply releases only while Placement reports handoff `Holding`, which
 requires PCB detection and vacuum detection at the receive position with the handler Up.
-Normal receipt prepares IPM Down and Repeat prepares IPM Up. A contradictory
+Receipt prepares IPM Down. A contradictory
 or unknown endpoint is unavailable. Forward release checks recipient holding and
 Supply's ready, stopped axes and Unrotated feedback before each actuator.
-Return receipt rechecks these conditions after gripper closure before advancing the fixer.
 After release, Placement returns Z
 to standby with its handler cylinder still Up, then moves Y to the selected heat sink while retaining handoff X.
 Supply waits for Placement's `Clear` after that Y move before its XY return.
@@ -125,13 +124,9 @@ inputs ON or both OFF mean Between. PCB detection alone does not prove holding:
 `Secured` also requires closed-gripper and IPM-fixer feedback. Output commands
 never substitute for endpoint confirmation.
 
-Both normal and Repeat handoff reject Rotated or Between feedback. Normal operation
-stops with an interlock error if this is detected at give XYZ. Release rechecks
-Unrotated feedback before opening the gripper. Withdrawal waits for Placement to
-clear before rotating at handoff XYZ. Repeat reverse preparation approaches at
-Travel Z and confirms Unrotated at handoff XYZ, even when the coordinates already match. If Placement is
-already holding or returning the PCB at receive Z, invalid rotation stops the
-operation without automatically rotating Supply.
+Handoff rejects Rotated or Between feedback and stops with an interlock error.
+Release rechecks Unrotated feedback before opening the gripper. Withdrawal waits
+for Placement to clear before rotating at handoff XYZ.
 
 Manual axis moves and jog retain the current Z. A handoff point move accepts
 either confirmed orientation and preserves it; a pickup point move requires Rotated.
@@ -158,36 +153,7 @@ The selector contact is ON in teaching/manual mode. Mode changes clear TEST.
 Automatic SMEMA output calls do not write in teaching; direct manual output
 control remains available. TEST OFF followed by ON starts the next carrier.
 
-## Repeat and verification
-
-The same switch in `PcbSupplier.cs` owns reverse receipt, return placement and
-re-pickup. With Placement disabled, Supply initially picks one PCB using the
-normal upstream handshake, visits handoff, and then repeats with that PCB.
-With Placement enabled, Placement returns each PCB from its original heat sink;
-Heat Sink 1 maps to Pickup 1 and Heat Sink 2 maps to Pickup 2. One PCB completes
-its round trip before the next one starts.
-
-Supply closes its gripper and advances the fixer while Placement still holds the
-PCB. After Placement releases and clears the handoff, Supply rotates at handoff
-XYZ, rises to Travel Z, moves to the selected pickup XY, and descends to pickup Z.
-It retracts the fixer, opens the gripper, rises empty to Travel Z, and uses normal
-pickup to grip the same PCB again. The normal forward handoff returns it to its
-original heat sink.
-
-After each forward handoff, Supply waits for Placement to clear, then runs the
-same withdrawal as normal production: rotate at handoff XYZ -> Travel Z -> pickup
-XY. Repeat waits there with its gripper and fixer released. The slot remains the
-PCB just handled; the next return request selects the corresponding slot before
-receipt. Initial standby is Pickup 1 XY + Travel Z. A return request cannot bypass
-unfinished withdrawal within the same run. The next receipt approaches at
-Travel Z and unrotates only after reaching handoff XYZ. When the last station
-finishes, the machine lets empty withdrawal complete before cancelling the
-forward units and reversing the main conveyor.
-
-SMEMA Board Available is not a support sensor. Repeat placement and re-pickup do
-not wait for it or cancel when it is OFF. This path has no support-presence input:
-release occurs at the taught pickup XYZ even if no physical support is present.
-The virtual model represents fixed supports at those pickup positions.
+## Restart and verification
 
 After STOP, remove the PCB from Supply before START, except for a normal-mode PCB
 already secured at the completed forward handoff. START checks ready axes,
@@ -196,16 +162,11 @@ Travel Z -> handoff XY -> handoff Z -> rotation confirmation. Handoff stays
 unavailable throughout this move. After arrival, Supply holds the PCB until
 Placement confirms holding. No coordinate comparison is used to admit this restart.
 The next pickup scan always starts at PCB 1, including after this handoff; the
-previous slot is not resumed. Partial release, interrupted travel and Repeat-held
-PCBs still require removal. A confirmed open gripper is not considered to hold
+previous slot is not resumed. Partial release and interrupted travel still require PCB removal. A confirmed open gripper is not considered to hold
 a PCB merely because the PCB detector or IPM fixer input is ON. On a new run,
 the open gripper's extended fixer is retracted and its feedback awaited before
 empty travel. Unknown gripper feedback still blocks a detected PCB at START.
-An empty new run moves to PCB 1 standby;
-Repeat then waits for Placement's return request. Grip loss during the pickup lift
-still stops the operation, and a missing returned PCB does not advance to another slot.
-
-See the [Repeat instructions](../../docs/STATION3_COMMISSIONING.md#repeat).
+An empty new run moves to PCB 1 standby. Grip loss during the pickup lift stops the operation.
 
 Focused regressions cover standby before SMEMA, both pickup slots, rotation at
 handoff XYZ, travel at a different Travel Z, motion cancellation,

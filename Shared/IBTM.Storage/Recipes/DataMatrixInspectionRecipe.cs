@@ -20,15 +20,54 @@ public sealed class DataMatrixInspectionRecipe
     public bool AutoRotate { get; set; }
     public bool PureBarcode { get; set; }
 
-    // Null uses ZXing's automatic binarization, preserving existing recipes.
-    public int? BinaryThreshold
+    public int ThresholdMinimum
     {
         get;
         set
         {
             if (value is < 0 or > 255)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255, or leave blank for automatic thresholding.");
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a threshold from 0 to 255.");
             field = value;
         }
+    }
+
+    public int ThresholdMaximum
+    {
+        get;
+        set
+        {
+            if (value is < 0 or > 255)
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a threshold from 0 to 255.");
+            field = value;
+        }
+    } = 255;
+
+    public int ThresholdStep
+    {
+        get;
+        set
+        {
+            if (value is < 1 or > 255)
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a threshold step from 1 to 255.");
+            field = value;
+        }
+    } = 5;
+
+    // Zero disables dilation; otherwise retry each failed threshold after expanding black dots by this many pixels.
+    public int DilationRadius
+    {
+        get;
+        set
+        {
+            if (value is < 0 or > 5)
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a dilation radius from 0 to 5 pixels.");
+            field = value;
+        }
+    } = 1;
+
+    public void Validate()
+    {
+        if (ThresholdMinimum > ThresholdMaximum)
+            throw new InvalidOperationException("Data Matrix threshold minimum must not exceed maximum.");
     }
 }

@@ -8,14 +8,11 @@ Virtual 검증과 실장비 검증은 구분한다.
 - `Stations/IBTM.Conveyor/MainConveyor.cs`: 의존성·피드백, 자동 실행·이송 우선순위,
   모터·SMEMA·정지, 반입·스테이션 간 이송·후방 배출.
   출발지 하강부터 목적지 도착·정지까지는 계속 하나의 비동기 동작이다.
-- `Stations/IBTM.Conveyor/MainConveyor.Repeat.cs`: Repeat 완료 대기와 역방향 복귀.
 - `Stations/IBTM.Inspection/InspectionStation.cs`: 검사·착좌 요청과 물리 조건,
   검사·NG 이송 단계 선택·자동 실행과 집기·놓기·촬영.
-- `Stations/IBTM.Inspection/InspectionStation.Repeat.cs`: Repeat 완료 대기와 S3 복귀.
 
 컨베이어의 기동·정지·이송·배출·결과 소유권 테스트는 `ConveyorTests.cs`에 모은다.
-메인·검사 간 순서 검증은 `MachineLifecycleTests.cs`에 두고,
-별도의 반복 시험만 `MachineLifecycleTests.Repeat.cs`에 둔다.
+메인·검사 간 순서 검증은 `MachineLifecycleTests.cs`에 둔다.
 
 ## 확정한 물리 동작
 
@@ -71,7 +68,6 @@ S1이 비어 있고 S2 → S3 도착 뒤 전단 반입이 가능하다면,
 반대로 입구에 캐리어가 이미 있으면 SMEMA를 기다리지 않고 반입한다.
 S1에 받을 공간이 있어야 하며, S3 검사 중의 벨트 정지와 후방 이송 우선순위는 유지한다.
 티칭에서는 기존처럼 Front 2 TEST Available을 사용하고, 자동에서는 실제 SMEMA DI를 사용한다.
-Repeat는 외부 SMEMA로 새 캐리어를 받지 않고 현재 입구 센서의 캐리어를 재반입한다.
 
 | 상태 | 동작 또는 대기 조건 |
 | --- | --- |
@@ -154,7 +150,7 @@ NG 운반 중처럼 캐리어를 잡고 있으면 기존 NG 이송 동작이 우
 
 `MachineController`는 S1·S2·S3 작업 루프를 Enabled와 무관하게 실행하고 취소·오류를 관리한다.
 처음부터 착좌된 캐리어의 완료가 첫 이송 선택에 반영되도록 작업 루프를 컨베이어보다 먼저 시작한다.
-각 스테이션은 Enabled가 false이면 작업 장치를 구동하지 않고 완료 처리한다. 안착은 잡고 있는 PCB나 미완료 Repeat 인계가 있으면 캐리어를 완료 처리하지 않는다.
+각 스테이션은 Enabled가 false이면 작업 장치를 구동하지 않고 완료 처리한다. 안착은 잡고 있는 PCB나 불확실한 그립이 있으면 캐리어를 완료 처리하지 않는다.
 작업 수행과 건너뛰기는 모두 같은 완료값을 사용하며, 별도 스킵 상태는 두지 않는다.
 `ConveyorStation`은 스테이션이 기록한 완료를 보관하며, 센서나 Enabled만으로 완료를 만들어내지 않는다.
 Enabled를 바꿔도 현재 캐리어의 완료는 유지되며, 새 캐리어에는 이전 완료가 승계되지 않는다.
@@ -188,6 +184,5 @@ S2 → S3의 결과는 HS2 감지 후 벨트를 정지한 뒤 인계한다. 밀�
   RESET은 장치 알람만 해제하며 소재 확인과 작업 완료 처리를 하지 않는다.
 - DI 079 `NgCarrierDetected`는 화면 표시 전용이다. 집기 완료·이송 상태·그립 상실·S3 입고 판단에 사용하지 않는다.
   NG 인계 진행 상태와 그리퍼·리프트·수취 지지부의 피드백으로 동작을 판단한다.
-- Repeat의 S3 반환 지지는 기존처럼 상승 상태다. 새 검사 진행 시에는 위 DOWN 조건으로 전환한다.
 
 현장 확인 항목은 [STATION3_COMMISSIONING.md](STATION3_COMMISSIONING.md)를 참고한다.
