@@ -3704,4 +3704,7 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="value must be 0–65535." xml:space="preserve">
     <value>값: 0–65535 입력</value>
   </data>
+  <data name="pcb save failed · retry before exit" xml:space="preserve">
+    <value>이력 저장 실패 · 종료 전 저장 재시도</value>
+  </data>
 </root>

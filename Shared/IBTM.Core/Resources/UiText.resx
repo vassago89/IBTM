@@ -3701,4 +3701,7 @@ COMPLETE: finish</value>
   <data name="value must be 0–65535." xml:space="preserve">
     <value>Value must be 0–65535.</value>
   </data>
+  <data name="pcb save failed · retry before exit" xml:space="preserve">
+    <value>PCB save failed · retry before exit</value>
+  </data>
 </root>

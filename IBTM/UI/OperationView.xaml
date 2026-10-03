@@ -288,7 +288,7 @@
                                     Foreground="{StaticResource AccentRedBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="{Binding Machine.PcbHistory.SaveError}"/>
+                                            <Setter Property="Text" Value="{ui:Text 'PCB save failed · retry before exit'}"/>
                                             <Setter Property="ToolTip" Value="{Binding Machine.PcbHistory.SaveError}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">

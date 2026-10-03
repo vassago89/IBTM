@@ -37,25 +37,31 @@
             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
         <StackPanel Grid.Row="3" Margin="0,12,0,0">
             <ScrollViewer Height="36" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <TextBlock Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="{Binding ClipboardError}"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ClipboardError}" Value="{x:Null}">
-                                    <Setter Property="Text" Value="{Binding Log.FileError, StringFormat={ui:Text 'FILE ERROR: {0}'}}"/>
-                                </DataTrigger>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding ClipboardError}" Value="{x:Null}"/>
-                                        <Condition Binding="{Binding Log.FileError}" Value="{x:Null}"/>
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                </MultiDataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <StackPanel>
+                    <TextBlock Text="{Binding ClipboardError}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ClipboardError}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding Log.FileError, StringFormat={ui:Text 'FILE ERROR: {0}'}}"
+                        Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Log.FileError}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
             </ScrollViewer>
             <DockPanel Margin="0,6,0,0">
                 <TextBlock Text="{ui:Text 'Machine log'}" Width="164" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
