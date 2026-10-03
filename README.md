@@ -10,7 +10,7 @@ SDK 대역 테스트는 드라이버 소스를 다시 컴파일하므로, 장비
 
 - [개발 안내: 수정할 파일, 디버깅 순서, 검증 명령](docs/DEVELOPMENT.md)
 - [Inspection 티칭: FOV 하나에 볼트 또는 Data Matrix 하나](docs/INSPECTION_TEACHING.md)
-- [Station 3 / NG / Repeat 현장 확인](docs/STATION3_COMMISSIONING.md)
+- [납품 전 공통 확인 / Station 3 / NG 현장 확인](docs/STATION3_COMMISSIONING.md)
 - [IO 주소와 극성 확인](docs/IO_MAP.md)
 - [설정·레시피 저장과 백업](docs/SETTINGS_STORAGE.md)
 - [밝은 면적 비율 검사](Stations/IBTM.Inspection/README.md)

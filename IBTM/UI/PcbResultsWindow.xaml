@@ -147,10 +147,27 @@
                         <Grid>
                             <ui:InspectionImageView Source="{Binding SelectedImage.Image}" SourceRegion="{Binding SelectedImage.Region}" ShowCrosshair="False" IsHitTestVisible="False"/>
                             <TextBlock Text="{Binding SelectedImage.Error}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource AccentAmberBrush}"/>
-                            <TextBlock Text="{ui:Text 'No saved image for this point'}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}">
-                                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers><DataTrigger Binding="{Binding SelectedImage}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
-                                </Style></TextBlock.Style>
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Setter Property="Text" Value="{Binding ImageError}"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedImage}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding ImageError}" Value="{x:Null}">
+                                                <Setter Property="Text" Value="{ui:Text 'No saved image for this point'}"/>
+                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding LoadImagesCommand.IsRunning}" Value="True">
+                                                <Setter Property="Text" Value="{ui:Text 'Loading images…'}"/>
+                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
                             </TextBlock>
                         </Grid>
                     </Border>
@@ -325,6 +342,7 @@
                                                         <Condition Binding="{Binding SelectedBolt.Result.Stage}" Value="{x:Static core:BoltFasteningStage.Preliminary}"/>
                                                         <Condition Binding="{Binding SelectedBolt.Result.IsComplete}" Value="True"/>
                                                     </MultiDataTrigger.Conditions><Setter Property="Text" Value="{ui:Text 'Pre-tightening NG: skip final tightening'}"/></MultiDataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedBolt.Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}"><Setter Property="Text" Value="{ui:Text 'Dry run · NG'}"/></DataTrigger>
                                                 </Style.Triggers></Style></TextBlock.Style>
                                             </TextBlock>
                                         </StackPanel>

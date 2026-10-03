@@ -279,6 +279,7 @@ public sealed record PcbBoltResultView(
     public string BoltLabel => Recipe.Pcb.GetBoltName(BoltId, Ordinal);
     public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => !Result.IsComplete ? UiText.Get("Final tightening pending")
+        : Result.Source == BoltResultSource.DryRun ? StageVerdict
         : Result.Stage == BoltFasteningStage.Preliminary ? UiText.Get("Pre-tightening NG")
         : StageVerdict;
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";

@@ -524,6 +524,11 @@
                 <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
                 <Setter Property="ToolTip" Value="{ui:Text 'Backup plate lowered'}"/>
             </Trigger>
+            <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
+                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="ToolTip" Value="{ui:Text 'Backup plate position unknown'}"/>
+            </DataTrigger>
         </Style.Triggers>
     </Style>
 
@@ -547,6 +552,13 @@
                 <Setter Property="Opacity" Value="0.3"/>
                 <Setter Property="ToolTip" Value="{ui:Text 'Stopper lowered'}"/>
             </Trigger>
+            <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Opacity" Value="1"/>
+                <Setter Property="ToolTip" Value="{ui:Text 'Stopper position unknown'}"/>
+            </DataTrigger>
         </Style.Triggers>
     </Style>
 
@@ -569,6 +581,12 @@
                 <Setter Property="Fill" Value="{StaticResource BackupPlateBrush}"/>
                 <Setter Property="ToolTip" Value="{ui:Text 'Lift lowered'}"/>
             </Trigger>
+            <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
+                <Setter Property="Data" Value="M 136,16 C 136,5 150,5 150,15 C 150,21 143,20 143,27 M 143,32 V 35"/>
+                <Setter Property="Stroke" Value="{StaticResource AccentAmberBrush}"/>
+                <Setter Property="Fill" Value="Transparent"/>
+                <Setter Property="ToolTip" Value="{ui:Text 'Lift position unknown'}"/>
+            </DataTrigger>
         </Style.Triggers>
     </Style>
 
@@ -591,6 +609,13 @@
                 <Setter Property="Stroke" Value="{StaticResource TextMutedBrush}"/>
                 <Setter Property="ToolTip" Value="{ui:Text 'Stopper lowered'}"/>
             </Trigger>
+            <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
+                <Setter Property="Data" Value="M 260,13 H 268 V 38 H 260 Z"/>
+                <Setter Property="Stroke" Value="{StaticResource AccentAmberBrush}"/>
+                <Setter Property="Fill" Value="Transparent"/>
+                <Setter Property="StrokeDashArray" Value="2,2"/>
+                <Setter Property="ToolTip" Value="{ui:Text 'Stopper position unknown'}"/>
+            </DataTrigger>
         </Style.Triggers>
     </Style>
 

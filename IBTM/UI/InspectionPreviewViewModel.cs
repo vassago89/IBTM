@@ -179,7 +179,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         Success = null;
     }
 
-    private void RefreshBinaryImage()
+    internal void RefreshBinaryImage()
     {
         ClearResult();
         if (_frame is not null && _sourceRegion is { } region)

@@ -46,7 +46,8 @@
                 <TextBlock Text="{ui:Text 'Recipe'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" IsEditable="True" IsTextSearchEnabled="False"
                     Text="{Binding RecipeEditor.Name, Mode=TwoWay, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
-                    AutomationProperties.Name="{ui:Text 'Recipe'}" Width="180" Margin="0,0,6,0"/>
+                    AutomationProperties.Name="{ui:Text 'Recipe'}" ToolTip="{Binding RecipeEditor.Name}"
+                    Width="180" Margin="0,0,6,0"/>
                 <Button Content="{ui:Text 'Load'}" Command="{Binding RecipeEditor.LoadCommand}"
                     CommandParameter="{Binding RecipeEditor.Name}"
                     IsEnabled="{Binding RecipeEditor.IsSaveAllowed}"

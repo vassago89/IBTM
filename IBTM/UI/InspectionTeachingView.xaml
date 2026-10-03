@@ -28,7 +28,8 @@
                 <TextBlock Text="{ui:Text 'Recipe'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <ComboBox ItemsSource="{Binding RecipeNames}"
                     SelectedItem="{Binding SelectedRecipeName, Mode=TwoWay, BindingGroupName={x:Null}}"
-                    AutomationProperties.Name="{ui:Text 'Recipe'}" Width="180" Margin="0,0,6,0"/>
+                    AutomationProperties.Name="{ui:Text 'Recipe'}" ToolTip="{Binding SelectedRecipeName}"
+                    Width="180" Margin="0,0,6,0"/>
                 <Button Content="{ui:Text 'Load'}" Command="{Binding LoadRecipeCommand}"
                     Style="{StaticResource SecondaryButtonStyle}" MinWidth="100" Margin="0,0,6,0"/>
                 <Button Command="{Binding SaveCommand}" MinWidth="100">
@@ -55,7 +56,8 @@
                     <TabItem Header="{ui:Text 'Taught points'}">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                <TextBlock Text="{Binding Preview.Recipe.Name}" Style="{StaticResource PanelTitleStyle}"/>
+                                <TextBlock Text="{Binding Preview.Recipe.Name}" Style="{StaticResource PanelTitleStyle}"
+                                    TextTrimming="CharacterEllipsis" ToolTip="{Binding Preview.Recipe.Name}"/>
                             </StackPanel>
                             <ListBox ItemsSource="{Binding Source={StaticResource InspectionPoints}}" SelectedItem="{Binding SelectedPoint, BindingGroupName={x:Null}}"
                                 IsEnabled="{Binding IsIdle}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
@@ -201,13 +203,17 @@
                             </TextBlock>
                             <WrapPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{ui:Text 'Data Matrix'}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="{ui:Text 'Extended search'}" IsChecked="{Binding DataMatrix.TryHarder, BindingGroupName={x:Null}}"
+                                <CheckBox Content="{ui:Text 'Extended search'}" IsChecked="{Binding DataMatrix.TryHarder, BindingGroupName={x:Null}, NotifyOnSourceUpdated=True}"
+                                    SourceUpdated="OnDataMatrixSettingChanged"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="{ui:Text 'Inverted colors'}" IsChecked="{Binding DataMatrix.TryInverted, BindingGroupName={x:Null}}"
+                                <CheckBox Content="{ui:Text 'Inverted colors'}" IsChecked="{Binding DataMatrix.TryInverted, BindingGroupName={x:Null}, NotifyOnSourceUpdated=True}"
+                                    SourceUpdated="OnDataMatrixSettingChanged"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="{ui:Text 'Rotation search'}" IsChecked="{Binding DataMatrix.AutoRotate, BindingGroupName={x:Null}}"
+                                <CheckBox Content="{ui:Text 'Rotation search'}" IsChecked="{Binding DataMatrix.AutoRotate, BindingGroupName={x:Null}, NotifyOnSourceUpdated=True}"
+                                    SourceUpdated="OnDataMatrixSettingChanged"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="{ui:Text 'Pure barcode'}" IsChecked="{Binding DataMatrix.PureBarcode, BindingGroupName={x:Null}}"
+                                <CheckBox Content="{ui:Text 'Pure barcode'}" IsChecked="{Binding DataMatrix.PureBarcode, BindingGroupName={x:Null}, NotifyOnSourceUpdated=True}"
+                                    SourceUpdated="OnDataMatrixSettingChanged"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
                             </WrapPanel>
                             <WrapPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
@@ -217,15 +223,18 @@
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
                                     <TextBlock Text="{ui:Text 'Max. threshold'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox Width="60" Text="{Binding DataMatrix.ThresholdMaximum, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                    <TextBox Width="60" Text="{Binding DataMatrix.ThresholdMaximum, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
+                                        SourceUpdated="OnDataMatrixSettingChanged"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
                                     <TextBlock Text="{ui:Text 'Threshold step'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox Width="60" Text="{Binding DataMatrix.ThresholdStep, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                    <TextBox Width="60" Text="{Binding DataMatrix.ThresholdStep, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
+                                        SourceUpdated="OnDataMatrixSettingChanged"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                     <TextBlock Text="{ui:Text 'Dilation radius (px; 0 = off)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox Width="60" Text="{Binding DataMatrix.DilationRadius, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                    <TextBox Width="60" Text="{Binding DataMatrix.DilationRadius, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
+                                        SourceUpdated="OnDataMatrixSettingChanged"/>
                                 </StackPanel>
                             </WrapPanel>
                             <WrapPanel>
@@ -277,9 +286,27 @@
                                 RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                         </Border>
                     </Grid>
-                    <TextBlock Grid.Row="2" Height="26" Margin="0,8,0,0" Text="{Binding Preview.Result}" FontWeight="SemiBold" FontSize="17"
-                        Tag="{Binding Preview.Success}" Style="{StaticResource ResultValueStyle}"
-                        TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Preview.Result}"/>
+                    <TextBlock Grid.Row="2" MinHeight="26" Margin="0,8,0,0" FontWeight="SemiBold" FontSize="17"
+                        Tag="{Binding Preview.Success}" TextWrapping="Wrap" ToolTip="{Binding Preview.Result}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}">
+                                <Setter Property="Text" Value="{Binding Preview.Result}"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsDataMatrixSelected}" Value="True"/>
+                                            <Condition Binding="{Binding Preview.HasImage}" Value="True"/>
+                                            <Condition Binding="{Binding Preview.Success}" Value="{x:Null}"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Text" Value="{ui:Text 'After changing settings, select Inspect This Image to check the result.'}"/>
+                                    </MultiDataTrigger>
+                                    <DataTrigger Binding="{Binding InspectCommand.IsRunning}" Value="True">
+                                        <Setter Property="Text" Value="{ui:Text 'Inspecting'}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Grid>
             </Border>
         </Grid>

@@ -30,10 +30,11 @@ public sealed record FasteningResumeRow(string Label, HeatSinkSlot HeatSink, Bol
 {
     public string Status => Result is null ? "Not recorded"
         : !Result.IsComplete ? "Final tightening pending"
-        : Result.Stage == BoltFasteningStage.Preliminary ? "Pre-tightening NG"
         : Result.Source == BoltResultSource.DryRun ? "Dry run · NG"
+        : Result.Stage == BoltFasteningStage.Preliminary ? "Pre-tightening NG"
         : !Result.Success ? "NG"
-        : Result.TurnsResult == AssemblyResult.Ng ? "Turns NG" : "OK";
+        : Result.TurnsResult == AssemblyResult.Ng ? "Turns NG"
+        : Result.TurnsResult == AssemblyResult.Pending ? "Turns unavailable" : "OK";
 }
 
 public partial class OperationViewModel : ObservableObject

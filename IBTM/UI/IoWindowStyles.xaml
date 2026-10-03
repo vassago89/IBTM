@@ -211,11 +211,12 @@
                             Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource IoOutputStateStyle}"/>
                         <Button x:Name="ToggleOutput"
-                            Command="{Binding ToggleOutputCommand}" IsEnabled="{Binding IsToggleOutputAllowed}"
+                            Command="{Binding ToggleOutputCommand}" ToolTipService.ShowOnDisabled="True"
                             Tag="{Binding Io.IsOn}"
                             Content="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource IoOutputStateButtonStyle}">
+                                    <Setter Property="IsEnabled" Value="{Binding IsToggleOutputAllowed}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Io.IsOn}" Value="{x:Null}">
                                             <Setter Property="IsEnabled" Value="False"/>

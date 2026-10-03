@@ -4485,7 +4485,8 @@ public sealed class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PcbPlacement = true;
         await using var services = CreateServices(settings);
-        services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints = [new() { FasteningX = 10, FasteningY = 10 }];
+        var bolt = new BoltPoint { FasteningX = 10, FasteningY = 10 };
+        services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints = [bolt];
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -4495,6 +4496,10 @@ public sealed class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         await station.SeatAsync(CancellationToken.None);
+        var reviewedJob = station.CurrentJob;
+        var assembly = station.GetAssembly(HeatSinkSlot.HeatSink1);
+        var recorded = new BoltResult(false, 8);
+        assembly.RecordBolt(bolt.Head, bolt.Id, recorded);
         var writes = 0;
         void CountWrite(OutputIo output, bool value)
         {
@@ -4510,6 +4515,25 @@ public sealed class MachineLifecycleTests
             await review.CheckStartCommand.ExecuteAsync(null);
             Assert.False(review.IsFasteningResumeConfirmed);
             Assert.False(review.IsStartReviewAllowed);
+            // DOWN, neither sensor and contradictory feedback must all revoke resume confirmation.
+            foreach (var (up, down) in new[] { (false, true), (false, false), (true, true) })
+            {
+                review.IsFasteningResumeConfirmed = true;
+                io.SetInputs((InputIo.BoltFasteningBackupPlateUp, up), (InputIo.BoltFasteningBackupPlateDown, down));
+                Assert.False(review.IsFasteningResumeAvailable);
+                Assert.False(review.IsFasteningResumeConfirmed);
+                Assert.False(review.IsStartReviewAllowed);
+                await machine.StartAsync(resumeFastening: reviewedJob).WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(state.AutomaticRunning);
+                Assert.Equal(0, writes);
+                io.SetInputs((InputIo.BoltFasteningBackupPlateUp, true), (InputIo.BoltFasteningBackupPlateDown, false));
+                Assert.True(review.IsFasteningResumeAvailable);
+                Assert.False(review.IsFasteningResumeConfirmed);
+                Assert.False(review.IsStartReviewAllowed);
+                Assert.Same(reviewedJob, station.CurrentJob);
+                Assert.Same(recorded, assembly.ShootingBoltResults[bolt.Id]);
+                Assert.Same(recorded, Assert.Single(review.FasteningResumeBolts).Result);
+            }
             review.IsFasteningResumeConfirmed = true;
             io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
             Assert.False(review.IsFasteningResumeAvailable); // Reviewed PCB targets no longer match.

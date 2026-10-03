@@ -5,6 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:app="clr-namespace:IBTM"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
     Title=""
@@ -393,10 +394,22 @@
                             </Style>
                         </StackPanel.Style>
                         <Ellipse Width="10" Height="10" Margin="0,0,8,0" Fill="{StaticResource AccentAmberBrush}"/>
-                        <TextBlock
-                            Text="{Binding Operation.StartBlock,
-                                                  Converter={StaticResource UiTextConverter}}"
-                            VerticalAlignment="Center" Foreground="{StaticResource AccentAmberBrush}" FontSize="15" FontWeight="SemiBold"/>
+                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource AccentAmberBrush}" FontSize="15" FontWeight="SemiBold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding Operation.StartBlock, Converter={StaticResource UiTextConverter}}"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding Operation.StartBlock}" Value="{x:Static app:StartBlockReason.DoorOpen}"/>
+                                                <Condition Binding="{Binding Operation.State.Alarm}" Value="{x:Static app:MachineAlarm.None}"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Text" Value="{ui:Text 'Close doors before starting.'}"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -436,15 +449,17 @@
                             </Button>
                         </StackPanel>
                         <Button
-                            Command="{Binding Operation.ResetCommand}" IsEnabled="{Binding Operation.IsResetAllowed}"
+                            Command="{Binding Operation.ResetCommand}"
                             ToolTip="{ui:Text 'Silence buzzer / recover stopped hardware; servos may turn ON.'}"
                             ToolTipService.ShowOnDisabled="True" MinWidth="120" Height="48" Margin="0,0,8,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Setter Property="IsEnabled" Value="{Binding Operation.IsResetAllowed}"/>
                                     <Setter Property="Content" Value="{ui:Text 'RESET'}"/>
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Operation.Machine.IsResetting}" Value="True">
+                                            <Setter Property="IsEnabled" Value="False"/>
                                             <Setter Property="Content" Value="{ui:Text 'RESETTING...'}"/>
                                         </DataTrigger>
                                     </Style.Triggers>

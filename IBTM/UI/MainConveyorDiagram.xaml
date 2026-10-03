@@ -134,7 +134,7 @@
 
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.PlateTop}"
                 Tag="{Binding Placement.Station.BackupPlate}"
-                ToolTip="{ui:Text 'Placement backup plate'}" Style="{StaticResource BackupPlateVisualStyle}"/>
+                Style="{StaticResource BackupPlateVisualStyle}"/>
             <ui:CarrierView Canvas.Left="{x:Static ui:MachineDiagramLayout.PlacementCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
                 Panel.ZIndex="2"
                 HeatSink1Present="{Binding Signals.Inputs[PcbPlacementHeatSink1Present].IsOn}"
@@ -159,10 +159,10 @@
             </ui:CarrierView>
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.PlacementStopperLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StopperTop}"
                 Tag="{Binding Placement.Station.Stopper}"
-                ToolTip="{ui:Text 'Placement stopper'}" Style="{StaticResource StopperVisualStyle}"/>
+                Style="{StaticResource StopperVisualStyle}"/>
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.PlateTop}"
                 Tag="{Binding Fastening.Station.BackupPlate}"
-                ToolTip="{ui:Text 'Bolt fastening backup plate'}" Style="{StaticResource BackupPlateVisualStyle}"/>
+                Style="{StaticResource BackupPlateVisualStyle}"/>
             <ui:CarrierView Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
                 Panel.ZIndex="2"
                 HeatSink1Present="{Binding Signals.Inputs[BoltFasteningHeatSink1Present].IsOn}"
@@ -186,10 +186,10 @@
             </ui:CarrierView>
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningStopperLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StopperTop}"
                 Tag="{Binding Fastening.Station.Stopper}"
-                ToolTip="{ui:Text 'Bolt fastening stopper'}" Style="{StaticResource StopperVisualStyle}"/>
+                Style="{StaticResource StopperVisualStyle}"/>
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.PlateTop}"
                 Tag="{Binding Inspection.Station.BackupPlate}"
-                ToolTip="{ui:Text 'Inspection backup plate'}" Style="{StaticResource BackupPlateVisualStyle}"/>
+                Style="{StaticResource BackupPlateVisualStyle}"/>
             <ui:CarrierView Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionCarrierLeft}"
                 Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}" Panel.ZIndex="2"
                 HeatSink1Present="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn}"
@@ -214,7 +214,7 @@
             </ui:CarrierView>
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionStopperLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StopperTop}"
                 Tag="{Binding Inspection.Station.Stopper}"
-                ToolTip="{ui:Text 'Inspection stopper'}" Style="{StaticResource StopperVisualStyle}"/>
+                Style="{StaticResource StopperVisualStyle}"/>
             <TextBlock Canvas.Left="1358" Canvas.Top="137" Width="80"
                 Text="OUT"
                 Style="{StaticResource EquipmentRoleLabelStyle}"/>

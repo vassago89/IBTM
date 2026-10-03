@@ -36,6 +36,7 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -53,6 +54,8 @@
                                     <Button Content="{ui:Text 'Stop'}" Command="{Binding StopCommand}"
                                         Style="{StaticResource SecondaryButtonStyle}" MinWidth="140" Margin="6,0,0,0"/>
                                 </UniformGrid>
+                                <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding ActionMessage}"
+                                    TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{StaticResource AccentAmberBrush}"/>
                             </Grid>
                         </Border>
                     </DataTemplate>

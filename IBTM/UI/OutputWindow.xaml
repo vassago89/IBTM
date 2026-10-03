@@ -4,6 +4,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:OutputViewModel, IsDesignTimeCreatable=False}"
     Title="{ui:Text 'Digital Outputs'}"
@@ -117,6 +118,15 @@
                             <Setter TargetName="Row" Property="BorderThickness" Value="3,0,0,1"/>
                             <Setter TargetName="Row" Property="Padding" Value="8,7,11,7"/>
                             <Setter TargetName="Row" Property="TextElement.FontWeight" Value="SemiBold"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Io.Signal}" Value="{x:Static device:OutputIo.MainConveyorNormalSpeed}">
+                            <Setter TargetName="ToggleOutput" Property="Content" Value="{ui:Text 'Fixed ON'}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Io.Signal}" Value="{x:Static device:OutputIo.NgConveyorNormalSpeed}">
+                            <Setter TargetName="ToggleOutput" Property="Content" Value="{ui:Text 'Fixed ON'}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Io.Signal}" Value="{x:Static device:OutputIo.PcbPlacementHandlerRotate}">
+                            <Setter TargetName="ToggleOutput" Property="Content" Value="{ui:Text 'Fixed OFF'}"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Io.IsMatched}" Value="True">
                             <Setter TargetName="FeedbackStatus" Property="Text" Value="{ui:Text 'Matched'}"/>

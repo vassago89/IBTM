@@ -138,8 +138,8 @@
                             <TextBlock Margin="0,10,0,0" FontFamily="Cascadia Mono, Consolas">
                                 <Run Text="{ui:Text 'Ready '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Ready, Converter={StaticResource SignalTextConverter}, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
                                 <Run Text="{ui:Text '  Run '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Running, Converter={StaticResource SignalTextConverter}, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
-                                <Run Text="{ui:Text '  Preset '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Preset, Mode=OneWay, TargetNullValue=—}"/>
-                                <LineBreak/><Run Text="{ui:Text 'Alarm '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—}"/>
+                                <Run Text="{ui:Text '  Preset '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Preset, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
+                                <LineBreak/><Run Text="{ui:Text 'Alarm '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
                             </TextBlock>
                             <ScrollViewer Height="48" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel>

@@ -1109,6 +1109,9 @@
             <StackPanel>
                 <TextBlock Text="{ui:Text 'Language / hardware / logs: Save + restart'}"
                     Style="{StaticResource SettingHelpText}" Margin="0"/>
+                <TextBlock Text="{ui:Text 'Check the highlighted input.'}" Style="{StaticResource StatusMessageStyle}"
+                    Visibility="{Binding ElementName=SettingsRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"
+                    TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
                 <ScrollViewer Height="48" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <TextBlock Text="{Binding DatabaseMessage}" Foreground="{StaticResource TextSecondaryBrush}"
                         Style="{StaticResource StatusMessageStyle}"/>

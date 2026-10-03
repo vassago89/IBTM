@@ -262,6 +262,20 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     public bool IsDrawRegionAllowed => !IsBusy && IsInspectAllowed;
 
+    public void OnDataMatrixSettingChanged()
+    {
+        Error = null;
+        try
+        {
+            Preview.RefreshBinaryImage();
+        }
+        catch (Exception exception)
+        {
+            Error = exception.Message;
+            _log.LogError(exception, "Data Matrix preview refresh failed.");
+        }
+    }
+
     private void DrawRegion(Rect bounds)
     {
         if (!IsDrawRegionAllowed)
