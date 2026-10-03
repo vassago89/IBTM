@@ -657,11 +657,11 @@ public sealed class InspectionTeachingTests
             NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.LoadRecipeCommand.ExecuteAsync(null);
         await editor.RefreshHistoryCommand.ExecuteAsync(null);
+        editor.SelectedTab = InspectionTeachingTab.History;
         editor.SelectedRecord = Assert.Single(editor.Records);
-        await editor.LoadRecordCommand.ExecuteAsync(null);
+        await editor.LoadRecordCommand.ExecutionTask!;
         Assert.Null(editor.Error);
         Assert.NotNull(editor.HistoryImageTarget);
-        editor.UseHistoryImageCommand.Execute(null);
         Assert.Equal(VirtualTestSupport.BoltId(1), editor.SelectedPoint!.Bolt?.Id);
         Assert.Contains("PCB 7", editor.ImageSource);
         Assert.Contains("NG", editor.OriginalResult);
@@ -688,9 +688,11 @@ public sealed class InspectionTeachingTests
         await editor.LoadRecordCommand.ExecuteAsync(null);
         Assert.NotNull(editor.SelectedHistoryImage!.Error);
         Assert.Null(editor.HistoryImageTarget);
+        Assert.False(editor.Preview.HasImage);
+        Assert.False(editor.IsInspectAllowed);
 
         editor.SelectedRecord = editor.SelectedRecord! with { DatabaseFile = Path.Combine(directory, "missing.db") };
-        await editor.LoadRecordCommand.ExecuteAsync(null);
+        await editor.LoadRecordCommand.ExecutionTask!;
         Assert.NotNull(editor.Error);
         Assert.Null(editor.LoadedRecord);
         Assert.Empty(editor.HistoryImages);
@@ -814,6 +816,108 @@ public sealed class InspectionTeachingTests
     }
 
     [Fact]
+    public async Task ActiveRecipeChangeDuringInitialImageLoadDiscardsPreviousPixels()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        await SaveRecipeAsync(store, 255);
+        var other = store.LoadRecipe("Inspection");
+        other.Name = "Other";
+        store.SaveRecipe(other, sourceRecipe: "Inspection");
+        await SaveRecipeAsync(store, 0);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        var editor = new InspectionTeachingViewModel(store, recipes,
+            new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(),
+            NullLogger<InspectionTeachingViewModel>.Instance);
+        var paused = new VirtualTestSupport.PausedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        Task loading;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(paused);
+            loading = editor.LoadRecipeCommand.ExecuteAsync(null);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
+            Assert.False(editor.IsLoaded);
+            await recipes.LoadAsync("Other");
+            paused.Release();
+            await loading.WaitAsync(TimeSpan.FromSeconds(2));
+            if (editor.RefreshImagesCommand.ExecutionTask is { } refreshing)
+                await refreshing.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Null(editor.Error);
+            Assert.Equal("Other", editor.SelectedRecipeName);
+            Assert.Same(recipes.Current, editor.Preview.Recipe);
+            Assert.NotNull(editor.Preview.Image);
+            Assert.All(InspectionPreviewViewModel.CreateFrame(editor.Preview.Image).Pixels,
+                pixel => Assert.Equal(255, pixel));
+        }
+        finally
+        {
+            paused.Release();
+            await loading.WaitAsync(TimeSpan.FromSeconds(2));
+            await editor.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task InspectionShutdownDrainsImagesAndPreventsRecipeReloads()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        await SaveRecipeAsync(store);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        var editor = new InspectionTeachingViewModel(store, recipes,
+            new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(),
+            NullLogger<InspectionTeachingViewModel>.Instance);
+        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        var image = editor.Preview.Image;
+        var paused = new VirtualTestSupport.PausedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        Task loading;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(paused);
+            loading = editor.RefreshImagesCommand.ExecuteAsync(null);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+        Task? shutdown = null;
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
+            shutdown = editor.ShutdownAsync();
+            Assert.False(shutdown.IsCompleted);
+            paused.Release();
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(loading.IsCompleted);
+            Assert.Same(image, editor.Preview.Image);
+
+            await recipes.LoadAsync("Inspection");
+            Assert.Same(loading, editor.RefreshImagesCommand.ExecutionTask);
+            editor.Activate();
+            Assert.Null(editor.RefreshRecipesCommand.ExecutionTask);
+            Assert.Null(editor.Error);
+        }
+        finally
+        {
+            paused.Release();
+            await loading.WaitAsync(TimeSpan.FromSeconds(2));
+            if (shutdown is not null)
+                await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+            await editor.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task LoadingAnotherInspectionRecipeKeepsItsOwnStoredPoints()
     {
         var store = VirtualTestSupport.OpenMachineStore();
@@ -916,14 +1020,21 @@ public sealed class InspectionTeachingTests
         foreach (var load in new[] { editor.RefreshHistoryCommand, editor.LoadRecordCommand })
         {
             editor.HistoryDirectory = directory;
-            editor.SelectedRecord = record;
             var context = new VirtualTestSupport.PausedSynchronizationContext();
             var previous = SynchronizationContext.Current;
             Task pending;
             try
             {
                 SynchronizationContext.SetSynchronizationContext(context);
-                pending = load.ExecuteAsync(null);
+                if (load == editor.LoadRecordCommand)
+                {
+                    editor.SelectedRecord = record;
+                    pending = load.ExecutionTask!;
+                }
+                else
+                {
+                    pending = load.ExecuteAsync(null);
+                }
             }
             finally
             {

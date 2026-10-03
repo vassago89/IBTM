@@ -47,7 +47,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
     }
 
     public event Action<PcbRecord>? Saved;
-    public event Action<long>? ImageSaved;
+    public event Action<string, long>? ImageSaved;
 
     [ObservableProperty]
     public partial string? SaveError { get; private set; }
@@ -154,7 +154,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                 if (write.ClearInspectionImages)
                 {
                     _store.DeletePcbImages(file, number);
-                    ImageSaved?.Invoke(number);
+                    ImageSaved?.Invoke(file, number);
                 }
                 else if (write.Capture is { } capture)
                 {
@@ -166,7 +166,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                         capture.Success, capture.Barcode, capture.BrightRatio, capture.MinimumBrightRatio, output.ToArray(),
                         capture.Threshold, capture.Dilated);
                     _store.SavePcbImage(file, number, image);
-                    ImageSaved?.Invoke(number);
+                    ImageSaved?.Invoke(file, number);
                 }
                 else
                 {

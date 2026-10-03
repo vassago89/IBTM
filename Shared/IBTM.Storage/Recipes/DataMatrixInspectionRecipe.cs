@@ -1,4 +1,5 @@
 using System;
+using IBTM.Core;
 
 namespace IBTM.Inspection;
 
@@ -68,6 +69,6 @@ public sealed class DataMatrixInspectionRecipe
     public void Validate()
     {
         if (ThresholdMinimum > ThresholdMaximum)
-            throw new InvalidOperationException("Data Matrix threshold minimum must not exceed maximum.");
+            throw new InvalidOperationException(UiText.Get("Data Matrix threshold minimum must not exceed maximum."));
     }
 }

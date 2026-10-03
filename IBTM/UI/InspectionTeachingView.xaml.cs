@@ -10,9 +10,15 @@ public partial class InspectionTeachingView : UserControl
         InitializeComponent();
     }
 
+    private void OnInspectionSettingChanged(object sender, DataTransferEventArgs e)
+    {
+        if (DataContext is InspectionTeachingViewModel viewModel)
+            viewModel.OnInspectionSettingChanged(refreshBinaryImage: false);
+    }
+
     private void OnDataMatrixSettingChanged(object sender, DataTransferEventArgs e)
     {
         if (DataContext is InspectionTeachingViewModel viewModel)
-            viewModel.OnDataMatrixSettingChanged();
+            viewModel.OnInspectionSettingChanged(refreshBinaryImage: true);
     }
 }

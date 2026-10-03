@@ -172,7 +172,7 @@ public partial class SettingsViewModel : ObservableObject
             {
                 var hasZ = section.Hardware.AxisSignals.ContainsKey(MotionAxis.Z);
                 if (section.Settings.GetValidationError(hasZ) is { } error)
-                    throw new InvalidOperationException($"{group}: {error}");
+                    throw new InvalidOperationException($"{UiText.Get(group)}: {error}");
             }
             if (Settings.Lighting.InspectionChannel is < 1 or > 9)
                 throw new InvalidOperationException(UiText.Get("Inspection light channel must be from 1 to 9."));

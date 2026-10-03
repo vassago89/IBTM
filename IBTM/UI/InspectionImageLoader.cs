@@ -83,7 +83,8 @@ public sealed class InspectionImageLoader
                 error = UiText.Get("Image could not be decoded.");
                 _log.LogError(exception, "PCB {Number}, image {BoltId} could not be decoded.", record.Number, image.BoltId);
             }
-            return new PcbInspectionImageItem(image, bitmap, recipe,
+            return new PcbInspectionImageItem(image, bitmap,
+                MachineStore.IsSameRecipeName(record.RecipeName, recipe.Name) ? recipe : null,
                 image.BoltId is { } id ? record.GetBoltOrdinal(id) : null, error);
         }).ToArray(), cancellationToken);
     }

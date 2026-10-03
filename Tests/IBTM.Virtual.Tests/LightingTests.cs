@@ -31,6 +31,10 @@ public sealed class LightingTests
         // Missing port validation must fail before any physical port is opened.
         var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
         Assert.Contains("COM port", error.Message);
+        Assert.Throws<IOException>(() => controller.SetLevel(1, 100));
+        Assert.Throws<IOException>(() => controller.TurnOn(1));
+        Assert.Throws<IOException>(() => controller.TurnOff(1));
+        Assert.Throws<IOException>(controller.TurnOffAll);
     }
 
     [Fact]

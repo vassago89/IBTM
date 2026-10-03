@@ -422,7 +422,7 @@ public sealed class MachineStore
             {
                 var record = JsonSerializer.Deserialize<PcbRecord>(reader.GetString(1))
                     ?? throw new InvalidDataException($"PCB {reader.GetInt64(0)} has no result data.");
-                records.Add(record with { Number = reader.GetInt64(0), DatabaseFile = file });
+                records.Add(record with { Number = reader.GetInt64(0), DatabaseFile = Path.GetFullPath(file) });
             }
             if (records.Count == count)
                 break;

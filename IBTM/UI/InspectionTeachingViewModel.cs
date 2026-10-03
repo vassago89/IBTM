@@ -14,6 +14,12 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
+public enum InspectionTeachingTab
+{
+    Setup,
+    History,
+}
+
 // Offline image/recipe editing. This page has no camera, motion or I/O ownership.
 public partial class InspectionTeachingViewModel : ObservableObject
 {
@@ -45,9 +51,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
         InspectCommand = new AsyncRelayCommand(InspectAsync);
         RefreshHistoryCommand = new AsyncRelayCommand(RefreshHistoryAsync);
         LoadOlderCommand = new AsyncRelayCommand(LoadOlderAsync);
-        LoadRecordCommand = new AsyncRelayCommand(LoadRecordAsync);
+        LoadRecordCommand = new AsyncRelayCommand(LoadRecordAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         DrawRegionCommand = new RelayCommand<Rect>(DrawRegion);
-        UseHistoryImageCommand = new RelayCommand(UseHistoryImage);
+        ClearHistoryFilterCommand = new RelayCommand(ClearHistoryFilter);
         ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
         _commands = [RefreshRecipesCommand, LoadRecipeCommand, RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
         foreach (var command in _commands)
@@ -58,6 +64,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     public InspectionPreviewViewModel Preview { get; }
     public ObservableCollection<PcbRecord> Records { get; }
+    public IReadOnlyList<PcbRecord> FilteredRecords => Records.Where(MatchesHistoryRecord).ToArray();
     public IAsyncRelayCommand LoadRecipeCommand { get; }
     public IAsyncRelayCommand RefreshRecipesCommand { get; }
     public IAsyncRelayCommand RefreshImagesCommand { get; }
@@ -67,14 +74,19 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public IAsyncRelayCommand LoadOlderCommand { get; }
     public IAsyncRelayCommand LoadRecordCommand { get; }
     public IRelayCommand<Rect> DrawRegionCommand { get; }
-    public IRelayCommand UseHistoryImageCommand { get; }
+    public IRelayCommand ClearHistoryFilterCommand { get; }
     public IRelayCommand ShowRecipeImageCommand { get; }
 
     [ObservableProperty] public partial IReadOnlyList<string> RecipeNames { get; private set; }
+    [ObservableProperty] public partial InspectionTeachingTab SelectedTab { get; set; }
+    [ObservableProperty] public partial DateTime? HistoryDate { get; set; }
+    [ObservableProperty] public partial string? HistorySearch { get; set; }
+    [ObservableProperty] public partial AssemblyResult? HistoryResult { get; set; }
     [ObservableProperty] public partial string? SelectedRecipeName { get; set; }
     [ObservableProperty] public partial IReadOnlyList<InspectionPoint> Points { get; private set; }
     [ObservableProperty] public partial InspectionPoint? SelectedPoint { get; set; }
     [ObservableProperty] public partial string? Error { get; private set; }
+    [ObservableProperty] public partial string? HistoryImageError { get; private set; }
     [ObservableProperty] public partial string? Message { get; private set; }
     [ObservableProperty] public partial string? ImageSource { get; private set; }
     [ObservableProperty]
@@ -205,23 +217,28 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 ? Points.FirstOrDefault(point => point.HeatSink == selected.HeatSink
                     && point.IsDataMatrix == selected.IsDataMatrix && point.Bolt?.Id == selected.Bolt?.Id)
                 : null) ?? Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
+            UpdateHistoryImages(HistoryImages, SelectedHistoryImage?.Record);
             var unlinked = Preview.Recipe.CarrierImages.Count(tile =>
                 !Points.Any(point => tile.IsForTarget(point.HeatSink, point.Bolt?.Id)));
             var failed = images.Count(image => image.Error is not null);
-            Message = failed > 0 ? UiText.Format($"{failed} reference image(s) unavailable.")
-                : unlinked > 0 ? UiText.Format($"{unlinked} unlinked image(s) excluded.") : null;
+            if (failed > 0)
+                Message = UiText.Format($"{failed} reference image(s) unavailable.");
+            else if (unlinked > 0)
+                Message = UiText.Format($"{unlinked} unlinked image(s) excluded.");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            Error = exception.Message;
+            if (!token.IsCancellationRequested)
+                Error = exception.Message;
             _log.LogError(exception, "Inspection teaching load failed for {Recipe}.", name);
         }
     }
 
     partial void OnSelectedPointChanged(InspectionPoint? value)
     {
-        ShowRecipeImage();
+        if (SelectedTab == InspectionTeachingTab.Setup)
+            ShowRecipeImage();
         OnPropertyChanged(nameof(IsDataMatrixSelected));
         OnPropertyChanged(nameof(DataMatrix));
         OnPropertyChanged(nameof(HistoryImageTarget));
@@ -231,6 +248,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         InspectCommand.Cancel();
         Error = null;
+        Message = null;
         ImageSource = null;
         OriginalImage = null;
         Preview.Clear(IsDataMatrixSelected ? SelectedPoint!.HeatSink : null, SelectedPoint?.Bolt);
@@ -262,9 +280,13 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     public bool IsDrawRegionAllowed => !IsBusy && IsInspectAllowed;
 
-    public void OnDataMatrixSettingChanged()
+    public void OnInspectionSettingChanged(bool refreshBinaryImage)
     {
-        Error = null;
+        if (Preview.HasImage)
+            Error = null;
+        Message = UiText.Get("Settings changed · not saved");
+        if (!refreshBinaryImage)
+            return;
         try
         {
             Preview.RefreshBinaryImage();
@@ -301,7 +323,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            Error = exception.Message;
+            if (!token.IsCancellationRequested)
+                Error = exception.Message;
             _log.LogError(exception, "Offline inspection failed.");
         }
     }
@@ -336,10 +359,101 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
     }
 
+    partial void OnSelectedTabChanged(InspectionTeachingTab value)
+    {
+        if (value == InspectionTeachingTab.Setup)
+        {
+            LoadRecordCommand.Cancel();
+            SelectedPoint ??= Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
+            ShowRecipeImage();
+        }
+        else
+        {
+            UseHistoryImage();
+            if (SelectedRecord is not null && LoadedRecord != SelectedRecord)
+                _ = LoadRecordCommand.ExecuteAsync(null);
+            if (Records.Count == 0 && !RefreshHistoryCommand.IsRunning && !LoadOlderCommand.IsRunning)
+                _ = RefreshHistoryCommand.ExecuteAsync(null);
+        }
+    }
+
+    private bool MatchesHistoryRecord(PcbRecord record)
+    {
+        var search = HistorySearch?.Trim();
+        return (HistoryDate is null || record.CreatedAt.LocalDateTime.Date == HistoryDate.Value.Date)
+            && (HistoryResult is null || record.InspectionResult == HistoryResult)
+            && (string.IsNullOrEmpty(search)
+                || record.PcbBarcode?.Contains(search, StringComparison.OrdinalIgnoreCase) == true
+                || record.Number.ToString().Contains(search, StringComparison.OrdinalIgnoreCase)
+                || record.RecipeName.Contains(search, StringComparison.OrdinalIgnoreCase));
+    }
+
+    partial void OnHistoryDateChanged(DateTime? value)
+    {
+        RefreshHistoryFilter();
+    }
+
+    partial void OnHistorySearchChanged(string? value)
+    {
+        RefreshHistoryFilter();
+    }
+
+    partial void OnHistoryResultChanged(AssemblyResult? value)
+    {
+        RefreshHistoryFilter();
+    }
+
+    private void ClearHistoryFilter()
+    {
+        HistoryDate = null;
+        HistorySearch = null;
+        HistoryResult = null;
+    }
+
+    private void RefreshHistoryFilter()
+    {
+        OnPropertyChanged(nameof(FilteredRecords));
+        if (SelectedRecord is not null && !MatchesHistoryRecord(SelectedRecord))
+            SelectedRecord = null;
+    }
+
+    partial void OnSelectedRecordChanged(PcbRecord? value)
+    {
+        LoadRecordCommand.Cancel();
+        LoadedRecord = null;
+        HistoryImages = [];
+        SelectedHistoryImage = null;
+        Error = null;
+        Message = null;
+        if (value is not null)
+            _ = LoadRecordCommand.ExecuteAsync(null);
+    }
+
+    partial void OnSelectedHistoryImageChanged(PcbInspectionImageItem? value)
+    {
+        if (SelectedTab == InspectionTeachingTab.History)
+            UseHistoryImage();
+    }
+
     private async Task RefreshHistoryAsync(CancellationToken token)
     {
+        var selectedRecord = SelectedRecord;
+        var selectedImage = SelectedHistoryImage;
         ClearHistory();
         await LoadOlderAsync(token);
+        if (token.IsCancellationRequested || SelectedTab != InspectionTeachingTab.History || selectedRecord is null)
+            return;
+        SelectedRecord = Records.FirstOrDefault(record => record.Number == selectedRecord.Number
+            && record.DatabaseFile == selectedRecord.DatabaseFile && MatchesHistoryRecord(record));
+        if (SelectedRecord is not { } restored)
+            return;
+        await LoadRecordCommand.ExecutionTask!;
+        if (!token.IsCancellationRequested && SelectedTab == InspectionTeachingTab.History
+            && SelectedRecord == restored && selectedImage is not null)
+        {
+            SelectedHistoryImage = HistoryImages.FirstOrDefault(image => image.Record.BoltId == selectedImage.Record.BoltId)
+                ?? SelectedHistoryImage;
+        }
     }
 
     partial void OnHistoryDirectoryChanged(string value)
@@ -356,6 +470,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         LoadOlderCommand.Cancel();
         LoadRecordCommand.Cancel();
         Records.Clear();
+        OnPropertyChanged(nameof(FilteredRecords));
         SelectedRecord = null;
         LoadedRecord = null;
         HistoryImages = [];
@@ -374,6 +489,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 return;
             foreach (var record in records)
                 Records.Add(record);
+            OnPropertyChanged(nameof(FilteredRecords));
             HasOlder = records.Count == MachineStore.PcbHistoryPageSize;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -400,9 +516,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             if (token.IsCancellationRequested || SelectedRecord != record)
                 return;
             LoadedRecord = record;
-            HistoryImages = images;
-            SelectedHistoryImage = images.FirstOrDefault();
-            Message = images.Length == 0 ? UiText.Get("No saved images for this PCB.") : null;
+            UpdateHistoryImages(images, images.FirstOrDefault()?.Record);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
@@ -411,6 +525,18 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 Error = exception.Message;
             _log.LogError(exception, "Inspection image history failed for PCB {Number}.", record.Number);
         }
+    }
+
+    private void UpdateHistoryImages(IReadOnlyList<PcbInspectionImageItem> images, PcbInspectionImage? selected)
+    {
+        var recipe = LoadedRecord is { } record && MachineStore.IsSameRecipeName(record.RecipeName, Preview.Recipe.Name)
+            ? Preview.Recipe : null;
+        // Rebind labels without reading or decoding the saved pixels again.
+        HistoryImages = images.Select(image => image with { Recipe = recipe }).ToArray();
+        var previous = SelectedHistoryImage;
+        SelectedHistoryImage = HistoryImages.FirstOrDefault(image => ReferenceEquals(image.Record, selected));
+        if (SelectedTab == InspectionTeachingTab.History && SelectedHistoryImage == previous)
+            UseHistoryImage();
     }
 
     public InspectionPoint? HistoryImageTarget
@@ -426,30 +552,61 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private void UseHistoryImage()
     {
-        if (HistoryImageTarget is not { } target)
-            return;
-        var saved = SelectedHistoryImage!;
-        var reference = target.FindImage(_carrierImages)?.Image;
-        if (reference is null || reference.PixelWidth != saved.Image!.PixelWidth || reference.PixelHeight != saved.Image.PixelHeight)
-        {
-            Error = UiText.Get("Image dimensions do not match the recipe image.");
-            return;
-        }
-        Error = null;
-        SelectedPoint = target;
         InspectCommand.Cancel();
-        Preview.Clear(IsDataMatrixSelected ? target.HeatSink : null, target.Bolt);
-        try
+        Error = null;
+        HistoryImageError = null;
+        Message = null;
+        ImageSource = null;
+        OriginalImage = null;
+        var saved = SelectedHistoryImage;
+        var target = HistoryImageTarget;
+        if (saved?.Image is { } image)
         {
-            Preview.SetSavedImage(saved.Image, target.Metadata!.Region ?? saved.Record.Region);
+            if (target is null)
+            {
+                HistoryImageError = LoadedRecord is { } record && !MachineStore.IsSameRecipeName(record.RecipeName, Preview.Recipe.Name)
+                    ? UiText.Format($"Load recipe '{record.RecipeName}' to reinspect.")
+                    : UiText.Get("No matching reference point. View only.");
+            }
+            else
+            {
+                var reference = target.FindImage(_carrierImages)?.Image;
+                if (reference is null)
+                {
+                    HistoryImageError = UiText.Get("Reference image unavailable");
+                    target = null;
+                }
+                else if (reference.PixelWidth != image.PixelWidth || reference.PixelHeight != image.PixelHeight)
+                {
+                    HistoryImageError = UiText.Get("Image dimensions do not match the recipe image.");
+                    target = null;
+                }
+            }
+            SelectedPoint = target;
+            Preview.Clear(IsDataMatrixSelected ? target!.HeatSink : null, target?.Bolt);
+            try
+            {
+                Preview.SetSavedImage(image, target is null ? null : target.Metadata!.Region ?? saved.Record.Region);
+            }
+            catch (Exception exception)
+            {
+                Preview.Clear();
+                HistoryImageError = exception.Message;
+                _log.LogError(exception, "Inspection history preview failed for PCB {Number}.", LoadedRecord!.Number);
+            }
         }
-        catch (Exception exception)
+        else
         {
-            Error = exception.Message;
-            _log.LogError(exception, "Inspection history preview failed for PCB {Number}.", LoadedRecord!.Number);
-            return;
+            SelectedPoint = null;
+            Preview.Clear();
+            HistoryImageError = saved?.Error;
         }
-        ImageSource = $"PCB {LoadedRecord!.Number} · {saved.Title} · {saved.Record.CapturedAt:yyyy-MM-dd HH:mm:ss}";
-        OriginalImage = saved;
+        if (saved is not null)
+        {
+            ImageSource = $"PCB {LoadedRecord!.Number} · {saved.Title} · {saved.Record.CapturedAt:yyyy-MM-dd HH:mm:ss}";
+            OriginalImage = saved;
+        }
+        OnPropertyChanged(nameof(IsInspectAllowed));
+        OnPropertyChanged(nameof(IsDrawRegionAllowed));
     }
 }

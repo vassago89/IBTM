@@ -21,7 +21,7 @@ public static class DataMatrixReader
         var step = settings.ThresholdStep;
         var radius = settings.DilationRadius;
         if (minimum > maximum)
-            throw new InvalidOperationException("Data Matrix threshold minimum must not exceed maximum.");
+            throw new InvalidOperationException(UiText.Get("Data Matrix threshold minimum must not exceed maximum."));
         var reader = new BarcodeReaderGeneric
         {
             AutoRotate = settings.AutoRotate,

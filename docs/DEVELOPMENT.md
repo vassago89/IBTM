@@ -31,7 +31,7 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 단일 촬영은 조명 ON 완료 후 `LightingSettings.StabilizationDelayMilliseconds`만큼 안정화 대기를 거친다(기본 100ms, 0이면 대기 없음).
 Settings → Camera & Lighting → Lighting → Stabilization Delay (ms)에서 조정하고 Save Settings로 저장한다. 자동 검사·티칭 Grab에 적용한다. Live 중 Grab도 선택한 항목의 밝기를 적용한 후 안정화 시간을 기다리며, Live 스트림은 유지한다.
 Teaching의 Inspection Gantry는 포인트 추가·삭제, Live·좌표 기록·Grab과 촬영 조명을 담당한다. 별도 Inspection Teaching 메뉴는 저장 이미지로 ROI·볼트 판정·Data Matrix 옵션을 편집한다. 활성 레시피는 검사 화면과 자동 검사가 같은 객체를 사용한다. 임계값·ROI·판독 옵션을 수정하면 그대로 사용하며 Save는 DB에 보관한다. 운전 중에도 편집·재검사할 수 있고, 좌표·촬영 조명·저장된 생산 결과는 변경하지 않는다. 상세 책임은 [검사 안내](../Stations/IBTM.Inspection/README.md)에 둔다.
-Data Matrix 판독 옵션(TryHarder, TryInverted, AutoRotate, PureBarcode, 선택적 BinaryThreshold)은 PCB별로 저장하며 자동 검사·Read Data Matrix·Reinspect가 같은 값을 사용한다. 임계값이 비어 있으면 기존 자동 이진화를 사용한다. 이 설정들은 Record Position 좌표를 변경하지 않는다.
+Data Matrix 판독 옵션(TryHarder, TryInverted, AutoRotate, PureBarcode)과 최소·최대 임계값, 증가폭, 점 확장 반경은 PCB별로 저장한다. 자동 검사와 저장 이미지 재검사가 같은 설정을 사용한다. 각 임계값에서 일반 판독 후 실패하면 점 확장 판독을 시도하며, 처음 성공하면 탐색을 끝낸다. 이전 단일 BinaryThreshold 값은 사용하지 않는다. 이 설정들은 Record Position 좌표를 변경하지 않는다.
 대기 중 STOP되면 촬영하지 않고 조명을 끈다.
 검사 유닛 Disabled로 시작해 초기화에서 조명 연결을 생략했어도 수동 티칭 점등 시 연결한다.
 19200 통신, 문자 버퍼, 전송 뒤 50ms 대기, 빈 COM/미연결 처리도 원본을 따른다.

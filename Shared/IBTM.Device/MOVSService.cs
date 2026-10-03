@@ -1,156 +1,133 @@
 // Source: C:/git/AnyWave/AnyWave.Device/Lights/MOVSService.cs. Private names follow this project's style;
-// Connect reuses the current open port. Manufacturer command bytes and timing are unchanged.
-#nullable disable
-using System.Threading;
-
+// Connect reuses the current open port. Disconnected writes fail; disconnect always attempts port disposal.
+// Unused port discovery and all-channel ON are omitted.
+// Manufacturer command bytes and timing for the used operations are unchanged.
 using System;
-using System.Collections.Generic;
+using System.IO;
 using System.IO.Ports;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
+using IBTM.Core;
 
-namespace AnyWave.Device.LightControllers
+namespace AnyWave.Device.LightControllers;
+
+public class MOVSService
 {
-    public class MOVSService
+    private SerialPort? _port;
+
+    public void Connect(string portName)
     {
-        private SerialPort _port;
-        private string _portName;
+        if (string.IsNullOrWhiteSpace(portName))
+            return;
 
-        public string Find()
+        if (_port?.IsOpen == true && string.Equals(_port.PortName, portName, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _port?.Dispose();
+        _port = new SerialPort(portName, 19200);
+        _port.Open();
+    }
+
+    public void Disconnect()
+    {
+        Exception? failure = null;
+        try
         {
-            foreach (var port in SerialPort.GetPortNames())
+            if (_port?.IsOpen == true)
+                Off();
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
+        finally
+        {
+            try
             {
-                Connect(port);
-                _port.DataReceived += OnPortDataReceived;
-                
-                Off();
+                _port?.Dispose();
+                _port = null;
             }
-
-            Thread.Sleep(1000);
-
-            return _portName;
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
         }
+    }
 
-        private void OnPortDataReceived(object sender, SerialDataReceivedEventArgs e)
-        {
-            _portName = ((SerialPort)sender).PortName;
-        }
+    public void Off()
+    {
+        if (_port is not { IsOpen: true })
+            throw new IOException(UiText.Get("Light disconnected · check COM port"));
 
-        public void Connect(string portName)
-        {
-            if (string.IsNullOrWhiteSpace(portName))
-                return;
+        char[] buffer =
+        [
+            ':',
+            'F',
+            '0',
+            '\r',
+            '\n'
+        ];
 
-            if (_port?.IsOpen == true && string.Equals(_port.PortName, portName, StringComparison.OrdinalIgnoreCase))
-                return;
+        _port.Write(buffer, 0, buffer.Length);
+        Thread.Sleep(50);
+    }
 
-            _port?.Dispose();
-            _port = new SerialPort(portName, 19200);
-            _port.Open();
-        }
+    public void On(int channel)
+    {
+        if (_port is not { IsOpen: true })
+            throw new IOException(UiText.Get("Light disconnected · check COM port"));
 
-        public void Disconnect()
-        {
-            if (_port != null && _port.IsOpen)
-                Off();
+        char[] buffer =
+        [
+            ':',
+            'O',
+            channel.ToString()[0],
+            '\r',
+            '\n'
+        ];
 
-            _port?.Close();
-        }
+        _port.Write(buffer, 0, buffer.Length);
+        Thread.Sleep(50);
+    }
 
-        public void On()
-        {
-            if (_port?.IsOpen == false)
-                return;
+    public void Off(int channel)
+    {
+        if (_port is not { IsOpen: true })
+            throw new IOException(UiText.Get("Light disconnected · check COM port"));
 
-            IEnumerable<char> buffer =
-            [
-                ':',
-                'O',
-                '0',
-                '\r',
-                '\n'
-            ];
+        char[] buffer =
+        [
+            ':',
+            'F',
+            channel.ToString()[0],
+            '\r',
+            '\n'
+        ];
 
-            _port?.Write(buffer.ToArray(), 0, buffer.Count());
-            Thread.Sleep(50);
-        }
+        _port.Write(buffer, 0, buffer.Length);
+        Thread.Sleep(50);
+    }
 
-        public void Off()
-        {
-            if (_port?.IsOpen == false)
-                return;
+    public void Set(int channel, int value)
+    {
+        if (_port is not { IsOpen: true })
+            throw new IOException(UiText.Get("Light disconnected · check COM port"));
 
-            IEnumerable<char> buffer =
-            [
-                ':',
-                'F',
-                '0',
-                '\r',
-                '\n'
-            ];
+        var @string = value.ToString("000");
 
-            _port?.Write(buffer.ToArray(), 0, buffer.Count());
-            Thread.Sleep(50);
-        }
+        char[] buffer =
+        [
+            ':',
+            'L',
+            channel.ToString()[0],
+            @string[0],
+            @string[1],
+            @string[2],
+            '\r',
+            '\n'
+        ];
 
-        public void On(int channel)
-        {
-            if (_port?.IsOpen == false)
-                return;
-
-            IEnumerable<char> buffer =
-            [
-                ':',
-                'O',
-                channel.ToString()[0],
-                '\r',
-                '\n'
-            ];
-
-            _port?.Write(buffer.ToArray(), 0, buffer.Count());
-            Thread.Sleep(50);
-        }
-
-        public void Off(int channel)
-        {
-            if (_port?.IsOpen == false)
-                return;
-
-            IEnumerable<char> buffer =
-            [
-                ':',
-                'F',
-                channel.ToString()[0],
-                '\r',
-                '\n'
-            ];
-
-            _port?.Write(buffer.ToArray(), 0, buffer.Count());
-            Thread.Sleep(50);
-        }
-
-        public void Set(int channel, int value)
-        {
-            if (_port?.IsOpen == false)
-                return;
-
-            var @string = value.ToString("000");
-
-            IEnumerable<char> buffer =
-            [
-                ':',
-                'L',
-                channel.ToString()[0],
-                @string[0],
-                @string[1],
-                @string[2],
-                '\r',
-                '\n'
-            ];
-
-            _port?.Write(buffer.ToArray(), 0, buffer.Count());
-            Thread.Sleep(50);
-        }
+        _port.Write(buffer, 0, buffer.Length);
+        Thread.Sleep(50);
     }
 }

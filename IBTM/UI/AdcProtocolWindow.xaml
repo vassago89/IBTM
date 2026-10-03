@@ -79,7 +79,8 @@
                     Content="{Binding ConnectionAction}" Width="110"
                     Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ToggleConnectionCommand}" IsEnabled="{Binding IsConnectAllowed}"/>
                 <TextBlock Grid.Column="7" Margin="16,0,0,0"
-                    Text="{Binding ConnectionStatus}"
+                    Text="{Binding ConnectionStatus}" TextTrimming="CharacterEllipsis"
+                    ToolTip="{Binding ConnectionStatus}" ToolTipService.ShowOnDisabled="True"
                     VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
             </Grid>
         </Border>

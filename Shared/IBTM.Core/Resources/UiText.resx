@@ -3584,4 +3584,109 @@ COMPLETE: finish</value>
   <data name="fixed off" xml:space="preserve">
     <value>Fixed OFF</value>
   </data>
+  <data name="horizontalspeed" xml:space="preserve">
+    <value>HorizontalSpeed</value>
+  </data>
+  <data name="zspeed" xml:space="preserve">
+    <value>ZSpeed</value>
+  </data>
+  <data name="accelerationseconds" xml:space="preserve">
+    <value>AccelerationSeconds</value>
+  </data>
+  <data name="decelerationseconds" xml:space="preserve">
+    <value>DecelerationSeconds</value>
+  </data>
+  <data name="zaccelerationseconds" xml:space="preserve">
+    <value>ZAccelerationSeconds</value>
+  </data>
+  <data name="zdecelerationseconds" xml:space="preserve">
+    <value>ZDecelerationSeconds</value>
+  </data>
+  <data name="searchspeed" xml:space="preserve">
+    <value>SearchSpeed</value>
+  </data>
+  <data name="detectionspeed" xml:space="preserve">
+    <value>DetectionSpeed</value>
+  </data>
+  <data name="approachspeed" xml:space="preserve">
+    <value>ApproachSpeed</value>
+  </data>
+  <data name="finespeed" xml:space="preserve">
+    <value>FineSpeed</value>
+  </data>
+  <data name="searchaccelerationseconds" xml:space="preserve">
+    <value>SearchAccelerationSeconds</value>
+  </data>
+  <data name="detectionaccelerationseconds" xml:space="preserve">
+    <value>DetectionAccelerationSeconds</value>
+  </data>
+  <data name="{0} must be a positive finite value." xml:space="preserve">
+    <value>{0} must be a positive finite value.</value>
+  </data>
+  <data name="sdk unit must be a positive finite value." xml:space="preserve">
+    <value>SDK Unit must be a positive finite value.</value>
+  </data>
+  <data name="sdk pulse must be a positive integer." xml:space="preserve">
+    <value>SDK Pulse must be a positive integer.</value>
+  </data>
+  <data name="active recipe edits apply immediately. save to keep changes after restart." xml:space="preserve">
+    <value>Active recipe edits apply immediately. Save to keep changes after restart.</value>
+  </data>
+  <data name="history reinspection" xml:space="preserve">
+    <value>History reinspection</value>
+  </data>
+  <data name="pcb history" xml:space="preserve">
+    <value>PCB history</value>
+  </data>
+  <data name="barcode / pcb / recipe" xml:space="preserve">
+    <value>Barcode / PCB / recipe</value>
+  </data>
+  <data name="production date" xml:space="preserve">
+    <value>Production date</value>
+  </data>
+  <data name="clear filters" xml:space="preserve">
+    <value>Clear filters</value>
+  </data>
+  <data name="search loaded records · use load older for earlier results" xml:space="preserve">
+    <value>Search loaded records · use Load Older for earlier results</value>
+  </data>
+  <data name="no matching pcb records" xml:space="preserve">
+    <value>No matching PCB records</value>
+  </data>
+  <data name="select a pcb" xml:space="preserve">
+    <value>Select a PCB</value>
+  </data>
+  <data name="loading history…" xml:space="preserve">
+    <value>Loading history…</value>
+  </data>
+  <data name="reinspection result" xml:space="preserve">
+    <value>Reinspection result</value>
+  </data>
+  <data name="load recipe '{0}' to reinspect." xml:space="preserve">
+    <value>Load recipe '{0}' to reinspect.</value>
+  </data>
+  <data name="no matching reference point. view only." xml:space="preserve">
+    <value>No matching reference point. View only.</value>
+  </data>
+  <data name="all" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="inspection result" xml:space="preserve">
+    <value>Inspection result</value>
+  </data>
+  <data name="load more" xml:space="preserve">
+    <value>Load more</value>
+  </data>
+  <data name="editing recipe: {0}" xml:space="preserve">
+    <value>Editing recipe: {0}</value>
+  </data>
+  <data name="data matrix threshold minimum must not exceed maximum." xml:space="preserve">
+    <value>Data Matrix threshold minimum must not exceed maximum.</value>
+  </data>
+  <data name="settings changed · not saved" xml:space="preserve">
+    <value>Settings changed · not saved</value>
+  </data>
+  <data name="light disconnected · check com port" xml:space="preserve">
+    <value>Light disconnected · check COM port</value>
+  </data>
 </root>

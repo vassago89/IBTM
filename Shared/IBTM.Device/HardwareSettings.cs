@@ -65,7 +65,7 @@ public sealed class AxisHardware
         set
         {
             if (!double.IsFinite(value) || value <= 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "SDK Unit must be a positive finite value.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("SDK Unit must be a positive finite value."));
             field = value;
         }
     } = 1;
@@ -76,7 +76,7 @@ public sealed class AxisHardware
         set
         {
             if (value <= 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "SDK Pulse must be a positive integer.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("SDK Pulse must be a positive integer."));
             field = value;
         }
     } = 1;

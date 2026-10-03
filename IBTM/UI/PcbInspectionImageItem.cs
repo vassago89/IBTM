@@ -6,15 +6,15 @@ using IBTM.Storage;
 namespace IBTM.UI;
 
 public sealed record PcbInspectionImageItem(
-    PcbInspectionImage Record, BitmapSource? Image, Recipe Recipe, int? Ordinal = null, string? Error = null)
+    PcbInspectionImage Record, BitmapSource? Image, Recipe? Recipe, int? Ordinal = null, string? Error = null)
 {
     public string Title
     {
         get
         {
-            return Record.BoltId is { } id
-                ? Recipe.Pcb.GetBoltName(id, Ordinal)
-                : UiText.Get("Data Matrix");
+            if (Record.BoltId is not { } id)
+                return UiText.Get("Data Matrix");
+            return Recipe?.Pcb.GetBoltName(id, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
         }
     }
     public string Verdict => Error is not null ? "—" : Record.Success ? "OK" : "NG";

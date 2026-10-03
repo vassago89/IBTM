@@ -22,6 +22,7 @@ public partial class PcbResultsViewModel : ObservableObject
     private readonly RecipeManager _recipes;
     private readonly InspectionImageLoader _images;
     private readonly ILogger<PcbResultsViewModel> _log;
+    private bool _shuttingDown;
 
     public PcbResultsViewModel(RecipeManager recipes, InspectionImageLoader images, ILogger<PcbResultsViewModel> log)
     {
@@ -32,6 +33,7 @@ public partial class PcbResultsViewModel : ObservableObject
         ExportCsvCommand = new AsyncRelayCommand(ExportCsvAsync);
         BoltResults = [];
         Images = [];
+        recipes.Changed += OnRecipeChanged;
     }
 
     public IAsyncRelayCommand LoadImagesCommand { get; }
@@ -67,11 +69,13 @@ public partial class PcbResultsViewModel : ObservableObject
         {
             if (Record is not { } record)
                 return [];
+            var recipe = MachineStore.IsSameRecipeName(record.RecipeName, _recipes.Current.Name)
+                ? _recipes.Current : null;
             return record.BoltPresenceResults
                 .Where(pair => !record.ShootingBoltResults.ContainsKey(pair.Key)
                     && !record.PickupBoltResults.ContainsKey(pair.Key))
                 .Select(pair => new PcbBoltPresenceView(
-                    pair.Key, record.GetBoltOrdinal(pair.Key), pair.Value, _recipes.Current))
+                    pair.Key, record.GetBoltOrdinal(pair.Key), pair.Value, recipe))
                 .OrderBy(row => row.Ordinal)
                 .ToArray();
         }
@@ -79,19 +83,10 @@ public partial class PcbResultsViewModel : ObservableObject
 
     partial void OnRecordChanged(PcbRecord? oldValue, PcbRecord? newValue)
     {
-        OnPropertyChanged(nameof(InspectionOnlyResults));
-        var selected = SelectedBolt;
+        if (_shuttingDown)
+            return;
         var selectedImage = SelectedImage;
-        BoltResults = newValue is null ? [] : newValue.ShootingBoltResults
-            .Select(pair => (pair.Key, pair.Value, Head: FasteningHead.Shooting))
-            .Concat(newValue.PickupBoltResults.Select(pair => (pair.Key, pair.Value, Head: FasteningHead.Pickup)))
-            .Select(row => new PcbBoltResultView(row.Key, newValue.GetBoltOrdinal(row.Key), row.Head, row.Value,
-                newValue.BoltPresenceResults.TryGetValue(row.Key, out var present) ? present : null,
-                _recipes.Current))
-            .OrderBy(row => row.Result.PreliminaryResult?.RecordedAt ?? row.Result.RecordedAt ?? DateTimeOffset.MaxValue)
-            .ThenBy(row => row.Ordinal).ThenBy(row => row.Head).ToArray();
-        SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
-            ?? BoltResults.FirstOrDefault();
+        RefreshResults();
         if (oldValue?.Number != newValue?.Number || oldValue?.DatabaseFile != newValue?.DatabaseFile)
         {
             ExportMessage = null;
@@ -105,6 +100,25 @@ public partial class PcbResultsViewModel : ObservableObject
         }
     }
 
+    private void RefreshResults()
+    {
+        var record = Record;
+        OnPropertyChanged(nameof(InspectionOnlyResults));
+        var recipe = record is not null && MachineStore.IsSameRecipeName(record.RecipeName, _recipes.Current.Name)
+            ? _recipes.Current : null;
+        var selected = SelectedBolt;
+        BoltResults = record is null ? [] : record.ShootingBoltResults
+            .Select(pair => (pair.Key, pair.Value, Head: FasteningHead.Shooting))
+            .Concat(record.PickupBoltResults.Select(pair => (pair.Key, pair.Value, Head: FasteningHead.Pickup)))
+            .Select(row => new PcbBoltResultView(row.Key, record.GetBoltOrdinal(row.Key), row.Head, row.Value,
+                record.BoltPresenceResults.TryGetValue(row.Key, out var present) ? present : null,
+                recipe))
+            .OrderBy(row => row.Result.PreliminaryResult?.RecordedAt ?? row.Result.RecordedAt ?? DateTimeOffset.MaxValue)
+            .ThenBy(row => row.Ordinal).ThenBy(row => row.Head).ToArray();
+        SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
+            ?? BoltResults.FirstOrDefault();
+    }
+
     partial void OnSelectedBoltChanged(PcbBoltResultView? value)
     {
         SelectedBoltStage = value;
@@ -114,8 +128,27 @@ public partial class PcbResultsViewModel : ObservableObject
 
     partial void OnSelectedImageChanged(PcbInspectionImageItem? value)
     {
-        if (value is not null)
+        if (value is not null && SelectedBolt?.BoltId != value.Record.BoltId)
             SelectedBolt = BoltResults.FirstOrDefault(bolt => bolt.BoltId == value.Record.BoltId);
+    }
+
+    private void OnRecipeChanged()
+    {
+        if (_shuttingDown)
+            return;
+        var selected = SelectedImage?.Record;
+        RefreshResults();
+        var recipe = Record is { } record && MachineStore.IsSameRecipeName(record.RecipeName, _recipes.Current.Name)
+            ? _recipes.Current : null;
+        Images = Images.Select(image => image with { Recipe = recipe }).ToArray();
+        SelectedImage = Images.FirstOrDefault(image => ReferenceEquals(image.Record, selected));
+    }
+
+    public Task ShutdownAsync()
+    {
+        _shuttingDown = true;
+        _recipes.Changed -= OnRecipeChanged;
+        return CommandShutdown.CancelAndWaitAsync([LoadImagesCommand, ExportCsvCommand]);
     }
 
     private async Task ExportCsvAsync()
@@ -235,6 +268,8 @@ public partial class PcbResultsViewModel : ObservableObject
 
     private async Task LoadImagesAsync(CancellationToken cancellationToken)
     {
+        if (_shuttingDown)
+            return;
         var record = Record;
         ImageError = null;
         if (record is null)
@@ -247,12 +282,15 @@ public partial class PcbResultsViewModel : ObservableObject
             var hasSelection = SelectedImage is not null || SelectedBolt is not null;
             var selectedBoltId = SelectedImage is { } selected
                 ? selected.Record.BoltId : SelectedBolt?.BoltId;
-            Images = images;
-            var failed = images.Where(image => image.Error is not null).Select(image => image.Title).ToArray();
+            // Recipe selection can change while the DB read is completing.
+            var recipe = MachineStore.IsSameRecipeName(record.RecipeName, _recipes.Current.Name)
+                ? _recipes.Current : null;
+            Images = images.Select(image => image with { Recipe = recipe }).ToArray();
+            var failed = Images.Where(image => image.Error is not null).Select(image => image.Title).ToArray();
             ImageError = failed.Length == 0 ? null : UiText.Format($"Image unavailable: {string.Join(", ", failed)}");
             SelectedImage = hasSelection
-                ? images.FirstOrDefault(image => image.Record.BoltId == selectedBoltId)
-                : images.FirstOrDefault();
+                ? Images.FirstOrDefault(image => image.Record.BoltId == selectedBoltId)
+                : Images.FirstOrDefault();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -267,16 +305,16 @@ public partial class PcbResultsViewModel : ObservableObject
     }
 }
 
-public sealed record PcbBoltPresenceView(Guid BoltId, int? Ordinal, bool Present, Recipe Recipe)
+public sealed record PcbBoltPresenceView(Guid BoltId, int? Ordinal, bool Present, Recipe? Recipe)
 {
-    public string BoltLabel => Recipe.Pcb.GetBoltName(BoltId, Ordinal);
+    public string BoltLabel => Recipe?.Pcb.GetBoltName(BoltId, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
 }
 
 public sealed record PcbBoltResultView(
-    Guid BoltId, int? Ordinal, FasteningHead Head, BoltResult Result, bool? Present, Recipe Recipe)
+    Guid BoltId, int? Ordinal, FasteningHead Head, BoltResult Result, bool? Present, Recipe? Recipe)
 {
     public string HeadLabel => UiText.Get(Head);
-    public string BoltLabel => Recipe.Pcb.GetBoltName(BoltId, Ordinal);
+    public string BoltLabel => Recipe?.Pcb.GetBoltName(BoltId, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
     public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => !Result.IsComplete ? UiText.Get("Final tightening pending")
         : Result.Source == BoltResultSource.DryRun ? StageVerdict

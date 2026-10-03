@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using IBTM.Core;
 
 namespace IBTM.Device;
 
@@ -71,6 +72,6 @@ public sealed class MotionSettings : IDataErrorInfo
     {
         return double.IsFinite(value) && value > 0
             ? null
-            : $"{name} must be a positive finite value.";
+            : UiText.Format($"{UiText.Get(name)} must be a positive finite value.");
     }
 }

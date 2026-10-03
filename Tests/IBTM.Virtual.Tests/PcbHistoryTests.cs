@@ -334,8 +334,14 @@ public sealed class PcbHistoryTests
         Assert.Same(dataMatrix, details.SelectedImage);
         details.SelectedImage = selectedImage;
 
-        store.SaveRecipe(new Recipe { Name = "Other" });
+        var other = store.LoadRecipe(recipe.Name);
+        other.Name = "Other";
+        foreach (var bolt in other.Pcb.BoltPoints)
+            bolt.Name = "Other recipe bolt";
+        store.SaveRecipe(other);
         await recipes.LoadAsync("Other");
+        Assert.Equal("Bolt 5", details.SelectedBolt?.BoltLabel);
+        Assert.Equal("Bolt 5", details.SelectedImage?.Title);
         details.Record = record with { UpdatedAt = record.UpdatedAt.AddSeconds(1) };
         Assert.Equal(bolts[4].Id, details.SelectedBolt?.BoltId);
         Assert.Equal("Bolt 5", details.SelectedBolt?.BoltLabel);
@@ -718,15 +724,42 @@ public sealed class PcbHistoryTests
         Assert.Equal(3, store.LoadPcbs(settings.PcbHistory.Directory).Count);
 
         var originalFolder = settings.PcbHistory.Directory;
-        settings.PcbHistory.Directory = Path.Combine(originalFolder, "new folder");
+        var paused = new VirtualTestSupport.PausedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        Task previousLoad;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(paused);
+            previousLoad = view.LoadOlderPcbsCommand.ExecuteAsync(null);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
+            settings.PcbHistory.Directory = Path.Combine(originalFolder, "new folder");
+            view.Activate();
+            Assert.NotSame(previousLoad, view.LoadOlderPcbsCommand.ExecutionTask);
+            await view.LoadOlderPcbsCommand.ExecutionTask!;
+        }
+        finally
+        {
+            paused.Release();
+            await previousLoad.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        Assert.Empty(view.PcbRecords);
         third.PcbBarcode = "Still in original file";
         await history.FlushAsync();
         Assert.Equal("Still in original file", store.LoadPcbs(originalFolder)[0].PcbBarcode);
+        Assert.Empty(view.PcbRecords);
         Assert.False(Directory.Exists(settings.PcbHistory.Directory));
         var fourth = placement.GetAssembly(HeatSinkSlot.HeatSink2);
         await history.FlushAsync();
         Assert.Equal(4, fourth.PcbNumber);
         Assert.Equal(4, Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).Number);
+        Assert.Equal(4, Assert.Single(view.PcbRecords).Number);
         view.PcbDetails.Record = null;
         Assert.Empty(view.PcbDetails.Images);
         await view.ShutdownAsync();
@@ -764,6 +797,94 @@ public sealed class PcbHistoryTests
         work.Complete(work.CurrentJob);
         await history.FlushAsync();
         Assert.Equal("Timeout", Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
+    }
+
+    [Fact]
+    public async Task SelectingPickupResultKeepsItsHeadWhenTheImageAlsoHasAShootingResult()
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var store = services.GetRequiredService<MachineStore>();
+        var details = services.GetRequiredService<PcbResultsViewModel>();
+        var bolt = VirtualTestSupport.BoltId(1);
+        var result = new BoltResult(true, 5);
+        var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
+            null, AssemblyResult.Ok, AssemblyResult.Ok, AssemblyResult.Ok,
+            new Dictionary<Guid, BoltResult> { [bolt] = result },
+            new Dictionary<Guid, BoltResult> { [bolt] = result with { Torque = 6 } },
+            new Dictionary<Guid, bool> { [bolt] = true }, [bolt])
+        {
+            DatabaseFile = Path.Combine(store.DatabaseFile + ".results", "PCB-2026-10.db"),
+        };
+        using var stream = new MemoryStream();
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(
+            InspectionPreviewViewModel.CreateBitmap(new ImageFrame(2, 2, 6, new byte[12])), null, null, null));
+        encoder.Save(stream);
+        store.SavePcb(record.DatabaseFile, record);
+        foreach (var imageBolt in new Guid?[] { null, bolt })
+            store.SavePcbImage(record.DatabaseFile, record.Number,
+                new(imageBolt, record.CreatedAt, new(0, 0, 1, 1), true, null, 1, 0.5, stream.ToArray()));
+        details.Record = record;
+        await details.LoadImagesCommand.ExecutionTask!;
+        details.SelectedImage = details.Images.Single(image => image.Record.BoltId is null);
+        var pickup = details.BoltResults.Single(row => row.Head == FasteningHead.Pickup);
+        details.SelectedBolt = pickup;
+        Assert.Same(pickup, details.SelectedBolt);
+        Assert.Same(pickup, details.SelectedBoltStage);
+        Assert.Equal(bolt, details.SelectedImage?.Record.BoltId);
+
+        await details.LoadImagesCommand.ExecuteAsync(null);
+        Assert.Same(pickup, details.SelectedBolt);
+        Assert.Equal(6, details.SelectedBoltStage?.Result.Torque);
+    }
+
+    [Fact]
+    public async Task OperationShutdownWaitsForPendingResultImagesAndStopsLaterReloads()
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var store = services.GetRequiredService<MachineStore>();
+        var details = services.GetRequiredService<PcbResultsViewModel>();
+        var operation = services.GetRequiredService<OperationViewModel>();
+        var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
+            null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
+        {
+            DatabaseFile = Path.Combine(store.DatabaseFile + ".results", "PCB-2026-10.db"),
+        };
+        store.SavePcb(record.DatabaseFile, record);
+        var paused = new VirtualTestSupport.PausedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(paused);
+            details.Record = record;
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+        var pending = details.LoadImagesCommand.ExecutionTask!;
+        Task? shutdown = null;
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
+            shutdown = operation.ShutdownAsync();
+            Assert.False(shutdown.IsCompleted);
+            paused.Release();
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(pending.IsCompleted);
+            Assert.Empty(details.Images);
+            details.Record = record with { Number = 2 };
+            Assert.Same(pending, details.LoadImagesCommand.ExecutionTask);
+            Assert.Null(details.ImageError);
+        }
+        finally
+        {
+            paused.Release();
+            await pending.WaitAsync(TimeSpan.FromSeconds(2));
+            if (shutdown is not null)
+                await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+        }
     }
 
     [Theory]

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -438,7 +439,8 @@ public partial class OperationViewModel : ObservableObject
     public void Activate()
     {
         _active = true;
-        if (_pcbHistoryDirectory != _historySettings.Directory)
+        var directoryChanged = _pcbHistoryDirectory != _historySettings.Directory;
+        if (directoryChanged)
         {
             _pcbHistoryDirectory = _historySettings.Directory;
             PcbRecords.Clear();
@@ -448,7 +450,7 @@ public partial class OperationViewModel : ObservableObject
             _pcbHistoryLimit = MachineStore.PcbHistoryPageSize;
             _pcbHistoryLoaded = false;
         }
-        if (!_pcbHistoryLoaded && LoadOlderPcbsCommand.CanExecute(null))
+        if (!_pcbHistoryLoaded && (directoryChanged || LoadOlderPcbsCommand.CanExecute(null)))
             LoadOlderPcbsCommand.Execute(null);
         OnMachineStateChanged(this, new(null));
         OnRecipeChanged();
@@ -465,9 +467,13 @@ public partial class OperationViewModel : ObservableObject
     {
         IsResetAllowed = false;
         Deactivate();
-        return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
-                SetStartBackupPlateCommand, SetStartStopperCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand]);
+        Machine.PcbHistory.Saved -= OnPcbSaved;
+        Machine.PcbHistory.ImageSaved -= OnPcbImageSaved;
+        return CommandShutdown.WaitAsync(
+            CommandShutdown.CancelAndWaitAsync(
+                [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
+                    SetStartBackupPlateCommand, SetStartStopperCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand]),
+            PcbDetails.ShutdownAsync());
     }
 
     public ObservableCollection<FasteningResumeRow> FasteningResumeBolts { get; }
@@ -1318,15 +1324,16 @@ public partial class OperationViewModel : ObservableObject
 
     public PcbResultsViewModel PcbDetails { get; }
 
-    private void OnPcbImageSaved(long number)
+    private void OnPcbImageSaved(string databaseFile, long number)
     {
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher is not null && !dispatcher.CheckAccess())
         {
-            dispatcher.BeginInvoke(() => OnPcbImageSaved(number));
+            dispatcher.BeginInvoke(() => OnPcbImageSaved(databaseFile, number));
             return;
         }
-        if (PcbDetails.Record?.Number == number)
+        if (PcbDetails.Record is { } record && record.Number == number
+            && string.Equals(record.DatabaseFile, databaseFile, StringComparison.OrdinalIgnoreCase))
             _ = PcbDetails.LoadImagesCommand.ExecuteAsync(null);
     }
 
@@ -1373,7 +1380,7 @@ public partial class OperationViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            if (directory == _pcbHistoryDirectory)
+            if (!cancellationToken.IsCancellationRequested && directory == _pcbHistoryDirectory)
                 PcbHistoryError = UiText.Get("Cannot load PCB history. Open Logs for details.");
             _log.LogError(exception, "PCB history load failed for {Directory}.", directory);
         }
@@ -1387,7 +1394,21 @@ public partial class OperationViewModel : ObservableObject
             dispatcher.BeginInvoke(() => OnPcbSaved(record));
             return;
         }
-        UpdatePcbRecord(record);
+        try
+        {
+            // Existing carriers keep saving into their original folder after a settings change.
+            if (record.DatabaseFile is null
+                || !string.Equals(Path.GetDirectoryName(record.DatabaseFile),
+                    Path.TrimEndingDirectorySeparator(Path.GetFullPath(_pcbHistoryDirectory)),
+                    StringComparison.OrdinalIgnoreCase))
+                return;
+            UpdatePcbRecord(record);
+        }
+        catch (Exception exception)
+        {
+            PcbHistoryError = UiText.Get("Cannot load PCB history. Open Logs for details.");
+            _log.LogError(exception, "PCB {Number} history display update failed.", record.Number);
+        }
     }
 
     private void UpdatePcbRecord(PcbRecord record)
@@ -1395,7 +1416,8 @@ public partial class OperationViewModel : ObservableObject
         var index = 0;
         while (index < PcbRecords.Count && PcbRecords[index].Number > record.Number)
             index++;
-        var selected = PcbDetails.Record?.Number == record.Number;
+        var selected = PcbDetails.Record is { } selectedRecord && selectedRecord.Number == record.Number
+            && string.Equals(selectedRecord.DatabaseFile, record.DatabaseFile, StringComparison.OrdinalIgnoreCase);
         if (index < PcbRecords.Count && PcbRecords[index].Number == record.Number)
         {
             if (PcbRecords[index].UpdatedAt > record.UpdatedAt)

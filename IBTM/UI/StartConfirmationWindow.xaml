@@ -343,7 +343,7 @@
                                             <StackPanel>
                                                 <TextBlock Text="{Binding HeatSink, Converter={StaticResource UiTextConverter}}" FontWeight="SemiBold"/>
                                                 <TextBlock Text="{Binding PcbNumber, StringFormat={ui:Text 'PCB {0}'}, TargetNullValue=—}" Margin="0,4,0,0"/>
-                                                <TextBlock Text="{Binding PcbBarcode}" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
+                                                <TextBlock Text="{Binding PcbBarcode}" TextTrimming="CharacterEllipsis" ToolTip="{Binding PcbBarcode}" Margin="0,4,0,0"/>
                                                 <UniformGrid Columns="2" Margin="0,8,0,0">
                                                     <StackPanel>
                                                         <TextBlock Text="{ui:Text 'Bolt Fastening'}" Foreground="{StaticResource TextMutedBrush}"/>
