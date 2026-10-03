@@ -3689,4 +3689,16 @@ COMPLETE: finish</value>
   <data name="light disconnected · check com port" xml:space="preserve">
     <value>Light disconnected · check COM port</value>
   </data>
+  <data name="slave must be 0–255." xml:space="preserve">
+    <value>Slave must be 0–255.</value>
+  </data>
+  <data name="address must be 0–65535." xml:space="preserve">
+    <value>Address must be 0–65535.</value>
+  </data>
+  <data name="check register count." xml:space="preserve">
+    <value>Check register count.</value>
+  </data>
+  <data name="value must be 0–65535." xml:space="preserve">
+    <value>Value must be 0–65535.</value>
+  </data>
 </root>

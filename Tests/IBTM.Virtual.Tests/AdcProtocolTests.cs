@@ -12,6 +12,7 @@ using System.Threading.Channels;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
+using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -20,6 +21,122 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class AdcProtocolTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DiagnosticStopAttemptsOffWhenPendingQueryFailsAndCloseRetainsErrors(bool failStop)
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        var io = new VirtualIoService(VirtualTestSupport.Outputs(), new());
+        var status = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var queryError = new IOException("Result query failed.");
+        using var bus = new AdcControllerStub
+        {
+            SuppressCompletion = true,
+            StatusReadBarrier = status.Task,
+            NextResultReadFailure = queryError,
+        };
+        bus.BindIo(io, FasteningHead.Pickup);
+        using var otherBus = new VirtualAdcBus();
+        using var diagnostics = new AdcProtocolViewModel(
+            bus, otherBus, io, services.GetRequiredService<MachineSettings>().Hantas,
+            machine, services.GetRequiredService<MachineState>());
+        var context = new VirtualTestSupport.PausedSynchronizationContext();
+        Task? reading = null;
+        Task? stopping = null;
+        try
+        {
+            diagnostics.SelectedPort = bus.PortName;
+            await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
+            await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads > 0);
+            io.SetOutput(OutputIo.PickupBoltStart, true);
+            if (failStop)
+                bus.StopWriteFailure = new IOException("START OFF failed.");
+            var previous = SynchronizationContext.Current;
+            try
+            {
+                SynchronizationContext.SetSynchronizationContext(context);
+                reading = diagnostics.ReadResultCommand.ExecuteAsync(null);
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previous);
+            }
+            status.SetResult();
+            await VirtualTestSupport.WaitUntilAsync(() => context.HasPending);
+            stopping = diagnostics.StopCommand.ExecuteAsync(null);
+            var closing = diagnostics.TryCloseAsync();
+            context.Release();
+
+            Assert.Same(queryError, await Assert.ThrowsAsync<IOException>(() => reading));
+            var failure = await Record.ExceptionAsync(() => stopping.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.False(await closing.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(1, bus.StopWrites);
+            Assert.Contains(queryError.Message, diagnostics.CloseError);
+            if (failStop)
+            {
+                var errors = Assert.IsType<AggregateException>(failure).Flatten().InnerExceptions;
+                Assert.Contains(queryError, errors);
+                Assert.Contains(bus.StopWriteFailure!, errors);
+                Assert.Contains(bus.StopWriteFailure!.Message, diagnostics.CloseError);
+            }
+            else
+            {
+                Assert.Same(queryError, failure);
+                Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            }
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            status.TrySetResult();
+            context.Release();
+            if (reading is not null)
+                await Record.ExceptionAsync(() => reading.WaitAsync(TimeSpan.FromSeconds(2)));
+            if (stopping is not null)
+                await Record.ExceptionAsync(() => stopping.WaitAsync(TimeSpan.FromSeconds(2)));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task InvalidDiagnosticSlaveDoesNotOpenPortAndCanBeCorrected()
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        using var pickup = new VirtualAdcBus();
+        using var shooting = new VirtualAdcBus();
+        using var diagnostics = new AdcProtocolViewModel(
+            pickup, shooting, services.GetRequiredService<IIoService>(),
+            services.GetRequiredService<MachineSettings>().Hantas, machine,
+            services.GetRequiredService<MachineState>());
+        try
+        {
+            diagnostics.SelectedPort = "Virtual";
+            diagnostics.SlaveText = "256";
+            await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
+            Assert.False(pickup.IsOpen);
+            Assert.Equal("Slave must be 0–255.", diagnostics.ConnectionStatus);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+
+            diagnostics.SlaveText = "1";
+            await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
+            Assert.True(pickup.IsOpen);
+            await diagnostics.ExecuteRegisterCommand.ExecuteAsync(null);
+            Assert.Contains(" = ", diagnostics.RegisterResult);
+            await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
+            Assert.False(pickup.IsOpen);
+        }
+        finally
+        {
+            await diagnostics.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public void AdcConnectionMustMatchBothRequestedSettings()
     {

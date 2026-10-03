@@ -276,12 +276,18 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                 return;
             }
 
+            if (!byte.TryParse(SlaveText, out var slave))
+            {
+                ConnectionStatus = UiText.Get("Slave must be 0–255.");
+                return;
+            }
+
             var portName = SelectedPort!;
             var baudRate = SelectedBaudRate;
             await Task.Run(() => Bus.Open(portName, baudRate), operation.Token);
             _connectedHead = null;
             Bus.Monitor.IntervalMilliseconds = _settings.StatusPollMilliseconds;
-            await Bus.Monitor.StartAsync(SlaveAddress, operation.Token);
+            await Bus.Monitor.StartAsync(slave, operation.Token);
             ConnectionStatus = $"{portName} | {baudRate}";
             AppendLog($"CONNECT  {Bus.PortName} | {Bus.BaudRate}");
         }
@@ -375,10 +381,26 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             {
                 // Tighten/reverse turn START off in their cleanup; read commands do not.
                 var stopsHead = StartCommand.IsRunning || ReverseCommand.IsRunning;
-                await CommandShutdown.CancelAndWaitAsync(
-                    _commands.Where(command => command != StopCommand).ToArray());
-                if (stopsHead || !Bus.IsOpen)
-                    return;
+                var commands = _commands.Where(command => command != StopCommand).ToArray();
+                var pending = CommandShutdown.Capture(commands);
+                Task? stopping = null;
+                if (!stopsHead)
+                {
+                    try
+                    {
+                        // The query still owns control. Its failure must not skip START OFF.
+                        ResultMessage = UiText.Get("Turning START OFF...");
+                        ConnectedHead.Stop();
+                    }
+                    catch (Exception exception)
+                    {
+                        stopping = Task.FromException(exception);
+                    }
+                }
+                await CommandShutdown.CancelAndWaitAsync(commands, stopping, pending);
+                if (!stopsHead)
+                    ResultMessage = UiText.Get("START OFF sent; see controller feedback.");
+                return;
             }
             operation = _machine.BeginAdcProtocol(cancellationToken);
             _operationCancellation = operation;
@@ -611,13 +633,23 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             RefreshControls();
             RegisterResult = "-";
             var access = RegisterAccess;
-            var address = ushort.Parse(AddressText);
+            if (!ushort.TryParse(AddressText, out var address))
+            {
+                RegisterResult = UiText.Get("Address must be 0–65535.");
+                return;
+            }
+
             var bus = Bus;
             var slave = SlaveAddress;
             switch (access)
             {
                 case AdcFunctionCode.ReadHoldingRegisters or AdcFunctionCode.ReadInputRegisters:
-                    var count = ushort.Parse(CountText);
+                    if (!ushort.TryParse(CountText, out var count))
+                    {
+                        RegisterResult = UiText.Get("Check register count.");
+                        return;
+                    }
+
                     var values = await bus.Monitor.EnqueueAsync(
                         token => bus.ReadRegistersAsync(slave, access, address, count, token), operation.Token);
                     RegisterResult = string.Join(
@@ -625,7 +657,12 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                         values.Select((value, index) => $"{address + index} = {value} (0x{value:X4})"));
                     break;
                 case AdcFunctionCode.WriteSingleRegister:
-                    var value = ushort.Parse(ValueText);
+                    if (!ushort.TryParse(ValueText, out var value))
+                    {
+                        RegisterResult = UiText.Get("Value must be 0–65535.");
+                        return;
+                    }
+
                     if (address == (ushort)AdcRemoteRegister.RemoteStart && value != 0)
                     {
                         RegisterResult = UiText.Get("Raw Start is not available. Use Start Fastening or Reverse (Hold).");
@@ -736,7 +773,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             return;
         }
 
-        ResultMessage += UiText.Get("\nOperation failed. Check controller status.");
+        var message = UiText.Get("\nOperation failed. Check controller status.");
+        if (!ResultMessage.EndsWith(message, StringComparison.Ordinal))
+            ResultMessage += message;
         ConnectionStatus = exception.Message;
         _log?.LogError(exception, "ADC diagnostic operation failed.");
         AppendLog($"ERROR  {exception.Message}", record: false);
