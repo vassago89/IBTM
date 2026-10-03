@@ -29,6 +29,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     private readonly IAsyncRelayCommand[] _commands;
     private readonly InspectionImageLoader _images;
     private IReadOnlyList<RecipeImageItem> _carrierImages;
+    private bool _shuttingDown;
 
     public InspectionTeachingViewModel(MachineStore store, RecipeManager recipes, InspectionImageLoader images,
         PcbHistorySettings history, ILogger<InspectionTeachingViewModel> log)
@@ -103,7 +104,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public partial PcbInspectionImageItem? SelectedHistoryImage { get; set; }
 
     public bool IsBusy => _commands.Any(command => command.IsRunning);
-    public bool IsIdle => !IsBusy;
+    public bool IsIdle => !_shuttingDown && !IsBusy;
     public bool IsDataMatrixSelected => SelectedPoint?.IsDataMatrix == true;
 
     public string? OriginalResult
@@ -122,30 +123,40 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private void OnRecipeChanged()
     {
+        if (_shuttingDown)
+            return;
         if (!ReferenceEquals(Preview.Recipe, _recipes.Current)
             && !MachineStore.IsSameRecipeName(Preview.Recipe.Name, _recipes.Current.Name))
             return;
         SelectedRecipeName = _recipes.Current.Name;
-        if (!IsLoaded)
+        if (!IsLoaded && !LoadRecipeCommand.IsRunning
+            && !RefreshRecipesCommand.IsRunning && !RefreshImagesCommand.IsRunning)
             return;
+        // Current keeps its identity when a recipe changes. Even the first image load
+        // must be replaced before its old pixels can be paired with the new metadata.
+        var refreshList = RefreshRecipesCommand.IsRunning;
         LoadRecipeCommand.Cancel();
-        RefreshRecipesCommand.Cancel();
+        RefreshImagesCommand.Cancel();
         InspectCommand.Cancel();
-        _ = RefreshImagesCommand.ExecuteAsync(null);
+        if (refreshList)
+            _ = RefreshRecipesCommand.ExecuteAsync(null);
+        else
+            _ = RefreshImagesCommand.ExecuteAsync(null);
     }
 
     public void Activate()
     {
-        if (!IsBusy)
+        if (IsIdle)
             _ = RefreshRecipesCommand.ExecuteAsync(null);
     }
 
     private async Task RefreshRecipesAsync(CancellationToken token)
     {
+        var previous = RefreshRecipesCommand.ExecutionTask;
         try
         {
             var names = await Task.Run(() => _store.RecipeNames, token);
-            if (token.IsCancellationRequested)
+            if (_shuttingDown || token.IsCancellationRequested)
                 return;
             var selectedName = SelectedRecipeName;
             RecipeNames = names;
@@ -164,10 +175,20 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 Error = exception.Message;
             _log.LogError(exception, "Inspection teaching recipe list failed.");
         }
+        finally
+        {
+            if (previous is { IsCompleted: false })
+                await previous;
+        }
     }
 
     public Task ShutdownAsync()
     {
+        _shuttingDown = true;
+        _recipes.Changed -= OnRecipeChanged;
+        OnPropertyChanged(nameof(IsIdle));
+        OnPropertyChanged(nameof(IsInspectAllowed));
+        OnPropertyChanged(nameof(IsDrawRegionAllowed));
         return CommandShutdown.CancelAndWaitAsync(_commands);
     }
 
@@ -188,15 +209,23 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private async Task RefreshImagesAsync(CancellationToken token)
     {
-        if (IsLoaded)
+        var previous = RefreshImagesCommand.ExecutionTask;
+        try
+        {
             await LoadRecipeImagesAsync(Preview.Recipe.Name, preserveSelection: true, token);
+        }
+        finally
+        {
+            if (previous is { IsCompleted: false })
+                await previous;
+        }
     }
 
     private async Task LoadRecipeImagesAsync(string? name, bool preserveSelection, CancellationToken token)
     {
         Error = null;
         Message = null;
-        if (string.IsNullOrWhiteSpace(name))
+        if (_shuttingDown || string.IsNullOrWhiteSpace(name))
             return;
         try
         {
@@ -206,7 +235,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
                     ? Preview.Recipe
                     : await Task.Run(() => _store.LoadRecipe(name), token);
             var images = await _images.LoadRecipeAsync(recipe, token);
-            token.ThrowIfCancellationRequested();
+            if (_shuttingDown || token.IsCancellationRequested)
+                return;
             var selected = SelectedPoint;
             SelectedPoint = null;
             Preview.Recipe = recipe;
@@ -276,7 +306,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(IsDrawRegionAllowed));
     }
 
-    public bool IsInspectAllowed => Preview.HasImage && SelectedPoint?.Metadata is not null;
+    public bool IsInspectAllowed => !_shuttingDown && Preview.HasImage && SelectedPoint?.Metadata is not null;
 
     public bool IsDrawRegionAllowed => !IsBusy && IsInspectAllowed;
 
@@ -361,6 +391,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     partial void OnSelectedTabChanged(InspectionTeachingTab value)
     {
+        if (_shuttingDown)
+            return;
         if (value == InspectionTeachingTab.Setup)
         {
             LoadRecordCommand.Cancel();
@@ -425,7 +457,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         SelectedHistoryImage = null;
         Error = null;
         Message = null;
-        if (value is not null)
+        if (value is not null && !_shuttingDown)
             _ = LoadRecordCommand.ExecuteAsync(null);
     }
 
@@ -503,15 +535,18 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private async Task LoadRecordAsync(CancellationToken token)
     {
-        if (SelectedRecord is not { } record)
-            return;
-        Error = null;
-        Message = null;
-        LoadedRecord = null;
-        HistoryImages = [];
-        SelectedHistoryImage = null;
+        // Keep the previous command invocation in the shutdown wait, even after a new selection.
+        var previous = LoadRecordCommand.ExecutionTask;
+        var record = SelectedRecord;
         try
         {
+            if (_shuttingDown || record is null)
+                return;
+            Error = null;
+            Message = null;
+            LoadedRecord = null;
+            HistoryImages = [];
+            SelectedHistoryImage = null;
             var images = await _images.LoadRecordAsync(record, Preview.Recipe, token);
             if (token.IsCancellationRequested || SelectedRecord != record)
                 return;
@@ -523,7 +558,13 @@ public partial class InspectionTeachingViewModel : ObservableObject
         {
             if (!token.IsCancellationRequested && SelectedRecord == record)
                 Error = exception.Message;
-            _log.LogError(exception, "Inspection image history failed for PCB {Number}.", record.Number);
+            _log.LogError(exception, "Inspection image history failed for PCB {Number}.", record?.Number);
+        }
+        finally
+        {
+            // Update the current result before waiting for a cancelled earlier read.
+            if (previous is { IsCompleted: false })
+                await previous;
         }
     }
 

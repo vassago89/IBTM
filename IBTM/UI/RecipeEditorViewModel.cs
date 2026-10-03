@@ -20,6 +20,7 @@ public partial class RecipeEditorViewModel : ObservableObject
     private readonly RecipeManager _recipes;
     private readonly MachineStore _database;
     private readonly OperationCancellation _operations;
+    private bool _shuttingDown;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSaveAllowed))]
@@ -58,22 +59,33 @@ public partial class RecipeEditorViewModel : ObservableObject
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
+        var previous = RefreshCommand.ExecutionTask;
         try
         {
+            if (_shuttingDown)
+                return;
             var names = await Task.Run(() => _database.RecipeNames, cancellationToken);
-            if (!cancellationToken.IsCancellationRequested)
+            if (!_shuttingDown && !cancellationToken.IsCancellationRequested)
                 Recipes = names;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (!cancellationToken.IsCancellationRequested)
+            if (!_shuttingDown && !cancellationToken.IsCancellationRequested)
                 ReportError(exception);
+        }
+        finally
+        {
+            // Saving or reopening teaching can replace an unfinished list query.
+            if (previous is { IsCompleted: false })
+                await previous;
         }
     }
 
     public Task ShutdownAsync()
     {
+        _shuttingDown = true;
+        _recipes.Changed -= OnRecipeChanged;
         return CommandShutdown.CancelAndWaitAsync([LoadCommand, RefreshCommand, NewCommand]);
     }
 
@@ -109,7 +121,7 @@ public partial class RecipeEditorViewModel : ObservableObject
                     return new RecipeImage(image.Metadata.Number, stream.ToArray());
                 }),
                 operation.Token);
-            if (RefreshCommand.IsRunning)
+            if (!_shuttingDown && RefreshCommand.IsRunning)
                 _ = RefreshCommand.ExecuteAsync(null);
             OnRecipeChanged();
             if (!Recipes.Any(savedName => MachineStore.IsSameRecipeName(savedName, Name)))

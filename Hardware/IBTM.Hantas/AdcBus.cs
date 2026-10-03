@@ -275,10 +275,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
                             + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
                             + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
                         _logger.LogWarning("ADC response rejected or unmatched. {Detail} {Rejection}", detail, rejection);
-                        response = response with { Rejection = $"{detail} {rejection}" };
                         if (attempt < attempts)
                         {
-                            Monitor.InvalidateSample(response.Rejection);
+                            Monitor.InvalidateSample(rejection);
                             continue;
                         }
                     }
@@ -296,16 +295,14 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     if (attempt < attempts
                         && exception is OperationCanceledException or TimeoutException or InvalidDataException)
                     {
-                        Monitor.InvalidateSample($"{detail} {exception.Message}");
+                        Monitor.InvalidateSample(exception.Message);
                         _logger.LogWarning(exception, "ADC read failed; sending the same request again. {Detail}", detail);
                         continue;
                     }
                     _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
-                    if (exception is InvalidDataException invalid)
-                        throw new InvalidDataException($"{detail} {invalid.Message}", invalid);
                     if (exception is OperationCanceledException)
                         throw new TimeoutException(
-                            $"{detail} Response timed out after {responseTimeout} ms.", exception);
+                            $"ADC {port.PortName}/{slaveAddress}: response timed out after {responseTimeout} ms.", exception);
                     throw;
                 }
                 finally

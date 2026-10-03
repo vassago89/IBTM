@@ -667,6 +667,7 @@ public partial class OperationViewModel : ObservableObject
 
     private async Task StopAsync()
     {
+        var previous = StopCommand.ExecutionTask;
         try
         {
             IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
@@ -683,6 +684,11 @@ public partial class OperationViewModel : ObservableObject
                 State.SetError(MachineAlarm.StopFailed, exception);
             else
                 _log.LogError(exception, "Machine STOP also failed.");
+        }
+        finally
+        {
+            if (previous is { IsCompleted: false })
+                await previous;
         }
     }
 

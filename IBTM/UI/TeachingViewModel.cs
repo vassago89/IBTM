@@ -854,7 +854,7 @@ public partial class TeachingViewModel : ObservableObject
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             SaveError = UiText.Get("Save cancelled; teaching not saved.");
-            throw;
+            return false;
         }
         catch (Exception exception)
         {
@@ -1521,17 +1521,29 @@ public partial class TeachingViewModel : ObservableObject
                 cancellationToken,
                 viewToken);
             if (operation is null)
-                throw new InvalidOperationException(UiText.Get("Recording was not started because another operation is active. Try again after it finishes."));
+            {
+                CameraError = UiText.Get("Recording was not started because another operation is active. Try again after it finishes.");
+                return;
+            }
             activeToken = operation.Token;
             if (State.IsRunningFor(includeOperations: false))
-                throw new InvalidOperationException(UiText.Get("Recording was not started because the machine is busy. Wait for motion to stop, then record again."));
+            {
+                CameraError = UiText.Get("Recording was not started because the machine is busy. Wait for motion to stop, then record again.");
+                return;
+            }
             operation.Token.ThrowIfCancellationRequested();
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
-                throw new InvalidOperationException(UiText.Get("Wait for the saved teaching images to load before capturing."));
+            {
+                CameraError = UiText.Get("Wait for the saved teaching images to load before capturing.");
+                return;
+            }
             if (point.Inspection!.ImageCount > 1)
-                throw new InvalidOperationException(UiText.Get("Multiple reference images are linked to this point. Resolve the duplicate before capturing."));
+            {
+                CameraError = UiText.Get("Multiple reference images are linked to this point. Resolve the duplicate before capturing.");
+                return;
+            }
             await _cameraStop;
             operation.Token.ThrowIfCancellationRequested();
             var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, lightLevel);
@@ -1544,7 +1556,10 @@ public partial class TeachingViewModel : ObservableObject
                 tile.Metadata.IsForTarget(point.Inspection.HeatSink, point.Inspection.Bolt?.Id));
             var previous = index >= 0 ? images[index].Metadata : null;
             if (!recordPosition && previous is null)
-                throw new InvalidOperationException(UiText.Get("No reference image. Use Move to Selected Point, then Save X/Y + Image."));
+            {
+                CameraError = UiText.Get("No reference image. Use Move to Selected Point, then Save X/Y + Image.");
+                return;
+            }
             var metadata = new CarrierImageTile
             {
                 Number = previous?.Number ?? (images.Count == 0 ? 1 : images.Max(tile => tile.Metadata.Number) + 1),
@@ -1656,14 +1671,14 @@ public partial class TeachingViewModel : ObservableObject
             await previous;
             _logger.LogInformation("Teaching images: previous load drained, elapsed={ElapsedMs:F1} ms.",
                 Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!PositionUpdatesActive || !IsInspectionSelected)
+            if (cancellationToken.IsCancellationRequested || !PositionUpdatesActive || !IsInspectionSelected)
                 return;
             var loadStarted = Stopwatch.GetTimestamp();
             var images = await _images.LoadRecipeAsync(Recipes.Current, cancellationToken);
             _logger.LogInformation("Teaching images: read/decode finished, count={Count}, elapsed={ElapsedMs:F1} ms.",
                 images.Length, Stopwatch.GetElapsedTime(loadStarted).TotalMilliseconds);
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested)
+                return;
             // Point edits may finish while image decoding or its UI continuation is pending.
             var publishStarted = Stopwatch.GetTimestamp();
             CarrierImages = images.Where(image => Recipes.Current.CarrierImages.Contains(image.Metadata)).ToArray();

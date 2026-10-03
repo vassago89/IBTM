@@ -268,14 +268,16 @@ public partial class PcbResultsViewModel : ObservableObject
 
     private async Task LoadImagesAsync(CancellationToken cancellationToken)
     {
-        if (_shuttingDown)
-            return;
+        // The command still exposes the previous invocation while starting this one.
+        var previous = LoadImagesCommand.ExecutionTask;
         var record = Record;
-        ImageError = null;
-        if (record is null)
-            return;
         try
         {
+            if (_shuttingDown)
+                return;
+            ImageError = null;
+            if (record is null)
+                return;
             var images = await _images.LoadRecordAsync(record, _recipes.Current, cancellationToken);
             if (cancellationToken.IsCancellationRequested)
                 return;
@@ -300,7 +302,13 @@ public partial class PcbResultsViewModel : ObservableObject
             if (cancellationToken.IsCancellationRequested)
                 return;
             ImageError = UiText.Format($"Inspection images could not be loaded: {exception.Message}");
-            _log.LogError(exception, "PCB {Number} image history load failed.", record.Number);
+            _log.LogError(exception, "PCB {Number} image history load failed.", record?.Number);
+        }
+        finally
+        {
+            // Publish the new selection first, but keep cancelled reads owned until shutdown can drain them.
+            if (previous is { IsCompleted: false })
+                await previous;
         }
     }
 }

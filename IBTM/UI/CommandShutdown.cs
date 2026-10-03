@@ -59,11 +59,9 @@ internal static class CommandShutdown
         catch (OperationCanceledException) when (completion.IsCanceled)
         {
         }
-        catch (Exception)
+        catch when (completion.Exception is { InnerExceptions.Count: > 1 } failures)
         {
-            if (completion.Exception is { InnerExceptions.Count: > 1 } failures)
-                throw failures;
-            throw;
+            throw failures;
         }
     }
 }

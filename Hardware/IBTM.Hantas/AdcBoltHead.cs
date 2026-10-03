@@ -365,17 +365,12 @@ public sealed class AdcBoltHead : IBoltHead
                     resultReceived?.Invoke(completed);
             }
         }
-        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
-        {
-            failure = exception;
-            throw;
-        }
-        catch (OperationCanceledException) when (ioFailure is not null)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && ioFailure is not null)
         {
             failure = ioFailure;
             throw failure;
         }
-        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
         {
             failure = new TimeoutException(
                 $"ADC {_portName}/{_slaveAddress} fastening timed out after {fasteningTimeoutMilliseconds} ms; "

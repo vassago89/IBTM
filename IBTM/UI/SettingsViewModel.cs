@@ -168,23 +168,36 @@ public partial class SettingsViewModel : ObservableObject
         DatabaseMessage = UiText.Get("Saving settings...");
         try
         {
+            string? validationError = null;
             foreach (var (group, section) in _motions)
             {
                 var hasZ = section.Hardware.AxisSignals.ContainsKey(MotionAxis.Z);
                 if (section.Settings.GetValidationError(hasZ) is { } error)
-                    throw new InvalidOperationException($"{UiText.Get(group)}: {error}");
+                {
+                    validationError = $"{UiText.Get(group)}: {error}";
+                    break;
+                }
             }
-            if (Settings.Lighting.InspectionChannel is < 1 or > 9)
-                throw new InvalidOperationException(UiText.Get("Inspection light channel must be from 1 to 9."));
-            if (Settings.Hantas.FasteningTimeoutMilliseconds <= 0)
-                throw new InvalidOperationException(UiText.Get("Fastening timeout must be greater than 0 s."));
-            if (Settings.Hantas.ResponseTimeoutMilliseconds <= 0)
-                throw new InvalidOperationException(UiText.Get("ADC response timeout must be greater than 0 s."));
-            if (string.IsNullOrWhiteSpace(LogDirectory) || !Path.IsPathFullyQualified(LogDirectory))
-                throw new InvalidOperationException(UiText.Get("Choose an absolute folder path for logs."));
+            if (validationError is null)
+            {
+                if (Settings.Lighting.InspectionChannel is < 1 or > 9)
+                    validationError = UiText.Get("Inspection light channel must be from 1 to 9.");
+                else if (Settings.Hantas.FasteningTimeoutMilliseconds <= 0)
+                    validationError = UiText.Get("Fastening timeout must be greater than 0 s.");
+                else if (Settings.Hantas.ResponseTimeoutMilliseconds <= 0)
+                    validationError = UiText.Get("ADC response timeout must be greater than 0 s.");
+                else if (string.IsNullOrWhiteSpace(LogDirectory) || !Path.IsPathFullyQualified(LogDirectory))
+                    validationError = UiText.Get("Choose an absolute folder path for logs.");
+                else if (string.IsNullOrWhiteSpace(PcbResultsDirectory) || !Path.IsPathFullyQualified(PcbResultsDirectory))
+                    validationError = UiText.Get("Choose an absolute folder path for PCB results.");
+            }
+            if (validationError is not null)
+            {
+                DatabaseMessage = UiText.Format($"Settings not saved: {validationError}");
+                _log.LogWarning("Machine settings were not saved: {Reason}", validationError);
+                return;
+            }
             _ = Path.GetFullPath(LogDirectory);
-            if (string.IsNullOrWhiteSpace(PcbResultsDirectory) || !Path.IsPathFullyQualified(PcbResultsDirectory))
-                throw new InvalidOperationException(UiText.Get("Choose an absolute folder path for PCB results."));
             Directory.CreateDirectory(PcbResultsDirectory);
             await _store.SaveSettingsAsync(Settings.Sections);
             DatabaseMessage = UiText.Get("Settings saved.");
@@ -361,7 +374,9 @@ public partial class SettingsViewModel : ObservableObject
 
         var channel = LightTestChannel;
         var level = LightTestLevel;
-        OperationCancellation.Operation? operation;
+        OperationCancellation.Operation? operation = null;
+        var initialized = false;
+        Exception? failure = null;
         try
         {
             operation = _machine.BeginManualOperation(
@@ -372,74 +387,59 @@ public partial class SettingsViewModel : ObservableObject
                 LightTestMessage = UiText.Get("Wait for the current machine operation to finish.");
                 return;
             }
+
+            LightTestMessage = UiText.Format($"Connecting: {ActiveLightConnection}…");
+            _log.LogInformation(
+                "Lighting test started: connection={Connection}, channel={Channel}, level={Level}.",
+                ActiveLightConnection, channel, level);
+            await Task.Run(
+                () =>
+                {
+                    operation.Token.ThrowIfCancellationRequested();
+                    _light.Initialize();
+                    initialized = true;
+                    operation.Token.ThrowIfCancellationRequested();
+                    _light.SetLevel(channel, level);
+                    operation.Token.ThrowIfCancellationRequested();
+                    _light.TurnOn(channel);
+                },
+                operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
+            PendingLightOffChannel = channel;
+            LightTestMessage = UiText.Format($"ON command sent · channel {channel}, level {level}.");
+            _log.LogInformation("Lighting test ON command sent: channel={Channel}, level={Level}.", channel, level);
+            // Keep the operation owned while illuminated, including OFF cleanup.
+            // This blocks automatic/motion admission and lets STOP cancel the test.
+            await Task.Delay(Timeout.Infinite, operation.Token);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _operations.IsShuttingDown)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested
+            || operation?.IsCancellationRequested == true || _operations.IsShuttingDown)
         {
             LightTestMessage = UiText.Get("Lighting test cancelled.");
-            RefreshCommands();
-            return;
         }
         catch (Exception exception)
         {
+            failure = exception;
             LightTestMessage = exception.Message;
-            _log.LogError(exception, "Lighting test admission failed.");
-            RefreshCommands();
-            return;
+            _log.LogError(exception, "Lighting test failed.");
         }
-
-        using (operation)
+        finally
         {
-            var initialized = false;
-            Exception? failure = null;
             try
-            {
-                LightTestMessage = UiText.Format($"Connecting: {ActiveLightConnection}…");
-                _log.LogInformation(
-                    "Lighting test started: connection={Connection}, channel={Channel}, level={Level}.",
-                    ActiveLightConnection, channel, level);
-                await Task.Run(
-                    () =>
-                    {
-                        operation.Token.ThrowIfCancellationRequested();
-                        _light.Initialize();
-                        initialized = true;
-                        operation.Token.ThrowIfCancellationRequested();
-                        _light.SetLevel(channel, level);
-                        operation.Token.ThrowIfCancellationRequested();
-                        _light.TurnOn(channel);
-                    },
-                    operation.Token);
-                operation.Token.ThrowIfCancellationRequested();
-                PendingLightOffChannel = channel;
-                LightTestMessage = UiText.Format($"ON command sent · channel {channel}, level {level}.");
-                _log.LogInformation("Lighting test ON command sent: channel={Channel}, level={Level}.", channel, level);
-                // Keep the operation owned while illuminated, including OFF cleanup.
-                // This blocks automatic/motion admission and lets STOP cancel the test.
-                await Task.Delay(Timeout.Infinite, operation.Token);
-            }
-            catch (OperationCanceledException) when (operation.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
-            {
-                failure = exception;
-                _log.LogError(exception, "Lighting test failed.");
-            }
-            finally
             {
                 if (initialized)
                 {
                     // Required cleanup and retries target the captured channel, not edited settings.
                     var offFailure = await TurnTestLightOffAsync(channel);
-                    failure = offFailure ?? failure;
+                    LightTestMessage = (offFailure ?? failure)?.Message
+                        ?? UiText.Format($"OFF command sent · channel {channel}.");
                 }
-
-                LightTestMessage = failure?.Message ?? (initialized
-                    ? UiText.Format($"OFF command sent · channel {channel}.")
-                    : UiText.Get("Lighting test cancelled."));
+            }
+            finally
+            {
+                operation?.Dispose();
+                RefreshCommands();
             }
         }
-
-        RefreshCommands();
     }
 }

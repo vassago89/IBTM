@@ -868,14 +868,22 @@ public sealed class PcbHistoryTests
         try
         {
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
+            var next = record with { Number = 2 };
+            store.SavePcb(next.DatabaseFile!, next);
+            details.Record = next;
+            var replacement = details.LoadImagesCommand.ExecutionTask!;
+            details.Record = null; // Closing the result window clears its selection.
+            var cleared = details.LoadImagesCommand.ExecutionTask!;
             shutdown = operation.ShutdownAsync();
             Assert.False(shutdown.IsCompleted);
             paused.Release();
             await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.True(pending.IsCompleted);
+            Assert.True(replacement.IsCompleted);
+            Assert.True(cleared.IsCompleted);
             Assert.Empty(details.Images);
-            details.Record = record with { Number = 2 };
-            Assert.Same(pending, details.LoadImagesCommand.ExecutionTask);
+            details.Record = record with { Number = 3 };
+            Assert.Same(cleared, details.LoadImagesCommand.ExecutionTask);
             Assert.Null(details.ImageError);
         }
         finally
@@ -933,8 +941,8 @@ public sealed class PcbHistoryTests
         {
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => context.HasPending, TimeSpan.FromSeconds(2)));
             details.Record = next;
-            await details.LoadImagesCommand.ExecutionTask!;
             context.Release();
+            await details.LoadImagesCommand.ExecutionTask!.WaitAsync(TimeSpan.FromSeconds(2));
             await pending.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Same(next, details.Record);
             Assert.Empty(details.Images);

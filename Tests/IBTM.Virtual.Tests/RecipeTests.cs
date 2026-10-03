@@ -50,10 +50,9 @@ public sealed class RecipeTests
         Assert.Empty(inspection.RecipeNames);
         editor.RefreshCommand.Cancel();
         inspection.RefreshRecipesCommand.Cancel();
-        var shutdown = inspection.ShutdownAsync();
         command.CommandText = "COMMIT";
         command.ExecuteNonQuery();
-        await Task.WhenAll(refresh, shutdown).WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.WhenAll(refresh, inspection.RefreshRecipesCommand.ExecutionTask!).WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Empty(editor.Recipes);
         Assert.Empty(inspection.RecipeNames);
         Assert.Null(editor.Error);
@@ -75,10 +74,21 @@ public sealed class RecipeTests
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
             editor.Name = "New recipe";
             Assert.True(await editor.SaveAsync(), editor.Error);
+            var savedNames = editor.Recipes;
+            // Reopening teaching can replace the save-triggered refresh again.
+            var latest = editor.RefreshCommand.ExecuteAsync(null);
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => !ReferenceEquals(savedNames, editor.Recipes), TimeSpan.FromSeconds(2)));
+            var shutdown = editor.ShutdownAsync();
+            Assert.False(shutdown.IsCompleted);
             paused.Release();
-            await pending;
-            await editor.RefreshCommand.ExecutionTask!;
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(pending.IsCompleted);
+            Assert.True(latest.IsCompleted);
             Assert.Equal(new[] { "New recipe", "Stored recipe" }, editor.Recipes);
+            var closedNames = editor.Recipes;
+            await editor.RefreshCommand.ExecuteAsync(null);
+            Assert.Same(closedNames, editor.Recipes);
         }
         finally
         {

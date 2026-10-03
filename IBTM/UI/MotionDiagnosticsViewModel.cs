@@ -91,6 +91,7 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
 
     private async Task StopAsync()
     {
+        var previous = StopCommand.ExecutionTask;
         try
         {
             var commands = Axes.Select(axis => axis.HomeCommand).ToArray();
@@ -106,6 +107,11 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
                 _state.SetError(MachineAlarm.StopFailed, exception);
             else
                 _log?.LogError(exception, "Motion window STOP also failed.");
+        }
+        finally
+        {
+            if (previous is { IsCompleted: false })
+                await previous;
         }
     }
 

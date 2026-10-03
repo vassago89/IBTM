@@ -815,8 +815,11 @@ public sealed class InspectionTeachingTests
         Assert.Equal(73, editor.Preview.DataMatrixThresholdMinimum);
     }
 
-    [Fact]
-    public async Task ActiveRecipeChangeDuringInitialImageLoadDiscardsPreviousPixels()
+    [Theory]
+    [InlineData(nameof(InspectionTeachingViewModel.LoadRecipeCommand))]
+    [InlineData(nameof(InspectionTeachingViewModel.RefreshRecipesCommand))]
+    [InlineData(nameof(InspectionTeachingViewModel.RefreshImagesCommand))]
+    public async Task ActiveRecipeChangeDuringInitialImageLoadDiscardsPreviousPixels(string commandName)
     {
         var store = VirtualTestSupport.OpenMachineStore();
         await SaveRecipeAsync(store, 255);
@@ -835,7 +838,14 @@ public sealed class InspectionTeachingTests
         try
         {
             SynchronizationContext.SetSynchronizationContext(paused);
-            loading = editor.LoadRecipeCommand.ExecuteAsync(null);
+            var command = commandName switch
+            {
+                nameof(InspectionTeachingViewModel.LoadRecipeCommand) => editor.LoadRecipeCommand,
+                nameof(InspectionTeachingViewModel.RefreshRecipesCommand) => editor.RefreshRecipesCommand,
+                nameof(InspectionTeachingViewModel.RefreshImagesCommand) => editor.RefreshImagesCommand,
+                _ => throw new ArgumentOutOfRangeException(nameof(commandName)),
+            };
+            loading = command.ExecuteAsync(null);
         }
         finally
         {
@@ -846,17 +856,25 @@ public sealed class InspectionTeachingTests
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
             Assert.False(editor.IsLoaded);
             await recipes.LoadAsync("Other");
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => editor.IsLoaded, TimeSpan.FromSeconds(2)));
+            var shutdown = editor.ShutdownAsync();
+            Assert.False(shutdown.IsCompleted);
             paused.Release();
-            await loading.WaitAsync(TimeSpan.FromSeconds(2));
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(loading.IsCompleted);
             if (editor.RefreshImagesCommand.ExecutionTask is { } refreshing)
                 await refreshing.WaitAsync(TimeSpan.FromSeconds(2));
+            if (commandName == nameof(InspectionTeachingViewModel.RefreshRecipesCommand))
+            {
+                await editor.RefreshRecipesCommand.ExecutionTask!.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.Contains("Other", editor.RecipeNames);
+            }
 
             Assert.Null(editor.Error);
             Assert.Equal("Other", editor.SelectedRecipeName);
             Assert.Same(recipes.Current, editor.Preview.Recipe);
             Assert.NotNull(editor.Preview.Image);
-            Assert.All(InspectionPreviewViewModel.CreateFrame(editor.Preview.Image).Pixels,
-                pixel => Assert.Equal(255, pixel));
+            Assert.Equal(255, Assert.Single(InspectionPreviewViewModel.CreateFrame(editor.Preview.Image).Pixels.Distinct()));
         }
         finally
         {
@@ -1004,6 +1022,58 @@ public sealed class InspectionTeachingTests
     }
 
     [Fact]
+    public async Task HistorySelectionPublishesLatestImagesAndShutdownDrainsPreviousLoad()
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var store = services.GetRequiredService<MachineStore>();
+        var editor = services.GetRequiredService<InspectionTeachingViewModel>();
+        var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
+            null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
+        {
+            DatabaseFile = Path.Combine(store.DatabaseFile + ".results", "PCB-2026-10.db"),
+        };
+        var next = record with { Number = 2 };
+        store.SavePcb(record.DatabaseFile, record);
+        store.SavePcb(next.DatabaseFile!, next);
+        var paused = new VirtualTestSupport.PausedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(paused);
+            editor.SelectedRecord = record;
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+        var pending = editor.LoadRecordCommand.ExecutionTask!;
+        Task? shutdown = null;
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
+            editor.SelectedRecord = next;
+            var latest = editor.LoadRecordCommand.ExecutionTask!;
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => editor.LoadedRecord == next, TimeSpan.FromSeconds(2)));
+            Assert.False(pending.IsCompleted);
+            shutdown = editor.ShutdownAsync();
+            Assert.False(shutdown.IsCompleted);
+            paused.Release();
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(pending.IsCompleted);
+            Assert.True(latest.IsCompleted);
+            Assert.Same(next, editor.LoadedRecord);
+            Assert.Null(editor.Error);
+        }
+        finally
+        {
+            paused.Release();
+            await pending.WaitAsync(TimeSpan.FromSeconds(2));
+            await (shutdown ?? editor.ShutdownAsync()).WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
     public async Task HistoryDirectoryChangeDiscardsPendingListAndImageLoads()
     {
         await using var services = MachineTestSupport.CreateDiagnosticServices();
@@ -1055,9 +1125,10 @@ public sealed class InspectionTeachingTests
             finally
             {
                 context.Release();
-                await editor.ShutdownAsync();
+                await pending.WaitAsync(TimeSpan.FromSeconds(2));
             }
         }
+        await editor.ShutdownAsync();
     }
 
     private static async Task<byte[]> SaveRecipeAsync(MachineStore store, byte brightness = 0)

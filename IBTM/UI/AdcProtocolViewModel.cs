@@ -263,7 +263,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         Exception? failure = null;
         try
         {
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             if (Bus.IsOpen)
             {
                 var connectedPort = Bus.PortName;
@@ -304,7 +306,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         Exception? failure = null;
         try
         {
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             await ConnectedHead.SelectPresetAsync(1, operation.Token);
             ResultMessage = UiText.Get("Preset 1 selected");
         }
@@ -329,7 +333,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         Exception? failure = null;
         try
         {
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             _machine.EnsureBoltTestAvailable();
             _state.BoltTestRunning = true;
             var head = ConnectedHead;
@@ -374,7 +380,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                 if (stopsHead || !Bus.IsOpen)
                     return;
             }
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             operation.Token.ThrowIfCancellationRequested();
             ResultMessage = UiText.Get("Turning START OFF...");
             ConnectedHead.Stop();
@@ -416,7 +424,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         Exception? failure = null;
         try
         {
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             _machine.EnsureBoltTestAvailable();
             _state.BoltTestRunning = true;
             ResultMessage = UiText.Get("Loosening · release to stop");
@@ -458,7 +468,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         Exception? failure = null;
         try
         {
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             await ConnectedHead.ResetAsync(operation.Token);
             ResultMessage = UiText.Get("I/O reset confirmed");
         }
@@ -483,7 +495,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         Exception? failure = null;
         try
         {
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             var bus = Bus;
             var slave = SlaveAddress;
             var result = await bus.Monitor.EnqueueAsync(
@@ -520,7 +534,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         Exception? failure = null;
         try
         {
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             var bus = Bus;
             var slave = SlaveAddress;
             var data = await bus.Monitor.EnqueueAsync(
@@ -548,7 +564,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         Exception? failure = null;
         try
         {
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             const int durationMilliseconds = 3000;
             var slave = SlaveAddress;
             IsLogPaused = false;
@@ -588,7 +606,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         Exception? failure = null;
         try
         {
-            operation = BeginCommand(cancellationToken);
+            operation = _machine.BeginAdcProtocol(cancellationToken);
+            _operationCancellation = operation;
+            RefreshControls();
             RegisterResult = "-";
             var access = RegisterAccess;
             var address = ushort.Parse(AddressText);
@@ -686,23 +706,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         catch (ExternalException exception)
         {
             ClipboardError = UiText.Format($"Clipboard is unavailable: {exception.Message}");
-        }
-    }
-
-    private OperationCancellation.Operation BeginCommand(CancellationToken cancellationToken)
-    {
-        var operation = _machine.BeginAdcProtocol(cancellationToken);
-        _operationCancellation = operation;
-        try
-        {
-            operation.Token.ThrowIfCancellationRequested();
-            RefreshControls();
-            return operation;
-        }
-        catch (Exception exception)
-        {
-            EndCommand(operation, exception);
-            throw;
         }
     }
 

@@ -54,6 +54,7 @@ public sealed partial class ManualConveyorRow : ObservableObject
 
     private async Task StopAsync()
     {
+        var previous = StopCommand.ExecutionTask;
         ActionMessage = null;
         try
         {
@@ -67,6 +68,12 @@ public sealed partial class ManualConveyorRow : ObservableObject
         {
             ActionMessage = exception.Message;
             _log?.LogError(exception, "Manual conveyor STOP failed.");
+        }
+        finally
+        {
+            // Send this STOP immediately, but keep earlier requests owned until shutdown.
+            if (previous is { IsCompleted: false })
+                await previous;
         }
     }
 }

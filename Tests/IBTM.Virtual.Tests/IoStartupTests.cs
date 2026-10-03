@@ -731,6 +731,74 @@ public sealed class IoStartupTests
     }
 
     [Theory]
+    [InlineData(typeof(ManualHardwareViewModel))]
+    [InlineData(typeof(MotionDiagnosticsViewModel))]
+    [InlineData(typeof(OperationViewModel))]
+    public async Task RepeatedStopSendsOffImmediatelyAndShutdownWaitsForEarlierRequest(Type viewType)
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        var view = services.GetRequiredService(viewType);
+        var stop = view switch
+        {
+            ManualHardwareViewModel manual => manual.Conveyors[0].StopCommand,
+            MotionDiagnosticsViewModel motion => motion.StopCommand,
+            OperationViewModel operation => operation.StopCommand,
+            _ => throw new ArgumentOutOfRangeException(nameof(viewType)),
+        };
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        var outputError = new IOException("Earlier STOP write failed.");
+        var attempts = 0;
+        io.SetOutput(OutputIo.MainConveyorRun, true);
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output != OutputIo.MainConveyorRun || on
+                || Interlocked.Increment(ref attempts) != 1)
+                return;
+            entered.SetResult();
+            // Hold only the first synchronous SDK call; a second STOP must still send OFF.
+            if (!release.Wait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("Pending STOP was not released.");
+            throw outputError;
+        };
+        var first = stop.ExecuteAsync(null);
+        var second = Task.CompletedTask;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            second = stop.ExecuteAsync(null);
+            await WaitUntilAsync(() => !io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(first.IsCompleted);
+            var shutdown = view switch
+            {
+                ManualHardwareViewModel manual => manual.ShutdownAsync(),
+                MotionDiagnosticsViewModel motion => motion.ShutdownAsync(),
+                OperationViewModel operation => operation.ShutdownAsync(),
+                _ => throw new ArgumentOutOfRangeException(nameof(viewType)),
+            };
+            await Task.WhenAny(shutdown, Task.Delay(100));
+            Assert.False(shutdown.IsCompleted);
+
+            release.Set();
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(first.IsCompleted);
+            Assert.True(second.IsCompleted);
+            Assert.Contains(outputError.Message, state.AlarmDetail);
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            release.Set();
+            await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
     [InlineData(InputIo.EmergencyStop1Pressed, true, MachineAlarm.EmergencyStop, false)]
     [InlineData(InputIo.AutoMode, false, MachineAlarm.StopFailed, false)]
     [InlineData(InputIo.EmergencyStop1Pressed, true, MachineAlarm.EmergencyStop, true)]
