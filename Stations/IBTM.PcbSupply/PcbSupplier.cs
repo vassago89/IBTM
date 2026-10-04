@@ -146,11 +146,11 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     public void StopUpstream()
     {
-        // In production, STOP is not pickup completion. Teaching clears the external
-        // output; unknown production feedback must not imply an empty carrier position.
+        // Ready OFF releases the upstream carrier, even in manual mode.
+        // STOP must use the physical input, never the teaching test signal.
         if (!Io.IsReady)
             throw new IOException("Supply SMEMA feedback is unavailable; Ready cannot be cleared safely.");
-        if (Io.GetInput(InputIo.AutoMode) || !UpstreamCarrierAvailable)
+        if (!Io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
             Io.SetOutput(OutputIo.PcbSupplyReadyToFront1, false);
     }
 

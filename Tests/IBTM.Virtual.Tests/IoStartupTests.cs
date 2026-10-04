@@ -1244,7 +1244,54 @@ public sealed class IoStartupTests
     }
 
     [Fact]
-    public async Task SupplyStopPreservesReadyWhenCarrierInputCannotBeRead()
+    public async Task SupplyReadySurvivesStartupResetAndModeChangesWithOccupiedUpstream()
+    {
+        await using var services = CreateServices();
+        var signals = services.GetRequiredService<VirtualIoService>();
+        signals.AutoResponseEnabled = false;
+        signals.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        signals.SetOutput(OutputIo.PcbSupplyReadyToFront1, true);
+        var io = services.GetRequiredService<StartupIo>();
+        var machine = services.GetRequiredService<MachineController>();
+        var offWrites = 0;
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.PcbSupplyReadyToFront1 && !on)
+                Interlocked.Increment(ref offWrites);
+        };
+        try
+        {
+            // Manual mode's test input is OFF, but the actual upstream carrier is present.
+            await machine.InitializeAsync();
+            Assert.False(services.GetRequiredService<PcbSupplier>().UpstreamCarrierAvailable);
+            Assert.True(signals.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+            Assert.Equal(0, offWrites);
+
+            services.GetRequiredService<MachineState>().SetError(
+                MachineAlarm.IoCommunication, new IOException("Request control recovery."));
+            var initializations = io.Initializations;
+            await machine.ResetAsync();
+            Assert.Equal(initializations + 1, io.Initializations);
+            Assert.True(signals.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+
+            signals.SetInput(InputIo.AutoMode, false);
+            signals.SetInput(InputIo.AutoMode, true);
+            machine.Stop();
+            Assert.True(signals.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+            io.BeforeOutputWrite = null;
+        }
+        Assert.True(signals.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+        Assert.Equal(0, offWrites);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SupplyStopPreservesReadyWhenCarrierInputCannotBeRead(bool manualMode)
     {
         await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
@@ -1253,7 +1300,7 @@ public sealed class IoStartupTests
         await machine.InitializeAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         signals.AutoResponseEnabled = false;
-        signals.SetInput(InputIo.AutoMode, false);
+        signals.SetInput(InputIo.AutoMode, manualMode);
         signals.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
         signals.SetOutput(OutputIo.PcbSupplyReadyToFront1, true);
         var failure = new IOException("Supply carrier feedback is unavailable.");
