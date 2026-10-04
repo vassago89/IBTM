@@ -266,7 +266,7 @@ public sealed class AdcBoltHead : IBoltHead
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegative(dryRunMilliseconds);
         var fasteningTimeoutMilliseconds = _connection.FasteningTimeoutMilliseconds;
-        if (dryRunMilliseconds == 0)
+        if (dryRunMilliseconds == 0 || feedAsync is not null)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fasteningTimeoutMilliseconds);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         (ushort EventCount, ushort Preset)? started = null;
@@ -349,22 +349,43 @@ public sealed class AdcBoltHead : IBoltHead
             var fastening = (EventCount: initialEvent?[0] ?? (ushort)0, Preset: preset);
             _io.SetOutput(_direction, false);
 
-            if (dryRunMilliseconds == 0)
+            if (dryRunMilliseconds == 0 || feedAsync is not null)
                 timeout.CancelAfter(fasteningTimeoutMilliseconds);
             timeout.Token.ThrowIfCancellationRequested();
             started = fastening;
-            if (dryRunMilliseconds == 0)
+            if (dryRunMilliseconds == 0 || feedAsync is not null)
                 Monitor.Sampled += OnStatusSampled;
-            Interlocked.Exchange(ref startedAt, Stopwatch.GetTimestamp());
             // Own STOP cleanup before requesting START or lowering the head.
             _io.SetOutput(_start, true);
+            Interlocked.Exchange(ref startedAt, Stopwatch.GetTimestamp());
             if (feedAsync is not null && ioFailure is null)
             {
+                // Use the shared monitor, accepting only queries begun after START was sent.
+                var status = await Monitor.WaitForSampleAsync(startedAt, timeout.Token);
+                while (!stopped.Task.IsCompleted && status.Alarm == 0
+                    && (!status.Running || Monitor.Sample?.Status is not { Running: true, Alarm: 0 }))
+                {
+                    status = await Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), timeout.Token);
+                }
                 timeout.Token.ThrowIfCancellationRequested();
-                await feedAsync(timeout.Token);
+                if (!stopped.Task.IsCompleted && status.Alarm == 0)
+                {
+                    await feedAsync(timeout.Token);
+                }
+                else if (dryRunMilliseconds > 0)
+                {
+                    finishedSample = await stopped.Task;
+                    failure = new InvalidOperationException(status.Alarm != 0
+                        ? AdcControllerError.Describe(status.Alarm) : "RUN stopped before head DOWN.");
+                }
             }
             if (dryRunMilliseconds > 0)
-                await Task.Delay(dryRunMilliseconds, timeout.Token);
+            {
+                Monitor.Sampled -= OnStatusSampled;
+                timeout.CancelAfter(Timeout.Infinite);
+                if (failure is null)
+                    await Task.Delay(dryRunMilliseconds, timeout.Token);
+            }
             waitingForResult = dryRunMilliseconds == 0;
             if (dryRunMilliseconds == 0)
             {

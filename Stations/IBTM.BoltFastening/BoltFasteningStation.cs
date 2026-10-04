@@ -731,7 +731,7 @@ public sealed class BoltFasteningStation : AutoUnit
                             Task LowerHeadWhileFasteningAsync(CancellationToken feedToken)
                             {
                                 feedToken.ThrowIfCancellationRequested();
-                                _log?.LogInformation("Bolt {Head}: motor START completed; requesting head DOWN.", bolt.Head);
+                                _log?.LogInformation("Bolt {Head}: motor RUN ON confirmed after START; requesting head DOWN.", bolt.Head);
                                 // Screw contact can stop the cylinder before its DOWN sensor.
                                 Io.SetOutput(bolt.Head == FasteningHead.Pickup
                                     ? OutputIo.PickupHeadDown : OutputIo.ShootingHeadDown, true);
