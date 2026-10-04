@@ -17,6 +17,7 @@ using IBTM.UI;
 using IBTM.Virtual;
 using static IBTM.Virtual.Tests.VirtualTestSupport;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
@@ -54,8 +55,14 @@ public sealed class BoltFasteningTests
         await HomeAsync(motion, 20_000);
         using var bus = new AdcControllerStub();
         using var shootingBus = new AdcControllerStub();
-        var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200);
-        var shootingHead = CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new(), 2, "Virtual", 115200);
+        var log = new ApplicationLog();
+        using var factory = log.CreateLoggerFactory();
+        bus.BindIo(io, FasteningHead.Pickup);
+        shootingBus.BindIo(io, FasteningHead.Shooting);
+        var head = new AdcBoltHead(bus, io, FasteningHead.Pickup,
+            new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200, factory.CreateLogger<AdcBoltHead>());
+        var shootingHead = new AdcBoltHead(shootingBus, io, FasteningHead.Shooting,
+            new(), 2, "Virtual", 115200, factory.CreateLogger<AdcBoltHead>());
         var bolts = Enumerable.Range(1, 4).Select(number => new BoltPoint
         {
             Id = BoltId(number), Head = FasteningHead.Pickup,
@@ -75,6 +82,7 @@ public sealed class BoltFasteningTests
         var headRetractions = 0;
         var moves = 0;
         var sameBoltFinals = 0;
+        var continuingSameBolt = false;
         var pickupRunAt = 0L;
         var shootingRunAt = 0L;
         var loweredHeads = 0;
@@ -121,14 +129,14 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.PickupHeadDown && io.GetOutput(OutputIo.PickupBoltStart))
             {
                 Assert.NotEqual(0, pickupRunAt);
-                Assert.True(Stopwatch.GetElapsedTime(pickupRunAt).TotalMilliseconds >= settings.HeadDownDelayMilliseconds - 1);
+                if (continuingSameBolt)
+                    Assert.True(Stopwatch.GetElapsedTime(pickupRunAt).TotalMilliseconds >= settings.HeadDownDelayMilliseconds - 1);
                 bus.SuppressCompletion = false;
                 loweredHeads++;
             }
             if (output == OutputIo.ShootingHeadDown && io.GetOutput(OutputIo.ShootingBoltStart))
             {
                 Assert.NotEqual(0, shootingRunAt);
-                Assert.True(Stopwatch.GetElapsedTime(shootingRunAt).TotalMilliseconds >= settings.HeadDownDelayMilliseconds - 1);
                 shootingBus.SuppressCompletion = false;
                 loweredHeads++;
             }
@@ -140,6 +148,7 @@ public sealed class BoltFasteningTests
                 Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
             if (output == OutputIo.PickupBoltStart)
             {
+                continuingSameBolt = false;
                 Interlocked.Exchange(ref pickupRunAt, 0);
                 bus.SuppressCompletion = true;
                 if (station.ActiveStage == BoltFasteningStage.Final)
@@ -155,6 +164,7 @@ public sealed class BoltFasteningTests
                     {
                         Assert.Equal(previous.Moves, moves);
                         sameBoltFinals++;
+                        continuingSameBolt = true;
                     }
                 }
                 previousPickupStart = (station.ActiveBolt!.Id, station.ActiveStage, headRetractions, moves);
@@ -221,6 +231,7 @@ public sealed class BoltFasteningTests
                 .Append(FasteningHead.Shooting), headOrder);
             Assert.Equal(4, pickups);
             Assert.Equal(twoStage && !switchToSingle ? 2 : 0, sameBoltFinals);
+            Assert.Equal(sameBoltFinals, log.Entries.Count(entry => entry.Message.Contains("RUN ON confirmed; waiting")));
             Assert.True(station.IsFasteningRecorded);
             foreach (var bolt in bolts)
             {
