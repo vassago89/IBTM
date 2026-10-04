@@ -406,8 +406,8 @@ public sealed class BoltFasteningTests
         }
 
         Assert.False(work.Completed);
-        Assert.Equal(scenario is FinalTransitionScenario.Stop or FinalTransitionScenario.MotionAlarm
-            or FinalTransitionScenario.TableLostWhileRunning, io.GetOutput(OutputIo.PickupHeadDown));
+        Assert.Equal(scenario is FinalTransitionScenario.Stop or FinalTransitionScenario.MotionAlarm,
+            io.GetOutput(OutputIo.PickupHeadDown));
         Assert.Equal(settings.PickupHead.FasteningZ, motion.Position.Z);
         Assert.Equal(1, bus.ResultReads);
         injectFeedbackLoss = false;
