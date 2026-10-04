@@ -172,24 +172,32 @@ public sealed class MachineDiagramMapper
             : null;
     }
 
+    public Point? GetInspectionCameraPosition(MotionPosition current)
+    {
+        // Camera feedback and taught bolt positions must use the same carrier projection.
+        return InspectionDefined && current is { X: { } x, Y: { } y }
+            ? MachineDiagramLayout.Offset(
+                MapCarrier(x, y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight),
+                MachineDiagramLayout.CameraCenter)
+            : null;
+    }
+
     public Point? GetNgPickupPosition(MotionPosition current)
     {
         if (!InspectionDefined || current is not { X: { } x, Y: { } y })
             return null;
-        var pickup = _transfer.CarrierPickupPosition;
+        var waiting = _transfer.WaitingPosition;
         var shuttle = _transfer.ShuttlePlacePosition;
-        if (pickup is null || shuttle.Y == pickup.Y)
-            return MachineDiagramLayout.Offset(
-                MapCarrier(x, y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight),
-                MachineDiagramLayout.CameraCenter);
+        if (waiting is null || shuttle.Y == waiting.Y)
+            return GetInspectionCameraPosition(current);
 
-        // Use one map throughout the transfer. Switching at the camera's diagonal
-        // locating pins bends a straight gantry move sideways in both directions.
-        var progress = (y - pickup.Y) / (shuttle.Y - pickup.Y);
-        var routeX = pickup.X + (shuttle.X - pickup.X) * progress;
-        var position = MapCarrier(x, pickup.Y,
+        // Centre the waiting position; retain the taught pickup's offset from it.
+        // Use one map throughout the transfer so straight moves remain straight.
+        var progress = (y - waiting.Y) / (shuttle.Y - waiting.Y);
+        var routeX = waiting.X + (shuttle.X - waiting.X) * progress;
+        var position = MapCarrier(x, waiting.Y,
             MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight);
-        var route = MapCarrier(routeX, pickup.Y,
+        var route = MapCarrier(routeX, waiting.Y,
             MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight);
         var origin = MachineDiagramLayout.Offset(
             MachineDiagramLayout.InspectionCarrierCenter, MachineDiagramLayout.NgPickerCenter);

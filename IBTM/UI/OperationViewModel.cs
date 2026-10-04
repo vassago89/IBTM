@@ -269,6 +269,8 @@ public partial class OperationViewModel : ObservableObject
 
     public Point? NgPickupMapPosition => _map.GetNgPickupPosition(Inspection.Motion.Position);
 
+    public Point? InspectionCameraMapPosition => _map.GetInspectionCameraPosition(Inspection.Motion.Position);
+
     public bool PcbPlacementHeatSink1Completed
     {
         get
@@ -813,6 +815,7 @@ public partial class OperationViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(InspectionPositionKnown));
             OnPropertyChanged(nameof(NgPickupMapPosition));
+            OnPropertyChanged(nameof(InspectionCameraMapPosition));
         }
     }
 
@@ -900,6 +903,7 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(ShootingHeadMapPosition));
         OnPropertyChanged(nameof(PickupHeadMapPosition));
         OnPropertyChanged(nameof(NgPickupMapPosition));
+        OnPropertyChanged(nameof(InspectionCameraMapPosition));
         OnPcbSupplyChanged();
         OnPcbPlacementChanged();
         OnBoltFasteningChanged();
