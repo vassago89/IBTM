@@ -286,7 +286,6 @@ public sealed class AdcBoltHead : IBoltHead
         long? resultReceivedAt = null;
         Exception? failure = null;
         var waitingForResult = false;
-        var feedCompleted = feedAsync is null;
         Exception? ioFailure = null;
         void OnIoFaulted(Exception exception)
         {
@@ -383,7 +382,6 @@ public sealed class AdcBoltHead : IBoltHead
                 if (!stopped.Task.IsCompleted && feedStatus.Alarm == 0)
                 {
                     await feedAsync(timeout.Token);
-                    feedCompleted = true;
                 }
                 else if (dryRunMilliseconds > 0)
                 {
@@ -441,8 +439,6 @@ public sealed class AdcBoltHead : IBoltHead
                                         : AdcControllerError.Describe(result.Error))
                                     + $" event={result.EventCount}, status={result.Status}."
                                     : null;
-                            if (!feedCompleted)
-                                error ??= "RUN stopped before head DOWN.";
                             completed = new BoltResult(result.Status == AdcEventStatus.FasteningOk && error is null,
                                 result.Torque, Error: error)
                             {

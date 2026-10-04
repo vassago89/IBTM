@@ -303,14 +303,14 @@ public sealed class AdcBoltHeadTests
                     Assert.False((await cycle.WaitAsync(TimeSpan.FromSeconds(2))).Success);
                     break;
                 case BeforeFeedFailure.RunOff:
-                    bus.ResultStatus = AdcEventStatus.FasteningOk;
+                    bus.ResultStatus = AdcEventStatus.FasteningNg;
                     bus.SuppressCompletion = false;
                     var completed = await cycle.WaitAsync(TimeSpan.FromSeconds(2));
                     Assert.Same(received, completed);
                     Assert.False(received!.Success);
                     Assert.NotNull(received.Controller);
-                    Assert.Equal((ushort)AdcEventStatus.FasteningOk, received.Controller.StatusCode);
-                    Assert.Contains("RUN stopped before head DOWN", received.Error);
+                    Assert.Equal((ushort)AdcEventStatus.FasteningNg, received.Controller.StatusCode);
+                    Assert.Null(received.Error);
                     break;
             }
             Assert.False(fed);
