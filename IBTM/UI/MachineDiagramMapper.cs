@@ -172,14 +172,6 @@ public sealed class MachineDiagramMapper
             : null;
     }
 
-    public Point? GetInspectionPosition(MotionPosition current)
-    {
-        return InspectionDefined && current is { X: { } x, Y: { } y }
-            ? MachineDiagramLayout.Offset(MapCarrier(x, y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight),
-                MachineDiagramLayout.CameraCenter)
-            : null;
-    }
-
     public Point? GetNgPickupPosition(MotionPosition current)
     {
         if (!InspectionDefined || current is not { X: { } x, Y: { } y })
@@ -187,7 +179,9 @@ public sealed class MachineDiagramMapper
         var pickup = _transfer.CarrierPickupPosition;
         var shuttle = _transfer.ShuttlePlacePosition;
         if (pickup is null || shuttle.Y == pickup.Y)
-            return GetInspectionPosition(current);
+            return MachineDiagramLayout.Offset(
+                MapCarrier(x, y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight),
+                MachineDiagramLayout.CameraCenter);
 
         // Use one map throughout the transfer. Switching at the camera's diagonal
         // locating pins bends a straight gantry move sideways in both directions.

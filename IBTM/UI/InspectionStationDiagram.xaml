@@ -136,13 +136,13 @@
                 </TextBlock>
             </StackPanel>
 
-            <StackPanel Width="{StaticResource CarrierWidth}"
+            <Canvas Width="{StaticResource CarrierWidth}"
                 Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}"
                 Panel.ZIndex="20">
-                <StackPanel.RenderTransform>
+                <Canvas.RenderTransform>
                     <TranslateTransform X="{Binding NgPickupMapPosition.X, TargetNullValue=0, FallbackValue=0}"
                         Y="{Binding NgPickupMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
-                </StackPanel.RenderTransform>
+                </Canvas.RenderTransform>
                 <Grid Width="{StaticResource CarrierWidth}" Height="{StaticResource CarrierHeight}"
                     VerticalAlignment="Top">
                     <ui:CarrierView Visibility="{Binding Signals.Inputs[NgCarrierDetected].IsOn, Converter={StaticResource BoolToVis}}"
@@ -158,12 +158,6 @@
                     <TextBlock Margin="0,5,0,0" VerticalAlignment="Top" HorizontalAlignment="Center"
                         Text="{ui:Text 'NG Pick'}" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                 </Grid>
-            </StackPanel>
-            <Canvas Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
-                <Canvas.RenderTransform>
-                    <TranslateTransform X="{Binding InspectionGantryMapPosition.X, TargetNullValue=0, FallbackValue=0}"
-                        Y="{Binding InspectionGantryMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
-                </Canvas.RenderTransform>
                 <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.CameraLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CameraTop}"
                     Orientation="Horizontal">
                     <Grid x:Name="InspectionCamera" Width="{x:Static ui:MachineDiagramLayout.CameraSize}" Height="{x:Static ui:MachineDiagramLayout.CameraSize}" Opacity="0.6">

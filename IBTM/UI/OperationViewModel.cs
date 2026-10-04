@@ -222,8 +222,6 @@ public partial class OperationViewModel : ObservableObject
 
     public Point? PickupHeadMapPosition => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Pickup);
 
-    public Point? InspectionGantryMapPosition => _map.GetInspectionPosition(Inspection.Motion.Position);
-
     public Point? NgPickupMapPosition => _map.GetNgPickupPosition(Inspection.Motion.Position);
 
     public bool PcbPlacementHeatSink1Completed
@@ -797,7 +795,6 @@ public partial class OperationViewModel : ObservableObject
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
             OnPropertyChanged(nameof(InspectionPositionKnown));
-            OnPropertyChanged(nameof(InspectionGantryMapPosition));
             OnPropertyChanged(nameof(NgPickupMapPosition));
         }
     }
@@ -882,7 +879,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PcbPlacementMapPosition));
         OnPropertyChanged(nameof(ShootingHeadMapPosition));
         OnPropertyChanged(nameof(PickupHeadMapPosition));
-        OnPropertyChanged(nameof(InspectionGantryMapPosition));
         OnPropertyChanged(nameof(NgPickupMapPosition));
         OnPcbSupplyChanged();
         OnPcbPlacementChanged();
