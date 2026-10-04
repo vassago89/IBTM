@@ -3713,4 +3713,7 @@ COMPLETE: finish</value>
   <data name="compensation (%)" xml:space="preserve">
     <value>Compensation (%)</value>
   </data>
+  <data name="final tightening position is not ready." xml:space="preserve">
+    <value>Final tightening position is not ready.</value>
+  </data>
 </root>

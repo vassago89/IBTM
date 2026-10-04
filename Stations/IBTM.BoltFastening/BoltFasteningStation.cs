@@ -502,6 +502,9 @@ public sealed class BoltFasteningStation : AutoUnit
                             return true;
                         }
                     }
+                    var continuingFinal = stage == BoltFasteningStage.Final && _boltIndex > 0
+                        && _runBolts[_boltIndex - 1] is { Stage: BoltFasteningStage.Preliminary, Bolt: var previousBolt }
+                        && previousBolt.Id == bolt.Id;
                     var cycleStarted = Stopwatch.GetTimestamp();
                     _log?.LogInformation("Bolt timing {Job}/{Bolt}: begin, PCB={Pcb}, head={Head}, safe Z={SafeZ}.",
                         job.Id, bolt.Id, bolt.HeatSink, bolt.Head, _settings.GetSafeZ(bolt.Head));
@@ -576,6 +579,23 @@ public sealed class BoltFasteningStation : AutoUnit
                         }
                         case FasteningHead.Pickup:
                         {
+                            if (continuingFinal)
+                            {
+                                // Only the adjacent final stage keeps the head at the same bolt.
+                                // Check live position/clearance instead of assuming the last command still holds.
+                                const double PositionToleranceMillimeters = 0.05;
+                                var position = _settings.GetBoltPosition(bolt);
+                                var current = _motion.Position;
+                                if (!MotionServiceBase.IsReadyAndStopped(_motion)
+                                    || ShootingHeadPosition != StationCylinderState.Up
+                                    || PickupTablePosition != StationCylinderState.Down
+                                    || !(Math.Abs(current.X - position.X) <= PositionToleranceMillimeters
+                                        && Math.Abs(current.Y - position.Y) <= PositionToleranceMillimeters
+                                        && Math.Abs(current.Z - position.Z) <= PositionToleranceMillimeters))
+                                    throw new MotionInterlockException(UiText.Get("Final tightening position is not ready."));
+                                await SetVacuumAsync(FasteningHead.Pickup, false, token);
+                                break;
+                            }
                             if (feeding && stage != BoltFasteningStage.Final
                                 && _feeder.PickupEmptyAlarm is { } pickupAlarm
                                 && !Io.GetInput(InputIo.PickupHeadVacuumDetected))
@@ -691,10 +711,14 @@ public sealed class BoltFasteningStation : AutoUnit
                         _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
                             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                         started = Stopwatch.GetTimestamp();
-                        // Raise before a new start, including a retry at the same XY.
-                        await RaiseCylindersAsync(token);
-                        _log?.LogInformation("Bolt timing {Bolt}: heads UP confirmed before START, elapsed={ElapsedMs:F1} ms.",
-                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                        // An uninterrupted preliminary -> final pair stays at the same bolt.
+                        // Retries and all other starts still raise before lowering again.
+                        if (!continuingFinal)
+                        {
+                            await RaiseCylindersAsync(token);
+                            _log?.LogInformation("Bolt timing {Bolt}: heads UP confirmed before START, elapsed={ElapsedMs:F1} ms.",
+                                bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                        }
                         Station.RequireCurrentJob(job);
 
                         using (var fastening = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -757,14 +781,25 @@ public sealed class BoltFasteningStation : AutoUnit
                             }
                         }
 
-                        // Finish physical clearance before publishing the measured result.
-                        TraceStep(step, target, job.Id, "head retraction");
                         var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1].Bolt : null;
-                        var nextShootingBolt = bolt.Head == FasteningHead.Shooting && feeding
-                            && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
-                        var safeZ = bolt.Head == FasteningHead.Shooting && nextBolt is { Head: FasteningHead.Pickup }
-                            ? _settings.SafeZ : _settings.GetSafeZ(bolt.Head);
-                        await ClearHeadAsync(bolt.Head, safeZ, token, nextShootingBolt);
+                        if (stage == BoltFasteningStage.Preliminary
+                            && result is { Success: true, Source: not BoltResultSource.DryRun }
+                            && nextBolt?.Id == bolt.Id
+                            && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Final)
+                        {
+                            TraceStep(step, target, job.Id, "vacuum OFF; final tightening at the same bolt");
+                            await SetVacuumAsync(FasteningHead.Pickup, false, token);
+                        }
+                        else
+                        {
+                            // Clear before publishing unless the same bolt immediately continues to final tightening.
+                            TraceStep(step, target, job.Id, "head retraction");
+                            var nextShootingBolt = bolt.Head == FasteningHead.Shooting && feeding
+                                && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
+                            var safeZ = bolt.Head == FasteningHead.Shooting && nextBolt is { Head: FasteningHead.Pickup }
+                                ? _settings.SafeZ : _settings.GetSafeZ(bolt.Head);
+                            await ClearHeadAsync(bolt.Head, safeZ, token, nextShootingBolt);
+                        }
                     }
                     catch (Exception exception)
                     {
