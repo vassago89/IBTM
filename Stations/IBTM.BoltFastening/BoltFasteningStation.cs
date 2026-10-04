@@ -581,7 +581,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         {
                             if (continuingFinal)
                             {
-                                // Only the adjacent final stage keeps the head at the same bolt.
+                                // Reuse this bolt's XYZ position; raise the cylinder again before START.
                                 // Check live position/clearance instead of assuming the last command still holds.
                                 const double PositionToleranceMillimeters = 0.05;
                                 var position = _settings.GetBoltPosition(bolt);
@@ -711,14 +711,9 @@ public sealed class BoltFasteningStation : AutoUnit
                         _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
                             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                         started = Stopwatch.GetTimestamp();
-                        // An uninterrupted preliminary -> final pair stays at the same bolt.
-                        // Retries and all other starts still raise before lowering again.
-                        if (!continuingFinal)
-                        {
-                            await RaiseCylindersAsync(token);
-                            _log?.LogInformation("Bolt timing {Bolt}: heads UP confirmed before START, elapsed={ElapsedMs:F1} ms.",
-                                bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                        }
+                        await RaiseCylindersAsync(token);
+                        _log?.LogInformation("Bolt timing {Bolt}: heads UP confirmed before START, elapsed={ElapsedMs:F1} ms.",
+                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                         Station.RequireCurrentJob(job);
 
                         using (var fastening = CancellationTokenSource.CreateLinkedTokenSource(token))

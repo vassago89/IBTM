@@ -133,13 +133,25 @@ public sealed class AdcBoltHead : IBoltHead
         _requestedPreset = null;
         var presetSettleMilliseconds = _connection.PresetSettleMilliseconds;
         ArgumentOutOfRangeException.ThrowIfNegative(presetSettleMilliseconds);
-        foreach (var output in _presets)
-            _io.SetOutput(output, false);
-        _io.SetOutput(_presets[preset - 1], true);
-        _logger.LogInformation("ADC {Port}/{Slave}: preset {Preset} settling for {DelayMs} ms; START remains OFF.",
-            _portName, _slaveAddress, preset, presetSettleMilliseconds);
-        await Task.Delay(presetSettleMilliseconds, cancellationToken);
-        // Check a fresh sample after the delay; elapsed time alone does not prove readiness.
+        var presetOutputsMatch = true;
+        for (var index = 0; index < _presets.Length; index++)
+        {
+            if (_io.GetOutput(_presets[index]) != (index == preset - 1))
+            {
+                presetOutputsMatch = false;
+                break;
+            }
+        }
+        if (!presetOutputsMatch)
+        {
+            foreach (var output in _presets)
+                _io.SetOutput(output, false);
+            _io.SetOutput(_presets[preset - 1], true);
+            _logger.LogInformation("ADC {Port}/{Slave}: preset {Preset} settling for {DelayMs} ms; START remains OFF.",
+                _portName, _slaveAddress, preset, presetSettleMilliseconds);
+            await Task.Delay(presetSettleMilliseconds, cancellationToken);
+        }
+        // Matching outputs never replace fresh controller preset/READY feedback.
         var status = await WaitForStatusAsync(cancellationToken, expectedPreset: preset);
         if (status.Alarm != 0)
         {

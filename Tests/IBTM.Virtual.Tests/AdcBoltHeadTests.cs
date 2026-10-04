@@ -1356,6 +1356,137 @@ public sealed class AdcBoltHeadTests
         }
     }
 
+    [Theory]
+    [InlineData(FasteningHead.Pickup)]
+    [InlineData(FasteningHead.Shooting)]
+    public async Task SamePresetKeepsOutputsAndSkipsSettling(FasteningHead selected)
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new()
+        {
+            StatusPollMilliseconds = 10, PresetSettleMilliseconds = 5000,
+        }, selected);
+        OutputIo[] presets = selected == FasteningHead.Pickup
+            ? [OutputIo.PickupBoltPreset1, OutputIo.PickupBoltPreset2, OutputIo.PickupBoltPreset3]
+            : [OutputIo.ShootingBoltPreset1, OutputIo.ShootingBoltPreset2, OutputIo.ShootingBoltPreset3];
+        // A matching live selection also works without any prior software selection.
+        io.SetOutput(presets[1], true);
+        var changes = new List<(OutputIo Output, bool On)>();
+        io.OutputChanged += (output, on) =>
+        {
+            if (Array.IndexOf(presets, output) >= 0)
+                changes.Add((output, on));
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var checkingAt = Stopwatch.GetTimestamp();
+        await head.SelectPresetAsync(2, stop.Token);
+        Assert.True(head.Monitor.Sample!.StartedAt >= checkingAt);
+        Assert.Empty(changes);
+        Assert.True((await head.TightenAsync(stop.Token)).Success);
+
+        checkingAt = Stopwatch.GetTimestamp();
+        await head.SelectPresetAsync(2, stop.Token);
+        Assert.True(head.Monitor.Sample!.StartedAt >= checkingAt);
+        Assert.Empty(changes);
+        Assert.True((await head.TightenAsync(stop.Token)).Success);
+        Assert.Equal(2, bus.StartWrites);
+        Assert.Equal(2, bus.ResultReads);
+        Assert.False(bus.Running);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SamePresetStillWaitsForLivePresetAndReady(bool cancel)
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new()
+        {
+            StatusPollMilliseconds = 10, ResponseTimeoutMilliseconds = 500, PresetSettleMilliseconds = 0,
+        });
+        await head.SelectPresetAsync(2);
+        Assert.True((await head.TightenAsync()).Success);
+        bus.NotReady = true;
+        bus.ReportedPreset = 1;
+        var notReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var wrongPresetReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var selectingAt = Stopwatch.GetTimestamp();
+        head.Monitor.Sampled += sample =>
+        {
+            if (sample.StartedAt < selectingAt || sample.Status is not { Preset: 1 } status)
+                return;
+            if (status.Ready)
+                wrongPresetReady.TrySetResult();
+            else
+                notReady.TrySetResult();
+        };
+        var presetChanges = new List<OutputIo>();
+        io.OutputChanged += (output, on) =>
+        {
+            if (output is OutputIo.PickupBoltPreset1 or OutputIo.PickupBoltPreset2 or OutputIo.PickupBoltPreset3)
+                presetChanges.Add(output);
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var selecting = head.SelectPresetAsync(2, stop.Token);
+        try
+        {
+            await notReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await Task.Delay(30);
+            Assert.False(selecting.IsCompleted);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.Equal(1, bus.StartWrites);
+            if (cancel)
+            {
+                stop.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => selecting);
+                await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+                Assert.Equal(1, bus.StartWrites);
+            }
+            else
+            {
+                bus.NotReady = false;
+                await wrongPresetReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                await Task.Delay(30);
+                Assert.False(selecting.IsCompleted);
+                Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+                bus.ReportedPreset = null;
+                await selecting;
+                Assert.True((await head.TightenAsync()).Success);
+                Assert.Equal(2, bus.StartWrites);
+            }
+            Assert.Empty(presetChanges);
+            Assert.Equal(0, bus.ResetWrites);
+        }
+        finally
+        {
+            stop.Cancel();
+            await selecting.ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Fact]
+    public async Task ChangedPresetOutputsRequireSelectionAndSettlingAgain()
+    {
+        using var bus = new AdcControllerStub();
+        var settings = new HantasSettings { StatusPollMilliseconds = 10, PresetSettleMilliseconds = 0 };
+        var (io, head) = Create(bus, settings);
+        await head.SelectPresetAsync(2);
+        // Checking only the requested output or cached preset would miss this invalid pair.
+        io.SetOutput(OutputIo.PickupBoltPreset3, true);
+        settings.PresetSettleMilliseconds = 200;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var started = Stopwatch.StartNew();
+        await head.SelectPresetAsync(2, stop.Token);
+        Assert.True(started.Elapsed >= TimeSpan.FromMilliseconds(settings.PresetSettleMilliseconds));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltPreset1));
+        Assert.True(io.GetOutput(OutputIo.PickupBoltPreset2));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltPreset3));
+        Assert.Equal((ushort)2, head.Monitor.Sample!.Status!.Preset);
+        Assert.True(head.Monitor.Sample.Status.Ready);
+        Assert.Equal(0, bus.StartWrites);
+    }
+
     [Fact]
     public async Task NegativePresetDelayCannotChangeOutputsOrStart()
     {
