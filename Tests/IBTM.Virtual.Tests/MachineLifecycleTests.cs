@@ -6503,7 +6503,8 @@ public sealed class MachineLifecycleTests
             Func<CancellationToken, Task>? feedAsync = null,
             int dryRunMilliseconds = 0,
             Action<BoltResult>? resultReceived = null,
-            ushort? torqueCompensationPercent = null)
+            ushort? torqueCompensationPercent = null,
+            int feedDelayMilliseconds = 0)
         {
             Started.SetResult();
             try
@@ -6570,7 +6571,8 @@ public sealed class MachineLifecycleTests
             Func<CancellationToken, Task>? feedAsync = null,
             int dryRunMilliseconds = 0,
             Action<BoltResult>? resultReceived = null,
-            ushort? torqueCompensationPercent = null)
+            ushort? torqueCompensationPercent = null,
+            int feedDelayMilliseconds = 0)
         {
             throw new NotSupportedException();
         }

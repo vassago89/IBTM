@@ -754,7 +754,8 @@ public sealed class BoltFasteningStation : AutoUnit
                                     fastening.Token,
                                     LowerHeadWhileFasteningAsync,
                                     dryRunMilliseconds, received => result = received,
-                                    torqueCompensations.TryGetValue((bolt.Head, preset), out var compensation) ? compensation : null);
+                                    torqueCompensations.TryGetValue((bolt.Head, preset), out var compensation) ? compensation : null,
+                                    feedDelayMilliseconds: _settings.HeadDownDelayMilliseconds);
                                 _log?.LogInformation("Bolt timing {Bolt}: controller START/result/STOP, elapsed={ElapsedMs:F1} ms, controller time={ControllerMs} ms.",
                                     bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds, completed.Controller?.FasteningTimeMilliseconds);
                                 completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };

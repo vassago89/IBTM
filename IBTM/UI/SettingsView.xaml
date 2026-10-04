@@ -454,6 +454,18 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Head down delay after RUN (ms)'}" Style="{StaticResource SettingFieldLabel}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Text="{Binding Settings.BoltFastening.HeadDownDelayMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                            VerticalAlignment="Center" Grid.Column="1"/>
+                                    </Grid>
+                                    <TextBlock Text="{ui:Text 'RUN confirmed → delay → head DOWN · 0 = no delay'}" Style="{StaticResource SettingHelpText}"/>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
                                         <TextBlock Text="{ui:Text 'Fastening result timeout (s)'}" Style="{StaticResource SettingFieldLabel}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"

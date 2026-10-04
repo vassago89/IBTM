@@ -75,6 +75,19 @@ public sealed class BoltFasteningTests
         var headRetractions = 0;
         var moves = 0;
         var sameBoltFinals = 0;
+        var pickupRunAt = 0L;
+        var shootingRunAt = 0L;
+        var loweredHeads = 0;
+        bus.Monitor.Sampled += sample =>
+        {
+            if (sample.Status is { Running: true })
+                Interlocked.CompareExchange(ref pickupRunAt, Stopwatch.GetTimestamp(), 0);
+        };
+        shootingBus.Monitor.Sampled += sample =>
+        {
+            if (sample.Status is { Running: true })
+                Interlocked.CompareExchange(ref shootingRunAt, Stopwatch.GetTimestamp(), 0);
+        };
         (Guid Bolt, BoltFasteningStage? Stage, int Retractions, int Moves)? previousPickupStart = null;
         motion.MovingChanged += moving =>
         {
@@ -100,8 +113,24 @@ public sealed class BoltFasteningTests
                 return;
             if (output == OutputIo.ShootingBoltStart)
             {
+                Interlocked.Exchange(ref shootingRunAt, 0);
+                shootingBus.SuppressCompletion = true;
                 headOrder.Add(FasteningHead.Shooting);
                 Assert.Equal(StationCylinderState.Up, station.PickupTablePosition);
+            }
+            if (output == OutputIo.PickupHeadDown && io.GetOutput(OutputIo.PickupBoltStart))
+            {
+                Assert.NotEqual(0, pickupRunAt);
+                Assert.True(Stopwatch.GetElapsedTime(pickupRunAt).TotalMilliseconds >= settings.HeadDownDelayMilliseconds - 1);
+                bus.SuppressCompletion = false;
+                loweredHeads++;
+            }
+            if (output == OutputIo.ShootingHeadDown && io.GetOutput(OutputIo.ShootingBoltStart))
+            {
+                Assert.NotEqual(0, shootingRunAt);
+                Assert.True(Stopwatch.GetElapsedTime(shootingRunAt).TotalMilliseconds >= settings.HeadDownDelayMilliseconds - 1);
+                shootingBus.SuppressCompletion = false;
+                loweredHeads++;
             }
             if (output == OutputIo.PickupBoltPreset2)
                 preset = 2;
@@ -111,6 +140,8 @@ public sealed class BoltFasteningTests
                 Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
             if (output == OutputIo.PickupBoltStart)
             {
+                Interlocked.Exchange(ref pickupRunAt, 0);
+                bus.SuppressCompletion = true;
                 if (station.ActiveStage == BoltFasteningStage.Final)
                     Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
                 Assert.False(io.GetOutput(OutputIo.PickupHeadDown));
@@ -217,6 +248,7 @@ public sealed class BoltFasteningTests
             }
             if (resume && !twoStage)
                 Assert.Same(beforeStop, work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults[bolts[0].Id]);
+            Assert.Equal(headOrder.Count, loweredHeads);
         }
         finally
         {
@@ -250,7 +282,7 @@ public sealed class BoltFasteningTests
             FirstFasteningHead = FasteningHead.Pickup,
             PickupFasteningMode = PickupFasteningMode.TwoStage,
             PickupPreliminaryPreset = 2, PickupFinalPreset = 3,
-            PickupVacuumDelayMilliseconds = 0, DryRunMilliseconds = 10,
+            PickupVacuumDelayMilliseconds = 0, DryRunMilliseconds = 10, HeadDownDelayMilliseconds = 0,
             SafeZ = 0, PickupPosition = new() { X = 100, Y = 100, Z = 5 },
             PickupHead = new() { FasteningZ = 10 },
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
@@ -559,6 +591,9 @@ public sealed class BoltFasteningTests
         settings.FirstFasteningHead = FasteningHead.Pickup;
         Assert.Equal(PickupFasteningMode.SingleStage, settings.PickupFasteningMode);
         Assert.Equal((ushort)1, settings.PickupFinalPreset);
+        Assert.Equal(100, settings.HeadDownDelayMilliseconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.HeadDownDelayMilliseconds = -1);
+        settings.HeadDownDelayMilliseconds = 250;
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.PickupPreliminaryPreset = 0);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.PickupFinalPreset = 4);
         settings.PickupFasteningMode = PickupFasteningMode.TwoStage;
@@ -571,13 +606,16 @@ public sealed class BoltFasteningTests
         Assert.Equal(PickupFasteningMode.TwoStage, loaded.PickupFasteningMode);
         Assert.Equal(settings.PickupPreliminaryPreset, loaded.PickupPreliminaryPreset);
         Assert.Equal(settings.PickupFinalPreset, loaded.PickupFinalPreset);
+        Assert.Equal(250, loaded.HeadDownDelayMilliseconds);
         settings.PickupFasteningMode = PickupFasteningMode.SingleStage;
+        settings.HeadDownDelayMilliseconds = 0;
         settings.FirstFasteningHead = FasteningHead.Shooting;
         await store.SaveSettingsAsync([settings]);
         loaded = (await MachineSettings.LoadAsync(store)).BoltFastening;
         Assert.Equal(PickupFasteningMode.SingleStage, loaded.PickupFasteningMode);
         Assert.Equal(FasteningHead.Shooting, loaded.FirstFasteningHead);
         Assert.Equal((ushort)3, loaded.PickupFinalPreset);
+        Assert.Equal(0, loaded.HeadDownDelayMilliseconds);
         var preliminary = new BoltResult(true, 2)
         {
             Stage = BoltFasteningStage.Preliminary,

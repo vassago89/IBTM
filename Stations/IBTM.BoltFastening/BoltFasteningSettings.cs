@@ -76,6 +76,15 @@ public sealed class BoltFasteningSettings : Setting
             field = value;
         }
     } = 3;
+    public int HeadDownDelayMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    } = 100;
     public int DryRunMilliseconds
     {
         get;
