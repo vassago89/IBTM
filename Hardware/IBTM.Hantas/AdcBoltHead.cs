@@ -361,22 +361,22 @@ public sealed class AdcBoltHead : IBoltHead
             if (feedAsync is not null && ioFailure is null)
             {
                 // Use the shared monitor, accepting only queries begun after START was sent.
-                var status = await Monitor.WaitForSampleAsync(startedAt, timeout.Token);
-                while (!stopped.Task.IsCompleted && status.Alarm == 0
-                    && (!status.Running || Monitor.Sample?.Status is not { Running: true, Alarm: 0 }))
+                var feedStatus = await Monitor.WaitForSampleAsync(startedAt, timeout.Token);
+                while (!stopped.Task.IsCompleted && feedStatus.Alarm == 0
+                    && (!feedStatus.Running || Monitor.Sample?.Status is not { Running: true, Alarm: 0 }))
                 {
-                    status = await Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), timeout.Token);
+                    feedStatus = await Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), timeout.Token);
                 }
                 timeout.Token.ThrowIfCancellationRequested();
-                if (!stopped.Task.IsCompleted && status.Alarm == 0)
+                if (!stopped.Task.IsCompleted && feedStatus.Alarm == 0)
                 {
                     await feedAsync(timeout.Token);
                 }
                 else if (dryRunMilliseconds > 0)
                 {
                     finishedSample = await stopped.Task;
-                    failure = new InvalidOperationException(status.Alarm != 0
-                        ? AdcControllerError.Describe(status.Alarm) : "RUN stopped before head DOWN.");
+                    failure = new InvalidOperationException(feedStatus.Alarm != 0
+                        ? AdcControllerError.Describe(feedStatus.Alarm) : "RUN stopped before head DOWN.");
                 }
             }
             if (dryRunMilliseconds > 0)

@@ -85,6 +85,7 @@ public sealed class AdcBoltHeadTests
         {
             Assert.True(io.GetOutput(start));
             Assert.False(io.GetOutput(otherStart));
+            Assert.True(head.Monitor.Sample?.Status?.Running);
             fed = true;
             await Task.Delay(10, token);
         }, torqueCompensationPercent: capturedCompensation);
@@ -98,6 +99,206 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(1, resultReads);
         Assert.True(statusReads >= 3); // Preset, RUN ON and RUN OFF.
         Assert.False(io.GetOutput(start));
+    }
+
+    [Fact]
+    public async Task HeadDownIgnoresAQueryStartedBeforeStart()
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        var oldReply = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var freshReply = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldPublished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bus.StatusReadBarrier = oldReply.Task;
+        var reads = bus.StatusReads;
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads > reads, TimeSpan.FromSeconds(2)));
+        var fed = false;
+        void HoldNextQuery(AdcStatusSample sample)
+        {
+            if (!oldPublished.Task.IsCompleted)
+            {
+                bus.StatusReadBarrier = freshReply.Task;
+                oldPublished.TrySetResult();
+            }
+        }
+        head.Monitor.Sampled += HoldNextQuery;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var cycle = head.TightenAsync(stop.Token, token =>
+        {
+            fed = true;
+            return Task.CompletedTask;
+        }, dryRunMilliseconds: 10);
+        try
+        {
+            Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+            oldReply.SetResult();
+            await oldPublished.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads > reads + 1, TimeSpan.FromSeconds(2)));
+            Assert.False(fed);
+            freshReply.SetResult();
+            Assert.Equal(BoltResultSource.DryRun, (await cycle).Source);
+            Assert.True(fed);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        }
+        finally
+        {
+            stop.Cancel();
+            oldReply.TrySetResult();
+            freshReply.TrySetResult();
+            head.Monitor.Sampled -= HoldNextQuery;
+            await ((Task)cycle).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Theory]
+    [InlineData(FasteningHead.Pickup, 0)]
+    [InlineData(FasteningHead.Shooting, 0)]
+    [InlineData(FasteningHead.Pickup, 20)]
+    public async Task HeadDownWaitsThroughRejectedAndRunOffFeedback(FasteningHead selected, int dryRunMilliseconds)
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 }, selected);
+        await head.SelectPresetAsync(1);
+        bus.StatusRejection = "0x03: no status feedback";
+        bus.RunReplies.Enqueue(false);
+        bus.RunReplies.Enqueue(false);
+        bus.RunReplies.Enqueue(true);
+        bus.RunReplies.Enqueue(false);
+        var start = selected == FasteningHead.Pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart;
+        var down = selected == FasteningHead.Pickup ? OutputIo.PickupHeadDown : OutputIo.ShootingHeadDown;
+        var offSamples = 0;
+        void CheckBeforeRun(AdcStatusSample sample)
+        {
+            if (io.GetOutput(start) && !io.GetOutput(down) && sample.Status is { Running: false })
+                offSamples++;
+        }
+        head.Monitor.Sampled += CheckBeforeRun;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var reads = bus.StatusReads;
+        var cycle = head.TightenAsync(stop.Token, token =>
+        {
+            token.ThrowIfCancellationRequested();
+            Assert.True(io.GetOutput(start));
+            Assert.True(head.Monitor.Sample?.Status?.Running);
+            Assert.Equal(2, offSamples);
+            io.SetOutput(down, true);
+            return Task.CompletedTask;
+        }, dryRunMilliseconds);
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads >= reads + 3, TimeSpan.FromSeconds(2)));
+            Assert.True(io.GetOutput(start));
+            Assert.False(io.GetOutput(down));
+            bus.StatusRejection = null;
+            Assert.True((await cycle).Success);
+            Assert.True(io.GetOutput(down));
+            Assert.False(io.GetOutput(start));
+            Assert.Equal(dryRunMilliseconds == 0 ? 1 : 0, bus.ResultReads);
+            Assert.False(bus.ConcurrentStatusReadsDetected);
+        }
+        finally
+        {
+            stop.Cancel();
+            head.Monitor.Sampled -= CheckBeforeRun;
+            await ((Task)cycle).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    public enum BeforeFeedFailure { Cancel, Timeout, IoFault, Communication, Alarm }
+
+    [Theory]
+    [InlineData(BeforeFeedFailure.Cancel)]
+    [InlineData(BeforeFeedFailure.Timeout)]
+    [InlineData(BeforeFeedFailure.IoFault)]
+    [InlineData(BeforeFeedFailure.Communication)]
+    [InlineData(BeforeFeedFailure.Alarm)]
+    public async Task FailureBeforeRunCannotLowerHead(BeforeFeedFailure scenario)
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10, FasteningTimeoutMilliseconds = 300 });
+        await head.SelectPresetAsync(1);
+        bus.StatusRejection = "Waiting for RUN";
+        using var stop = new CancellationTokenSource();
+        var fed = false;
+        var reads = bus.StatusReads;
+        var cycle = head.TightenAsync(stop.Token, token =>
+        {
+            fed = true;
+            return Task.CompletedTask;
+        }, dryRunMilliseconds: scenario == BeforeFeedFailure.Timeout ? 10 : 0);
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads >= reads + 2, TimeSpan.FromSeconds(2)));
+            Assert.False(fed);
+            switch (scenario)
+            {
+                case BeforeFeedFailure.Cancel:
+                    stop.Cancel();
+                    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
+                    break;
+                case BeforeFeedFailure.Timeout:
+                    await Assert.ThrowsAsync<TimeoutException>(() => cycle);
+                    break;
+                case BeforeFeedFailure.IoFault:
+                    io.IsReady = false;
+                    await Assert.ThrowsAsync<InvalidOperationException>(() => cycle);
+                    break;
+                case BeforeFeedFailure.Communication:
+                    bus.StatusReadFailure = new IOException("ADC disconnected before RUN");
+                    bus.StatusRejection = null;
+                    Assert.Same(bus.StatusReadFailure, await Assert.ThrowsAsync<IOException>(() => cycle));
+                    break;
+                case BeforeFeedFailure.Alarm:
+                    bus.CurrentAlarm = 125;
+                    bus.StatusRejection = null;
+                    Assert.False((await cycle).Success);
+                    break;
+            }
+            Assert.False(fed);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.Equal(0, bus.ResultReads);
+        }
+        finally
+        {
+            stop.Cancel();
+            await ((Task)cycle).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Fact]
+    public async Task ControllerErrorBeforeRunKeepsItsResultWithoutLoweringHead()
+    {
+        using var bus = new AdcControllerStub { ResultStatus = AdcEventStatus.Error, ResultError = 125 };
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        bus.RunReplies.Enqueue(false);
+        void AlarmOnStart(OutputIo output, bool on)
+        {
+            if (output == OutputIo.PickupBoltStart && on)
+                bus.CurrentAlarm = 125;
+        }
+        io.OutputChanged += AlarmOnStart;
+        try
+        {
+            var fed = false;
+            BoltResult? received = null;
+            var result = await head.TightenAsync(feedAsync: token =>
+            {
+                fed = true;
+                return Task.CompletedTask;
+            }, resultReceived: completed => received = completed);
+            Assert.False(fed);
+            Assert.False(result.Success);
+            Assert.Same(result, received);
+            Assert.Equal((ushort)125, result.Controller!.ErrorCode);
+            Assert.Equal(1, bus.ResultReads);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        }
+        finally
+        {
+            io.OutputChanged -= AlarmOnStart;
+        }
     }
 
     [Fact]
@@ -1010,11 +1211,17 @@ public sealed class AdcBoltHeadTests
     [Fact]
     public async Task HeadCommandTimeoutStillFailsAndTurnsStartOff()
     {
-        using var bus = new AdcControllerStub();
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60 });
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10, FasteningTimeoutMilliseconds = 200 });
         await head.SelectPresetAsync(1);
+        var fed = false;
         await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync(
-            feedAsync: token => Task.Delay(Timeout.Infinite, token)));
+            feedAsync: token =>
+            {
+                fed = true;
+                return Task.Delay(Timeout.Infinite, token);
+            }));
+        Assert.True(fed);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.Equal(0, bus.ResultReads);
     }
