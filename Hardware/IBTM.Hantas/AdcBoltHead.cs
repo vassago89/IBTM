@@ -18,6 +18,7 @@ public sealed class AdcBoltHead : IBoltHead
     private readonly OutputIo _reset;
     private readonly OutputIo[] _presets;
     private const int ResetPulseMilliseconds = 100;
+    private const int PresetSettleMilliseconds = 200;
     private readonly HantasSettings _connection;
     private readonly byte _slaveAddress;
     private readonly ILogger<AdcBoltHead> _logger;
@@ -134,6 +135,10 @@ public sealed class AdcBoltHead : IBoltHead
         foreach (var output in _presets)
             _io.SetOutput(output, false);
         _io.SetOutput(_presets[preset - 1], true);
+        _logger.LogInformation("ADC {Port}/{Slave}: preset {Preset} settling for {DelayMs} ms; START remains OFF.",
+            _portName, _slaveAddress, preset, PresetSettleMilliseconds);
+        await Task.Delay(PresetSettleMilliseconds, cancellationToken);
+        // Check a fresh sample after the delay; elapsed time alone does not prove readiness.
         var status = await WaitForStatusAsync(cancellationToken, expectedPreset: preset);
         if (status.Alarm != 0)
         {
