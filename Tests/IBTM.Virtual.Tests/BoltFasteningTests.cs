@@ -399,6 +399,7 @@ public sealed class BoltFasteningTests
         injectFeedbackLoss = false;
         motion.SetAlarm(MotionAxis.X, false);
         io.AutoResponseEnabled = true;
+        io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await station.RunAsync(finish.Token, selectedBolts: [bolt.Id]);
         var final = assembly.PickupBoltResults[bolt.Id];
@@ -411,12 +412,9 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
-    [InlineData(InputIo.PickupHeadVacuumDetected, false)]
-    [InlineData(InputIo.PickupHeadVacuumDetected, true)]
-    [InlineData(InputIo.PickupHeadDown, false)]
-    [InlineData(InputIo.PickupHeadDown, true)]
-    public async Task FinalResumePreparationFailureKeepsPreliminaryAndDoesNotStartMotor(
-        InputIo blockedFeedback, bool cancel)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FinalResumeVacuumReleaseFailureKeepsPreliminaryAndDoesNotStartMotor(bool cancel)
     {
         var settings = new BoltFasteningSettings
         {
@@ -448,32 +446,22 @@ public sealed class BoltFasteningTests
         io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
         io.SetInput(InputIo.PickupHeadVacuumDetected, true);
         var preparing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var blockDescent = blockedFeedback == InputIo.PickupHeadDown;
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PickupHeadVacuumPump)
             {
                 Assert.False(on); // Final resume never picks another bolt or re-enables vacuum.
-                if (blockedFeedback == InputIo.PickupHeadVacuumDetected)
-                    preparing.TrySetResult();
-                else
-                    io.SetInput(InputIo.PickupHeadVacuumDetected, false);
+                preparing.TrySetResult();
             }
             if (output == OutputIo.PickupHeadDown && on)
             {
-                Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-                if (blockDescent)
-                {
-                    io.AutoResponseEnabled = false;
-                    io.SetInputs((InputIo.PickupHeadUp, false), (InputIo.PickupHeadDown, false));
-                    preparing.TrySetResult();
-                }
+                Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
             }
             if (output == OutputIo.PickupBoltStart && on)
             {
                 Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
                 Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
-                Assert.Equal(StationCylinderState.Down, station.PickupHeadPosition);
+                Assert.Equal(StationCylinderState.Up, station.PickupHeadPosition);
             }
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -489,7 +477,7 @@ public sealed class BoltFasteningTests
         else
         {
             var failure = await Assert.ThrowsAsync<IoTimeoutException>(() => run);
-            Assert.Equal(blockedFeedback, failure.Input);
+            Assert.Equal(InputIo.PickupHeadVacuumDetected, failure.Input);
         }
         Assert.Equal(0, bus.StartWrites);
         Assert.Equal(0, bus.ResultReads);
@@ -497,8 +485,6 @@ public sealed class BoltFasteningTests
         Assert.Same(preliminary, assembly.PickupBoltResults[bolt.Id]);
         Assert.False(work.Completed);
 
-        blockDescent = false;
-        io.AutoResponseEnabled = true;
         io.SetInput(InputIo.PickupHeadVacuumDetected, false);
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await station.RunAsync(finish.Token, selectedBolts: [bolt.Id]);
