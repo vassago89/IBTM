@@ -380,11 +380,11 @@ public sealed class AdcBoltHeadTests
     }
 
     [Theory]
-    [InlineData("0184030301", AdcEventStatus.FasteningOk)]
-    [InlineData("018C0304C1", AdcEventStatus.FasteningOk)]
-    [InlineData("018C0304C1", AdcEventStatus.FasteningNg)]
-    public async Task RejectedStatusSampleWaitsForActualRunOffAndReadsTheResult(
-        string response, AdcEventStatus resultStatus)
+    [InlineData("0184030301", AdcEventStatus.FasteningOk, 5)]
+    [InlineData("018C0304C1", AdcEventStatus.FasteningOk, 1)]
+    [InlineData("018C0304C1", AdcEventStatus.FasteningNg, 1)]
+    public async Task RejectedStatusSamplesWaitForActualRunOffAndReadTheResult(
+        string response, AdcEventStatus resultStatus, int rejectionCount)
     {
         using var bus = new AdcControllerStub { SuppressCompletion = true, ResultStatus = resultStatus };
         var log = new ApplicationLog();
@@ -403,26 +403,32 @@ public sealed class AdcBoltHeadTests
         var rejection = AdcBus.ValidateResponse(
             Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14).Rejection;
         Assert.NotNull(rejection);
-        var rejected = false;
-        var unknownDuringRejection = false;
-        void RejectOneStatusSample(AdcStatusSample sample)
+        var rejected = 0;
+        var unknownDuringRejection = true;
+        var startHeldDuringRejection = true;
+        void RejectStatusSamples(AdcStatusSample sample)
         {
             if (sample.Rejection == rejection)
             {
-                rejected = true;
-                unknownDuringRejection = head.Monitor.Sample is { Status: null, Error: null };
-                bus.StatusRejection = null;
-                bus.SuppressCompletion = false;
+                rejected++;
+                unknownDuringRejection &= head.Monitor.Sample is { Status: null, Error: null };
+                startHeldDuringRejection &= io.GetOutput(OutputIo.PickupBoltStart) && bus.ResultReads == 0;
+                if (rejected == rejectionCount)
+                {
+                    bus.StatusRejection = null;
+                    bus.SuppressCompletion = false;
+                }
             }
-            else if (!rejected && sample.Status is { Running: true })
+            else if (rejected == 0 && sample.Status is { Running: true })
                 bus.StatusRejection = rejection;
         }
-        head.Monitor.Sampled += RejectOneStatusSample;
+        head.Monitor.Sampled += RejectStatusSamples;
         try
         {
             var result = await head.TightenAsync();
-            Assert.True(rejected);
+            Assert.Equal(rejectionCount, rejected);
             Assert.True(unknownDuringRejection);
+            Assert.True(startHeldDuringRejection);
             Assert.Equal(resultStatus == AdcEventStatus.FasteningOk, result.Success);
             Assert.Null(result.Error);
             Assert.NotNull(result.Controller);
@@ -434,13 +440,13 @@ public sealed class AdcBoltHeadTests
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
             Assert.False(startDuringSummary);
             Assert.Contains(log.Snapshot(), entry => entry.Message.Contains("completion status timing")
-                && entry.Message.Contains("rejected=1"));
+                && entry.Message.Contains($"rejected={rejectionCount}"));
             Assert.Contains(log.Snapshot(), entry => entry.Message.Contains("cycle timing")
                 && entry.Message.Contains("controller fastening=250 ms"));
         }
         finally
         {
-            head.Monitor.Sampled -= RejectOneStatusSample;
+            head.Monitor.Sampled -= RejectStatusSamples;
         }
     }
 
@@ -537,10 +543,15 @@ public sealed class AdcBoltHeadTests
         using var stop = new CancellationTokenSource();
         var running = head.TightenAsync(stop.Token);
         Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StartWrites == 1, TimeSpan.FromSeconds(2)));
+        bus.StatusRejection = "RX=0184030301; status request rejected";
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(
+            () => head.Monitor.Sample?.Rejection is not null, TimeSpan.FromSeconds(2)));
+        Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
         Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        bus.StatusRejection = null;
         bus.SuppressCompletion = false;
         var next = head.TightenAsync();
         Assert.False(next.IsCompleted);
@@ -993,7 +1004,12 @@ public sealed class AdcBoltHeadTests
         var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 5000, StatusPollMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         var cycle = head.TightenAsync();
+        bus.StatusRejection = "RX=0184030301; status request rejected";
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(
+            () => head.Monitor.Sample?.Rejection is not null, TimeSpan.FromSeconds(2)));
+        Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
         bus.CurrentAlarm = 125;
+        bus.StatusRejection = null;
         var result = await cycle.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(result.Success);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));

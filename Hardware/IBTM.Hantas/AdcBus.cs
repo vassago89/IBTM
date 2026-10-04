@@ -190,8 +190,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
             AdcFunctionCode.ReadInputRegisters,
             AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.ReadInputRegisters, data),
             cancellationToken,
-            expectedByteCount: AdcControllerStatus.RegisterCount * 2);
-        response.RequireSuccess();
+            expectedByteCount: AdcControllerStatus.RegisterCount * 2,
+            retryRejectedResponses: false);
+        // The monitor schedules the next status query. A valid rejection gives no
+        // feedback; readiness and fastening keep their own bounded waiting time.
+        if (response.Rejection is { } rejection)
+            return (null, rejection);
 
         var values = new ushort[AdcControllerStatus.RegisterCount];
         for (var index = 0; index < values.Length; index++)
@@ -205,7 +209,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
         byte[] request,
         CancellationToken cancellationToken,
         int? captureMilliseconds = null,
-        int? expectedByteCount = null)
+        int? expectedByteCount = null,
+        bool retryRejectedResponses = true)
     {
         var responseTimeout = _settings.ResponseTimeoutMilliseconds;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeout);
@@ -274,8 +279,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
                             + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
                             + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
                             + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
-                        _logger.LogWarning("ADC response rejected or unmatched. {Detail} {Rejection}", detail, rejection);
-                        if (attempt < attempts)
+                        if (retryRejectedResponses)
+                            _logger.LogWarning("ADC response rejected or unmatched. {Detail} {Rejection}", detail, rejection);
+                        else
+                            _logger.LogWarning("ADC status query rejected; waiting for the next scheduled sample. {Detail} {Rejection}",
+                                detail, rejection);
+                        if (retryRejectedResponses && attempt < attempts)
                         {
                             Monitor.InvalidateSample(rejection);
                             continue;
