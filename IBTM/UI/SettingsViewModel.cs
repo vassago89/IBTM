@@ -186,6 +186,8 @@ public partial class SettingsViewModel : ObservableObject
                     validationError = UiText.Get("Fastening timeout must be greater than 0 s.");
                 else if (Settings.Hantas.ResponseTimeoutMilliseconds <= 0)
                     validationError = UiText.Get("ADC response timeout must be greater than 0 s.");
+                else if (Settings.Hantas.PresetSettleMilliseconds < 0)
+                    validationError = UiText.Get("Preset delay must be 0 ms or greater.");
                 else if (string.IsNullOrWhiteSpace(LogDirectory) || !Path.IsPathFullyQualified(LogDirectory))
                     validationError = UiText.Get("Choose an absolute folder path for logs.");
                 else if (string.IsNullOrWhiteSpace(PcbResultsDirectory) || !Path.IsPathFullyQualified(PcbResultsDirectory))

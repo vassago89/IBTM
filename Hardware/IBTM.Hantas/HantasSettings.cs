@@ -25,6 +25,7 @@ public sealed class HantasSettings : Setting
         }
     } = 3;
     public int FasteningTimeoutMilliseconds { get; set; } = 15_000;
+    public int PresetSettleMilliseconds { get; set; } = 200;
     public int StatusPollMilliseconds
     {
         get;

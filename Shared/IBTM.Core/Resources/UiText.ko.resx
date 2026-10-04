@@ -3725,4 +3725,10 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="raw torque" xml:space="preserve">
     <value>원본 토크</value>
   </data>
+  <data name="preset change delay (ms)" xml:space="preserve">
+    <value>프리셋 변경 대기 (ms)</value>
+  </data>
+  <data name="preset delay must be 0 ms or greater." xml:space="preserve">
+    <value>프리셋 대기: 0ms 이상 입력</value>
+  </data>
 </root>

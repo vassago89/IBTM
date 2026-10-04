@@ -205,12 +205,14 @@ public sealed class AdcProtocolTests
         Assert.Equal((byte)3, settings.ShootingSlaveAddress);
         Assert.Equal(100, settings.StatusPollMilliseconds);
         Assert.Equal(1_000, settings.ResponseTimeoutMilliseconds);
+        Assert.Equal(200, settings.PresetSettleMilliseconds);
         Assert.Equal(3, settings.ReadAttempts);
         settings.ShootingPortName = "COM5";
         settings.ShootingBaudRate = 38400;
         settings.ShootingSlaveAddress = 2;
         settings.StatusPollMilliseconds = 75;
         settings.ResponseTimeoutMilliseconds = 250;
+        settings.PresetSettleMilliseconds = 400;
         settings.ReadAttempts = 2;
 
         var reloaded = JsonSerializer.Deserialize<HantasSettings>(JsonSerializer.Serialize(settings))!;
@@ -222,6 +224,9 @@ public sealed class AdcProtocolTests
         Assert.Equal(reloaded.PickupSlaveAddress, reloaded.ShootingSlaveAddress);
         Assert.Equal(75, reloaded.StatusPollMilliseconds);
         Assert.Equal(250, reloaded.ResponseTimeoutMilliseconds);
+        Assert.Equal(400, reloaded.PresetSettleMilliseconds);
+        settings.PresetSettleMilliseconds = 0;
+        Assert.Equal(0, JsonSerializer.Deserialize<HantasSettings>(JsonSerializer.Serialize(settings))!.PresetSettleMilliseconds);
         Assert.Equal(2, reloaded.ReadAttempts);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.StatusPollMilliseconds = 0);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.ReadAttempts = 0);

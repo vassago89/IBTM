@@ -443,6 +443,17 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Preset change delay (ms)'}" Style="{StaticResource SettingFieldLabel}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Text="{Binding Settings.Hantas.PresetSettleMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                            VerticalAlignment="Center" Grid.Column="1"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
                                         <TextBlock Text="{ui:Text 'Fastening result timeout (s)'}" Style="{StaticResource SettingFieldLabel}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"

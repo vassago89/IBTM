@@ -1301,16 +1301,21 @@ public sealed class AdcBoltHeadTests
     public async Task PresetSettlingKeepsStartOffAndChecksFeedbackAfterTheDelay(bool cancel)
     {
         using var bus = new AdcControllerStub();
-        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10, ResponseTimeoutMilliseconds = 500 });
+        var settings = new HantasSettings
+        {
+            StatusPollMilliseconds = 10, ResponseTimeoutMilliseconds = 500, PresetSettleMilliseconds = 0,
+        };
+        var (io, head) = Create(bus, settings);
         await head.SelectPresetAsync(2);
         var preliminary = await head.TightenAsync();
         Assert.True(preliminary.Success);
+        settings.PresetSettleMilliseconds = 400; // The existing head reads edits at the next selection.
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var started = Stopwatch.StartNew();
         var selecting = head.SelectPresetAsync(1, stop.Token);
         try
         {
-            await Task.Delay(50);
+            await Task.Delay(250); // Longer than the former hard-coded 200 ms.
             Assert.False(selecting.IsCompleted);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
             Assert.Equal(1, bus.StartWrites);
@@ -1326,14 +1331,14 @@ public sealed class AdcBoltHeadTests
                 // An earlier READY sample cannot release START after the settling delay.
                 bus.NotReady = true;
                 bus.ReportedPreset = 2;
-                await Task.Delay(200);
+                await Task.Delay(settings.PresetSettleMilliseconds);
                 Assert.False(selecting.IsCompleted);
                 Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
                 Assert.Equal(1, bus.StartWrites);
                 bus.NotReady = false;
                 bus.ReportedPreset = null;
                 await selecting;
-                Assert.True(started.Elapsed >= TimeSpan.FromMilliseconds(200));
+                Assert.True(started.Elapsed >= TimeSpan.FromMilliseconds(settings.PresetSettleMilliseconds));
                 Assert.True(head.Monitor.Sample!.Status!.Ready);
                 Assert.Equal((ushort)1, head.Monitor.Sample.Status.Preset);
                 var final = await head.TightenAsync();
@@ -1349,6 +1354,17 @@ public sealed class AdcBoltHeadTests
             await selecting.ConfigureAwait(
                 ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
         }
+    }
+
+    [Fact]
+    public async Task NegativePresetDelayCannotChangeOutputsOrStart()
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { PresetSettleMilliseconds = -1 });
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => head.SelectPresetAsync(1));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltPreset1));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+        Assert.Equal(0, bus.StartWrites);
     }
 
     [Fact]
