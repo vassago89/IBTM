@@ -74,7 +74,7 @@ public sealed class AdcBoltHead : IBoltHead
     }
 
     private async Task<AdcControllerStatus> WaitForStatusAsync(
-        CancellationToken cancellationToken, bool waitForReady = false)
+        CancellationToken cancellationToken, ushort? expectedPreset = null)
     {
         var responseTimeoutMilliseconds = _connection.ResponseTimeoutMilliseconds;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeoutMilliseconds);
@@ -90,19 +90,22 @@ public sealed class AdcBoltHead : IBoltHead
         try
         {
             var status = await Monitor.WaitForSampleAsync(after, timeout.Token);
-            while (waitForReady && status is { Alarm: 0, Ready: false, Running: false }
+            while (expectedPreset is { } preset && status is { Alarm: 0, Running: false }
+                && (!status.Ready || status.Preset != preset)
                 && !_io.GetOutput(_start))
             {
                 if (!waitingForReady)
-                    _logger.LogInformation("ADC {Port}/{Slave}: waiting for READY after preset selection; START remains OFF.",
-                        _portName, _slaveAddress);
+                    _logger.LogInformation(
+                        "ADC {Port}/{Slave}: waiting for preset/READY; requested preset={RequestedPreset}, actual preset={ActualPreset}, READY={Ready}; START remains OFF.",
+                        _portName, _slaveAddress, preset, status.Preset, status.Ready);
                 waitingForReady = true;
-                // Allow the controller's preset/STOP transition to finish within one shared deadline.
+                // READY may still describe the previous preset during an I/O changeover.
+                // Require matching live feedback within the same overall deadline.
                 status = await Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), timeout.Token);
             }
-            if (waitingForReady)
-                _logger.LogInformation("ADC {Port}/{Slave}: preset readiness wait ended; READY={Ready}, RUN={Running}, ALARM={Alarm}, elapsed={ElapsedMs:F1} ms.",
-                    _portName, _slaveAddress, status.Ready, status.Running, status.Alarm,
+            if (expectedPreset is not null)
+                _logger.LogInformation("ADC {Port}/{Slave}: preset readiness checked; requested preset={RequestedPreset}, actual preset={ActualPreset}, READY={Ready}, RUN={Running}, ALARM={Alarm}, elapsed={ElapsedMs:F1} ms.",
+                    _portName, _slaveAddress, expectedPreset, status.Preset, status.Ready, status.Running, status.Alarm,
                     Stopwatch.GetElapsedTime(after).TotalMilliseconds);
             return status;
         }
@@ -111,6 +114,7 @@ public sealed class AdcBoltHead : IBoltHead
             if (waitingForReady)
                 throw new TimeoutException(
                     $"ADC {_portName}/{_slaveAddress}: READY timeout after preset selection; "
+                    + $"requested preset={expectedPreset}, actual preset={Monitor.Sample?.Status?.Preset}, READY={Monitor.Sample?.Status?.Ready}; "
                     + $"last rejection={Monitor.Sample?.Rejection ?? "none"}.");
             throw new TimeoutException(
                 $"ADC {_portName}/{_slaveAddress}: no fresh controller status from the monitor; "
@@ -130,17 +134,15 @@ public sealed class AdcBoltHead : IBoltHead
         foreach (var output in _presets)
             _io.SetOutput(output, false);
         _io.SetOutput(_presets[preset - 1], true);
-        var status = await WaitForStatusAsync(cancellationToken, waitForReady: true);
+        var status = await WaitForStatusAsync(cancellationToken, expectedPreset: preset);
         if (status.Alarm != 0)
         {
             _logger.LogWarning("ADC {Port}/{Slave} reports alarm {Alarm}; resetting once before the next bolt.",
                 _portName, _slaveAddress, status.Alarm);
             await ResetAsync(cancellationToken);
+            status = await WaitForStatusAsync(cancellationToken, expectedPreset: preset);
         }
-        else
-        {
-            RequireReady(status);
-        }
+        RequireReady(status);
         cancellationToken.ThrowIfCancellationRequested();
         _requestedPreset = preset;
     }

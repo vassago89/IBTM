@@ -2033,13 +2033,16 @@ public sealed class BoltFasteningTests
     [InlineData(FasteningHead.Pickup, FasteningScenario.StopDuringDescent)]
     [InlineData(FasteningHead.Shooting, FasteningScenario.StopDuringDescent)]
     [InlineData(FasteningHead.Pickup, FasteningScenario.MissingDownFeedback)]
+    [InlineData(FasteningHead.Pickup, FasteningScenario.FinalStopDuringDescent)]
+    [InlineData(FasteningHead.Pickup, FasteningScenario.FinalMissingDownFeedback)]
     [InlineData(FasteningHead.Shooting, FasteningScenario.LostTableUp)]
     [InlineData(FasteningHead.Shooting, FasteningScenario.NoShootingVacuum)]
     public async Task FasteningStartsAdcBeforeHeadDescentAndStopsItAfterCompletionOrInterruption(
         FasteningHead selectedHead, FasteningScenario scenario)
     {
-        var stopDuringDescent = scenario == FasteningScenario.StopDuringDescent;
-        var missingDownFeedback = scenario == FasteningScenario.MissingDownFeedback;
+        var finalStage = scenario is FasteningScenario.FinalStopDuringDescent or FasteningScenario.FinalMissingDownFeedback;
+        var stopDuringDescent = scenario is FasteningScenario.StopDuringDescent or FasteningScenario.FinalStopDuringDescent;
+        var missingDownFeedback = scenario is FasteningScenario.MissingDownFeedback or FasteningScenario.FinalMissingDownFeedback;
         var loseTableUp = scenario == FasteningScenario.LostTableUp;
         var shootWithoutVacuum = scenario == FasteningScenario.NoShootingVacuum;
         var settings = new BoltFasteningSettings
@@ -2097,6 +2100,9 @@ public sealed class BoltFasteningTests
             (InputIo.ShootingEscapeBackward, true));
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         var results = selectedHead == FasteningHead.Shooting ? assembly.ShootingBoltResults : assembly.PickupBoltResults;
+        var preliminary = finalStage ? new BoltResult(true, 1) { Stage = BoltFasteningStage.Preliminary } : null;
+        if (preliminary is not null)
+            assembly.RecordBolt(selectedHead, bolt.Id, preliminary);
         var (start, cylinder, up, down) = selectedHead == FasteningHead.Pickup
             ? (OutputIo.PickupBoltStart, OutputIo.PickupHeadDown,
                 InputIo.PickupHeadUp, InputIo.PickupHeadDown)
@@ -2151,6 +2157,8 @@ public sealed class BoltFasteningTests
                 {
                     Assert.True(station.IsHorizontalMoveAllowed);
                     Assert.Equal(settings.GetHead(selectedHead).FasteningZ, motion.Position.Z);
+                    if (finalStage)
+                        Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
                     if (selectedHead == FasteningHead.Shooting)
                     {
                         Assert.True(shotElapsed.IsRunning);
@@ -2178,14 +2186,17 @@ public sealed class BoltFasteningTests
                 }
             }
         };
-        var run = station.RunAsync(stop.Token);
+        var run = station.RunAsync(stop.Token, selectedBolts: finalStage ? [bolt.Id] : null);
         try
         {
             await descending.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal(new[] { "START ON", "DOWN" }, commands);
             Assert.True(io.GetOutput(start));
             Assert.False(run.IsCompleted);
-            Assert.Empty(results);
+            if (finalStage)
+                Assert.Same(preliminary, results[bolt.Id]);
+            else
+                Assert.Empty(results);
             if (loseTableUp)
                 io.SetInput(InputIo.PickupTableUp, false);
             else if (stopDuringDescent)
@@ -2204,7 +2215,10 @@ public sealed class BoltFasteningTests
             Assert.False(io.GetOutput(start));
             if (stopDuringDescent || loseTableUp)
             {
-                Assert.Empty(results);
+                if (finalStage)
+                    Assert.Same(preliminary, results[bolt.Id]);
+                else
+                    Assert.Empty(results);
                 Assert.True(io.GetOutput(cylinder));
             }
             else
@@ -2212,6 +2226,11 @@ public sealed class BoltFasteningTests
                 Assert.True(results[VirtualTestSupport.BoltId(1)].Success);
                 Assert.NotNull(results[VirtualTestSupport.BoltId(1)].Controller);
                 Assert.NotNull(results[VirtualTestSupport.BoltId(1)].Torque);
+                if (finalStage)
+                {
+                    Assert.Equal(BoltFasteningStage.Final, results[bolt.Id].Stage);
+                    Assert.Same(preliminary, results[bolt.Id].PreliminaryResult);
+                }
                 if (selectedHead == FasteningHead.Shooting)
                 {
                     Assert.False(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
@@ -3583,6 +3602,8 @@ public sealed class BoltFasteningTests
         Normal,
         StopDuringDescent,
         MissingDownFeedback,
+        FinalStopDuringDescent,
+        FinalMissingDownFeedback,
         LostTableUp,
         NoShootingVacuum,
     }

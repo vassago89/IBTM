@@ -47,6 +47,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public Task? CompensationReadBarrier { get; init; }
 
     private ushort CurrentPreset { get; set; } = 3;
+    public ushort? ReportedPreset { get; set; }
     public ushort CurrentAlarm { get; set; }
     public bool NotReady { get; set; }
     public int ResetPollsRemaining { get; set; }
@@ -247,7 +248,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                             ResetPollsRemaining--;
                     }
                     return [
-                        CurrentPreset, 0, 0, (ushort)(NotReady || Running || CurrentAlarm != 0 ? 0 : 1),
+                        ReportedPreset ?? CurrentPreset, 0, 0, (ushort)(NotReady || Running || CurrentAlarm != 0 ? 0 : 1),
                         (ushort)(Running ? 1 : 0), CurrentAlarm, (ushort)CurrentDirection,
                     ];
                 }

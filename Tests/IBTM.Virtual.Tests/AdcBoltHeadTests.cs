@@ -1224,6 +1224,73 @@ public sealed class AdcBoltHeadTests
         }
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public async Task ReadyFromPreviousPresetCannotReleaseNextFastening(bool cancel, bool timeout, bool resetAlarm)
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10, ResponseTimeoutMilliseconds = 100 });
+        await head.SelectPresetAsync(2);
+        var preliminary = await head.TightenAsync();
+        Assert.True(preliminary.Success);
+        bus.ReportedPreset = 2;
+        bus.CurrentAlarm = resetAlarm ? (ushort)42 : (ushort)0;
+        var previousPreset = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        head.Monitor.Sampled += sample =>
+        {
+            if (sample.Status is { Preset: 2, Ready: true, Running: false, Alarm: 0 })
+                previousPreset.TrySetResult();
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var selecting = head.SelectPresetAsync(1, stop.Token);
+        try
+        {
+            await previousPreset.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            // Let selection consume the sample; READY alone must not finish it.
+            await Task.Delay(30);
+            Assert.False(selecting.IsCompleted);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.Equal(1, bus.StartWrites);
+            Assert.Equal(1, bus.ResultReads);
+            Assert.Equal(resetAlarm ? 1 : 0, bus.ResetWrites);
+            if (cancel)
+            {
+                stop.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => selecting);
+            }
+            else if (timeout)
+            {
+                var error = await Assert.ThrowsAsync<TimeoutException>(() => selecting);
+                Assert.Contains("requested preset=1", error.Message);
+                Assert.Contains("actual preset=2", error.Message);
+            }
+            else
+            {
+                bus.ReportedPreset = null;
+                await selecting;
+                Assert.Equal((ushort)1, head.Monitor.Sample!.Status!.Preset);
+                var final = await head.TightenAsync();
+                Assert.True(final.Success);
+                Assert.Equal((ushort)1, final.Controller!.Preset);
+                Assert.Equal(2, bus.StartWrites);
+                Assert.Equal(resetAlarm ? 1 : 0, bus.ResetWrites);
+                return;
+            }
+            await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+            Assert.Equal(1, bus.StartWrites);
+            Assert.Equal(0, bus.ResetWrites);
+        }
+        finally
+        {
+            stop.Cancel();
+            await selecting.ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
     [Fact]
     public async Task ManualReverseUsesIoAndReleaseStopsIt()
     {
