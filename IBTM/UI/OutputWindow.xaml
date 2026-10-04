@@ -119,12 +119,6 @@
                             <Setter TargetName="Row" Property="Padding" Value="8,7,11,7"/>
                             <Setter TargetName="Row" Property="TextElement.FontWeight" Value="SemiBold"/>
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding Io.Signal}" Value="{x:Static device:OutputIo.MainConveyorNormalSpeed}">
-                            <Setter TargetName="ToggleOutput" Property="Content" Value="{ui:Text 'Fixed ON'}"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Io.Signal}" Value="{x:Static device:OutputIo.NgConveyorNormalSpeed}">
-                            <Setter TargetName="ToggleOutput" Property="Content" Value="{ui:Text 'Fixed ON'}"/>
-                        </DataTrigger>
                         <DataTrigger Binding="{Binding Io.Signal}" Value="{x:Static device:OutputIo.PcbPlacementHandlerRotate}">
                             <Setter TargetName="ToggleOutput" Property="Content" Value="{ui:Text 'Fixed OFF'}"/>
                         </DataTrigger>

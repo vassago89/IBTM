@@ -974,13 +974,20 @@ public sealed class IoStartupTests
             ? services.GetRequiredService<IBTM.Conveyor.MainConveyor>().RunMotorAsync(cancellation.Token)
             : services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>().RunMotorAsync(cancellation.Token);
         var stopFailure = new IOException("First motor STOP failed.");
+        var speed = motor == OutputIo.MainConveyorRun
+            ? OutputIo.MainConveyorNormalSpeed : OutputIo.NgConveyorNormalSpeed;
+        var speedFailure = new IOException("First normal-speed OFF failed.");
         var stopAttempts = 0;
+        var speedAttempts = 0;
         Assert.True(io.GetOutput(motor));
+        Assert.True(io.GetOutput(speed));
         io.SetOutput(handshake, true);
         io.BeforeOutputWrite = (output, on) =>
         {
             if (output == motor && !on && Interlocked.Increment(ref stopAttempts) == 1)
                 throw stopFailure;
+            if (output == speed && !on && Interlocked.Increment(ref speedAttempts) == 1)
+                throw speedFailure;
         };
         try
         {
@@ -989,7 +996,9 @@ public sealed class IoStartupTests
 
             Assert.Null(cancellationFailure);
             Assert.Contains(stopFailure, Assert.IsType<AggregateException>(runFailure).Flatten().InnerExceptions);
+            Assert.Contains(speedFailure, ((AggregateException)runFailure).Flatten().InnerExceptions);
             Assert.False(io.GetOutput(motor));
+            Assert.False(io.GetOutput(speed));
             Assert.False(io.GetOutput(handshake));
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         }
@@ -1028,6 +1037,8 @@ public sealed class IoStartupTests
             await run.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(io.GetOutput(handshake));
             Assert.Contains("Motor OFF failed.", row.ActionMessage);
+            Assert.False(io.GetOutput(motor == OutputIo.MainConveyorRun
+                ? OutputIo.MainConveyorNormalSpeed : OutputIo.NgConveyorNormalSpeed));
             Assert.True(services.GetRequiredService<MachineState>().IsError);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         }

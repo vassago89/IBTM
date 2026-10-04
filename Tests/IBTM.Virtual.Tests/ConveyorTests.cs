@@ -614,6 +614,7 @@ public sealed class ConveyorTests
             if (message != "MainConveyor: run started.")
                 return;
             io.SetOutput(OutputIo.MainConveyorRun, true);
+            io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
             io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
             io.SetOutput(OutputIo.MainConveyorAvailableToRear, true);
             throw failure;
@@ -624,6 +625,7 @@ public sealed class ConveyorTests
                 return;
             ended = true;
             outputsOnAtEnd = io.GetOutput(OutputIo.MainConveyorRun)
+                || io.GetOutput(OutputIo.MainConveyorNormalSpeed)
                 || io.GetOutput(OutputIo.MainConveyorReadyToFront2)
                 || io.GetOutput(OutputIo.MainConveyorAvailableToRear);
         };
@@ -716,7 +718,7 @@ public sealed class ConveyorTests
         Assert.True(stoppedDuringSetup);
         Assert.False(started);
         Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-        Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
     }
 
     [Fact]
@@ -2147,6 +2149,7 @@ public sealed class ConveyorTests
             SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
             await Task.Delay(50);
             Assert.True(io.GetOutput(OutputIo.MainConveyorRun)); // S3 clearing alone does not stop discharge.
+            Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
             var elapsed = Stopwatch.StartNew();
             if (teaching)
                 conveyor.TestDownstreamReady = false;
@@ -2160,6 +2163,7 @@ public sealed class ConveyorTests
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, false);
             Assert.True(elapsed.Elapsed.TotalSeconds >= delaySeconds - 0.02);
             await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, false);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
             Assert.False(run.IsCompleted);
         }
         finally
@@ -2403,6 +2407,7 @@ public sealed class ConveyorTests
         {
             await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, false);
             Assert.False(started, "RUN turned ON after Rear Ready had already turned OFF during motor setup.");
+            Assert.False(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
         }
         finally
         {
@@ -2554,7 +2559,7 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task ConveyorSpeedStaysOnThroughStopResetAndOutputControl()
+    public async Task ConveyorSpeedFollowsMotorRunAndClearsOnStopResetAndShutdown()
     {
         await using var services = MachineTestSupport.CreateDiagnosticServices();
         var machine = services.GetRequiredService<MachineController>();
@@ -2562,24 +2567,48 @@ public sealed class ConveyorTests
         await machine.InitializeAsync();
         try
         {
-            foreach (var output in new[] { OutputIo.MainConveyorNormalSpeed, OutputIo.NgConveyorNormalSpeed })
+            foreach (var (motor, speed) in new[]
             {
-                Assert.True(io.GetOutput(output));
-                Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(output));
-                Assert.True(io.GetOutput(output));
+                (OutputIo.MainConveyorRun, OutputIo.MainConveyorNormalSpeed),
+                (OutputIo.NgConveyorRun, OutputIo.NgConveyorNormalSpeed),
+            })
+            {
+                Assert.False(io.GetOutput(speed));
+                using var stop = new CancellationTokenSource();
+                var run = motor == OutputIo.MainConveyorRun
+                    ? services.GetRequiredService<MainConveyor>().RunMotorAsync(stop.Token)
+                    : services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>().RunMotorAsync(stop.Token);
+                Assert.True(io.GetOutput(motor));
+                Assert.True(io.GetOutput(speed));
+                stop.Cancel();
+                Assert.False(io.GetOutput(motor));
+                Assert.False(io.GetOutput(speed));
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
             }
+            io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
+            io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
             await machine.StopAsync();
-            Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
-            Assert.True(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
+            var state = services.GetRequiredService<MachineState>();
+            state.SetError(MachineAlarm.MainConveyor);
+            io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
+            io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
+            Assert.True(machine.IsResetAllowed);
             await machine.ResetAsync();
-            Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
-            Assert.True(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
+            io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
         }
         finally
         {
             await machine.ShutdownAsync();
         }
+        Assert.False(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+        Assert.False(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
     }
 }

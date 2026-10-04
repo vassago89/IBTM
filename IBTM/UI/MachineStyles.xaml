@@ -623,6 +623,10 @@
         </Style.Triggers>
     </Style>
 
+    <Style x:Key="BackupPlateElevationStyle" TargetType="Path" BasedOn="{StaticResource PlateElevationStyle}">
+        <Setter Property="Data" Value="M 28,18 H 248 V 25 H 28 Z M 68,25 V 38 M 208,25 V 38"/>
+    </Style>
+
     <Style x:Key="StopperElevationStyle" TargetType="Path">
         <Setter Property="Stroke" Value="{StaticResource AccentAmberBrush}"/>
         <Setter Property="StrokeThickness" Value="2"/>

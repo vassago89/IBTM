@@ -15,6 +15,16 @@ public sealed class BoltFasteningSettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
+    public FasteningHead FirstFasteningHead
+    {
+        get;
+        set
+        {
+            if (!Enum.IsDefined(value))
+                throw new ArgumentOutOfRangeException(nameof(value));
+            field = value;
+        }
+    }
     public PickupFasteningMode PickupFasteningMode
     {
         get;

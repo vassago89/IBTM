@@ -246,7 +246,7 @@ public sealed class PcbHistoryTests
             .AddVirtualApplication(settings).BuildServiceProvider();
         var recipes = services.GetRequiredService<RecipeManager>();
         await recipes.LoadAsync(recipe.Name);
-        var bolts = recipes.Current.Pcb.FasteningPoints.ToArray();
+        var bolts = recipes.Current.Pcb.GetFasteningPoints(settings.BoltFastening.FirstFasteningHead).ToArray();
         Assert.Equal(6, bolts.Select(bolt => bolt.Id).Distinct().Count());
         Assert.DoesNotContain(bolts, bolt => bolt.Id == Guid.Empty);
 

@@ -134,7 +134,7 @@ public sealed class MainConveyor : AutoUnit
         using var runCancellation = BeginConveyorOperation(cancellationToken);
         cancellationToken = runCancellation.Token;
         var motor = new ConveyorRun(
-            Io, OutputIo.MainConveyorRun, cancellationToken,
+            Io, OutputIo.MainConveyorRun, OutputIo.MainConveyorNormalSpeed, cancellationToken,
             OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
         try
         {
@@ -194,7 +194,7 @@ public sealed class MainConveyor : AutoUnit
                         }
                         Changed += ObserveRear;
                         using var discharge = new ConveyorRun(
-                            Io, OutputIo.MainConveyorRun, cancellationToken,
+                            Io, OutputIo.MainConveyorRun, OutputIo.MainConveyorNormalSpeed, cancellationToken,
                             OutputIo.MainConveyorAvailableToRear);
                         try
                         {
@@ -468,7 +468,7 @@ public sealed class MainConveyor : AutoUnit
         Exception? failure = null;
         try
         {
-            using var motor = new ConveyorRun(Io, OutputIo.MainConveyorRun, transfer.Token);
+            using var motor = new ConveyorRun(Io, OutputIo.MainConveyorRun, OutputIo.MainConveyorNormalSpeed, transfer.Token);
             try
             {
                 if (!receiving)
@@ -633,7 +633,9 @@ public sealed class MainConveyor : AutoUnit
     {
         using var runCancellation = BeginConveyorOperation(cancellationToken);
         cancellationToken = runCancellation.Token;
-        using var motor = new ConveyorRun(Io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+        using var motor = new ConveyorRun(
+            Io, OutputIo.MainConveyorRun, OutputIo.MainConveyorNormalSpeed, cancellationToken,
+            OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
         try
         {
             StartMotor(cancellationToken);
@@ -663,7 +665,7 @@ public sealed class MainConveyor : AutoUnit
         var run = _runCancellation;
         _runCancellation = null;
         using var motor = new ConveyorRun(
-            Io, OutputIo.MainConveyorRun, CancellationToken.None,
+            Io, OutputIo.MainConveyorRun, OutputIo.MainConveyorNormalSpeed, CancellationToken.None,
             OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
         try
         {

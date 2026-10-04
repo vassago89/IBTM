@@ -40,20 +40,16 @@ public sealed class PcbLayout
 
     public List<Guid> FasteningOrder { get; set; }
 
-    [JsonIgnore]
-    public IEnumerable<BoltPoint> FasteningPoints
+    public IEnumerable<BoltPoint> GetFasteningPoints(FasteningHead firstHead)
     {
-        get
-        {
-            return BoltPoints.OrderBy(bolt => bolt.Head == FasteningHead.Shooting ? 0 : 1)
-                .ThenBy(bolt => bolt.HeatSink)
-                .ThenBy(bolt =>
-                {
-                    // New points follow the configured points for the same PCB and head.
-                    var index = FasteningOrder.IndexOf(bolt.Id);
-                    return index >= 0 ? index : int.MaxValue;
-                });
-        }
+        return BoltPoints.OrderBy(bolt => bolt.Head == firstHead ? 0 : 1)
+            .ThenBy(bolt => bolt.HeatSink)
+            .ThenBy(bolt =>
+            {
+                // New points follow the configured points for the same PCB and head.
+                var index = FasteningOrder.IndexOf(bolt.Id);
+                return index >= 0 ? index : int.MaxValue;
+            });
     }
 
     public int? GetBoltOrdinal(Guid boltId)

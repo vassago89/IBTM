@@ -41,6 +41,7 @@ public sealed record FasteningResumeRow(string Label, HeatSinkSlot HeatSink, Bol
 public partial class OperationViewModel : ObservableObject
 {
     private readonly MachineOptions _options;
+    private readonly BoltFasteningSettings _fasteningSettings;
     private readonly MachineDiagramMapper _map;
     private volatile bool _active;
     private readonly MachineStore _store;
@@ -58,6 +59,7 @@ public partial class OperationViewModel : ObservableObject
         MachineController machine,
         UnitSettings units,
         MachineOptions options,
+        BoltFasteningSettings fasteningSettings,
         RecipeManager recipes,
         MachineDiagramMapper map,
         MainConveyor conveyor,
@@ -111,6 +113,7 @@ public partial class OperationViewModel : ObservableObject
         Inspection = inspectionStation;
         Units = units;
         _options = options;
+        _fasteningSettings = fasteningSettings;
         Recipes = recipes;
         _map = map;
         NgConveyor = ngConveyor;
@@ -495,7 +498,8 @@ public partial class OperationViewModel : ObservableObject
         IsFasteningResumeConfirmed = false;
         _reviewedFasteningJob = Fastening.Station.CurrentJob;
         FasteningResumeBolts.Clear();
-        foreach (var bolt in Recipes.Current.Pcb.FasteningPoints.Where(bolt => Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)))
+        foreach (var bolt in Recipes.Current.Pcb.GetFasteningPoints(_fasteningSettings.FirstFasteningHead)
+            .Where(bolt => Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)))
         {
             var assembly = Fastening.Station.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
             var result = assembly?.ShootingBoltResults.GetValueOrDefault(bolt.Id)

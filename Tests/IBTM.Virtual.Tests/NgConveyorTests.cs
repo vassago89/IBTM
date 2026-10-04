@@ -237,6 +237,7 @@ public sealed class NgConveyorTests
         Assert.True(stoppedAfter >= TimeSpan.FromSeconds(DelaySeconds) - TimeSpan.FromMilliseconds(15));
         Assert.False(system.Io.GetInput(destination));
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorNormalSpeed));
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorReverse));
     }
 
@@ -469,6 +470,7 @@ public sealed class NgConveyorTests
                 () => system.Conveyor.Step is NgConveyorState.WaitingForEjectConfirmation, TimeSpan.FromSeconds(1)));
             Assert.True(system.Io.GetInput(InputIo.NgConveyorPosition1Occupied));
             Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorNormalSpeed));
             Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperDown));
             system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
             system.Io.SetInput(InputIo.NgCarrierEjectButton, false);
@@ -618,7 +620,7 @@ public sealed class NgConveyorTests
         Assert.True(stop.IsCancellationRequested);
         Assert.False(started);
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
-        Assert.True(system.Io.GetOutput(OutputIo.NgConveyorNormalSpeed));
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorNormalSpeed));
     }
 
     [Trait("Category", "MachineFlow")]

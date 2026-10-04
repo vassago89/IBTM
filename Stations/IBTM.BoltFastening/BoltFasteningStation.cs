@@ -186,12 +186,20 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    private BoltPoint? StandbyBolt
+    private AxisPosition? StandbyPosition
     {
         get
         {
-            return _recipes.Current.Pcb.FasteningPoints
+            if (_settings.FirstFasteningHead == FasteningHead.Pickup)
+                return new() { X = _settings.PickupPosition.X, Y = _settings.PickupPosition.Y, Z = 0 };
+
+            var bolt = _recipes.Current.Pcb.GetFasteningPoints(FasteningHead.Shooting)
                 .FirstOrDefault(bolt => bolt.Head == FasteningHead.Shooting);
+            if (bolt is not { IsFasteningPositionDefined: true })
+                return null;
+            var position = _settings.GetBoltPosition(bolt);
+            position.Z = _settings.SafeZ;
+            return position;
         }
     }
 
@@ -229,11 +237,10 @@ public sealed class BoltFasteningStation : AutoUnit
                     Io.SetOutput(OutputIo.ShootingEscapeForward, false);
                 if (resumeJob is not null)
                     Station.Restart(resumeJob);
-                if (StandbyBolt is { IsFasteningPositionDefined: true } standby)
+                if (StandbyPosition is { } position)
                 {
-                    var position = _settings.GetBoltPosition(standby);
                     EnterStep(BoltFasteningState.MovingToStandby,
-                        $"Startup: Z=0 -> X={position.X}, Y={position.Y} -> Safe Z={_settings.SafeZ}",
+                        $"Startup: Z=0 -> X={position.X}, Y={position.Y} -> Z={position.Z}",
                         Station.CurrentJob.Id);
                     var startupStarted = Stopwatch.GetTimestamp();
                     await RaiseCylindersAsync(cancellationToken);
@@ -241,9 +248,10 @@ public sealed class BoltFasteningStation : AutoUnit
                     await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
                     EnsureCanMoveHorizontal(cancellationToken);
                     await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
-                    await MoveZAsync(_settings.SafeZ, cancellationToken);
-                    _log?.LogInformation("Bolt timing {Bolt}: startup standby complete, total={ElapsedMs:F1} ms.",
-                        standby.Id, Stopwatch.GetElapsedTime(startupStarted).TotalMilliseconds);
+                    if (position.Z != 0)
+                        await MoveZAsync(position.Z, cancellationToken);
+                    _log?.LogInformation("Bolt timing {Job}: startup standby complete, total={ElapsedMs:F1} ms.",
+                        Station.CurrentJob.Id, Stopwatch.GetElapsedTime(startupStarted).TotalMilliseconds);
                 }
             }
             while (!cancellationToken.IsCancellationRequested)
@@ -384,7 +392,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
                     }
                     _runJob = Station.CurrentJob;
-                    var selected = _recipes.Current.Pcb.FasteningPoints
+                    var selected = _recipes.Current.Pcb.GetFasteningPoints(_settings.FirstFasteningHead)
                         .Where(bolt => _runTargets.Contains(bolt.HeatSink)
                             && (selectedBolts is null || selectedBolts.Contains(bolt.Id)));
                     var work = new List<(BoltPoint Bolt, BoltFasteningStage Stage)>();
@@ -422,17 +430,18 @@ public sealed class BoltFasteningStation : AutoUnit
                     var completionStarted = Stopwatch.GetTimestamp();
                     await FinishFasteningAsync(FasteningHead.Pickup, token);
                     await FinishFasteningAsync(FasteningHead.Shooting, token);
+                    var standby = StandbyPosition;
+                    var standbyZ = standby?.Z ?? _settings.SafeZ;
                     var started = Stopwatch.GetTimestamp();
-                    await MoveZAsync(_settings.SafeZ, token);
-                    _log?.LogInformation("Bolt timing {Job}: completion Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
-                        job.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    if (StandbyBolt is { IsFasteningPositionDefined: true } standby)
+                    await MoveZAsync(standbyZ, token);
+                    _log?.LogInformation("Bolt timing {Job}: completion standby Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+                        job.Id, standbyZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    if (standby is not null)
                     {
-                        var position = _settings.GetBoltPosition(standby);
-                        EnterStep(BoltFasteningState.MovingToStandby, standby.Id.ToString(), job.Id);
+                        EnterStep(BoltFasteningState.MovingToStandby, $"X={standby.X}, Y={standby.Y}, Z={standby.Z}", job.Id);
                         await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
                         EnsureCanMoveHorizontal(token);
-                        await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, token);
+                        await _motion.MoveToXYAsync(standby.X, standby.Y, _settings.Motion.HorizontalSpeed, token);
                     }
                     token.ThrowIfCancellationRequested();
                     // A partial selection still returns to standby, but cannot release an unfinished carrier.

@@ -329,10 +329,9 @@ public sealed class AlarmRecoveryTests
                 // Normal outputs toggle without a feedback wait or display refresh.
                 Assert.True(row.ToggleCommand.CanExecute(null));
                 row.ToggleCommand.Execute(null);
-                var fixedOn = output is OutputIo.MainConveyorNormalSpeed or OutputIo.NgConveyorNormalSpeed;
-                Assert.Equal(fixedOn, io.GetOutput(output));
+                Assert.False(io.GetOutput(output));
                 Assert.Null(row.ActionMessage);
-                Assert.Equal(fixedOn ? [(output, true)] : new[] { (output, true), (output, false) }, writes);
+                Assert.Equal(new[] { (output, true), (output, false) }, writes);
             }
 
             Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
@@ -358,6 +357,8 @@ public sealed class AlarmRecoveryTests
             {
                 OutputIo.MainConveyorRun,
                 OutputIo.NgConveyorRun,
+                OutputIo.MainConveyorNormalSpeed,
+                OutputIo.NgConveyorNormalSpeed,
                 OutputIo.ShootBolt,
                 OutputIo.MainConveyorReadyToFront2
             }.Select(output => new OutputSignalRow(signals.Outputs[output], machine))

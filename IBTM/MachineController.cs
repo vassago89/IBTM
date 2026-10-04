@@ -545,8 +545,6 @@ public sealed class MachineController : INotifyPropertyChanged
             cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         StopRunOutputs();
-        _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
-        _io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
         _io.SetOutput(OutputIo.PcbPlacementHandlerRotate, false);
         _io.SetOutput(OutputIo.MainConveyorForward, true);
         _log?.LogInformation("Control I/O initialization and readiness check completed.");
@@ -1064,7 +1062,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 if (resumeFastening is not null)
                 {
                     _fasteningStation.Station.RequireCurrentJob(resumeFastening);
-                    remainingBolts = _recipes.Current.Pcb.FasteningPoints
+                    remainingBolts = _recipes.Current.Pcb.GetFasteningPoints(_fasteningSettings.FirstFasteningHead)
                         .Where(bolt => _fasteningStation.Station.IsHeatSinkPresent(bolt.HeatSink))
                         .Where(bolt =>
                         {
@@ -2031,7 +2029,6 @@ public sealed class MachineController : INotifyPropertyChanged
 
             var value = signal switch
             {
-                OutputIo.MainConveyorNormalSpeed or OutputIo.NgConveyorNormalSpeed => true,
                 OutputIo.PcbPlacementHandlerRotate => false,
                 _ => !_io.GetOutput(signal),
             };

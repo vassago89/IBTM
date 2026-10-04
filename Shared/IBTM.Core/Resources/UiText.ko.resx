@@ -3581,9 +3581,6 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="after changing settings, select inspect this image to check the result." xml:space="preserve">
     <value>판정 미확인 · [이미지 검사] 필요</value>
   </data>
-  <data name="fixed on" xml:space="preserve">
-    <value>ON 고정</value>
-  </data>
   <data name="fixed off" xml:space="preserve">
     <value>OFF 고정</value>
   </data>
@@ -3706,5 +3703,14 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   </data>
   <data name="pcb save failed · retry before exit" xml:space="preserve">
     <value>이력 저장 실패 · 종료 전 저장 재시도</value>
+  </data>
+  <data name="head order" xml:space="preserve">
+    <value>체결 순서</value>
+  </data>
+  <data name="shooting → pickup" xml:space="preserve">
+    <value>슈팅 → 픽업</value>
+  </data>
+  <data name="pickup → shooting" xml:space="preserve">
+    <value>픽업 → 슈팅</value>
   </data>
 </root>

@@ -567,7 +567,8 @@ public partial class TeachingViewModel : ObservableObject
                 Point(TeachingTarget.PickupHeadUpperLeftLocatingPin, TeachMode.XYOnly),
                 Point(TeachingTarget.PickupHeadLowerRightLocatingPin, TeachMode.XYOnly),
                 Point(TeachingTarget.BoltPickup, TeachMode.Full),
-                .. Recipes.Current.Pcb.FasteningPoints.Where(bolt => bolt.HeatSink == SelectedPcb)
+                .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
+                    .Where(bolt => bolt.HeatSink == SelectedPcb)
                     .Select(bolt => Point(TeachingTarget.BoltPosition, TeachMode.XYOnly, bolt)),
             ],
             HardwareArea.InspectionGantry => [
@@ -577,7 +578,8 @@ public partial class TeachingViewModel : ObservableObject
                 Point(TeachingTarget.NgCarrierPickup, TeachMode.XYOnly),
                 Point(TeachingTarget.NgShuttlePlace, TeachMode.XYOnly),
                 Point(TeachingTarget.DataMatrix, TeachMode.Image),
-                .. Recipes.Current.Pcb.FasteningPoints.Where(bolt => bolt.HeatSink == SelectedPcb)
+                .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
+                    .Where(bolt => bolt.HeatSink == SelectedPcb)
                     .Select(bolt => Point(TeachingTarget.BoltReference, TeachMode.Image, bolt)),
             ],
             _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
@@ -619,7 +621,7 @@ public partial class TeachingViewModel : ObservableObject
         if (!State.SetupEditingEnabled || !IsInspectionSelected
             || SelectedPoint?.Position is not { Target: TeachingTarget.BoltReference, Bolt: { } selected })
             return false;
-        var bolts = Recipes.Current.Pcb.FasteningPoints.ToList();
+        var bolts = Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead).ToList();
         var index = bolts.FindIndex(bolt => bolt.Id == selected.Id);
         var target = index + offset;
         return index >= 0 && target >= 0 && target < bolts.Count
@@ -632,7 +634,7 @@ public partial class TeachingViewModel : ObservableObject
         if (!IsFasteningMoveAllowed(offset))
             return;
         var pcb = Recipes.Current.Pcb;
-        var bolts = pcb.FasteningPoints.ToList();
+        var bolts = pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead).ToList();
         var index = bolts.FindIndex(bolt => bolt.Id == SelectedPoint!.Position.Bolt!.Id);
         (bolts[index], bolts[index + offset]) = (bolts[index + offset], bolts[index]);
         pcb.FasteningOrder = bolts.Select(bolt => bolt.Id).ToList();

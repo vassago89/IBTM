@@ -341,12 +341,14 @@ public sealed class RecipeTests
         var shooting2 = new BoltPoint { HeatSink = HeatSinkSlot.HeatSink2 };
         var pickup2 = new BoltPoint { HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup };
         var pcb = new PcbLayout { BoltPoints = [shooting1, pickup1, shooting2, pickup2] };
-        Assert.Equal(new[] { shooting1, shooting2, pickup1, pickup2 }, pcb.FasteningPoints);
+        Assert.Equal(new[] { shooting1, shooting2, pickup1, pickup2 }, pcb.GetFasteningPoints(FasteningHead.Shooting));
+        Assert.Equal(new[] { pickup1, pickup2, shooting1, shooting2 }, pcb.GetFasteningPoints(FasteningHead.Pickup));
         // The configured point order cannot change the head or PCB processing order.
         pcb.FasteningOrder = [pickup2.Id, shooting2.Id, pickup1.Id, shooting1.Id];
         var added = new BoltPoint();
         pcb.BoltPoints.Add(added);
-        Assert.Equal(new[] { shooting1, added, shooting2, pickup1, pickup2 }, pcb.FasteningPoints);
+        Assert.Equal(new[] { shooting1, added, shooting2, pickup1, pickup2 }, pcb.GetFasteningPoints(FasteningHead.Shooting));
+        Assert.Equal(new[] { pickup1, pickup2, shooting1, added, shooting2 }, pcb.GetFasteningPoints(FasteningHead.Pickup));
         Assert.Equal(new[] { shooting1, pickup1, added }, pcb.BoltPoints.Where(point => point.HeatSink == HeatSinkSlot.HeatSink1));
         Assert.Equal(1, pcb.GetBoltOrdinal(shooting1.Id));
         Assert.Equal(2, pcb.GetBoltOrdinal(pickup1.Id));

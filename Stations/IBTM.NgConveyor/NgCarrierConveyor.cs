@@ -148,7 +148,9 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        var motor = new ConveyorRun(Io, OutputIo.NgConveyorRun, cancellationToken, OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
+        var motor = new ConveyorRun(
+            Io, OutputIo.NgConveyorRun, OutputIo.NgConveyorNormalSpeed, cancellationToken,
+            OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -236,6 +238,7 @@ public sealed class NgCarrierConveyor : AutoUnit
                                 await atPosition1.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
                             }
                             Io.SetOutput(OutputIo.NgConveyorRun, false);
+                            Io.SetOutput(OutputIo.NgConveyorNormalSpeed, false);
                         }
                         // Keep the stopper down until the operator confirms carrier removal.
                         _ejectionPhase = EjectionPhase.WaitingForConfirmation;
@@ -391,7 +394,9 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     public async Task RunMotorAsync(CancellationToken cancellationToken)
     {
-        using var motor = new ConveyorRun(Io, OutputIo.NgConveyorRun, cancellationToken, OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
+        using var motor = new ConveyorRun(
+            Io, OutputIo.NgConveyorRun, OutputIo.NgConveyorNormalSpeed, cancellationToken,
+            OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         try
         {
             StartConveyor(cancellationToken);
@@ -406,7 +411,7 @@ public sealed class NgCarrierConveyor : AutoUnit
     public void Stop()
     {
         using var motor = new ConveyorRun(
-            Io, OutputIo.NgConveyorRun, CancellationToken.None,
+            Io, OutputIo.NgConveyorRun, OutputIo.NgConveyorNormalSpeed, CancellationToken.None,
             OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
     }
 
@@ -417,7 +422,7 @@ public sealed class NgCarrierConveyor : AutoUnit
         if (Io.GetInput(destination))
             return;
 
-        using var motor = new ConveyorRun(Io, OutputIo.NgConveyorRun, cancellationToken);
+        using var motor = new ConveyorRun(Io, OutputIo.NgConveyorRun, OutputIo.NgConveyorNormalSpeed, cancellationToken);
         using var arrival = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         // Register before starting so a brief arrival signal is not missed.
         var arrived = Io.WaitForInputAsync(destination, true, arrival.Token);

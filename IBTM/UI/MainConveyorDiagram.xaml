@@ -221,17 +221,17 @@
             <Path Data="M 18,252 H 1534" Stroke="{StaticResource DividerBrush}" StrokeThickness="1"/>
             <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FirstPlateLeft}" Canvas.Top="260" Width="284" Height="48">
                 <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
-                <Path Tag="{Binding Placement.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>
+                <Path Tag="{Binding Placement.Station.BackupPlate}" Style="{StaticResource BackupPlateElevationStyle}"/>
                 <Path Tag="{Binding Placement.Station.Stopper}" Style="{StaticResource StopperElevationStyle}"/>
             </Canvas>
             <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="260" Width="284" Height="48">
                 <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
-                <Path Tag="{Binding Fastening.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>
+                <Path Tag="{Binding Fastening.Station.BackupPlate}" Style="{StaticResource BackupPlateElevationStyle}"/>
                 <Path Tag="{Binding Fastening.Station.Stopper}" Style="{StaticResource StopperElevationStyle}"/>
             </Canvas>
             <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionPlateLeft}" Canvas.Top="260" Width="284" Height="48">
                 <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
-                <Path Tag="{Binding Inspection.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>
+                <Path Tag="{Binding Inspection.Station.BackupPlate}" Style="{StaticResource BackupPlateElevationStyle}"/>
                 <Path Tag="{Binding Inspection.Station.Stopper}" Style="{StaticResource StopperElevationStyle}"/>
             </Canvas>
             <Path Canvas.Left="508" Canvas.Top="110" Style="{StaticResource MainBeltDirectionStyle}"/>

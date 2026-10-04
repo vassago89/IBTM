@@ -4502,12 +4502,17 @@ public sealed class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ConfirmedFasteningResumeRetainsResultsAndRunsNextCarrierNormally(bool stopAfterLastResult)
+    [InlineData(false, FasteningHead.Shooting)]
+    [InlineData(true, FasteningHead.Shooting)]
+    [InlineData(false, FasteningHead.Pickup)]
+    [InlineData(true, FasteningHead.Pickup)]
+    public async Task ConfirmedFasteningResumeRetainsResultsAndRunsNextCarrierNormally(
+        bool stopAfterLastResult, FasteningHead firstHead)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.BoltFastening.FirstFasteningHead = firstHead;
+        settings.BoltFastening.PickupPosition = new() { X = 30, Y = 40, Z = 10 };
         await using var services = CreateServices(settings);
         var recipes = services.GetRequiredService<RecipeManager>();
         var recorded = new BoltPoint { Head = FasteningHead.Pickup, X = 5, Y = 5 };
@@ -4532,6 +4537,8 @@ public sealed class MachineLifecycleTests
         var priorResult = new BoltResult(false, 8);
         assembly.RecordBolt(recorded.Head, recorded.Id, priorResult);
         var started = new ConcurrentQueue<Guid>();
+        var stopDuringReturn = stopAfterLastResult && firstHead == FasteningHead.Pickup;
+        var returnInterrupted = false;
         void OnOutput(OutputIo output, bool on)
         {
             if (output is OutputIo.ShootingBoltStart or OutputIo.PickupBoltStart && on)
@@ -4539,11 +4546,27 @@ public sealed class MachineLifecycleTests
         }
         void StopAfterResult(HeatSinkAssembly updated)
         {
-            if (updated.ShootingBoltResults.ContainsKey(stopAfterLastResult ? last.Id : first.Id))
+            if (!stopDuringReturn
+                && updated.ShootingBoltResults.ContainsKey(stopAfterLastResult ? last.Id : first.Id))
                 machine.Stop();
+        }
+        void StopDuringReturn(double x, double y, double z)
+        {
+            if (stopDuringReturn && !returnInterrupted
+                && station.Step is BoltFasteningState.MovingToStandby
+                && station.Motion.Feedback.IsMovingHorizontal
+                && assembly.ShootingBoltResults.ContainsKey(last.Id))
+            {
+                Assert.Equal(0, z);
+                Assert.False(station.Station.Completed);
+                Assert.Equal(StationCylinderState.Up, station.PickupTablePosition);
+                returnInterrupted = true;
+                machine.Stop();
+            }
         }
         io.OutputChanged += OnOutput;
         assembly.ResultsChanged += StopAfterResult;
+        station.Motion.Feedback.PositionChanged += StopDuringReturn;
         try
         {
             await WaitUntilAsync(() => machine.IsStartAllowed);
@@ -4553,7 +4576,8 @@ public sealed class MachineLifecycleTests
             Assert.False(review.IsStartReviewAllowed);
             Assert.Equal(2, review.RemainingFasteningCount);
             Assert.Equal(3, review.FasteningResumeBolts.Count);
-            Assert.Same(priorResult, review.FasteningResumeBolts.Last().Result);
+            Assert.Same(priorResult, (firstHead == FasteningHead.Pickup
+                ? review.FasteningResumeBolts.First() : review.FasteningResumeBolts.Last()).Result);
             await review.ConfirmStartCommand.ExecuteAsync(null);
             await machine.StartAsync(); // An unfinished carrier is never admitted without confirmation.
             Assert.Empty(started);
@@ -4566,12 +4590,13 @@ public sealed class MachineLifecycleTests
             Assert.False(station.Station.Completed);
             Assert.Same(job, station.Station.CurrentJob);
             Assert.False(review.IsFasteningResumeConfirmed);
+            Assert.Equal(stopDuringReturn, returnInterrupted);
             var firstResult = assembly.ShootingBoltResults[first.Id];
             assembly.ResultsChanged -= StopAfterResult;
 
             await review.CheckStartCommand.ExecuteAsync(null);
             Assert.False(review.IsStartReviewAllowed);
-            Assert.Same(firstResult, review.FasteningResumeBolts.First().Result);
+            Assert.Same(firstResult, review.FasteningResumeBolts[firstHead == FasteningHead.Pickup ? 1 : 0].Result);
             Assert.Equal(stopAfterLastResult ? 0 : 1, review.RemainingFasteningCount);
             review.IsFasteningResumeConfirmed = true;
             var resumed = review.ConfirmStartCommand.ExecuteAsync(null);
@@ -4585,16 +4610,22 @@ public sealed class MachineLifecycleTests
                 Assert.Same(priorResult, assembly.PickupBoltResults[recorded.Id]);
                 Assert.Same(firstResult, assembly.ShootingBoltResults[first.Id]);
                 Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
-                var standby = settings.BoltFastening.GetBoltPosition(first);
-                Assert.Equal((standby.X, standby.Y, settings.BoltFastening.SafeZ),
+                var standby = firstHead == FasteningHead.Pickup
+                    ? settings.BoltFastening.PickupPosition : settings.BoltFastening.GetBoltPosition(first);
+                var standbyZ = firstHead == FasteningHead.Pickup ? 0 : settings.BoltFastening.SafeZ;
+                Assert.Equal((standby.X, standby.Y, standbyZ),
                     (station.Motion.Position.X, station.Motion.Position.Y, station.Motion.Position.Z));
 
                 SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
                 station.Station.ClearJob();
+                Assert.Equal((standby.X, standby.Y, standbyZ), station.Motion.Feedback.Position);
+                Assert.False(station.Motion.Feedback.IsMoving);
                 SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
                 Assert.True(await WaitUntilAsync(() => station.Station.Completed, TimeSpan.FromSeconds(6)), state.AlarmDetail);
                 Assert.NotSame(job, station.Station.CurrentJob);
-                Assert.Equal(new[] { first.Id, last.Id, first.Id, last.Id, recorded.Id }, started.ToArray());
+                Assert.Equal(firstHead == FasteningHead.Pickup
+                    ? new[] { first.Id, last.Id, recorded.Id, first.Id, last.Id }
+                    : [first.Id, last.Id, first.Id, last.Id, recorded.Id], started.ToArray());
                 Assert.True(state.AutomaticRunning);
             }
             finally
@@ -4607,6 +4638,7 @@ public sealed class MachineLifecycleTests
         {
             assembly.ResultsChanged -= StopAfterResult;
             io.OutputChanged -= OnOutput;
+            station.Motion.Feedback.PositionChanged -= StopDuringReturn;
             await machine.ShutdownAsync();
         }
     }

@@ -3578,9 +3578,6 @@ COMPLETE: finish</value>
   <data name="after changing settings, select inspect this image to check the result." xml:space="preserve">
     <value>After changing settings, select Inspect This Image to check the result.</value>
   </data>
-  <data name="fixed on" xml:space="preserve">
-    <value>Fixed ON</value>
-  </data>
   <data name="fixed off" xml:space="preserve">
     <value>Fixed OFF</value>
   </data>
@@ -3703,5 +3700,14 @@ COMPLETE: finish</value>
   </data>
   <data name="pcb save failed · retry before exit" xml:space="preserve">
     <value>PCB save failed · retry before exit</value>
+  </data>
+  <data name="head order" xml:space="preserve">
+    <value>Head order</value>
+  </data>
+  <data name="shooting → pickup" xml:space="preserve">
+    <value>Shooting → Pickup</value>
+  </data>
+  <data name="pickup → shooting" xml:space="preserve">
+    <value>Pickup → Shooting</value>
   </data>
 </root>

@@ -9,7 +9,6 @@ namespace IBTM.Device;
 public sealed class ConveyorRun : IDisposable
 {
     private readonly IIoService _io;
-    private readonly OutputIo _motor;
     private readonly OutputIo[] _outputs;
     private readonly CancellationTokenRegistration _stopRegistration;
     private Exception? _cancellationFailure;
@@ -17,12 +16,12 @@ public sealed class ConveyorRun : IDisposable
     public ConveyorRun(
         IIoService io,
         OutputIo motor,
+        OutputIo normalSpeed,
         CancellationToken cancellationToken,
         params OutputIo[] otherOutputs)
     {
         _io = io;
-        _motor = motor;
-        _outputs = [motor, .. otherOutputs];
+        _outputs = [motor, normalSpeed, .. otherOutputs];
         _stopRegistration = cancellationToken.Register(StopMotor);
     }
 
@@ -30,14 +29,25 @@ public sealed class ConveyorRun : IDisposable
 
     private void StopMotor()
     {
-        try
+        List<Exception>? failures = null;
+        // Stop RUN and its speed selection immediately; sequence outputs clear on disposal.
+        foreach (var output in _outputs.AsSpan(0, 2))
         {
-            _io.SetOutput(_motor, false);
+            try
+            {
+                _io.SetOutput(output, false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
         }
-        catch (Exception exception)
+        _cancellationFailure = failures?.Count switch
         {
-            _cancellationFailure = exception;
-        }
+            null => null,
+            1 => failures[0],
+            _ => new AggregateException(failures!),
+        };
     }
 
     public void Dispose()
