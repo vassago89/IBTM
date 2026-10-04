@@ -58,6 +58,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public IOException? StopWriteFailure { get; set; }
     public Exception? NextResultReadFailure { get; set; }
     public IOException? BaselineReadFailure { get; init; }
+    public Action? BaselineReading { get; init; }
     public bool SuppressCompletion { get; set; }
     public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
     public ushort ResultError { get; set; }
@@ -256,6 +257,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                 }
             case (ushort)AdcResultRegister.EventCount when count == 1:
                 EventReads++;
+                BaselineReading?.Invoke();
                 if (BaselineReadFailure is { } baselineFailure)
                     throw baselineFailure;
                 return [(ushort)StartWrites];

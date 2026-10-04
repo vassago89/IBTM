@@ -73,7 +73,8 @@ public sealed class AdcBoltHead : IBoltHead
                 + $"RUN={status.Running}, START={_io.GetOutput(_start)}.");
     }
 
-    private async Task<AdcControllerStatus> WaitForStatusAsync(CancellationToken cancellationToken)
+    private async Task<AdcControllerStatus> WaitForStatusAsync(
+        CancellationToken cancellationToken, bool waitForReady = false)
     {
         var responseTimeoutMilliseconds = _connection.ResponseTimeoutMilliseconds;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeoutMilliseconds);
@@ -85,12 +86,32 @@ public sealed class AdcBoltHead : IBoltHead
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromMilliseconds(
             (long)responseTimeoutMilliseconds * _connection.ReadAttempts + Monitor.IntervalMilliseconds));
+        var waitingForReady = false;
         try
         {
-            return await Monitor.WaitForSampleAsync(after, timeout.Token);
+            var status = await Monitor.WaitForSampleAsync(after, timeout.Token);
+            while (waitForReady && status is { Alarm: 0, Ready: false, Running: false }
+                && !_io.GetOutput(_start))
+            {
+                if (!waitingForReady)
+                    _logger.LogInformation("ADC {Port}/{Slave}: waiting for READY after preset selection; START remains OFF.",
+                        _portName, _slaveAddress);
+                waitingForReady = true;
+                // Allow the controller's preset/STOP transition to finish within one shared deadline.
+                status = await Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), timeout.Token);
+            }
+            if (waitingForReady)
+                _logger.LogInformation("ADC {Port}/{Slave}: preset readiness wait ended; READY={Ready}, RUN={Running}, ALARM={Alarm}, elapsed={ElapsedMs:F1} ms.",
+                    _portName, _slaveAddress, status.Ready, status.Running, status.Alarm,
+                    Stopwatch.GetElapsedTime(after).TotalMilliseconds);
+            return status;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            if (waitingForReady)
+                throw new TimeoutException(
+                    $"ADC {_portName}/{_slaveAddress}: READY timeout after preset selection; "
+                    + $"last rejection={Monitor.Sample?.Rejection ?? "none"}.");
             throw new TimeoutException(
                 $"ADC {_portName}/{_slaveAddress}: no fresh controller status from the monitor; "
                 + $"last rejection={Monitor.Sample?.Rejection ?? "none"}.");
@@ -109,7 +130,7 @@ public sealed class AdcBoltHead : IBoltHead
         foreach (var output in _presets)
             _io.SetOutput(output, false);
         _io.SetOutput(_presets[preset - 1], true);
-        var status = await WaitForStatusAsync(cancellationToken);
+        var status = await WaitForStatusAsync(cancellationToken, waitForReady: true);
         if (status.Alarm != 0)
         {
             _logger.LogWarning("ADC {Port}/{Slave} reports alarm {Alarm}; resetting once before the next bolt.",
@@ -120,6 +141,7 @@ public sealed class AdcBoltHead : IBoltHead
         {
             RequireReady(status);
         }
+        cancellationToken.ThrowIfCancellationRequested();
         _requestedPreset = preset;
     }
 

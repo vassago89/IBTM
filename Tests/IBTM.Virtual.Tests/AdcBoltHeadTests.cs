@@ -1157,14 +1157,71 @@ public sealed class AdcBoltHeadTests
     public async Task PresetOutputChangeAndAdcNotReadyBlockStart()
     {
         using var bus = new AdcControllerStub();
-        var (io, head) = Create(bus);
+        var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 50, StatusPollMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         io.SetOutput(OutputIo.PickupBoltPreset2, true);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Equal(0, bus.StartWrites);
         bus.NotReady = true;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
+        var error = await Assert.ThrowsAsync<TimeoutException>(() => head.SelectPresetAsync(1));
+        Assert.Contains("READY timeout", error.Message);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Equal(0, bus.StartWrites);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NextPresetWaitsForReadyAfterSuccessfulTighteningWithoutStartingOrResetting(bool cancel)
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10, ResponseTimeoutMilliseconds = 500 });
+        await head.SelectPresetAsync(2);
+        var preliminary = await head.TightenAsync();
+        Assert.True(preliminary.Success);
+        bus.NotReady = true;
+        var notReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        head.Monitor.Sampled += sample =>
+        {
+            if (sample.Status is { Ready: false, Running: false, Alarm: 0 })
+                notReady.TrySetResult();
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var selecting = head.SelectPresetAsync(1, stop.Token);
+        try
+        {
+            await notReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(selecting.IsCompleted);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.Equal(1, bus.StartWrites);
+            Assert.Equal(1, bus.ResultReads);
+            Assert.Equal(0, bus.ResetWrites);
+            if (cancel)
+            {
+                stop.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => selecting);
+                await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+                Assert.Equal(1, bus.StartWrites);
+            }
+            else
+            {
+                bus.NotReady = false;
+                await selecting;
+                Assert.True(head.Monitor.Sample?.Status?.Ready);
+                Assert.Equal(1, bus.StartWrites);
+                var final = await head.TightenAsync();
+                Assert.True(final.Success);
+                Assert.Equal((ushort)1, final.Controller!.Preset);
+                Assert.Equal(2, bus.StartWrites);
+                Assert.Equal(0, bus.ResetWrites);
+            }
+        }
+        finally
+        {
+            stop.Cancel();
+            await selecting.ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
     }
 
     [Fact]

@@ -108,14 +108,16 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.PickupBoltPreset3)
                 preset = 3;
             if (output == OutputIo.PickupHeadDown && station.ActiveStage == BoltFasteningStage.Final)
-                Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+                Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
             if (output == OutputIo.PickupBoltStart)
             {
                 if (station.ActiveStage == BoltFasteningStage.Final)
-                {
                     Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
+                if (station.ActiveStage == BoltFasteningStage.Final
+                    && previousPickupStart is { Stage: BoltFasteningStage.Preliminary } preceding
+                    && preceding.Bolt == station.ActiveBolt!.Id)
+                {
                     Assert.True(io.GetOutput(OutputIo.PickupHeadDown));
-                    Assert.Equal(StationCylinderState.Down, station.PickupHeadPosition);
                 }
                 else
                 {
@@ -234,7 +236,11 @@ public sealed class BoltFasteningTests
         }
     }
 
-    public enum FinalTransitionScenario { Stop, MissingDownFeedback, MotionAlarm, PreliminaryNg, DryRun }
+    public enum FinalTransitionScenario
+    {
+        Stop, MissingDownFeedback, MotionAlarm, PreliminaryNg, DryRun,
+        ShootingHeadLostBeforeStart, TableLostBeforeStart, TableLostWhileRunning,
+    }
 
     [Theory]
     [InlineData(FinalTransitionScenario.Stop)]
@@ -242,6 +248,9 @@ public sealed class BoltFasteningTests
     [InlineData(FinalTransitionScenario.MotionAlarm)]
     [InlineData(FinalTransitionScenario.PreliminaryNg)]
     [InlineData(FinalTransitionScenario.DryRun)]
+    [InlineData(FinalTransitionScenario.ShootingHeadLostBeforeStart)]
+    [InlineData(FinalTransitionScenario.TableLostBeforeStart)]
+    [InlineData(FinalTransitionScenario.TableLostWhileRunning)]
     public async Task ContinuousFinalPreservesPreliminaryOnInterruptionAndClearsFailedPreliminary(
         FinalTransitionScenario scenario)
     {
@@ -267,10 +276,17 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
         await HomeAsync(motion, 20_000);
+        var baselineReads = 0;
+        var injectFeedbackLoss = true;
         using var bus = new AdcControllerStub
         {
             ResultStatus = scenario == FinalTransitionScenario.PreliminaryNg
                 ? AdcEventStatus.FasteningNg : AdcEventStatus.FasteningOk,
+            BaselineReading = () =>
+            {
+                if (++baselineReads == 2 && scenario == FinalTransitionScenario.ShootingHeadLostBeforeStart)
+                    io.SetInputs((InputIo.ShootingHeadUp, false), (InputIo.ShootingHeadDown, true));
+            },
         };
         var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200);
         var work = ConveyorStation.CreateBoltFastening(io);
@@ -285,6 +301,16 @@ public sealed class BoltFasteningTests
         var pickups = 0;
         io.OutputChanged += (output, on) =>
         {
+            if (output == OutputIo.PickupHeadDown && !on
+                && scenario == FinalTransitionScenario.MissingDownFeedback
+                && station.ActiveStage == BoltFasteningStage.Final)
+            {
+                io.AutoResponseEnabled = true;
+                io.SetInputs((InputIo.PickupHeadUp, true), (InputIo.PickupHeadDown, false));
+            }
+            if (output == OutputIo.PickupBoltPreset3 && on && injectFeedbackLoss
+                && scenario == FinalTransitionScenario.TableLostBeforeStart)
+                io.SetInputs((InputIo.PickupTableDown, false), (InputIo.PickupTableUp, true));
             if (output == OutputIo.PickupHeadVacuumPump)
             {
                 io.SetInput(InputIo.PickupHeadVacuumDetected, on);
@@ -297,7 +323,10 @@ public sealed class BoltFasteningTests
                 if (station.ActiveStage == BoltFasteningStage.Final)
                 {
                     Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
-                    Assert.Equal(StationCylinderState.Down, station.PickupHeadPosition);
+                    if (scenario == FinalTransitionScenario.MissingDownFeedback)
+                        Assert.False(io.GetInput(InputIo.PickupHeadDown));
+                    if (injectFeedbackLoss && scenario == FinalTransitionScenario.TableLostWhileRunning)
+                        io.SetInputs((InputIo.PickupTableDown, false), (InputIo.PickupTableUp, true));
                 }
             }
         };
@@ -305,6 +334,8 @@ public sealed class BoltFasteningTests
         BoltResult? preliminary = null;
         var run = station.RunAsync(stop.Token, selectedBolts: [bolt.Id], resultReceived: (point, result) =>
         {
+            if (scenario == FinalTransitionScenario.MissingDownFeedback && result.Stage == BoltFasteningStage.Final)
+                return;
             Assert.Equal(BoltFasteningStage.Preliminary, result.Stage);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
             Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
@@ -329,11 +360,9 @@ public sealed class BoltFasteningTests
         });
         switch (scenario)
         {
-            case FinalTransitionScenario.MissingDownFeedback:
-                var timeout = await Assert.ThrowsAsync<IoTimeoutException>(() => run);
-                Assert.Equal(InputIo.PickupHeadDown, timeout.Input);
-                break;
-            case FinalTransitionScenario.MotionAlarm:
+            case FinalTransitionScenario.MotionAlarm
+                or FinalTransitionScenario.ShootingHeadLostBeforeStart or FinalTransitionScenario.TableLostBeforeStart
+                or FinalTransitionScenario.TableLostWhileRunning:
                 await Assert.ThrowsAsync<MotionInterlockException>(() => run);
                 break;
             default:
@@ -341,8 +370,20 @@ public sealed class BoltFasteningTests
                 break;
         }
         Assert.NotNull(preliminary);
+        if (scenario == FinalTransitionScenario.MissingDownFeedback)
+        {
+            var completed = assembly.PickupBoltResults[bolt.Id];
+            Assert.True(completed.Success);
+            Assert.Equal(BoltFasteningStage.Final, completed.Stage);
+            Assert.Same(preliminary, completed.PreliminaryResult);
+            Assert.Equal(2, starts);
+            Assert.Equal(1, pickups);
+            Assert.True(work.Completed);
+            return;
+        }
         Assert.Same(preliminary, assembly.PickupBoltResults[bolt.Id]);
-        Assert.Equal(1, starts);
+        var expectedStarts = scenario == FinalTransitionScenario.TableLostWhileRunning ? 2 : 1;
+        Assert.Equal(expectedStarts, starts);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         if (scenario is FinalTransitionScenario.PreliminaryNg or FinalTransitionScenario.DryRun)
         {
@@ -355,6 +396,7 @@ public sealed class BoltFasteningTests
         Assert.True(io.GetOutput(OutputIo.PickupHeadDown));
         Assert.Equal(settings.PickupHead.FasteningZ, motion.Position.Z);
         Assert.Equal(1, bus.ResultReads);
+        injectFeedbackLoss = false;
         motion.SetAlarm(MotionAxis.X, false);
         io.AutoResponseEnabled = true;
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -364,7 +406,7 @@ public sealed class BoltFasteningTests
         Assert.Same(preliminary, final.PreliminaryResult);
         Assert.True(final.Success);
         Assert.True(work.Completed);
-        Assert.Equal(2, starts);
+        Assert.Equal(expectedStarts + 1, starts);
         Assert.Equal(1, pickups);
     }
 

@@ -723,10 +723,13 @@ public sealed class BoltFasteningStation : AutoUnit
 
                         using (var fastening = CancellationTokenSource.CreateLinkedTokenSource(token))
                         {
-                            void CheckPickupTable()
+                            void CheckFasteningFeedback()
                             {
                                 if (bolt.Head == FasteningHead.Shooting
-                                    && PickupTablePosition != StationCylinderState.Up)
+                                        && PickupTablePosition != StationCylinderState.Up
+                                    || stage == BoltFasteningStage.Final
+                                        && (PickupTablePosition != StationCylinderState.Down
+                                            || ShootingHeadPosition != StationCylinderState.Up))
                                     OperationCancellation.CancelIfNotDisposed(fastening);
                             }
 
@@ -742,15 +745,10 @@ public sealed class BoltFasteningStation : AutoUnit
                                 return Task.CompletedTask;
                             }
 
-                            Changed += CheckPickupTable;
+                            Changed += CheckFasteningFeedback;
                             try
                             {
-                                CheckPickupTable();
-                                if (stage == BoltFasteningStage.Final)
-                                {
-                                    await SetHeadDownAsync(FasteningHead.Pickup, true, fastening.Token);
-                                    _log?.LogInformation("Bolt {Head}: final tightening head DOWN confirmed before START.", bolt.Head);
-                                }
+                                CheckFasteningFeedback();
                                 var dryRunMilliseconds = !_units.IsBoltFeederEnabled(bolt.Head)
                                     ? _settings.DryRunMilliseconds : 0;
                                 _log?.LogInformation(
@@ -759,7 +757,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 started = Stopwatch.GetTimestamp();
                                 var completed = await head.TightenAsync(
                                     fastening.Token,
-                                    stage == BoltFasteningStage.Final ? null : LowerHeadWhileFasteningAsync,
+                                    LowerHeadWhileFasteningAsync,
                                     dryRunMilliseconds, received => result = received,
                                     torqueCompensations.TryGetValue((bolt.Head, preset), out var compensation) ? compensation : null);
                                 _log?.LogInformation("Bolt timing {Bolt}: controller START/result/STOP, elapsed={ElapsedMs:F1} ms, controller time={ControllerMs} ms.",
@@ -773,11 +771,13 @@ public sealed class BoltFasteningStation : AutoUnit
                             }
                             catch (OperationCanceledException) when (fastening.IsCancellationRequested && !token.IsCancellationRequested)
                             {
-                                throw new MotionInterlockException("Keep the pickup table raised during shooting fastening.");
+                                throw new MotionInterlockException(stage == BoltFasteningStage.Final
+                                    ? UiText.Get("Final tightening head or table feedback was lost.")
+                                    : "Keep the pickup table raised during shooting fastening.");
                             }
                             finally
                             {
-                                Changed -= CheckPickupTable;
+                                Changed -= CheckFasteningFeedback;
                             }
                         }
 
