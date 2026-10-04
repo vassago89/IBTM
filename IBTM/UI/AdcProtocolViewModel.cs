@@ -527,7 +527,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var result = await bus.Monitor.EnqueueAsync(
                 token => bus.ReadFasteningResultAsync(slave, token), operation.Token);
             ResultMessage = UiText.Format($"Last result: {UiText.Get(result.Status)}  Event {result.EventCount}\n")
-                + UiText.Format($"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n")
+                + $"{UiText.Get("Preset")} {result.Preset}  {UiText.Get("Raw torque")} {result.Torque:F2} / {result.TargetTorque:F2}\n"
                 + UiText.Format($"Time {result.FasteningTimeMilliseconds} ms\n")
                 + UiText.Format($"Result error: {AdcControllerError.Describe(result.Error)}");
             ResultSuccess = result.Error != 0 ? false : result.Status switch
@@ -832,7 +832,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     private void ShowResult(BoltResult result)
     {
-        ResultMessage = UiText.Format($"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}");
+        ResultMessage = $"{(result.Success ? "OK" : "NG")}  {UiText.Get("Result torque")} {result.CompensatedTorque?.ToString("F2") ?? "—"}";
+        ResultMessage += $"\n{UiText.Get("Raw torque")}: {result.Torque?.ToString("F2") ?? "—"}";
         ResultMessage += $"\n{UiText.Get("Compensation (%)")}: {result.Controller?.TorqueCompensationPercent?.ToString() ?? "—"}";
         if (result.Error is not null)
             ResultMessage += $"\n{result.Error}";

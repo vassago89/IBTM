@@ -3719,4 +3719,7 @@ COMPLETE: finish</value>
   <data name="final tightening head or table feedback was lost." xml:space="preserve">
     <value>Final tightening head or table feedback was lost.</value>
   </data>
+  <data name="raw torque" xml:space="preserve">
+    <value>Raw torque</value>
+  </data>
 </root>

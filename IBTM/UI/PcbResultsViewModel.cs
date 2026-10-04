@@ -190,7 +190,7 @@ public partial class PcbResultsViewModel : ObservableObject
                 UiText.Get("Minimum turns"), UiText.Get("Maximum turns"), UiText.Get("Turns result"), UiText.Get("Result torque"),
                 UiText.Get("Target torque"), UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"),
                 UiText.Get("Angle A3 (°)"), UiText.Get("Recorded at"), UiText.Get("Result source"),
-                UiText.Get("Error code"), UiText.Get("Error / message"), UiText.Get("Compensation (%)"));
+                UiText.Get("Error code"), UiText.Get("Error / message"), UiText.Get("Compensation (%)"), UiText.Get("Raw torque"));
             var number = 0;
             foreach (var bolt in BoltResults)
             {
@@ -198,16 +198,16 @@ public partial class PcbResultsViewModel : ObservableObject
                 var controller = result.Controller;
                 AppendRow(++number, bolt.BoltLabel, bolt.HeadLabel, UiText.Get(result.Stage), bolt.Verdict, bolt.VisionVerdict,
                     result.TotalTurns,
-                    result.MinimumTurns, result.MaximumTurns, bolt.TurnsVerdict, result.Torque,
+                    result.MinimumTurns, result.MaximumTurns, bolt.TurnsVerdict, result.CompensatedTorque,
                     controller?.TargetTorque, controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds,
                     controller?.Angle3, result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
                     string.Join(" · ", new[] { result.Error, controller?.ErrorCode > 0 ? bolt.ControllerErrorDescription : null }
-                        .Where(message => !string.IsNullOrWhiteSpace(message))), controller?.TorqueCompensationPercent);
+                        .Where(message => !string.IsNullOrWhiteSpace(message))), controller?.TorqueCompensationPercent, result.Torque);
             }
             foreach (var bolt in InspectionOnlyResults)
             {
                 AppendRow(++number, bolt.BoltLabel, null, null, UiText.Get("Not recorded"), bolt.Present ? "OK" : "NG",
-                    null, null, null, UiText.Get("Not recorded"), null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, UiText.Get("Not recorded"), null, null, null, null, null, null, null, null, null, null, null);
             }
 
             csv.AppendLine();
@@ -216,18 +216,18 @@ public partial class PcbResultsViewModel : ObservableObject
                 UiText.Get("Result"), UiText.Get("Stage turns"), UiText.Get("Result torque"), UiText.Get("Target torque"),
                 UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"), UiText.Get("Angle A3 (°)"),
                 UiText.Get("Recorded at"), UiText.Get("Result source"), UiText.Get("Error code"), UiText.Get("Error / message"),
-                UiText.Get("Compensation (%)"));
+                UiText.Get("Compensation (%)"), UiText.Get("Raw torque"));
             number = 0;
             foreach (var stage in BoltResults.SelectMany(bolt => bolt.StageResults).OrderBy(row => row.Result.RecordedAt))
             {
                 var result = stage.Result;
                 var controller = result.Controller;
                 AppendRow(++number, stage.BoltLabel, UiText.Get(result.Stage), controller?.Preset,
-                    stage.StageVerdict, result.MeasuredTurns, result.Torque, controller?.TargetTorque,
+                    stage.StageVerdict, result.MeasuredTurns, result.CompensatedTorque, controller?.TargetTorque,
                     controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds, controller?.Angle3,
                     result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
                     string.Join(" · ", new[] { result.Error, controller?.ErrorCode > 0 ? stage.ControllerErrorDescription : null }
-                        .Where(message => !string.IsNullOrWhiteSpace(message))), controller?.TorqueCompensationPercent);
+                        .Where(message => !string.IsNullOrWhiteSpace(message))), controller?.TorqueCompensationPercent, result.Torque);
             }
 
             if (dialog.ShowDialog() != true)

@@ -247,8 +247,12 @@
                                     <StackPanel>
                                         <TextBlock Text="{ui:Text 'TORQUE / TARGET'}" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
                                         <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="14">
-                                            <Run Text="{Binding RecentFastening.Result.Torque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
+                                            <Run Text="{Binding RecentFastening.Result.CompensatedTorque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                             <Run Text=" / "/><Run Text="{Binding RecentFastening.Result.Controller.TargetTorque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
+                                        </TextBlock>
+                                        <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="{ui:Text 'Raw torque'}"/><Run Text=" "/>
+                                            <Run Text="{Binding RecentFastening.Result.Torque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                         </TextBlock>
                                         <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
                                             <Run Text="{ui:Text 'Compensation (%)'}"/><Run Text=" "/>

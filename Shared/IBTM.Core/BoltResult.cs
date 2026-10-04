@@ -40,6 +40,11 @@ public sealed record BoltResult(
     public double? MinimumTurns { get; init; }
     public double? MaximumTurns { get; init; }
 
+    // Display the captured compensation without changing the received/stored torque.
+    [JsonIgnore]
+    public double? CompensatedTorque => Controller?.TorqueCompensationPercent is { } percent
+        ? Torque * percent / 100.0 : null;
+
     [JsonIgnore]
     public double? MeasuredTurns => Source == BoltResultSource.Controller
         && Controller is { Angle3: >= 0 } data && double.IsFinite(data.Angle3)
