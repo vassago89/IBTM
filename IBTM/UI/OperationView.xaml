@@ -250,6 +250,10 @@
                                             <Run Text="{Binding RecentFastening.Result.Torque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                             <Run Text=" / "/><Run Text="{Binding RecentFastening.Result.Controller.TargetTorque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                         </TextBlock>
+                                        <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="{ui:Text 'Compensation (%)'}"/><Run Text=" "/>
+                                            <Run Text="{Binding RecentFastening.Result.Controller.TorqueCompensationPercent, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
+                                        </TextBlock>
                                     </StackPanel>
                                     <StackPanel>
                                         <TextBlock Text="{ui:Text 'FASTENING TIME (ms)'}" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>

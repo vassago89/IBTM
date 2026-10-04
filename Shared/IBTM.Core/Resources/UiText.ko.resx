@@ -3713,4 +3713,7 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="pickup → shooting" xml:space="preserve">
     <value>픽업 → 슈팅</value>
   </data>
+  <data name="compensation (%)" xml:space="preserve">
+    <value>보정 (%)</value>
+  </data>
 </root>

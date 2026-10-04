@@ -3710,4 +3710,7 @@ COMPLETE: finish</value>
   <data name="pickup → shooting" xml:space="preserve">
     <value>Pickup → Shooting</value>
   </data>
+  <data name="compensation (%)" xml:space="preserve">
+    <value>Compensation (%)</value>
+  </data>
 </root>

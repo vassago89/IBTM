@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Data;
 
@@ -46,8 +47,8 @@ public partial class StartConfirmationWindow : Window
         _viewModel.IsFasteningResumeConfirmed = false;
         _viewModel.CheckStartCommand.Cancel();
         _viewModel.ChangeCarrierWorkCommand.Cancel();
-        _viewModel.SetStartBackupPlateCommand.Cancel();
-        _viewModel.SetStartStopperCommand.Cancel();
+        foreach (var row in _viewModel.StartOutputGroups.Values.SelectMany(rows => rows).Distinct())
+            row.ToggleOutputCommand.Cancel();
         if (DialogResult != true)
             _viewModel.ConfirmStartCommand.Cancel();
     }

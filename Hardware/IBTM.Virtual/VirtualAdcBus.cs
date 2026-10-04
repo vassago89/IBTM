@@ -334,6 +334,8 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         public Controller()
         {
             Registers = [];
+            for (ushort preset = 1; preset <= 15; preset++)
+                Registers[(ushort)(preset * 15)] = 100;
         }
 
         public FasteningHead? Head { get; set; }

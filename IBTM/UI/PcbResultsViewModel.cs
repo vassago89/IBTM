@@ -190,7 +190,7 @@ public partial class PcbResultsViewModel : ObservableObject
                 UiText.Get("Minimum turns"), UiText.Get("Maximum turns"), UiText.Get("Turns result"), UiText.Get("Result torque"),
                 UiText.Get("Target torque"), UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"),
                 UiText.Get("Angle A3 (°)"), UiText.Get("Recorded at"), UiText.Get("Result source"),
-                UiText.Get("Error code"), UiText.Get("Error / message"));
+                UiText.Get("Error code"), UiText.Get("Error / message"), UiText.Get("Compensation (%)"));
             var number = 0;
             foreach (var bolt in BoltResults)
             {
@@ -202,12 +202,12 @@ public partial class PcbResultsViewModel : ObservableObject
                     controller?.TargetTorque, controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds,
                     controller?.Angle3, result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
                     string.Join(" · ", new[] { result.Error, controller?.ErrorCode > 0 ? bolt.ControllerErrorDescription : null }
-                        .Where(message => !string.IsNullOrWhiteSpace(message))));
+                        .Where(message => !string.IsNullOrWhiteSpace(message))), controller?.TorqueCompensationPercent);
             }
             foreach (var bolt in InspectionOnlyResults)
             {
                 AppendRow(++number, bolt.BoltLabel, null, null, UiText.Get("Not recorded"), bolt.Present ? "OK" : "NG",
-                    null, null, null, UiText.Get("Not recorded"), null, null, null, null, null, null, null, null, null);
+                    null, null, null, UiText.Get("Not recorded"), null, null, null, null, null, null, null, null, null, null);
             }
 
             csv.AppendLine();
@@ -215,7 +215,8 @@ public partial class PcbResultsViewModel : ObservableObject
             AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Stage"), UiText.Get("Preset"),
                 UiText.Get("Result"), UiText.Get("Stage turns"), UiText.Get("Result torque"), UiText.Get("Target torque"),
                 UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"), UiText.Get("Angle A3 (°)"),
-                UiText.Get("Recorded at"), UiText.Get("Result source"), UiText.Get("Error code"), UiText.Get("Error / message"));
+                UiText.Get("Recorded at"), UiText.Get("Result source"), UiText.Get("Error code"), UiText.Get("Error / message"),
+                UiText.Get("Compensation (%)"));
             number = 0;
             foreach (var stage in BoltResults.SelectMany(bolt => bolt.StageResults).OrderBy(row => row.Result.RecordedAt))
             {
@@ -226,7 +227,7 @@ public partial class PcbResultsViewModel : ObservableObject
                     controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds, controller?.Angle3,
                     result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
                     string.Join(" · ", new[] { result.Error, controller?.ErrorCode > 0 ? stage.ControllerErrorDescription : null }
-                        .Where(message => !string.IsNullOrWhiteSpace(message))));
+                        .Where(message => !string.IsNullOrWhiteSpace(message))), controller?.TorqueCompensationPercent);
             }
 
             if (dialog.ShowDialog() != true)

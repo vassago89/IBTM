@@ -23,6 +23,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         Monitor = new(this);
         ResultReplies = new();
         RunReplies = new();
+        TorqueCompensations = new() { [1] = 100, [2] = 80, [3] = 100 };
     }
 
     public AdcStatusMonitor Monitor { get; }
@@ -40,6 +41,10 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public bool ConcurrentStatusReadsDetected { get; private set; }
     public int EventReads { get; private set; }
     public int StatusReads { get; private set; }
+    public Dictionary<ushort, ushort> TorqueCompensations { get; }
+    public int CompensationReads { get; private set; }
+    public Exception? CompensationReadFailure { get; init; }
+    public Task? CompensationReadBarrier { get; init; }
 
     private ushort CurrentPreset { get; set; } = 3;
     public ushort CurrentAlarm { get; set; }
@@ -190,6 +195,15 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public async Task<ushort[]> ReadRegistersAsync(byte slaveAddress, AdcFunctionCode function, ushort address, ushort count, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (function == AdcFunctionCode.ReadHoldingRegisters && count == 1 && address is 15 or 30 or 45)
+        {
+            CompensationReads++;
+            if (CompensationReadBarrier is { } barrier)
+                await barrier.WaitAsync(cancellationToken);
+            if (CompensationReadFailure is { } failure)
+                throw failure;
+            return [TorqueCompensations[(ushort)(address / 15)]];
+        }
         switch (address)
         {
             case (ushort)AdcStatusRegister.Preset:

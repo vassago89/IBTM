@@ -345,9 +345,11 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             _machine.EnsureBoltTestAvailable();
             _state.BoltTestRunning = true;
             var head = ConnectedHead;
+            var compensation = await head.ReadTorqueCompensationAsync(1, operation.Token);
             await head.SelectPresetAsync(1, operation.Token);
             ResultMessage = UiText.Get("Fastening...");
-            var result = await head.TightenAsync(operation.Token, resultReceived: ShowResult);
+            var result = await head.TightenAsync(operation.Token,
+                resultReceived: ShowResult, torqueCompensationPercent: compensation);
             ShowResult(result);
         }
         catch (Exception exception)
@@ -831,6 +833,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private void ShowResult(BoltResult result)
     {
         ResultMessage = UiText.Format($"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}");
+        ResultMessage += $"\n{UiText.Get("Compensation (%)")}: {result.Controller?.TorqueCompensationPercent?.ToString() ?? "—"}";
         if (result.Error is not null)
             ResultMessage += $"\n{result.Error}";
         ResultSuccess = result.Success;

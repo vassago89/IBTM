@@ -123,6 +123,26 @@ public sealed class AdcBoltHead : IBoltHead
         _requestedPreset = preset;
     }
 
+    public async Task<ushort> ReadTorqueCompensationAsync(ushort preset, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (preset is < 1 or > 3)
+            throw new ArgumentOutOfRangeException(nameof(preset), "IO bolt presets are 1, 2 and 3.");
+        _io.CheckReady();
+        if (_io.GetOutput(_start))
+            throw new InvalidOperationException("Turn START OFF before reading preset settings.");
+        _bus.Open(_portName, _baudRate);
+        Monitor.IntervalMilliseconds = _connection.StatusPollMilliseconds;
+        await Monitor.StartAsync(_slaveAddress, cancellationToken);
+        // ADC presets occupy 15 holding registers; the last is torque compensation (%).
+        var registers = await Monitor.EnqueueAsync(
+            token => _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadHoldingRegisters,
+                (ushort)(preset * 15), 1, token), cancellationToken);
+        _logger.LogInformation("ADC {Port}/{Slave}: preset {Preset} torque compensation={Compensation}% at operation start.",
+            _portName, _slaveAddress, preset, registers[0]);
+        return registers[0];
+    }
+
     public async Task ResetAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -198,7 +218,8 @@ public sealed class AdcBoltHead : IBoltHead
         CancellationToken cancellationToken = default,
         Func<CancellationToken, Task>? feedAsync = null,
         int dryRunMilliseconds = 0,
-        Action<BoltResult>? resultReceived = null)
+        Action<BoltResult>? resultReceived = null,
+        ushort? torqueCompensationPercent = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegative(dryRunMilliseconds);
@@ -281,7 +302,7 @@ public sealed class AdcBoltHead : IBoltHead
             var initialEvent = dryRunMilliseconds > 0
                 ? null : await Monitor.EnqueueAsync(
                     token => _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,
-                        (ushort)AdcResultRegister.EventCount, 1, token), cancellationToken);
+                        (ushort)AdcResultRegister.EventCount, 1, token), timeout.Token);
             // One pre-START baseline excludes previously received bolt results.
             var fastening = (EventCount: initialEvent?[0] ?? (ushort)0, Preset: preset);
             _io.SetOutput(_direction, false);
@@ -352,7 +373,10 @@ public sealed class AdcBoltHead : IBoltHead
                                     result.FasteningTimeMilliseconds, result.Preset, result.TargetTorque,
                                     result.TargetSpeedRpm, result.Angle1, result.Angle2, result.Angle3,
                                     result.ScrewCount, result.Error, (ushort)result.Direction, (ushort)result.Status,
-                                    result.SnugAngle, result.Registers),
+                                    result.SnugAngle, result.Registers)
+                                {
+                                    TorqueCompensationPercent = result.Preset == preset ? torqueCompensationPercent : null,
+                                },
                             };
                         }
                     }

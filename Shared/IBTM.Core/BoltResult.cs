@@ -83,4 +83,8 @@ public sealed record BoltControllerData(
     ushort DirectionCode,
     ushort StatusCode,
     ushort SnugAngle,
-    ushort[]? Registers);
+    ushort[]? Registers)
+{
+    // Preset setting captured at operation start, separate from the ADC result registers.
+    public ushort? TorqueCompensationPercent { get; init; }
+}

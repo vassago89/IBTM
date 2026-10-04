@@ -80,8 +80,6 @@ public partial class OperationViewModel : ObservableObject
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
-        SetStartBackupPlateCommand = new AsyncRelayCommand<bool>(SetStartBackupPlateAsync);
-        SetStartStopperCommand = new AsyncRelayCommand<bool>(SetStartStopperAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         ResetCommand = new AsyncRelayCommand(ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
@@ -101,6 +99,49 @@ public partial class OperationViewModel : ObservableObject
 
         State = state;
         Signals = signals;
+        TeachingOutputRow[] placementOutputs = [
+            new(signals.Outputs[OutputIo.PcbPlacementHandlerDown], machine),
+            new(signals.Outputs[OutputIo.PcbPlacementIpmDown], machine),
+            new(signals.Outputs[OutputIo.PcbPlacementVacuumEjector], machine),
+        ];
+        TeachingOutputRow[] pickupOutputs = [
+            new(signals.Outputs[OutputIo.PickupHeadDown], machine),
+            new(signals.Outputs[OutputIo.PickupTableDown], machine),
+            new(signals.Outputs[OutputIo.PickupHeadVacuumPump], machine),
+        ];
+        TeachingOutputRow[] shootingOutputs = [
+            new(signals.Outputs[OutputIo.ShootingHeadDown], machine),
+            new(signals.Outputs[OutputIo.ShootingHeadVacuumPump], machine),
+            new(signals.Outputs[OutputIo.ShootBolt], machine),
+        ];
+        StartOutputGroups = new Dictionary<StartArea, TeachingOutputRow[]>
+        {
+            [StartArea.Supply] = [
+                new(signals.Outputs[OutputIo.PcbSupplyGripperClosed], machine),
+                new(signals.Outputs[OutputIo.PcbSupplyIpmFixerForward], machine),
+                new(signals.Outputs[OutputIo.PcbSupplyRotate], machine),
+            ],
+            [StartArea.Placement] = placementOutputs,
+            [StartArea.PickupHead] = pickupOutputs,
+            [StartArea.ShootingHead] = shootingOutputs,
+            [StartArea.Station1] = [
+                new(signals.Outputs[OutputIo.PcbPlacementBackupPlateUp], machine),
+                new(signals.Outputs[OutputIo.PcbPlacementStopperUp], machine),
+                .. placementOutputs,
+            ],
+            [StartArea.Station2] = [
+                new(signals.Outputs[OutputIo.BoltFasteningBackupPlateUp], machine),
+                new(signals.Outputs[OutputIo.BoltFasteningStopperUp], machine),
+                .. pickupOutputs, .. shootingOutputs,
+            ],
+            [StartArea.Station3] = [
+                new(signals.Outputs[OutputIo.InspectionBackupPlateUp], machine),
+                new(signals.Outputs[OutputIo.InspectionStopperUp], machine),
+                new(signals.Outputs[OutputIo.NgCarrierPickupDown], machine),
+                new(signals.Outputs[OutputIo.NgCarrierGripperClose], machine),
+                new(signals.Outputs[OutputIo.NgShuttleDown], machine),
+            ],
+        };
         DoorSensors = [
             new(UiText.Get("DOOR 1"), signals.Inputs[InputIo.Door1Open]),
             new(UiText.Get("DOOR 2"), signals.Inputs[InputIo.Door2Open]),
@@ -161,8 +202,12 @@ public partial class OperationViewModel : ObservableObject
     public RecipeManager Recipes { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StartStation), nameof(StartMotion), nameof(StartMaterialState))]
+    [NotifyPropertyChangedFor(nameof(StartStation), nameof(StartMotion), nameof(StartMaterialState), nameof(StartOutputs))]
     public partial StartArea SelectedStartArea { get; private set; }
+
+    internal IReadOnlyDictionary<StartArea, TeachingOutputRow[]> StartOutputGroups { get; }
+
+    public IReadOnlyList<TeachingOutputRow> StartOutputs => StartOutputGroups[SelectedStartArea];
 
     [ObservableProperty]
     public partial string? StartActionMessage { get; private set; }
@@ -473,7 +518,8 @@ public partial class OperationViewModel : ObservableObject
         return CommandShutdown.WaitAsync(
             CommandShutdown.CancelAndWaitAsync(
                 [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
-                    SetStartBackupPlateCommand, SetStartStopperCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand]),
+                    HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand,
+                    .. StartOutputGroups.Values.SelectMany(rows => rows).Distinct().Select(row => row.ToggleOutputCommand)]),
             PcbDetails.ShutdownAsync());
     }
 
@@ -535,39 +581,6 @@ public partial class OperationViewModel : ObservableObject
 
     public IRelayCommand<StartArea> SelectStartAreaCommand { get; }
     public IAsyncRelayCommand<CarrierWorkAction> ChangeCarrierWorkCommand { get; }
-    public IAsyncRelayCommand<bool> SetStartBackupPlateCommand { get; }
-    public IAsyncRelayCommand<bool> SetStartStopperCommand { get; }
-
-    private Task SetStartBackupPlateAsync(bool up, CancellationToken cancellationToken)
-    {
-        OutputIo? output = SelectedStartArea switch
-        {
-            StartArea.Station1 => OutputIo.PcbPlacementBackupPlateUp,
-            StartArea.Station2 => OutputIo.BoltFasteningBackupPlateUp,
-            StartArea.Station3 => OutputIo.InspectionBackupPlateUp,
-            _ => null,
-        };
-        if (output is not { } signal)
-            return Task.CompletedTask;
-        StartActionMessage = null;
-        return Machine.SetTeachingOutputAsync(Signals.Outputs[signal], cancellationToken, requestedValue: up);
-    }
-
-    private Task SetStartStopperAsync(bool up, CancellationToken cancellationToken)
-    {
-        OutputIo? output = SelectedStartArea switch
-        {
-            StartArea.Station1 => OutputIo.PcbPlacementStopperUp,
-            StartArea.Station2 => OutputIo.BoltFasteningStopperUp,
-            StartArea.Station3 => OutputIo.InspectionStopperUp,
-            _ => null,
-        };
-        if (output is not { } signal)
-            return Task.CompletedTask;
-        StartActionMessage = null;
-        return Machine.SetTeachingOutputAsync(Signals.Outputs[signal], cancellationToken, requestedValue: up);
-    }
-
     private void SelectStartArea(StartArea area)
     {
         SelectedStartArea = area;
@@ -676,7 +689,8 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
-                SetStartBackupPlateCommand, SetStartStopperCommand, HomeCommand];
+                HomeCommand,
+                .. StartOutputGroups.Values.SelectMany(rows => rows).Distinct().Select(row => row.ToggleOutputCommand)];
             var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
                 commands,
@@ -737,6 +751,9 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnPcbSupplyMotionChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (SelectedStartArea == StartArea.Supply)
+            foreach (var row in StartOutputs)
+                row.Refresh();
         if (!_active)
             return;
 
@@ -801,6 +818,9 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is null or nameof(MachineState.ManualSetupEnabled) or nameof(MachineState.FeedbackReadiness))
+            foreach (var row in StartOutputs)
+                row.Refresh();
         if (e.PropertyName is nameof(MachineState.IsRunning) or nameof(MachineState.Available))
         {
             OnPropertyChanged(nameof(IsFasteningResumeAvailable));
@@ -889,6 +909,9 @@ public partial class OperationViewModel : ObservableObject
     // Devices expose Changed events; notifying their property also refreshes nested XAML bindings.
     private void OnPcbSupplyChanged()
     {
+        if (SelectedStartArea == StartArea.Supply)
+            foreach (var row in StartOutputs)
+                row.Refresh();
         if (!_active)
             return;
 

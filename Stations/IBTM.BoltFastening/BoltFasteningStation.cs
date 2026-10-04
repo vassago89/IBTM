@@ -228,9 +228,26 @@ public sealed class BoltFasteningStation : AutoUnit
         try
         {
             BeginRun();
+            var torqueCompensations = new Dictionary<(FasteningHead Head, ushort Preset), ushort>();
             if (_units.BoltFastening)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                // Read once per run. A resumed run refreshes settings; later carriers reuse this snapshot.
+                var runBolts = _recipes.Current.Pcb.BoltPoints.Where(bolt =>
+                    selectedBolts is null || continueAfterSelection || selectedBolts.Contains(bolt.Id)).ToArray();
+                if (_units.ShootingBoltFeeder && runBolts.Any(bolt => bolt.Head == FasteningHead.Shooting))
+                    torqueCompensations[(FasteningHead.Shooting, 1)] =
+                        await ShootingHead.ReadTorqueCompensationAsync(1, cancellationToken);
+                if (_units.PickupBoltFeeder && runBolts.Any(bolt => bolt.Head == FasteningHead.Pickup))
+                {
+                    var finalPreset = _settings.PickupFinalPreset;
+                    torqueCompensations[(FasteningHead.Pickup, finalPreset)] =
+                        await PickupHead.ReadTorqueCompensationAsync(finalPreset, cancellationToken);
+                    if (_settings.PickupFasteningMode == PickupFasteningMode.TwoStage
+                        && _settings.PickupPreliminaryPreset != finalPreset)
+                        torqueCompensations[(FasteningHead.Pickup, _settings.PickupPreliminaryPreset)] =
+                            await PickupHead.ReadTorqueCompensationAsync(_settings.PickupPreliminaryPreset, cancellationToken);
+                }
                 if (_units.ShootingBoltFeeder
                     && (selectedBolts is null || _recipes.Current.Pcb.BoltPoints.Any(
                         bolt => bolt.Head == FasteningHead.Shooting && selectedBolts.Contains(bolt.Id))))
@@ -263,7 +280,8 @@ public sealed class BoltFasteningStation : AutoUnit
                         throw new MotionInterlockException("The fastening carrier is no longer seated.");
                 }
                 var step = NextStep;
-                if (!await ExecuteStepAsync(step, cancellationToken, selectedBolts, resultReceived, continueAfterSelection))
+                if (!await ExecuteStepAsync(step, cancellationToken, selectedBolts, resultReceived,
+                    continueAfterSelection, torqueCompensations))
                     await WaitForChangeAsync(cancellationToken);
                 if (resumeJob is not null && step == BoltFasteningState.CompletingCarrier)
                 {
@@ -360,7 +378,8 @@ public sealed class BoltFasteningStation : AutoUnit
     private async Task<bool> ExecuteStepAsync(
         BoltFasteningState step, CancellationToken cancellationToken,
         IReadOnlyCollection<Guid>? selectedBolts,
-        Action<BoltPoint, BoltResult>? resultReceived, bool continueAfterSelection)
+        Action<BoltPoint, BoltResult>? resultReceived, bool continueAfterSelection,
+        IReadOnlyDictionary<(FasteningHead Head, ushort Preset), ushort> torqueCompensations)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var selectedBolt = ActiveBolt;
@@ -582,6 +601,8 @@ public sealed class BoltFasteningStation : AutoUnit
 
                             if (stage == BoltFasteningStage.Final)
                             {
+                                // The screw is already seated; final tightening needs no pickup vacuum.
+                                await SetVacuumAsync(FasteningHead.Pickup, false, token);
                                 await RaiseCylindersAsync(token);
                                 await MoveZAsync(_settings.SafeZ, token);
                             }
@@ -701,14 +722,22 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 CheckPickupTable();
+                                if (stage == BoltFasteningStage.Final)
+                                {
+                                    await SetHeadDownAsync(FasteningHead.Pickup, true, fastening.Token);
+                                    _log?.LogInformation("Bolt {Head}: final tightening head DOWN confirmed before START.", bolt.Head);
+                                }
                                 var dryRunMilliseconds = !_units.IsBoltFeederEnabled(bolt.Head)
                                     ? _settings.DryRunMilliseconds : 0;
                                 _log?.LogInformation(
-                                    "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
+                                    "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
                                     bolt.Head, bolt.HeatSink, bolt.Id, head.GetType().Name, dryRunMilliseconds);
                                 started = Stopwatch.GetTimestamp();
                                 var completed = await head.TightenAsync(
-                                    fastening.Token, LowerHeadWhileFasteningAsync, dryRunMilliseconds, received => result = received);
+                                    fastening.Token,
+                                    stage == BoltFasteningStage.Final ? null : LowerHeadWhileFasteningAsync,
+                                    dryRunMilliseconds, received => result = received,
+                                    torqueCompensations.TryGetValue((bolt.Head, preset), out var compensation) ? compensation : null);
                                 _log?.LogInformation("Bolt timing {Bolt}: controller START/result/STOP, elapsed={ElapsedMs:F1} ms, controller time={ControllerMs} ms.",
                                     bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds, completed.Controller?.FasteningTimeMilliseconds);
                                 completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };

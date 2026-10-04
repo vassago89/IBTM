@@ -2244,8 +2244,7 @@ public sealed class MachineController : INotifyPropertyChanged
     internal async Task SetTeachingOutputAsync(
         IoOutputStatus output,
         CancellationToken cancellationToken,
-        CancellationToken viewCancellation = default,
-        bool? requestedValue = null)
+        CancellationToken viewCancellation = default)
     {
         var activeToken = cancellationToken;
         try
@@ -2264,7 +2263,7 @@ public sealed class MachineController : INotifyPropertyChanged
             if (_state.IsRunningFor(includeOperations: false))
                 return;
             operation.Token.ThrowIfCancellationRequested();
-            var value = requestedValue ?? !_io.GetOutput(output.Signal);
+            var value = !_io.GetOutput(output.Signal);
             operation.Token.ThrowIfCancellationRequested();
             switch (output.Signal)
             {

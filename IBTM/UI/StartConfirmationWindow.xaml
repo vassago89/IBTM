@@ -4,7 +4,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
     xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
     xmlns:ui="clr-namespace:IBTM.UI" xmlns:app="clr-namespace:IBTM"
@@ -287,6 +286,8 @@
                 </StackPanel>
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
+                        <TextBlock Text="{ui:Text 'Related I/O'}" Style="{StaticResource ReviewHeading}" Margin="0,0,0,8"/>
+                        <ItemsControl ItemsSource="{Binding StartOutputs}" ItemTemplate="{StaticResource TeachingOutputTemplate}"/>
                         <StackPanel Style="{StaticResource FasteningReview}" Margin="0,0,0,12">
                             <TextBlock Text="{ui:Text 'Fastening results'}" FontWeight="SemiBold"/>
                             <TextBlock Text="{Binding RemainingFasteningCount, StringFormat={ui:Text 'Remaining bolts: {0}'}}"
@@ -480,61 +481,6 @@
                     <StackPanel Style="{StaticResource CarrierActions}">
                         <Border Background="{StaticResource ControlBgBrush}" Padding="12" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1">
                             <StackPanel>
-                                <UniformGrid Columns="2" Margin="0,0,0,8">
-                                    <DockPanel Margin="0,0,8,0">
-                                        <TextBlock DockPanel.Dock="Right" FontWeight="SemiBold" Margin="8,0,0,0">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="{Binding StartStation.BackupPlate, Converter={StaticResource UiTextConverter}}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
-                                                            <Setter Property="Text" Value="{ui:Text 'UNKNOWN'}"/>
-                                                            <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                        <TextBlock Text="{ui:Text 'Backup plate'}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
-                                    </DockPanel>
-                                    <DockPanel Margin="8,0,0,0">
-                                        <TextBlock DockPanel.Dock="Right" FontWeight="SemiBold" Margin="8,0,0,0">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="{Binding StartStation.Stopper, Converter={StaticResource UiTextConverter}}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
-                                                            <Setter Property="Text" Value="{ui:Text 'UNKNOWN'}"/>
-                                                            <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                        <TextBlock Text="{ui:Text 'Stopper'}" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
-                                    </DockPanel>
-                                </UniformGrid>
-                                <UniformGrid Columns="2" IsEnabled="{Binding State.ManualSetupEnabled}">
-                                    <Button Content="{ui:Text 'Raise plate'}" Command="{Binding SetStartBackupPlateCommand}"
-                                        Height="40" Padding="8,4" Margin="0,0,4,0" Style="{StaticResource SecondaryButtonStyle}">
-                                        <Button.CommandParameter><sys:Boolean>True</sys:Boolean></Button.CommandParameter>
-                                    </Button>
-                                    <Button Content="{ui:Text 'Lower plate'}" Command="{Binding SetStartBackupPlateCommand}"
-                                        Height="40" Padding="8,4" Margin="4,0,0,0" Style="{StaticResource SecondaryButtonStyle}">
-                                        <Button.CommandParameter><sys:Boolean>False</sys:Boolean></Button.CommandParameter>
-                                    </Button>
-                                </UniformGrid>
-                                <UniformGrid Columns="2" Margin="0,8,0,0" IsEnabled="{Binding State.ManualSetupEnabled}">
-                                    <Button Content="{ui:Text 'Raise stopper'}" Command="{Binding SetStartStopperCommand}"
-                                        Height="40" Padding="8,4" Margin="0,0,4,0" Style="{StaticResource SecondaryButtonStyle}">
-                                        <Button.CommandParameter><sys:Boolean>True</sys:Boolean></Button.CommandParameter>
-                                    </Button>
-                                    <Button Content="{ui:Text 'Lower stopper'}" Command="{Binding SetStartStopperCommand}"
-                                        Height="40" Padding="8,4" Margin="4,0,0,0" Style="{StaticResource SecondaryButtonStyle}">
-                                        <Button.CommandParameter><sys:Boolean>False</sys:Boolean></Button.CommandParameter>
-                                    </Button>
-                                </UniformGrid>
-                                <Border Height="1" Background="{StaticResource DividerBrush}" Margin="0,12"/>
                                 <UniformGrid Columns="2">
                                     <Button x:Name="CompleteWorkButton" Content="{ui:Text 'Mark complete'}" Command="{Binding ChangeCarrierWorkCommand}"
                                         CommandParameter="{x:Static app:CarrierWorkAction.Complete}" Margin="0,0,4,0" Height="40">

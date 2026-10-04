@@ -604,7 +604,10 @@ public sealed class PcbHistoryTests
                 {
                     RecordedAt = september,
                     Controller = new("COM10", 1, 21, 876, 3, 1.2, 950, 3156, 19, 3175,
-                        9, 42, 0, 6, 87, [21, 876, 3, 120, 75, 950, 3156, 19, 3175, 9, 42, 0, 6, 87]),
+                        9, 42, 0, 6, 87, [21, 876, 3, 120, 75, 950, 3156, 19, 3175, 9, 42, 0, 6, 87])
+                    {
+                        TorqueCompensationPercent = 95,
+                    },
                 },
             },
             PickupBoltResults = new System.Collections.Generic.Dictionary<Guid, BoltResult> { [VirtualTestSupport.BoltId(2)] = new(true, 1.2) },
@@ -623,6 +626,7 @@ public sealed class PcbHistoryTests
         Assert.Equal("Controller error 42", saved.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
         Assert.Equal(september, saved.ShootingBoltResults[VirtualTestSupport.BoltId(1)].RecordedAt);
         Assert.Equal(19, saved.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Controller!.Angle2);
+        Assert.Equal((ushort)95, saved.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Controller!.TorqueCompensationPercent);
         Assert.Equal(new ushort[] { 21, 876, 3, 120, 75, 950, 3156, 19, 3175, 9, 42, 0, 6, 87 },
             saved.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Controller!.Registers);
         Assert.Equal(1.2, saved.PickupBoltResults[VirtualTestSupport.BoltId(2)].Torque);

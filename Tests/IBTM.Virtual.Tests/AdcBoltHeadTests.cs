@@ -27,23 +27,36 @@ public sealed class AdcBoltHeadTests
     }
 
     [Theory]
-    [InlineData(FasteningHead.Pickup)]
-    [InlineData(FasteningHead.Shooting)]
-    public async Task UsesIoControlsAndReadsResultOnceAfterRunTurnsOff(FasteningHead selected)
+    [InlineData(FasteningHead.Pickup, 1, 15, 100)]
+    [InlineData(FasteningHead.Pickup, 2, 30, 80)]
+    [InlineData(FasteningHead.Shooting, 3, 45, 95)]
+    public async Task UsesIoControlsAndReadsResultOnceAfterRunTurnsOff(
+        FasteningHead selected, ushort preset, ushort compensationAddress, ushort compensation)
     {
         using var bus = new VirtualAdcBus();
         var (io, head) = Create(bus, head: selected);
+        await bus.WriteRegisterAsync(1, compensationAddress, compensation);
         var start = selected == FasteningHead.Pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart;
         var otherStart = selected == FasteningHead.Pickup ? OutputIo.ShootingBoltStart : OutputIo.PickupBoltStart;
         var resultReads = 0;
         var eventReads = 0;
         var statusReads = 0;
+        var compensationReads = 0;
         bus.FrameTransferred += (direction, frame) =>
         {
             if (direction != AdcFrameDirection.Transmit)
                 return;
-            Assert.Equal((byte)AdcFunctionCode.ReadInputRegisters, frame[1]);
             var address = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
+            if (frame[1] == (byte)AdcFunctionCode.ReadHoldingRegisters)
+            {
+                compensationReads++;
+                Assert.Equal(compensationAddress, address);
+                Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)));
+                Assert.False(io.GetOutput(start));
+                Assert.Equal(0, eventReads);
+                return;
+            }
+            Assert.Equal((byte)AdcFunctionCode.ReadInputRegisters, frame[1]);
             if (address == (ushort)AdcResultRegister.EventCount)
             {
                 var count = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4));
@@ -65,7 +78,8 @@ public sealed class AdcBoltHeadTests
                 statusReads++;
             }
         };
-        await head.SelectPresetAsync(1);
+        var capturedCompensation = await head.ReadTorqueCompensationAsync(preset);
+        await head.SelectPresetAsync(preset);
         var fed = false;
         var result = await head.TightenAsync(feedAsync: async token =>
         {
@@ -73,14 +87,82 @@ public sealed class AdcBoltHeadTests
             Assert.False(io.GetOutput(otherStart));
             fed = true;
             await Task.Delay(10, token);
-        });
+        }, torqueCompensationPercent: capturedCompensation);
         Assert.True(result.Success);
         Assert.True(fed);
         Assert.NotNull(result.Controller);
+        Assert.Equal(compensation, result.Controller.TorqueCompensationPercent);
+        Assert.Equal(preset, result.Controller.Preset);
+        Assert.Equal(1, compensationReads);
         Assert.Equal(1, eventReads); // Pre-START baseline only.
         Assert.Equal(1, resultReads);
         Assert.True(statusReads >= 3); // Preset, RUN ON and RUN OFF.
         Assert.False(io.GetOutput(start));
+    }
+
+    [Fact]
+    public async Task TighteningUsesCapturedCompensationWithoutRereadingOrRescalingTorque()
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
+        var preliminaryCompensation = await head.ReadTorqueCompensationAsync(2);
+        var finalCompensation = await head.ReadTorqueCompensationAsync(1);
+        await head.SelectPresetAsync(2);
+        var first = await head.TightenAsync(torqueCompensationPercent: preliminaryCompensation);
+        Assert.True(first.Success);
+        Assert.Equal((ushort)80, first.Controller!.TorqueCompensationPercent);
+        Assert.Equal((ushort)2, first.Controller.Preset);
+        Assert.Equal(1, first.Torque);
+
+        await head.SelectPresetAsync(1);
+        var second = await head.TightenAsync(torqueCompensationPercent: finalCompensation);
+        Assert.True(second.Success);
+        Assert.Equal((ushort)100, second.Controller!.TorqueCompensationPercent);
+        Assert.Equal((ushort)1, second.Controller.Preset);
+
+        bus.TorqueCompensations[2] = 85;
+        await head.SelectPresetAsync(2);
+        var third = await head.TightenAsync(torqueCompensationPercent: preliminaryCompensation);
+        Assert.True(third.Success);
+        Assert.Equal((ushort)80, third.Controller!.TorqueCompensationPercent);
+        Assert.Equal((ushort)80, first.Controller.TorqueCompensationPercent);
+        Assert.Equal(1, third.Torque);
+        Assert.Equal(2, bus.CompensationReads);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedCompensationReadCannotStartFastening(bool rejected)
+    {
+        var failure = rejected
+            ? new AdcResponseException(3, "Compensation query rejected.")
+            : new IOException("Compensation query disconnected.");
+        using var bus = new AdcControllerStub { CompensationReadFailure = failure };
+        var (io, head) = Create(bus);
+        Assert.Same(failure, await Assert.ThrowsAnyAsync<IOException>(() => head.ReadTorqueCompensationAsync(1)));
+        Assert.Equal(1, bus.CompensationReads);
+        Assert.Equal(0, bus.EventReads);
+        Assert.Equal(0, bus.StartWrites);
+        Assert.Equal(0, bus.ResultReads);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task CancellationDuringCompensationReadCannotStartFastening()
+    {
+        var barrier = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var bus = new AdcControllerStub { CompensationReadBarrier = barrier.Task };
+        var (io, head) = Create(bus);
+        using var stop = new CancellationTokenSource();
+        var cycle = head.ReadTorqueCompensationAsync(1, stop.Token);
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.CompensationReads == 1, TimeSpan.FromSeconds(2)));
+        stop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
+        Assert.Equal(0, bus.EventReads);
+        Assert.Equal(0, bus.StartWrites);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
     [Fact]
@@ -958,6 +1040,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         var result = await head.TightenAsync(dryRunMilliseconds: 30);
         Assert.Equal(BoltResultSource.DryRun, result.Source);
+        Assert.Equal(0, bus.CompensationReads);
         Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         using var stop = new CancellationTokenSource();

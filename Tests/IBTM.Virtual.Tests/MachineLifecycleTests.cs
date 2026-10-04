@@ -3864,7 +3864,7 @@ public sealed class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task StartReviewCylinderUsesSelectedStationAndExplicitDirection(bool stopper)
+    public async Task StartReviewCylinderTogglesSelectedStationFromLiveOutput(bool stopper)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgConveyor);
@@ -3873,7 +3873,6 @@ public sealed class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var review = services.GetRequiredService<OperationViewModel>();
-        var command = stopper ? review.SetStartStopperCommand : review.SetStartBackupPlateCommand;
         (StartArea Area, OutputIo Output)[] cylinders = [
             (StartArea.Station1, stopper ? OutputIo.PcbPlacementStopperUp : OutputIo.PcbPlacementBackupPlateUp),
             (StartArea.Station2, stopper ? OutputIo.BoltFasteningStopperUp : OutputIo.BoltFasteningBackupPlateUp),
@@ -3888,29 +3887,33 @@ public sealed class MachineLifecycleTests
             foreach (var (area, output) in cylinders)
             {
                 review.SelectStartAreaCommand.Execute(area);
+                var command = review.StartOutputs.Single(row => row.Io.Signal == output).ToggleOutputCommand;
                 var station = Assert.IsType<ConveyorStation>(review.StartStation);
                 var job = station.CurrentJob;
-                await command.ExecuteAsync(true);
+                await command.ExecuteAsync(null);
                 Assert.Equal(StationCylinderState.Up, stopper ? station.Stopper : station.BackupPlate);
                 foreach (var other in cylinders.Where(cylinder => cylinder.Output != output))
                     Assert.False(io.GetOutput(other.Output));
-                await command.ExecuteAsync(true);
-                Assert.True(io.GetOutput(output)); // Repeating UP must never toggle it DOWN.
-                await command.ExecuteAsync(false);
+                await command.ExecuteAsync(null);
+                Assert.False(io.GetOutput(output));
+                await ((IIoService)io).SetOutputAndWaitAsync(output, true);
+                await command.ExecuteAsync(null); // Toggle must read an external change to the current DO.
                 Assert.Equal(StationCylinderState.Down, stopper ? station.Stopper : station.BackupPlate);
                 Assert.Same(job, station.CurrentJob);
             }
 
             review.SelectStartAreaCommand.Execute(StartArea.Supply);
-            await command.ExecuteAsync(true);
+            Assert.DoesNotContain(review.StartOutputs, row => cylinders.Any(cylinder => cylinder.Output == row.Io.Signal));
+            Assert.DoesNotContain(review.StartOutputs, row => row.Io.Signal == OutputIo.PcbSupplyReadyToFront1);
             Assert.All(cylinders, cylinder => Assert.False(io.GetOutput(cylinder.Output)));
             review.SelectStartAreaCommand.Execute(StartArea.Station1);
+            var blockedCommand = review.StartOutputs.Single(row => row.Io.Signal == cylinders[0].Output).ToggleOutputCommand;
             state.AutomaticRunning = true;
-            await command.ExecuteAsync(true);
+            await blockedCommand.ExecuteAsync(null);
             Assert.False(io.GetOutput(cylinders[0].Output));
             state.AutomaticRunning = false;
             io.SetInput(InputIo.AutoMode, false);
-            await command.ExecuteAsync(true);
+            await blockedCommand.ExecuteAsync(null);
             Assert.False(io.GetOutput(cylinders[0].Output));
         }
         finally
@@ -3932,8 +3935,9 @@ public sealed class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var review = services.GetRequiredService<OperationViewModel>();
-        var command = stopper ? review.SetStartStopperCommand : review.SetStartBackupPlateCommand;
         var output = stopper ? OutputIo.InspectionStopperUp : OutputIo.InspectionBackupPlateUp;
+        review.SelectStartAreaCommand.Execute(StartArea.Station3);
+        var command = review.StartOutputs.Single(row => row.Io.Signal == output).ToggleOutputCommand;
         await machine.InitializeAsync();
         try
         {
@@ -3941,7 +3945,7 @@ public sealed class MachineLifecycleTests
             await ((IIoService)io).SetOutputAndWaitAsync(output, false);
             io.AutoResponseEnabled = false;
             review.SelectStartAreaCommand.Execute(StartArea.Station3);
-            var raising = command.ExecuteAsync(true);
+            var raising = command.ExecuteAsync(null);
             await WaitForOutputAsync(io, output, true);
             Assert.False(raising.IsCompleted);
             Assert.Equal(StationCylinderState.Down, stopper ? review.StartStation!.Stopper : review.StartStation!.BackupPlate);
@@ -3957,7 +3961,8 @@ public sealed class MachineLifecycleTests
 
             review.SelectStartAreaCommand.Execute(StartArea.Station3);
             settings.Options.TimeoutMilliseconds = 50;
-            await command.ExecuteAsync(true).WaitAsync(TimeSpan.FromSeconds(2));
+            io.SetOutput(output, false);
+            await command.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
             Assert.Equal(StationCylinderState.Down, stopper ? review.StartStation!.Stopper : review.StartStation!.BackupPlate);
         }
@@ -6473,6 +6478,11 @@ public sealed class MachineLifecycleTests
 
         public AdcStatusMonitor? Monitor => null;
 
+        public Task<ushort> ReadTorqueCompensationAsync(ushort preset, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult((ushort)100);
+        }
+
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -6492,7 +6502,8 @@ public sealed class MachineLifecycleTests
             CancellationToken cancellationToken = default,
             Func<CancellationToken, Task>? feedAsync = null,
             int dryRunMilliseconds = 0,
-            Action<BoltResult>? resultReceived = null)
+            Action<BoltResult>? resultReceived = null,
+            ushort? torqueCompensationPercent = null)
         {
             Started.SetResult();
             try
@@ -6527,6 +6538,11 @@ public sealed class MachineLifecycleTests
 
         public AdcStatusMonitor? Monitor => null;
 
+        public Task<ushort> ReadTorqueCompensationAsync(ushort preset, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)
         {
             ReadinessChecks++;
@@ -6553,7 +6569,8 @@ public sealed class MachineLifecycleTests
             CancellationToken cancellationToken = default,
             Func<CancellationToken, Task>? feedAsync = null,
             int dryRunMilliseconds = 0,
-            Action<BoltResult>? resultReceived = null)
+            Action<BoltResult>? resultReceived = null,
+            ushort? torqueCompensationPercent = null)
         {
             throw new NotSupportedException();
         }
