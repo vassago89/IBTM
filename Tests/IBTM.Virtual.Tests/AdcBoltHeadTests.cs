@@ -7,6 +7,7 @@ using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
@@ -158,7 +159,9 @@ public sealed class AdcBoltHeadTests
     public async Task HeadDownWaitsThroughRejectedAndRunOffFeedback(FasteningHead selected, int dryRunMilliseconds)
     {
         using var bus = new AdcControllerStub();
-        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 }, selected);
+        var io = new VirtualIoService(VirtualTestSupport.Outputs(new BoltFasteningHardwareSettings()), new());
+        var head = VirtualTestSupport.CreateAdcHead(bus, io, selected,
+            new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200);
         await head.SelectPresetAsync(1);
         bus.StatusRejection = "0x03: no status feedback";
         bus.RunReplies.Enqueue(false);
