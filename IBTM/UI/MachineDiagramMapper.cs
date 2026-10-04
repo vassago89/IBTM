@@ -184,40 +184,25 @@ public sealed class MachineDiagramMapper
     {
         if (!InspectionDefined || current is not { X: { } x, Y: { } y })
             return null;
-        var upperLeft = _carrier.UpperLeftLocatingPin!;
-        var lowerRight = _carrier.LowerRightLocatingPin!;
-        var first = new Point(upperLeft.X, upperLeft.Y);
-        var second = new Point(lowerRight.X, lowerRight.Y);
         var pickup = _transfer.CarrierPickupPosition;
         var shuttle = _transfer.ShuttlePlacePosition;
-        var pickupSide = pickup is null ? 0 : MachineDiagramLayout.GetSide(new Point(pickup.X, pickup.Y), first, second);
-        var shuttleSide = MachineDiagramLayout.GetSide(new Point(shuttle.X, shuttle.Y), first, second);
-        var cameraUpperLeft = MachineDiagramLayout.Offset(
-            MapCarrier(first.X, first.Y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight),
-            MachineDiagramLayout.CameraCenter);
-        var cameraLowerRight = MachineDiagramLayout.Offset(
-            MapCarrier(second.X, second.Y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight),
-            MachineDiagramLayout.CameraCenter);
+        if (pickup is null || shuttle.Y == pickup.Y)
+            return GetInspectionPosition(current);
 
-        if (pickup is not null && pickupSide * shuttleSide < 0)
-        {
-            var towardPickup = MachineDiagramLayout.GetSide(new Point(x, y), first, second) * pickupSide >= 0;
-            return FromThreePoints(
-                x,
-                y,
-                first,
-                second,
-                towardPickup ? new Point(pickup.X, pickup.Y) : new Point(
-                    shuttle.X,
-                    shuttle.Y),
-                cameraUpperLeft,
-                cameraLowerRight,
-                MachineDiagramLayout.Offset(
-                    towardPickup ? MachineDiagramLayout.InspectionCarrierCenter : MachineDiagramLayout.NgShuttleCenter,
-                    MachineDiagramLayout.NgPickerCenter));
-        }
-
-        return FromTwoPoints(x, y, first, second, cameraUpperLeft, cameraLowerRight);
+        // Use one map throughout the transfer. Switching at the camera's diagonal
+        // locating pins bends a straight gantry move sideways in both directions.
+        var progress = (y - pickup.Y) / (shuttle.Y - pickup.Y);
+        var routeX = pickup.X + (shuttle.X - pickup.X) * progress;
+        var position = MapCarrier(x, pickup.Y,
+            MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight);
+        var route = MapCarrier(routeX, pickup.Y,
+            MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight);
+        var origin = MachineDiagramLayout.Offset(
+            MachineDiagramLayout.InspectionCarrierCenter, MachineDiagramLayout.NgPickerCenter);
+        // Retain live X deviation from the taught route, including separate-axis moves.
+        return new Point(
+            origin.X + position.X - route.X,
+            origin.Y + (MachineDiagramLayout.NgShuttleCenter.Y - MachineDiagramLayout.InspectionCarrierCenter.Y) * progress);
     }
 
     public Point? GetInspectionTargetPosition(BoltPoint bolt)
