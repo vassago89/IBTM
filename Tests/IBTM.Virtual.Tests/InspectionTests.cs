@@ -10,6 +10,7 @@ using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.Storage;
 using IBTM.Virtual;
+using Microsoft.Data.Sqlite;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTestSupport;
 
@@ -115,7 +116,8 @@ public sealed class InspectionTests
     {
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
-        var recipes = new RecipeManager(OpenMachineStore(), new());
+        var store = OpenMachineStore();
+        var recipes = new RecipeManager(store, new());
         recipes.Current.Pcb.BoltPoints = [
             new() { Id = VirtualTestSupport.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 0, Y = 0 },
             new() { Id = VirtualTestSupport.BoltId(2), HeatSink = HeatSinkSlot.HeatSink2, X = 0, Y = 0 },
@@ -188,6 +190,29 @@ public sealed class InspectionTests
         Assert.Equal(new ProductionCounts(0, 0), recipes.Counts);
         visited.Clear();
         interrupt = false;
+        using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TRIGGER FailCountSave BEFORE INSERT ON ProductionCounts BEGIN SELECT RAISE(ABORT, 'count save failed'); END";
+            command.ExecuteNonQuery();
+            try
+            {
+                var error = await Assert.ThrowsAsync<SqliteException>(() => station.RunAsync(secondStop.Token));
+                Assert.Contains("count save failed", error.Message);
+                Assert.False(work.Completed);
+                Assert.False(station.IsTransferAllowed);
+                Assert.Null(work.LastCycleSeconds);
+                Assert.Equal(new ProductionCounts(0, 0), recipes.Counts);
+                Assert.Equal(recipes.Counts, store.LoadProductionCounts(recipes.Current.Name));
+            }
+            finally
+            {
+                command.CommandText = "DROP TRIGGER FailCountSave";
+                command.ExecuteNonQuery();
+            }
+        }
+        visited.Clear();
         await station.RunAsync(secondStop.Token);
         Assert.Equal(new (HeatSinkSlot?, Guid?)[] {
             (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTestSupport.BoltId(1)),

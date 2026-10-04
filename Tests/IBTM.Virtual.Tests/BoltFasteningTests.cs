@@ -2730,6 +2730,76 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [InlineData(true, true)]
+    public async Task MaintenanceRetractionPreservesSupplyAndCleanupFailures(
+        bool failCleanup, bool failBothHeads = false)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            PickupPosition = new() { X = 10, Y = 10, Z = 10 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+        };
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
+        io.Initialize();
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new AdcControllerStub();
+        var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
+        var units = new UnitSettings { ShootingBoltFeeder = false };
+        var feeder = new BoltFeederUnit(io, new() { PickupTimeoutMilliseconds = 0 }, units);
+        var supplyFailure = await Assert.ThrowsAsync<IoTimeoutException>(() => feeder.RunAsync());
+        var stationIo = new WriteNotifyingIo(io);
+        var work = ConveyorStation.CreateBoltFastening(io);
+        var station = new BoltFasteningStation(head, head, stationIo, motion, new(motion), settings, new(), work,
+            new RecipeManager(OpenMachineStore(), new())
+            {
+                Current = { Pcb = new() { BoltPoints = [Bolt(1, FasteningHead.Pickup, 20, 30)] } },
+            }, units, feeder);
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        await work.SeatAsync(CancellationToken.None);
+        var supplyChecked = false;
+        var retractionFailure = new IOException("Maintenance head retraction failed.");
+        var shootingRetractionFailure = new IOException("Maintenance shooting head retraction failed.");
+        var cleanupFailure = new IOException("Shooting output OFF failed after maintenance retraction.");
+        var escapeOff = false;
+        stationIo.BeforeInputRead = input => supplyChecked |= input == InputIo.PickupFeederBoltDetected;
+        stationIo.OutputChanged += (output, on) =>
+        {
+            if (!supplyChecked || on)
+                return;
+            if (output == OutputIo.PickupHeadDown)
+                throw retractionFailure;
+            if (output == OutputIo.ShootingHeadDown && failBothHeads)
+                throw shootingRetractionFailure;
+            if (output == OutputIo.ShootBolt && failCleanup)
+                throw cleanupFailure;
+            if (output == OutputIo.ShootingEscapeForward)
+                escapeOff = true;
+        };
+
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var error = await Assert.ThrowsAsync<AggregateException>(() => station.RunAsync(stop.Token));
+        var failures = error.Flatten().InnerExceptions;
+        var maintenance = Assert.Single(failures.OfType<MaintenanceStopException>());
+        Assert.Same(supplyFailure, maintenance.InnerException);
+        Assert.Contains(retractionFailure, failures);
+        Assert.Equal(2 + (failCleanup ? 1 : 0) + (failBothHeads ? 1 : 0), failures.Count);
+        if (failBothHeads)
+            Assert.Contains(shootingRetractionFailure, failures);
+        if (failCleanup)
+            Assert.Contains(cleanupFailure, failures);
+        Assert.True(escapeOff);
+        Assert.False(station.IsRunning);
+        Assert.False(work.Completed);
+        Assert.Equal(0, bus.StartWrites);
+    }
+
+    [Theory]
     [InlineData(FasteningHead.Pickup)]
     [InlineData(FasteningHead.Shooting)]
     public async Task FeederWaitRechecksSupplyFeedbackBeforeNextOperation(FasteningHead head)

@@ -328,6 +328,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                                 EnterStep(PcbSupplyState.MovingToHandoff);
                             }
 
+                            pickup.Token.ThrowIfCancellationRequested();
                             // Never advance a replacement carrier.
                             if (!carrierChanged)
                             {

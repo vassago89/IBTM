@@ -163,8 +163,10 @@ public sealed class PcbSupplyHandoffTests
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
     }
 
-    [Fact]
-    public async Task UpstreamDepartureDuringGrippingDoesNotResetToEmptyPickup()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpstreamDepartureDuringGrippingDoesNotResetToEmptyPickup(bool afterGrip)
     {
         using var rig = new HandoffRig();
         rig.Io.Initialize();
@@ -172,16 +174,21 @@ public sealed class PcbSupplyHandoffTests
         await HomeAsync(rig.Motion, 2_000);
         rig.Io.SetInput(InputIo.AutoMode, false);
         rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        var departed = false;
         rig.Supplier.StepChanged += () =>
         {
             if (rig.Supplier.Step is PcbSupplyState.PickingPcb)
                 rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            if (afterGrip && !departed && rig.Supplier.Step is PcbSupplyState.MovingToHandoff)
+            {
+                departed = true;
+                rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            }
         };
         rig.Recipes.Current.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 8 };
-        var departed = false;
         rig.Io.InputChanged += (input, on) =>
         {
-            if (!departed && input == InputIo.PcbSupplyIpmFixerForward && on)
+            if (!afterGrip && !departed && input == InputIo.PcbSupplyIpmFixerForward && on)
             {
                 departed = true;
                 rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
@@ -195,6 +202,7 @@ public sealed class PcbSupplyHandoffTests
         Assert.True(departed);
         Assert.True(rig.Supplier.PcbSecured);
         Assert.False(rig.Motion.IsMoving);
+        Assert.Equal((10d, 10d, 8d), rig.Motion.Position);
         Assert.NotEqual(PcbSupplyState.WaitingForCarrier, rig.Supplier.Phase);
     }
 

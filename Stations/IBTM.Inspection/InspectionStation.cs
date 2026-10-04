@@ -425,8 +425,9 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                                 break;
                         }
                     }
-                    Station.Complete(job, Stopwatch.GetElapsedTime(_cycleStartedAt));
+                    var cycleTime = Stopwatch.GetElapsedTime(_cycleStartedAt);
                     await _recipes.RecordProductionAsync(okCount, ngCount);
+                    Station.Complete(job, cycleTime);
                     ClearInspectionOperation();
                     return true;
                 }

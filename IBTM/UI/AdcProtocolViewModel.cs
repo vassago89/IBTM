@@ -528,7 +528,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                 + UiText.Format($"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n")
                 + UiText.Format($"Time {result.FasteningTimeMilliseconds} ms\n")
                 + UiText.Format($"Result error: {AdcControllerError.Describe(result.Error)}");
-            ResultSuccess = result.Status switch
+            ResultSuccess = result.Error != 0 ? false : result.Status switch
             {
                 AdcEventStatus.FasteningOk => true,
                 AdcEventStatus.FasteningNg or AdcEventStatus.Error => false,
@@ -769,10 +769,12 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     {
         if (exception is OperationCanceledException)
         {
+            ResultSuccess = null;
             ResultMessage = UiText.Get("Operation canceled. Check controller status.");
             return;
         }
 
+        ResultSuccess = false;
         var message = UiText.Get("\nOperation failed. Check controller status.");
         if (!ResultMessage.EndsWith(message, StringComparison.Ordinal))
             ResultMessage += message;

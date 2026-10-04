@@ -275,8 +275,17 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             failure = exception;
             // Retries returned to Safe Z, or feed preparation joined its motion.
-            await RaiseCylindersAsync(cancellationToken);
-            await MoveZAsync(_settings.SafeZ, cancellationToken);
+            try
+            {
+                await RaiseCylindersAsync(cancellationToken);
+                await MoveZAsync(_settings.SafeZ, cancellationToken);
+            }
+            catch (Exception recoveryFailure) when (
+                recoveryFailure is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                failure = new AggregateException(exception, recoveryFailure);
+                throw failure;
+            }
             throw;
         }
         catch (Exception exception)
@@ -1000,11 +1009,19 @@ public sealed class BoltFasteningStation : AutoUnit
         return Io.SetOutputAndWaitAsync(output, down, cancellationToken);
     }
 
-    public Task RaiseCylindersAsync(CancellationToken cancellationToken = default)
+    public async Task RaiseCylindersAsync(CancellationToken cancellationToken = default)
     {
-        return Task.WhenAll(
+        var raising = Task.WhenAll(
             SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken),
             SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken));
+        try
+        {
+            await raising;
+        }
+        catch when (raising.Exception is { InnerExceptions.Count: > 1 } failures)
+        {
+            throw failures;
+        }
     }
 
     internal async Task WaitForBoltSupplyAsync(FasteningHead head, CancellationToken cancellationToken)

@@ -919,7 +919,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{ui:Text 'Test channel (1–9)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
-                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                        <TextBox x:Name="LightTestChannelInput" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding LightTestChannel, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" VerticalAlignment="Center"
                                             Grid.Column="1"/>
                                     </Grid>
@@ -930,13 +930,26 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{ui:Text 'Brightness (0–255)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
-                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                        <TextBox x:Name="LightTestLevelInput" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding LightTestLevel, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" VerticalAlignment="Center"
                                             Grid.Column="1"/>
                                     </Grid>
                                     <UniformGrid Columns="2">
-                                        <Button Content="{ui:Text 'Light ON'}" Command="{Binding TestLightCommand}" IsEnabled="{Binding IsTestLightAllowed}"
-                                            Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,4,0"/>
+                                        <Button Content="{ui:Text 'Light ON'}" Command="{Binding TestLightCommand}" MinWidth="100" Margin="0,0,4,0">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                    <Setter Property="IsEnabled" Value="{Binding IsTestLightAllowed}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ElementName=LightTestChannelInput, Path=(Validation.HasError)}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding ElementName=LightTestLevelInput, Path=(Validation.HasError)}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                         <Button Content="{ui:Text 'Light OFF'}" Command="{Binding OffTestLightCommand}" IsEnabled="{Binding IsOffTestLightAllowed}" Style="{StaticResource SecondaryButtonStyle}"
                                             MinWidth="100" Margin="4,0,0,0"/>
                                     </UniformGrid>

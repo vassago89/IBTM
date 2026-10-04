@@ -218,7 +218,7 @@
                                     </Style>
                                 </StackPanel.Style>
                                 <TextBlock Text="{ui:Text 'Z offset (mm)'}" Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding SelectedPoint.FasteningZOffset, Mode=TwoWay, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                <TextBox x:Name="FasteningZOffsetInput" Text="{Binding SelectedPoint.FasteningZOffset, Mode=TwoWay, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                             </StackPanel>
                         </WrapPanel>
                     </StackPanel>
@@ -232,26 +232,54 @@
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
                                 <WrapPanel Margin="0,0,0,4">
-                                    <Button Command="{Binding ToggleLiveViewCommand}" IsEnabled="{Binding IsToggleLiveViewAllowed}" Margin="0,0,8,4" Width="96" Padding="12,7">
+                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" Width="96" Padding="12,7">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="{Binding IsToggleLiveViewAllowed}"/>
                                                 <Setter Property="Content" Value="{ui:Text 'Start Live'}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
                                                         <Setter Property="Content" Value="{ui:Text 'Stop Live'}"/>
                                                     </DataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"/>
+                                                            <Condition Binding="{Binding Inspection.IsLiveView}" Value="False"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </MultiDataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="{ui:Text 'Update Image + Light'}" Command="{Binding GrabCommand}" IsEnabled="{Binding IsGrabAllowed}" Margin="0,0,12,4" Padding="12,7"
-                                        Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button Content="{ui:Text 'Update Image + Light'}" Command="{Binding GrabCommand}" Margin="0,0,12,4" Padding="12,7">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="{Binding IsGrabAllowed}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding State.SetupEditingEnabled}">
                                         <TextBlock Text="{ui:Text 'Light (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                        <TextBox Width="55" Margin="0,0,8,0"
+                                        <TextBox x:Name="LiveLightInput" Width="55" Margin="0,0,8,0"
                                             Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                        <Button Content="{ui:Text 'Apply Light'}" Command="{Binding ApplyLightCommand}" IsEnabled="{Binding IsApplyLightAllowed}"
-                                            Style="{StaticResource SecondaryButtonStyle}" Padding="12,7"/>
+                                        <Button Content="{ui:Text 'Apply Light'}" Command="{Binding ApplyLightCommand}" Padding="12,7">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Setter Property="IsEnabled" Value="{Binding IsApplyLightAllowed}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                     </StackPanel>
                                 </WrapPanel>
                                 <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
@@ -314,12 +342,33 @@
                                         <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.Image}">
                                             <Setter Property="Content" Value="{ui:Text 'Save X/Y + Image'}"/>
                                         </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"/>
+                                                <Condition Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.Image}"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="IsEnabled" Value="False"/>
+                                        </MultiDataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </ui:RecordPositionButton.Style>
                         </ui:RecordPositionButton>
-                        <ui:MoveToPositionButton Content="{ui:Text 'Move to Selected Point'}" Command="{Binding MoveToPointCommand}" IsEnabled="{Binding IsMoveToPointAllowed}"
-                            Style="{StaticResource SecondaryButtonStyle}" MinWidth="150" Padding="12,8"/>
+                        <ui:MoveToPositionButton Content="{ui:Text 'Move to Selected Point'}" Command="{Binding MoveToPointCommand}" MinWidth="150" Padding="12,8">
+                            <ui:MoveToPositionButton.Style>
+                                <Style TargetType="ui:MoveToPositionButton" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Setter Property="IsEnabled" Value="{Binding IsMoveToPointAllowed}"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding ElementName=FasteningZOffsetInput, Path=(Validation.HasError)}" Value="True"/>
+                                                <Condition Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPosition}"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="IsEnabled" Value="False"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:MoveToPositionButton.Style>
+                        </ui:MoveToPositionButton>
                     </StackPanel>
                 </Grid>
             </Border>
