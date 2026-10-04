@@ -192,7 +192,13 @@
                             <TextBlock Text="{ui:Text 'No matching PCB records'}" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
                                 <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding FilteredRecords.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding FilteredRecords.Count}" Value="0"/>
+                                                <Condition Binding="{Binding Error}" Value="{x:Null}"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
                                         <DataTrigger Binding="{Binding RefreshHistoryCommand.IsRunning}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                         <DataTrigger Binding="{Binding LoadOlderCommand.IsRunning}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                     </Style.Triggers>
