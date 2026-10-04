@@ -1015,6 +1015,9 @@ public sealed class MachineController : INotifyPropertyChanged
         }
         void OnFeederChanged()
         {
+            // A sensor edge before RunAsync clears the previous run's alarms is not a new fault.
+            if (!_boltFeeder.IsRunning)
+                return;
             if (_boltFeeder.PickupEmptyAlarm is { } pickupAlarm)
                 RequestMaintenanceStop(MachineAlarm.PickupBoltFeeder, pickupAlarm, cycle);
             if (_boltFeeder.ShootingEmptyAlarm is { } shootingAlarm)

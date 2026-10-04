@@ -2837,6 +2837,64 @@ public sealed class BoltFasteningTests
         Assert.Equal(0, bus.StartWrites);
     }
 
+    [Fact]
+    public async Task PickupAlarmDuringApproachCannotBeBypassedByRecoveredDetection()
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            PickupPosition = new() { X = 10, Y = 10, Z = 10 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+        };
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
+        io.Initialize();
+        io.SetInput(InputIo.PickupFeederBoltDetected, true);
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new AdcControllerStub();
+        var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
+        var units = new UnitSettings { ShootingBoltFeeder = false };
+        var feeder = new BoltFeederUnit(io, new() { PickupTimeoutMilliseconds = 0 }, units);
+        var work = ConveyorStation.CreateBoltFastening(io);
+        var bolt = Bolt(1, FasteningHead.Pickup, 20, 30);
+        var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, new(), work,
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
+            units, feeder);
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        await work.SeatAsync(CancellationToken.None);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        Task? feederRun = null;
+        station.Trace += detail =>
+        {
+            if (!detail.EndsWith("waitFor=pickup XY movement", StringComparison.Ordinal))
+                return;
+            io.SetInput(InputIo.PickupFeederBoltDetected, false);
+            feederRun = feeder.RunAsync(stop.Token);
+            Assert.True(feederRun.IsFaulted);
+            // The alarm arrives after pickup entry was checked; supply returns before descent.
+            io.SetInput(InputIo.PickupFeederBoltDetected, true);
+        };
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupHeadVacuumPump)
+                io.SetInput(InputIo.PickupHeadVacuumDetected, on);
+        };
+
+        var failure = await Assert.ThrowsAsync<MaintenanceStopException>(
+            () => station.RunAsync(stop.Token, selectedBolts: [bolt.Id]));
+
+        Assert.NotNull(feederRun);
+        Assert.Same(feederRun.Exception!.InnerException, failure.InnerException);
+        Assert.Equal((10, 10, settings.SafeZ), motion.Position);
+        Assert.True(station.IsHorizontalMoveAllowed);
+        Assert.False(work.Completed);
+        Assert.Empty(Assert.Single(work.Assemblies).PickupBoltResults);
+        Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
+        Assert.Equal(0, bus.StartWrites);
+    }
+
     [Theory]
     [InlineData(FasteningHead.Pickup)]
     [InlineData(FasteningHead.Shooting)]

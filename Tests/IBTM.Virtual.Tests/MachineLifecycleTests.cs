@@ -318,9 +318,23 @@ public sealed class MachineLifecycleTests
 
             await machine.ResetAsync();
             machine.CheckStartMaterials();
+            var startupEdgeInjected = false;
+            services.GetRequiredService<PcbPlacer>().Trace += detail =>
+            {
+                if (detail != "PcbPlacer: run started.")
+                    return;
+                // I/O can change after cycle subscription but before the feeder starts its new run.
+                Assert.False(feeder.IsRunning);
+                Assert.NotNull(feeder.PickupEmptyAlarm);
+                io.SetInput(InputIo.PickupFeederBoltDetected, false);
+                io.SetInput(InputIo.PickupFeederBoltDetected, true);
+                startupEdgeInjected = true;
+            };
             run = machine.StartAsync(resumeFastening: job);
             Assert.True(await WaitUntilAsync(() => station.Station.Completed,
                 TimeSpan.FromSeconds(6)), state.AlarmDetail);
+            Assert.True(startupEdgeInjected);
+            Assert.Null(state.PendingStop);
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.Equal(new[] { first.Id, second.Id, last.Id, pickup.Id }, started.ToArray());
             Assert.Single(assembly.PickupBoltResults);

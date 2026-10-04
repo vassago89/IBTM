@@ -1048,14 +1048,18 @@ public sealed class BoltFasteningStation : AutoUnit
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            while (!Io.GetInput(boltDetected))
+            while (true)
             {
-                // Use a bolt still present, but never wait for a feeder that has stopped on an empty alarm.
+                var detected = Io.GetInput(boltDetected);
+                cancellationToken.ThrowIfCancellationRequested();
                 var alarm = head == FasteningHead.Pickup
                     ? _feeder.PickupEmptyAlarm : _feeder.ShootingEmptyAlarm;
-                if (alarm is not null)
+                // A ready shooting supply can finish; a new pickup still requires RESET after its alarm.
+                if (alarm is not null && (head == FasteningHead.Pickup || !detected))
                     throw new MaintenanceStopException(
                         "Bolt supply stopped. Refill the feeder and RESET before resuming.", alarm);
+                if (detected)
+                    return;
                 await changed.WaitAsync(cancellationToken);
             }
         }
