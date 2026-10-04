@@ -28,11 +28,13 @@ public sealed class BoltFeederUnit : AutoUnit
         _units = units;
     }
 
-    public IoTimeoutException? EmptyAlarm { get; private set; }
+    public IoTimeoutException? PickupEmptyAlarm { get; private set; }
+    public IoTimeoutException? ShootingEmptyAlarm { get; private set; }
 
     public async Task RunAsync(CancellationToken cancellationToken = default, FasteningHead? head = null)
     {
-        EmptyAlarm = null;
+        PickupEmptyAlarm = null;
+        ShootingEmptyAlarm = null;
         var pickupEnabled = _units.PickupBoltFeeder && head is not FasteningHead.Shooting;
         var shootingEnabled = _units.ShootingBoltFeeder && head is not FasteningHead.Pickup;
         var startedAt = Stopwatch.GetTimestamp();
@@ -47,10 +49,10 @@ public sealed class BoltFeederUnit : AutoUnit
             while (!cancellationToken.IsCancellationRequested)
             {
                 var waitMilliseconds = double.PositiveInfinity;
-                if (pickupEnabled)
+                if (pickupEnabled && PickupEmptyAlarm is null)
                     waitMilliseconds = CheckEmptyTimeout(InputIo.PickupFeederBoltDetected,
                         _settings.PickupTimeoutMilliseconds, cancellationToken);
-                if (shootingEnabled)
+                if (shootingEnabled && ShootingEmptyAlarm is null)
                 {
                     // Feed during escape travel; only the empty alarm waits for its return.
                     if (Io.GetInput(InputIo.ShootingEscapeBackward)
@@ -60,15 +62,27 @@ public sealed class BoltFeederUnit : AutoUnit
                             CheckEmptyTimeout(InputIo.ShootingFeederBoltDetected,
                                 _settings.ShootingTimeoutMilliseconds, cancellationToken));
                     }
-                    var runOnRemaining = Io.GetInput(InputIo.ShootingFeederBoltDetected)
-                        ? _settings.ShootingRunOnMilliseconds
-                            - Stopwatch.GetElapsedTime(Volatile.Read(ref _shootingChangedAt)).TotalMilliseconds
-                        : double.PositiveInfinity;
                     cancellationToken.ThrowIfCancellationRequested();
-                    Io.SetOutput(OutputIo.ShootingFeederOff, runOnRemaining <= 0);
-                    if (runOnRemaining > 0)
-                        waitMilliseconds = Math.Min(waitMilliseconds, runOnRemaining);
+                    if (ShootingEmptyAlarm is not null)
+                        Stop();
+                    else
+                    {
+                        var runOnRemaining = Io.GetInput(InputIo.ShootingFeederBoltDetected)
+                            ? _settings.ShootingRunOnMilliseconds
+                                - Stopwatch.GetElapsedTime(Volatile.Read(ref _shootingChangedAt)).TotalMilliseconds
+                            : double.PositiveInfinity;
+                        cancellationToken.ThrowIfCancellationRequested();
+                        Io.SetOutput(OutputIo.ShootingFeederOff, runOnRemaining <= 0);
+                        if (runOnRemaining > 0)
+                            waitMilliseconds = Math.Min(waitMilliseconds, runOnRemaining);
+                    }
                 }
+
+                // Keep the healthy feeder running while the current carrier finishes its work.
+                if ((!pickupEnabled || PickupEmptyAlarm is not null)
+                    && (!shootingEnabled || ShootingEmptyAlarm is not null)
+                    && (PickupEmptyAlarm ?? ShootingEmptyAlarm) is { } alarm)
+                    throw alarm;
 
                 await WaitForChangeAsync(cancellationToken,
                     double.IsFinite(waitMilliseconds) ? TimeSpan.FromMilliseconds(Math.Ceiling(waitMilliseconds)) : null);
@@ -80,9 +94,6 @@ public sealed class BoltFeederUnit : AutoUnit
         catch (Exception exception)
         {
             failure = exception;
-            if (exception is IoTimeoutException timeout
-                && timeout.Input is InputIo.PickupFeederBoltDetected or InputIo.ShootingFeederBoltDetected)
-                EmptyAlarm = timeout;
             throw;
         }
         finally
@@ -114,9 +125,16 @@ public sealed class BoltFeederUnit : AutoUnit
             ? Volatile.Read(ref _pickupChangedAt)
             : Math.Max(Volatile.Read(ref _shootingChangedAt), Volatile.Read(ref _escapeChangedAt));
         var remaining = timeoutMilliseconds - Stopwatch.GetElapsedTime(changedAt).TotalMilliseconds;
-        if (remaining <= 0)
-            throw new IoTimeoutException(input, true, timeoutMilliseconds);
-        return remaining;
+        if (remaining > 0)
+            return remaining;
+
+        var alarm = new IoTimeoutException(input, true, timeoutMilliseconds);
+        if (input == InputIo.PickupFeederBoltDetected)
+            PickupEmptyAlarm = alarm;
+        else
+            ShootingEmptyAlarm = alarm;
+        NotifyChanged();
+        return double.PositiveInfinity;
     }
 
     public void Stop()

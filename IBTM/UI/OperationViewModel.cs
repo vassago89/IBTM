@@ -509,17 +509,20 @@ public partial class OperationViewModel : ObservableObject
 
     public IAsyncRelayCommand ClearCountsCommand { get; }
 
+    [ObservableProperty]
+    public partial string? CountResetError { get; private set; }
+
     private async Task ClearCountsAsync()
     {
         try
         {
             await Recipes.ClearProductionCountsAsync();
-            PcbHistoryError = null;
+            CountResetError = null;
         }
         catch (Exception exception)
         {
             _log.LogError(exception, "Production count reset failed.");
-            PcbHistoryError = UiText.Format($"Count reset failed: {exception.Message}");
+            CountResetError = UiText.Format($"Count reset failed: {exception.Message}");
         }
     }
 

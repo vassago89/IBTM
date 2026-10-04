@@ -1013,6 +1013,13 @@ public sealed class MachineController : INotifyPropertyChanged
         {
             changed.Set();
         }
+        void OnFeederChanged()
+        {
+            if (_boltFeeder.PickupEmptyAlarm is { } pickupAlarm)
+                RequestMaintenanceStop(MachineAlarm.PickupBoltFeeder, pickupAlarm, cycle);
+            if (_boltFeeder.ShootingEmptyAlarm is { } shootingAlarm)
+                RequestMaintenanceStop(MachineAlarm.ShootingBoltFeeder, shootingAlarm, cycle);
+        }
         foreach (var unit in workUnits)
         {
             unit.Changed += changed.Set;
@@ -1020,6 +1027,7 @@ public sealed class MachineController : INotifyPropertyChanged
         }
         _state.Changed += changed.Set;
         _feedback.Sampled += OnFeedbackSampled;
+        _boltFeeder.Changed += OnFeederChanged;
         try
         {
             if (!cycle.IsCancellationRequested && _units.PcbSupply)
@@ -1162,6 +1170,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 }
                 _state.Changed -= changed.Set;
                 _feedback.Sampled -= OnFeedbackSampled;
+                _boltFeeder.Changed -= OnFeederChanged;
                 _conveyor.IsTransferPaused = false;
             }
         }
@@ -1196,15 +1205,7 @@ public sealed class MachineController : INotifyPropertyChanged
                     || exception is IoTimeoutException
                         { Input: InputIo.PickupFeederBoltDetected or InputIo.ShootingFeederBoltDetected }))
             {
-                lock (cycle)
-                {
-                    if (_state.PendingStop is null && !_state.IsError)
-                    {
-                        _conveyor.IsTransferPaused = true;
-                        _state.PendingStop = (alarm, exception);
-                        _log?.LogWarning(exception, "Finishing automatic work for maintenance: {Alarm}.", alarm);
-                    }
-                }
+                RequestMaintenanceStop(alarm, exception, cycle);
             }
             else if (!_state.IsError)
             {
@@ -1226,6 +1227,20 @@ public sealed class MachineController : INotifyPropertyChanged
         {
             if (_state.PendingStop is null || _state.IsError)
                 cycle.Cancel();
+        }
+    }
+
+    private void RequestMaintenanceStop(
+        MachineAlarm alarm, Exception exception, CancellationTokenSource cycle)
+    {
+        lock (cycle)
+        {
+            if (!cycle.IsCancellationRequested && _state.PendingStop is null && !_state.IsError)
+            {
+                _conveyor.IsTransferPaused = true;
+                _state.PendingStop = (alarm, exception);
+                _log?.LogWarning(exception, "Finishing automatic work for maintenance: {Alarm}.", alarm);
+            }
         }
     }
 

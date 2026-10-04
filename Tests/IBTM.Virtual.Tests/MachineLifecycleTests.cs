@@ -244,13 +244,112 @@ public sealed class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task MaintenanceFinishesMeasuredBoltAndKeepsCompletedCarrier()
+    public async Task PickupMaintenanceFinishesShootingAndResumesOnlyPickup()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = true;
         settings.Units.ShootingBoltFeeder = true;
-        settings.BoltFeeder.ShootingTimeoutMilliseconds = 30;
+        settings.BoltFeeder.PickupTimeoutMilliseconds = 300;
+        await using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        var first = new BoltPoint { Head = FasteningHead.Shooting, X = 10, Y = 10 };
+        var second = new BoltPoint { Head = FasteningHead.Shooting, X = 20, Y = 10 };
+        var last = new BoltPoint { Head = FasteningHead.Shooting, X = 30, Y = 10 };
+        var pickup = new BoltPoint { Head = FasteningHead.Pickup, X = 40, Y = 10 };
+        recipe.Pcb.BoltPoints = [first, second, last, pickup];
+        foreach (var bolt in recipe.Pcb.BoltPoints)
+            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        var feeder = services.GetRequiredService<BoltFeederUnit>();
+        var conveyor = services.GetRequiredService<MainConveyor>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        var started = new ConcurrentQueue<Guid>();
+        var pickupTableLowered = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output is OutputIo.ShootingBoltStart or OutputIo.PickupBoltStart && on)
+            {
+                started.Enqueue(station.ActiveBolt!.Id);
+                if (station.ActiveBolt.Id == first.Id)
+                    io.SetInput(InputIo.PickupFeederBoltDetected, false);
+            }
+            if (output == OutputIo.PickupTableDown && on)
+                pickupTableLowered = true;
+            if (output == OutputIo.PickupHeadVacuumPump && on)
+                io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+        };
+        var run = machine.StartAsync();
+        try
+        {
+            Assert.True(await WaitUntilAsync(() => station.Step is BoltFasteningState.Waiting,
+                TimeSpan.FromSeconds(3)), state.AlarmDetail);
+            SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            await station.Station.SeatAsync(default);
+            var job = station.Station.CurrentJob;
+            Assert.True(await WaitUntilAsync(() => state.PendingStop is not null,
+                TimeSpan.FromSeconds(3)), state.AlarmDetail);
+            Assert.True(conveyor.IsTransferPaused);
+            Assert.True(feeder.IsRunning);
+            Assert.NotNull(feeder.PickupEmptyAlarm);
+            Assert.Null(feeder.ShootingEmptyAlarm);
+            // Replenishment alone must not skip the maintenance stop at pickup entry.
+            io.SetInput(InputIo.PickupFeederBoltDetected, true);
+            await run.WaitAsync(TimeSpan.FromSeconds(6));
+            Assert.Equal(MachineAlarm.PickupBoltFeeder, state.Alarm);
+            Assert.Equal(new[] { first.Id, second.Id, last.Id }, started.ToArray());
+            Assert.False(pickupTableLowered);
+            Assert.False(station.Station.Completed);
+            Assert.Same(job, station.Station.CurrentJob);
+            var assembly = Assert.Single(station.Station.Assemblies);
+            var completed = assembly.ShootingBoltResults.ToDictionary();
+            Assert.Equal(3, completed.Count);
+            Assert.All(completed.Values, result => Assert.True(result.IsComplete));
+            Assert.Empty(assembly.PickupBoltResults);
+            Assert.True(station.IsHorizontalMoveAllowed);
+            Assert.Equal(settings.BoltFastening.SafeZ, station.Motion.Feedback.Position.Z);
+            Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
+
+            await machine.ResetAsync();
+            machine.CheckStartMaterials();
+            run = machine.StartAsync(resumeFastening: job);
+            Assert.True(await WaitUntilAsync(() => station.Station.Completed,
+                TimeSpan.FromSeconds(6)), state.AlarmDetail);
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.Equal(new[] { first.Id, second.Id, last.Id, pickup.Id }, started.ToArray());
+            Assert.Single(assembly.PickupBoltResults);
+            foreach (var (id, result) in completed)
+                Assert.Same(result, assembly.ShootingBoltResults[id]);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(FasteningHead.Shooting, PickupFasteningMode.SingleStage)]
+    [InlineData(FasteningHead.Pickup, PickupFasteningMode.TwoStage)]
+    public async Task MaintenanceFinishesMeasuredBoltAndKeepsCompletedCarrier(
+        FasteningHead emptyFeeder, PickupFasteningMode pickupMode)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Units.PickupBoltFeeder = true;
+        settings.Units.ShootingBoltFeeder = true;
+        settings.BoltFastening.PickupFasteningMode = pickupMode;
+        if (emptyFeeder == FasteningHead.Pickup)
+            settings.BoltFeeder.PickupTimeoutMilliseconds = 30;
+        else
+            settings.BoltFeeder.ShootingTimeoutMilliseconds = 30;
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         PrepareCarrierTeaching(settings, recipe);
@@ -271,7 +370,8 @@ public sealed class MachineLifecycleTests
             if (output == OutputIo.PickupHeadVacuumPump && on)
                 io.SetInput(InputIo.PickupHeadVacuumDetected, true);
             if (output == OutputIo.PickupBoltStart && on)
-                io.SetInput(InputIo.ShootingFeederBoltDetected, false);
+                io.SetInput(emptyFeeder == FasteningHead.Pickup
+                    ? InputIo.PickupFeederBoltDetected : InputIo.ShootingFeederBoltDetected, false);
         };
         var run = machine.StartAsync();
         try
@@ -280,9 +380,13 @@ public sealed class MachineLifecycleTests
             io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
             await station.Station.SeatAsync(default);
             await run.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(MachineAlarm.ShootingBoltFeeder, state.Alarm);
+            Assert.Equal(emptyFeeder == FasteningHead.Pickup
+                ? MachineAlarm.PickupBoltFeeder : MachineAlarm.ShootingBoltFeeder, state.Alarm);
             Assert.True(station.Station.Completed, state.AlarmDetail);
-            Assert.Single(Assert.Single(station.Station.Assemblies).PickupBoltResults);
+            var result = Assert.Single(Assert.Single(station.Station.Assemblies).PickupBoltResults).Value;
+            Assert.True(result.IsComplete);
+            Assert.Equal(pickupMode == PickupFasteningMode.TwoStage
+                ? BoltFasteningStage.Final : BoltFasteningStage.Single, result.Stage);
             Assert.Equal(settings.BoltFastening.SafeZ, station.Motion.Feedback.Position.Z);
             Assert.True(station.IsHorizontalMoveAllowed);
             machine.CheckStartMaterials();

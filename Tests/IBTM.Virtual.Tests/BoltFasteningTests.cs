@@ -1454,6 +1454,44 @@ public sealed class BoltFasteningTests
     }
 
     [Fact]
+    public async Task PickupEmptyAlarmKeepsShootingRunOnAndTimeoutActive()
+    {
+        var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new())
+        { AutoResponseEnabled = false };
+        io.SetInput(InputIo.ShootingEscapeBackward, true);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+        var feeder = new BoltFeederUnit(io, new()
+        {
+            PickupTimeoutMilliseconds = 0,
+            ShootingTimeoutMilliseconds = 200,
+            ShootingRunOnMilliseconds = 50,
+        }, new());
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var run = feeder.RunAsync(stop.Token);
+        try
+        {
+            Assert.NotNull(feeder.PickupEmptyAlarm);
+            Assert.Null(feeder.ShootingEmptyAlarm);
+            Assert.False(run.IsCompleted);
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+            Assert.True(await WaitUntilAsync(() => io.GetOutput(OutputIo.ShootingFeederOff),
+                TimeSpan.FromSeconds(1)));
+            io.SetInput(InputIo.ShootingFeederBoltDetected, false);
+            Assert.True(await WaitUntilAsync(() => !io.GetOutput(OutputIo.ShootingFeederOff),
+                TimeSpan.FromSeconds(1)));
+            await Assert.ThrowsAsync<IoTimeoutException>(() => run);
+            Assert.Equal(InputIo.ShootingFeederBoltDetected, feeder.ShootingEmptyAlarm?.Input);
+            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Fact]
     public async Task StopDuringShootingFeederRunOnStopsImmediately()
     {
         var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new())
@@ -2762,15 +2800,15 @@ public sealed class BoltFasteningTests
             }, units, feeder);
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
-        var supplyChecked = false;
+        var maintenanceStarted = false;
         var retractionFailure = new IOException("Maintenance head retraction failed.");
         var shootingRetractionFailure = new IOException("Maintenance shooting head retraction failed.");
         var cleanupFailure = new IOException("Shooting output OFF failed after maintenance retraction.");
         var escapeOff = false;
-        stationIo.BeforeInputRead = input => supplyChecked |= input == InputIo.PickupFeederBoltDetected;
+        station.StepChanged += () => maintenanceStarted |= station.Step is BoltFasteningState.Fastening;
         stationIo.OutputChanged += (output, on) =>
         {
-            if (!supplyChecked || on)
+            if (!maintenanceStarted || on)
                 return;
             if (output == OutputIo.PickupHeadDown)
                 throw retractionFailure;

@@ -548,6 +548,11 @@ public sealed class BoltFasteningStation : AutoUnit
                         }
                         case FasteningHead.Pickup:
                         {
+                            if (feeding && stage != BoltFasteningStage.Final
+                                && _feeder.PickupEmptyAlarm is { } pickupAlarm
+                                && !Io.GetInput(InputIo.PickupHeadVacuumDetected))
+                                throw new MaintenanceStopException(
+                                    "Pickup bolt supply stopped. Refill the feeder and RESET before resuming.", pickupAlarm);
                             if (ShootingHeadPosition != StationCylinderState.Up)
                                 await ClearHeadAsync(FasteningHead.Shooting, _settings.GetSafeZ(FasteningHead.Shooting), token);
                             if (PickupTablePosition != StationCylinderState.Down)
@@ -1046,8 +1051,11 @@ public sealed class BoltFasteningStation : AutoUnit
             while (!Io.GetInput(boltDetected))
             {
                 // Use a bolt still present, but never wait for a feeder that has stopped on an empty alarm.
-                if (_feeder.EmptyAlarm is { } alarm)
-                    throw new MaintenanceStopException("Bolt supply stopped. Remove the incomplete carrier before restarting.", alarm);
+                var alarm = head == FasteningHead.Pickup
+                    ? _feeder.PickupEmptyAlarm : _feeder.ShootingEmptyAlarm;
+                if (alarm is not null)
+                    throw new MaintenanceStopException(
+                        "Bolt supply stopped. Refill the feeder and RESET before resuming.", alarm);
                 await changed.WaitAsync(cancellationToken);
             }
         }

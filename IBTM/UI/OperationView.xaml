@@ -34,6 +34,10 @@
         <Border Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,10" Padding="12,8"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="76"/>
                     <ColumnDefinition Width="*"/>
@@ -62,6 +66,18 @@
                     <Button Content="{ui:Text 'Clear counts'}" Command="{Binding ClearCountsCommand}"
                         Style="{StaticResource SecondaryButtonStyle}" Padding="12,2" MinHeight="24" VerticalAlignment="Center"/>
                 </StackPanel>
+                <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding CountResetError}" ToolTip="{Binding CountResetError}"
+                    Foreground="{StaticResource AccentRedBrush}" TextAlignment="Right" TextTrimming="CharacterEllipsis" Margin="0,4,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CountResetError}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </Grid>
         </Border>
         <Border Grid.Row="1" Background="{StaticResource EquipBgBrush}"

@@ -116,7 +116,7 @@ public sealed class PcbHistoryTests
         command.CommandText = "CREATE TRIGGER FailCountClear BEFORE DELETE ON ProductionCounts BEGIN SELECT RAISE(ABORT, 'count reset failed'); END";
         command.ExecuteNonQuery();
         await view.ClearCountsCommand.ExecuteAsync(null);
-        Assert.NotNull(view.PcbHistoryError);
+        Assert.NotNull(view.CountResetError);
         Assert.Equal(new ProductionCounts(4, 0), recipes.Counts);
         Assert.Equal(recipes.Counts, store.LoadProductionCounts("Default"));
     }
