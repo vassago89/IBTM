@@ -1181,9 +1181,11 @@ public sealed class AdcBoltHeadTests
         Assert.True(preliminary.Success);
         bus.NotReady = true;
         var notReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var selectingAt = Stopwatch.GetTimestamp();
         head.Monitor.Sampled += sample =>
         {
-            if (sample.Status is { Ready: false, Running: false, Alarm: 0 })
+            if (sample.Status is { Ready: false, Running: false, Alarm: 0 }
+                && Stopwatch.GetElapsedTime(selectingAt, sample.StartedAt) >= TimeSpan.FromMilliseconds(200))
                 notReady.TrySetResult();
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -1239,9 +1241,11 @@ public sealed class AdcBoltHeadTests
         bus.ReportedPreset = 2;
         bus.CurrentAlarm = resetAlarm ? (ushort)42 : (ushort)0;
         var previousPreset = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var selectingAt = Stopwatch.GetTimestamp();
         head.Monitor.Sampled += sample =>
         {
-            if (sample.Status is { Preset: 2, Ready: true, Running: false, Alarm: 0 })
+            if (sample.Status is { Preset: 2, Ready: true, Running: false, Alarm: 0 }
+                && Stopwatch.GetElapsedTime(selectingAt, sample.StartedAt) >= TimeSpan.FromMilliseconds(200))
                 previousPreset.TrySetResult();
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
