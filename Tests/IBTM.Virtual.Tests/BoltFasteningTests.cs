@@ -24,6 +24,52 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltFasteningTests
 {
+    [Fact]
+    public async Task RejectedTorqueSetupStillCompletesCarrierAndReportsMissingGraph()
+    {
+        var settings = new BoltFasteningSettings
+        {
+            PickupVacuumDelayMilliseconds = 0, HeadDownDelayMilliseconds = 0,
+            SafeZ = 0, PickupPosition = new() { X = 100, Y = 100, Z = 5 },
+            PickupHead = new() { FasteningZ = 10 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+        };
+        var units = new UnitSettings { ShootingBoltFeeder = false };
+        var io = new VirtualIoService(Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
+        io.Initialize();
+        io.SetInput(InputIo.PickupFeederBoltDetected, true);
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        var rejection = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
+            [0x01, 0x86, 0x02, 0xC3, 0xA1], 1, AdcFunctionCode.WriteSingleRegister).RequireSuccess());
+        using var bus = new AdcControllerStub { RegisterWriteFailure = (4100, 0, rejection) };
+        var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200);
+        var work = ConveyorStation.CreateBoltFastening(io);
+        var bolt = new BoltPoint { Head = FasteningHead.Pickup, FasteningX = 10, FasteningY = 10 };
+        var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, new(), work,
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
+            units, new BoltFeederUnit(io, new(), units));
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        await work.SeatAsync(CancellationToken.None);
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupHeadVacuumPump)
+                io.SetInput(InputIo.PickupHeadVacuumDetected, on);
+        };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await station.RunAsync(timeout.Token, selectedBolts: [bolt.Id]);
+        Assert.True(work.Completed);
+        Assert.Equal(1, bus.StartWrites);
+        Assert.Equal(new (ushort, ushort)[] { (4100, 0) }, bus.RegisterWrites);
+        Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
+        var row = Assert.Single(station.TorqueCurves);
+        Assert.True(row.Result.Success);
+        Assert.True(row.Result.IsComplete);
+        Assert.Null(row.Curve);
+        Assert.Equal(UiText.Get("Torque curve setup rejected (ADC 0x02)."), row.Error);
+    }
+
     [Theory]
     [InlineData(false, false, false, false, true, false)]
     [InlineData(false, true, false, false, true, false)]

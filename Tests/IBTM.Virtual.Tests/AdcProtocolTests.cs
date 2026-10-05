@@ -50,8 +50,10 @@ public sealed class AdcProtocolTests
         Assert.Throws<InvalidDataException>(() => AdcTorqueCurve.FromFrame(graph, 1));
     }
 
-    [Fact]
-    public async Task TorqueMonitoringRefreshesAndOnlyReturnsTheCurrentMatchingCurve()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TorqueMonitoringRefreshesAndOnlyReturnsTheCurrentMatchingCurve(bool rejectRefresh)
     {
         using var bus = new AdcControllerStub();
         bus.Open("Virtual", 115200);
@@ -68,11 +70,78 @@ public sealed class AdcProtocolTests
         var expected = new AdcTorqueCurve(after + 2, 5, [0, 0.5, 1], 250, 1, 1, 2, 0);
         bus.Monitor.ReceiveTorqueCurve(expected);
         Assert.Same(expected, await waiting);
+        if (rejectRefresh)
+            bus.RegisterWriteFailure = (4100, 1, new AdcResponseException(2, "Refresh rejected."));
         await Task.Delay(5500);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
         Assert.True(bus.RegisterWrites.Count(write => write == (4100, 1)) >= 2);
+        if (rejectRefresh)
+        {
+            Assert.Equal(7, bus.RegisterWrites.Count);
+            Assert.Contains("0x02", bus.Monitor.TorqueCurveError);
+            Assert.Null(bus.Monitor.Sample!.Error);
+            Assert.NotNull(bus.Monitor.Sample.Status);
+        }
+        else
+        {
+            Assert.Equal(((ushort)4100, (ushort)0), bus.RegisterWrites[^1]);
+            Assert.Null(bus.Monitor.TorqueCurveError);
+        }
+    }
+
+    [Theory]
+    [InlineData(4100)]
+    [InlineData(4102)]
+    public async Task RejectedTorqueSetupDoesNotSendCleanupOrPreventStatusQueries(ushort address)
+    {
+        var rejection = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
+            [0x01, 0x86, 0x02, 0xC3, 0xA1], 1, AdcFunctionCode.WriteSingleRegister).RequireSuccess());
+        using var bus = new AdcControllerStub { RegisterWriteFailure = (address, 0, rejection) };
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
+        Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
+        Assert.Contains("0x02", bus.Monitor.TorqueCurveError);
+        var writes = bus.RegisterWrites.ToArray();
+        Assert.Equal((address, (ushort)0), writes[^1]);
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
+        Assert.Equal(writes, bus.RegisterWrites);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var status = await bus.Monitor.WaitForSampleAsync(System.Diagnostics.Stopwatch.GetTimestamp(), timeout.Token);
+        Assert.True(status.Ready);
+
+        // A new explicit setup can succeed after the controller configuration is corrected.
+        bus.RegisterWriteFailure = null;
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, timeout.Token);
+        Assert.True(bus.Monitor.IsTorqueCurveMonitoringRequested);
+        Assert.Null(bus.Monitor.TorqueCurveError);
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(false, timeout.Token);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task TorqueSetupPreservesOtherFailuresAndUncertainEnableCleanup(int failureKind)
+    {
+        Exception failure = failureKind switch
+        {
+            0 => new IOException("Port disconnected."),
+            1 => new TimeoutException("Enable reply missing."),
+            _ => new AdcResponseException(3, "Other rejection."),
+        };
+        using var bus = new AdcControllerStub { RegisterWriteFailure = (4100, 1, failure) };
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        Assert.Same(failure, await Record.ExceptionAsync(
+            () => bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None)));
+        Assert.Null(bus.Monitor.TorqueCurveError);
+        Assert.True(bus.Monitor.IsTorqueCurveMonitoringRequested);
+        bus.RegisterWriteFailure = null;
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
         Assert.Equal(((ushort)4100, (ushort)0), bus.RegisterWrites[^1]);
+        Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
     }
 
     [Theory]

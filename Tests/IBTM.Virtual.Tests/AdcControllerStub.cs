@@ -36,6 +36,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public int ResultReads { get; private set; }
     public bool SuppressTorqueCurve { get; set; }
     public List<(ushort Address, ushort Value)> RegisterWrites { get; }
+    public (ushort Address, ushort Value, Exception Error)? RegisterWriteFailure { get; set; }
     public Queue<bool> RunReplies { get; }
     public bool ResultReadWhileRunning { get; private set; }
     public IOException? StatusReadFailure { get; set; }
@@ -113,6 +114,8 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         RegisterWrites.Add((address, value));
+        if (RegisterWriteFailure is { } failure && failure.Address == address && failure.Value == value)
+            throw failure.Error;
         ApplyControl(address, value);
         return Task.CompletedTask;
     }
