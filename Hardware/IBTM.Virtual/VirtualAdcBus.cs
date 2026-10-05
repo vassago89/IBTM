@@ -48,7 +48,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     public string[] PortNames => [VirtualPort];
 
-    public void Open(string portName, int baudRate)
+    public void Open(string portName, int baudRate, byte slaveAddress = 0)
     {
         var selected = string.IsNullOrWhiteSpace(portName) ? VirtualPort : portName;
         if (IsOpen)

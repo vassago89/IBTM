@@ -19,7 +19,7 @@ public interface IAdcBus
 
     string[] PortNames { get; }
     // An existing connection must match both requested settings; otherwise Open must fail.
-    void Open(string portName, int baudRate);
+    void Open(string portName, int baudRate, byte slaveAddress = 0);
     void Close();
 
     Task<ushort[]> ReadRegistersAsync(

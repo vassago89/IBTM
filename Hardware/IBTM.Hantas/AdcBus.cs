@@ -1,15 +1,15 @@
 using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.IO.Ports;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using HComm.Common;
+using HComm.Device;
 using IBTM.Device;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using HantasComm = HComm.HComm;
 
 namespace IBTM.Hantas;
 
@@ -17,613 +17,308 @@ public sealed class AdcBus : IAdcBus, IDisposable
 {
     private readonly HantasSettings _settings;
     private readonly ILogger<AdcBus> _logger;
-    private const byte ExceptionFunctionMask = 0x80;
-
     private readonly SemaphoreSlim _exchange;
-    private SerialPort? _port;
+    private readonly Lock _stateGate;
+    private readonly List<byte> _received;
+    private HantasComm? _communication;
+    private TaskCompletionSource<AdcResponse>? _pending;
+    private Command _command;
+    private ushort _address;
+    private ushort _countOrValue;
+    private byte _slaveAddress;
+    private byte[] _transmitted;
 
-    public AdcBus(
-        HantasSettings settings,
-        ILogger<AdcBus>? logger = null,
+    public AdcBus(HantasSettings settings, ILogger<AdcBus>? logger = null,
         ILogger<AdcStatusMonitor>? monitorLogger = null)
     {
-        Monitor = new(this, monitorLogger);
         _settings = settings;
         _logger = logger ?? NullLogger<AdcBus>.Instance;
         _exchange = new(1, 1);
+        _stateGate = new();
+        _received = new();
+        _transmitted = [];
+        Monitor = new(this, monitorLogger);
+    }
+
+    // Tests supply HComm with an in-memory IHComm transport, without opening hardware.
+    internal AdcBus(HantasSettings settings, HantasComm communication) : this(settings)
+    {
+        Attach(communication);
     }
 
     public AdcStatusMonitor Monitor { get; }
-
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
+    public bool IsOpen => _communication?.State is ConnectionState.Connecting or ConnectionState.Connected;
+    public string PortName { get; private set; } = string.Empty;
+    public int BaudRate { get; private set; }
+    public string[] PortNames => HcSerial.GetPortNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
 
-
-    public bool IsOpen => _port?.IsOpen == true;
-
-    public string PortName => _port?.PortName ?? string.Empty;
-
-    public int BaudRate => _port?.BaudRate ?? 0;
-
-    public string[] PortNames => SerialPort.GetPortNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
-
-    public void Open(string portName, int baudRate)
+    public void Open(string portName, int baudRate, byte slaveAddress = 0)
     {
-        var responseTimeoutMilliseconds = _settings.ResponseTimeoutMilliseconds;
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeoutMilliseconds);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_settings.ResponseTimeoutMilliseconds);
+        if (slaveAddress > 15)
+            throw new ArgumentOutOfRangeException(nameof(slaveAddress), "HComm serial slave must be 0–15.");
         if (IsOpen)
         {
-            VerifyConnectionSettings(_port!, portName, baudRate);
+            if (!string.Equals(PortName, portName, StringComparison.OrdinalIgnoreCase)
+                || BaudRate != baudRate || _slaveAddress != slaveAddress)
+                throw new InvalidOperationException(
+                    $"ADC is connected to {PortName}/{_slaveAddress} at {BaudRate} baud; "
+                    + $"requested {portName}/{slaveAddress} at {baudRate} baud. Disconnect first.");
             return;
         }
 
         Close();
-        _port = new SerialPort(portName, baudRate, Parity.None, dataBits: 8, StopBits.One)
-        {
-            Handshake = Handshake.None,
-            ReadTimeout = responseTimeoutMilliseconds,
-            WriteTimeout = responseTimeoutMilliseconds,
-        };
-        try
-        {
-            _port.Open();
-        }
-        catch
+        var communication = new HantasComm();
+        communication.SetUp(CommType.Serial);
+        Attach(communication);
+        PortName = portName;
+        BaudRate = baudRate;
+        _slaveAddress = slaveAddress;
+        if (!communication.Connect(portName, baudRate, slaveAddress))
         {
             Close();
-            throw;
+            throw new IOException($"HComm could not open ADC {portName}/{slaveAddress} at {baudRate} baud.");
         }
+        _logger.LogInformation("ADC [{Port}/{Slave}] opened with HComm {Version} at {BaudRate} baud.",
+            PortName, slaveAddress, typeof(HantasComm).Assembly.GetName().Version, baudRate);
+    }
+
+    private void Attach(HantasComm communication)
+    {
+        // The existing monitor owns acquisition; do not inject idle Info queries into it.
+        communication.AutoRequestInfo = false;
+        communication.ReceivedMsg = OnReceived;
+        communication.SendReceiveMsg = OnSendReceive;
+        communication.ChangedConnection = OnConnectionChanged;
+        _communication = communication;
     }
 
     public void Close()
     {
         Monitor.Stop();
-        // Disposing the port also releases an exchange waiting in its native read/write.
-        var port = Interlocked.Exchange(ref _port, null);
-        port?.Dispose();
-    }
-
-    internal static void VerifyConnectionSettings(SerialPort port, string portName, int baudRate)
-    {
-        if (!string.Equals(port.PortName, portName, StringComparison.OrdinalIgnoreCase)
-            || port.BaudRate != baudRate)
-        {
-            throw new InvalidOperationException(
-                $"ADC is connected to {port.PortName} at {port.BaudRate} baud; "
-                + $"requested {portName} at {baudRate} baud. Disconnect the current connection first.");
-        }
-    }
-
-    public async Task WriteRegisterAsync(
-        byte slaveAddress,
-        ushort address,
-        ushort value,
-        CancellationToken cancellationToken = default)
-    {
-        var data = new byte[4];
-        BinaryPrimitives.WriteUInt16BigEndian(data, address);
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), value);
-        var request = AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.WriteSingleRegister, data);
-        var reply = await ExchangeAsync(
-            slaveAddress,
-            AdcFunctionCode.WriteSingleRegister,
-            request,
-            cancellationToken);
-        var response = reply.RequireSuccess();
-
-        if (!request.AsSpan(0, 6).SequenceEqual(response.AsSpan(0, 6)))
-        {
-            throw new InvalidDataException(
-                $"ADC write response does not match the request; TX={Convert.ToHexString(request)}; RX={Convert.ToHexString(response)}.");
-        }
-    }
-
-    public async Task<byte[]> ReadDeviceInformationAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default)
-    {
-        var response = await ExchangeAsync(
-            slaveAddress,
-            AdcFunctionCode.RequestDeviceInformation,
-            AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestDeviceInformation, []),
-            cancellationToken);
-        return response.RequireSuccess()[3..^2];
-    }
-
-    public async Task<byte[]> RequestTorqueCurveAsync(byte slaveAddress, CancellationToken cancellationToken = default)
-    {
-        // Hantas HComm GetGraph(4200, 1): 4200 is a queue key, not an on-wire register.
-        // HCSerial.PacketGetGraph sends [slave, 0xC8, 0x00, CRC low, CRC high].
-        // https://github.com/hantas-soft/HComm/blob/cafa7e6ac0e956232d262d8d6a9f567833803e8f/HComm/Device/HCSerial.cs#L231
-        var response = await ExchangeAsync(slaveAddress, AdcFunctionCode.RequestTorqueCurve,
-            AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, [0]), cancellationToken);
-        return response.RequireSuccess();
-    }
-
-    public async Task<byte[]> CaptureDeviceInformationAsync(
-        byte slaveAddress,
-        int durationMilliseconds,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durationMilliseconds);
-        var response = await ExchangeAsync(
-            slaveAddress,
-            AdcFunctionCode.RequestDeviceInformation,
-            AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestDeviceInformation, []),
-            cancellationToken,
-            durationMilliseconds);
-        return response.RequireSuccess();
+        var communication = Interlocked.Exchange(ref _communication, null);
+        lock (_stateGate)
+            _pending?.TrySetException(new IOException($"ADC {PortName}/{_slaveAddress} disconnected."));
+        if (communication is null)
+            return;
+        communication.ReceivedMsg = null;
+        communication.SendReceiveMsg = null;
+        communication.ChangedConnection = null;
+        if (communication.State is ConnectionState.Connecting or ConnectionState.Connected)
+            communication.Close();
     }
 
     public void Dispose()
     {
         Close();
-        // Cancelled exchanges still release this managed gate while unwinding.
-        // No wait handle is allocated, so leave disposal to garbage collection.
     }
 
-    public async Task<ushort[]> ReadRegistersAsync(
-        byte slaveAddress,
-        AdcFunctionCode function,
-        ushort address,
-        ushort count,
+    public async Task<ushort[]> ReadRegistersAsync(byte slaveAddress, AdcFunctionCode function,
+        ushort address, ushort count, CancellationToken cancellationToken = default)
+    {
+        var command = function switch
+        {
+            AdcFunctionCode.ReadHoldingRegisters => Command.Read,
+            AdcFunctionCode.ReadInputRegisters => Command.Mor,
+            _ => throw new ArgumentOutOfRangeException(nameof(function)),
+        };
+        var response = await ExchangeAsync(slaveAddress, command, address, count, cancellationToken);
+        return response.RequireSuccess().Select(value => checked((ushort)value)).ToArray();
+    }
+
+    public async Task WriteRegisterAsync(byte slaveAddress, ushort address, ushort value,
         CancellationToken cancellationToken = default)
     {
-        var data = new byte[4];
-        BinaryPrimitives.WriteUInt16BigEndian(data, address);
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), count);
-        var reply = await ExchangeAsync(
-            slaveAddress,
-            function,
-            AdcRtuFrame.Build(slaveAddress, function, data),
-            cancellationToken,
-            expectedByteCount: count * 2);
-        var response = reply.RequireSuccess();
+        var response = await ExchangeAsync(slaveAddress, Command.Write, address, value, cancellationToken);
+        response.RequireSuccess();
+    }
 
-        var values = new ushort[count];
-        for (var index = 0; index < count; index++)
-        {
-            values[index] = BinaryPrimitives.ReadUInt16BigEndian(response.AsSpan(3 + index * 2, 2));
-        }
+    public async Task<byte[]> ReadDeviceInformationAsync(byte slaveAddress,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await ExchangeAsync(slaveAddress, Command.Info, 0, 0, cancellationToken);
+        return response.RequireSuccess().Select(value => checked((byte)value)).ToArray();
+    }
 
-        return values;
+    public async Task<byte[]> RequestTorqueCurveAsync(byte slaveAddress,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await ExchangeAsync(slaveAddress, Command.GraphAd, 4200, 1, cancellationToken);
+        response.RequireSuccess();
+        return response.Frame;
+    }
+
+    public async Task<byte[]> CaptureDeviceInformationAsync(byte slaveAddress, int durationMilliseconds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durationMilliseconds);
+        var response = await ExchangeAsync(slaveAddress, Command.Info, 0, 0,
+            cancellationToken, durationMilliseconds);
+        return response.Frame;
     }
 
     public async Task<(AdcControllerStatus? Status, string? Rejection)> ReadControllerStatusAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default)
+        byte slaveAddress, CancellationToken cancellationToken = default)
     {
-        var data = new byte[4];
-        BinaryPrimitives.WriteUInt16BigEndian(data, (ushort)AdcStatusRegister.Preset);
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), AdcControllerStatus.RegisterCount);
-        var response = await ExchangeAsync(
-            slaveAddress,
-            AdcFunctionCode.ReadInputRegisters,
-            AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.ReadInputRegisters, data),
-            cancellationToken,
-            expectedByteCount: AdcControllerStatus.RegisterCount * 2,
-            retryRejectedResponses: false);
-        // The monitor schedules the next status query. A valid rejection gives no
-        // feedback; readiness and fastening keep their own bounded waiting time.
-        if (response.Rejection is { } rejection)
+        var response = await ExchangeAsync(slaveAddress, Command.Mor,
+            (ushort)AdcStatusRegister.Preset, AdcControllerStatus.RegisterCount, cancellationToken);
+        if (response.Rejection is { } rejection && response.ErrorCode is not (0 or 255))
             return (null, rejection);
-
-        var values = new ushort[AdcControllerStatus.RegisterCount];
-        for (var index = 0; index < values.Length; index++)
-            values[index] = BinaryPrimitives.ReadUInt16BigEndian(response.Frame.AsSpan(3 + index * 2, 2));
+        var values = response.RequireSuccess().Select(value => checked((ushort)value)).ToArray();
         return (AdcControllerStatus.FromRegisters(values), null);
     }
 
-    private async Task<AdcResponse> ExchangeAsync(
-        byte slaveAddress,
-        AdcFunctionCode function,
-        byte[] request,
-        CancellationToken cancellationToken,
-        int? captureMilliseconds = null,
-        int? expectedByteCount = null,
-        bool retryRejectedResponses = true)
+    private async Task<AdcResponse> ExchangeAsync(byte slaveAddress, Command command,
+        ushort address, ushort countOrValue, CancellationToken cancellationToken, int? captureMilliseconds = null)
     {
-        var responseTimeout = _settings.ResponseTimeoutMilliseconds;
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeout);
-        var attempts = captureMilliseconds is null
-            && function is AdcFunctionCode.ReadInputRegisters or AdcFunctionCode.ReadHoldingRegisters
-                or AdcFunctionCode.RequestDeviceInformation
-                ? _settings.ReadAttempts : 1;
-        var queuedAt = Stopwatch.GetTimestamp();
-        await _exchange.WaitAsync(cancellationToken);
-        var acquiredAt = Stopwatch.GetTimestamp();
+        await _exchange.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var port = _port;
-            if (port?.IsOpen != true)
-                throw new InvalidOperationException("Hantas ADC is not connected. Open the configured COM port first.");
-            for (var attempt = 1; ; attempt++)
+            var communication = _communication;
+            if (!IsOpen || communication is null)
+                throw new IOException("Hantas ADC is not connected.");
+            if (slaveAddress != _slaveAddress)
+                throw new InvalidOperationException("Disconnect ADC before changing its slave address.");
+            var pending = new TaskCompletionSource<AdcResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_stateGate)
             {
-                var frameStartedAt = Stopwatch.GetTimestamp();
-                // Keep the bus owned between frames. 8N1 uses 10 bits per character;
-                // allow at least 3.5 characters, with a conservative 2 ms minimum at higher baud rates.
-                var frameGapMilliseconds = Math.Max(2, (int)Math.Ceiling(35_000.0 / port.BaudRate));
-                await Task.Delay(frameGapMilliseconds, cancellationToken);
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeout.CancelAfter(responseTimeout);
-                var started = Stopwatch.GetTimestamp();
-                var receivedBytes = new List<byte>();
-                var receivedChunks = 0;
-                long? writeStartedAt = null;
-                long? writeCompletedAt = null;
-                long? firstReceivedAt = null;
-                long? lastReceivedAt = null;
-                void OnReceived(byte[] bytes)
-                {
-                    var now = Stopwatch.GetTimestamp();
-                    firstReceivedAt ??= now;
-                    lastReceivedAt = now;
-                    receivedBytes.AddRange(bytes);
-                    receivedChunks++;
-                    FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes);
-                    _logger.LogInformation("ADC [{Port}] RX RAW {Frame}", port.PortName, Convert.ToHexString(bytes));
-                }
-                AdcResponse response;
-                try
-                {
-                    if (!Monitor.IsTorqueCurveMonitoringRequested && port.BytesToRead > 0)
-                    {
-                        _logger.LogWarning("ADC [{Port}] discarding {Count} stale bytes before TX.",
-                            port.PortName, port.BytesToRead);
-                        port.DiscardInBuffer();
-                    }
-                    // Curve frames can arrive between requests. Consume complete frames before TX.
-                    while (port.BytesToRead > 0)
-                    {
-                        var pending = await ReadFrameAsync(port.BaseStream, port.DiscardInBuffer,
-                            OnReceived, timeout.Token);
-                        if (pending[1] == (byte)AdcFunctionCode.RequestTorqueCurve)
-                            Monitor.ReceiveTorqueCurveFrame(ValidateResponse(pending, slaveAddress,
-                                AdcFunctionCode.RequestTorqueCurve).RequireSuccess());
-                        else
-                            _logger.LogWarning("ADC [{Port}] discarded stale response before TX: {Frame}.",
-                                port.PortName, Convert.ToHexString(pending));
-                    }
-                    FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
-                    _logger.LogInformation("ADC [{Port}] TX {Frame}", port.PortName, Convert.ToHexString(request));
-                    writeStartedAt = Stopwatch.GetTimestamp();
-                    await AwaitSerialIoAsync(
-                        port.BaseStream.WriteAsync(request, timeout.Token).AsTask(),
-                        port.DiscardOutBuffer,
-                        timeout.Token);
-                    writeCompletedAt = Stopwatch.GetTimestamp();
-                    if (captureMilliseconds is not null)
-                        timeout.CancelAfter(Timeout.Infinite);
-                    response = await ReadResponseAsync(port.BaseStream, port.DiscardInBuffer, OnReceived,
-                        slaveAddress, function, timeout.Token, expectedByteCount, captureMilliseconds,
-                        Monitor.ReceiveTorqueCurveFrame);
-                    if (response.Rejection is { } rejection)
-                    {
-                        var detail = $"ADC {port.PortName}/{slaveAddress}; attempt={attempt}/{attempts}; baud={port.BaudRate}; "
-                            + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
-                            + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
-                            + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
-                        if (retryRejectedResponses)
-                            _logger.LogWarning("ADC response rejected or unmatched. {Detail} {Rejection}", detail, rejection);
-                        else
-                            _logger.LogWarning("ADC status query rejected; waiting for the next scheduled sample. {Detail} {Rejection}",
-                                detail, rejection);
-                        if (retryRejectedResponses && attempt < attempts)
-                        {
-                            Monitor.InvalidateSample(rejection);
-                            continue;
-                        }
-                    }
-                    else if (captureMilliseconds is null)
-                        _logger.LogDebug("ADC {Port} RTU response in {Elapsed:F1} ms: {Interpretation}",
-                            port.PortName, Stopwatch.GetElapsedTime(started).TotalMilliseconds, DescribeResponse(response.Frame));
-                }
-                catch (Exception exception) when (
-                    exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-                {
-                    var detail = $"ADC {port.PortName}/{slaveAddress}; attempt={attempt}/{attempts}; baud={port.BaudRate}; "
-                        + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
-                        + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
-                        + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
-                    if (attempt < attempts
-                        && exception is OperationCanceledException or TimeoutException or InvalidDataException)
-                    {
-                        Monitor.InvalidateSample(exception.Message);
-                        _logger.LogWarning(exception, "ADC read failed; sending the same request again. {Detail}", detail);
-                        continue;
-                    }
-                    _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
-                    if (exception is OperationCanceledException)
-                        throw new TimeoutException(
-                            $"ADC {port.PortName}/{slaveAddress}: response timed out after {responseTimeout} ms.", exception);
-                    throw;
-                }
-                finally
-                {
-                    var finishedAt = Stopwatch.GetTimestamp();
-                    _logger.LogDebug(
-                        "ADC {Port}/{Slave} exchange timing: TX={Request}; gate wait={GateWait:F1} ms; "
-                            + "frame gap/setup={Setup:F1} ms; TX notification={Notification:F1} ms; write={Write:F1} ms; "
-                            + "write start to first RX={FirstRx:F1} ms; RX span={RxSpan:F1} ms; "
-                            + "post RX handling={PostRx:F1} ms; exchange={Exchange:F1} ms; chunks={Chunks}, bytes={Bytes}.",
-                        port.PortName, slaveAddress, Convert.ToHexString(request),
-                        Stopwatch.GetElapsedTime(queuedAt, acquiredAt).TotalMilliseconds,
-                        Stopwatch.GetElapsedTime(frameStartedAt, started).TotalMilliseconds,
-                        writeStartedAt is { } writing
-                            ? Stopwatch.GetElapsedTime(started, writing).TotalMilliseconds : (double?)null,
-                        writeStartedAt is { } writeStart && writeCompletedAt is { } written
-                            ? Stopwatch.GetElapsedTime(writeStart, written).TotalMilliseconds : (double?)null,
-                        writeStartedAt is { } sent && firstReceivedAt is { } first
-                            ? Stopwatch.GetElapsedTime(sent, first).TotalMilliseconds : (double?)null,
-                        firstReceivedAt is { } firstRx && lastReceivedAt is { } lastRx
-                            ? Stopwatch.GetElapsedTime(firstRx, lastRx).TotalMilliseconds : (double?)null,
-                        lastReceivedAt is { } received
-                            ? Stopwatch.GetElapsedTime(received, finishedAt).TotalMilliseconds : (double?)null,
-                        Stopwatch.GetElapsedTime(started, finishedAt).TotalMilliseconds, receivedChunks, receivedBytes.Count);
-                }
-
-                return response;
+                _command = command;
+                _address = address;
+                _countOrValue = countOrValue;
+                _received.Clear();
+                _transmitted = [];
+                _pending = pending;
             }
+            cancellationToken.ThrowIfCancellationRequested();
+            bool accepted;
+            switch (command)
+            {
+                case Command.Read:
+                    accepted = communication.GetParam(address, countOrValue, merge: true);
+                    break;
+                case Command.Mor:
+                    accepted = communication.GetState(address, countOrValue);
+                    break;
+                case Command.Write:
+                    accepted = communication.SetParam(address, countOrValue);
+                    break;
+                case Command.Info:
+                    accepted = communication.GetInfo();
+                    break;
+                case Command.GraphAd:
+                    accepted = communication.GetGraph(4200, 1);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(command));
+            }
+            if (!accepted)
+                throw new IOException($"HComm did not queue {command}, address={address}, data={countOrValue}.");
+
+            // HComm owns its 1 s response timeout. Drain an accepted request before cancellation
+            // releases this bus, so its late response cannot become the next request's result.
+            AdcResponse response;
+            try
+            {
+                response = await pending.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                Close();
+                throw new TimeoutException($"HComm did not finish ADC {PortName}/{slaveAddress} {command}; connection closed.");
+            }
+            if (captureMilliseconds is { } duration)
+            {
+                await Task.Delay(duration, cancellationToken).ConfigureAwait(false);
+                lock (_stateGate)
+                    response = response with { Frame = _received.ToArray() };
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            return response;
         }
         finally
         {
+            lock (_stateGate)
+                _pending = null;
             _exchange.Release();
         }
     }
 
-    private static int ResponseLength(IReadOnlyList<byte> bytes)
+    private void OnSendReceive(byte[] packet, bool send)
     {
-        if (bytes.Count < 2)
-            return 0;
-        var function = bytes[1];
-        // ADC GraphAd uses one byte count. Its high function bit is not an exception.
-        if (function == (byte)AdcFunctionCode.RequestTorqueCurve)
-            return bytes.Count < 3 ? 0 : bytes[2] + 5;
-        if ((function & ExceptionFunctionMask) != 0)
-            return 5;
-        switch (function)
+        lock (_stateGate)
         {
-            case 0x05 or 0x06 or 0x08 or 0x0B or 0x0F or 0x10:
-                return 8;
-            case 0x07:
-                return 5;
-            case 0x16:
-                return 10;
-            case 0x18:
-                return bytes.Count < 4 ? 0 : (bytes[2] << 8 | bytes[3]) + 6;
-            case 0x2B when bytes.Count >= 3 && bytes[2] == 0x0E:
-                // Read Device Identification: ID/length/value entries after the object count.
-                if (bytes.Count < 8)
-                    return 0;
-                var length = 8;
-                for (var index = 0; index < bytes[7]; index++)
-                {
-                    if (bytes.Count < length + 2)
-                        return 0;
-                    length += bytes[length + 1] + 2;
-                }
-                return length + 2;
-            default:
-                // Read responses use one byte count; unknown functions are tested against this shape.
-                return bytes.Count < 3 ? 0 : bytes[2] + 5;
+            if (send)
+                _transmitted = packet.ToArray();
+            else
+                _received.AddRange(packet);
         }
+        FrameTransferred?.Invoke(send ? AdcFrameDirection.Transmit : AdcFrameDirection.Receive, packet);
+        _logger.LogInformation("ADC [{Port}] HComm {Direction} {Frame}",
+            PortName, send ? "TX" : "RX RAW", Convert.ToHexString(packet));
     }
 
-    internal static AdcResponse ValidateResponse(byte[] frame, byte slaveAddress,
-        AdcFunctionCode function, int? expectedByteCount = null)
+    private void OnReceived(Command command, int address, int[]? values)
     {
-        // Integrity and request ownership are separate: a different function is not a broken frame.
-        if (frame.Length < 5
-            || frame.Length > (frame[1] == (byte)AdcFunctionCode.RequestTorqueCurve ? 260 : 256)
-            || (frame[1] & ~ExceptionFunctionMask) == 0
-            || ResponseLength(frame) != frame.Length)
-            throw new InvalidDataException($"Invalid Modbus RTU response shape; RX={Convert.ToHexString(frame)}.");
-        var receivedCrc = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));
-        var calculatedCrc = AdcRtuFrame.CalculateCrc(frame.AsSpan(0, frame.Length - 2));
-        if (receivedCrc != calculatedCrc)
+        lock (_stateGate)
         {
-            throw new InvalidDataException(
-                $"ADC response CRC is invalid: received=0x{receivedCrc:X4}, calculated=0x{calculatedCrc:X4}; "
-                + $"RX={Convert.ToHexString(frame)}; expected address={slaveAddress}, request function=0x{(byte)function:X2}.");
-        }
-        if (frame[0] != slaveAddress)
-        {
-            throw new InvalidDataException(
-                $"ADC response address={frame[0]}, function=0x{frame[1]:X2}; "
-                + $"expected address={slaveAddress}, request function=0x{(byte)function:X2}; "
-                + $"CRC valid (0x{receivedCrc:X4}); RX={Convert.ToHexString(frame)}.");
-        }
-
-        var isException = frame[1] != (byte)AdcFunctionCode.RequestTorqueCurve
-            && (frame[1] & ExceptionFunctionMask) != 0;
-        var expectedFunction = isException ? (byte)((byte)function | ExceptionFunctionMask) : (byte)function;
-        if (frame[1] != expectedFunction)
-        {
-            return new(frame,
-                $"ADC response does not match request function=0x{(byte)function:X2}; "
-                + $"expected response=0x{expectedFunction:X2}. {DescribeResponse(frame)}");
-        }
-        if (isException)
-        {
-            var code = (AdcExceptionCode)frame[2];
-            return new(frame,
-                $"ADC controller returned {code} (0x{(byte)code:X2}). {DescribeResponse(frame)}", frame[2]);
-        }
-        if (expectedByteCount is { } expected && frame[2] != expected)
-            return new(frame,
-                $"ADC returned {frame[2]} data bytes; expected {expected}. {DescribeResponse(frame)}");
-        return new(frame);
-    }
-
-    internal static string DescribeResponse(byte[] frame)
-    {
-        var isException = frame[1] != (byte)AdcFunctionCode.RequestTorqueCurve
-            && (frame[1] & ExceptionFunctionMask) != 0;
-        var function = isException ? (byte)(frame[1] & ~ExceptionFunctionMask) : frame[1];
-        var name = function switch
-        {
-            0x01 => "Read Coils",
-            0x02 => "Read Discrete Inputs",
-            0x03 => "Read Holding Registers",
-            0x04 => "Read Input Registers",
-            0x05 => "Write Single Coil",
-            0x06 => "Write Single Register",
-            0x07 => "Read Exception Status",
-            0x08 => "Diagnostics",
-            0x0B => "Get Comm Event Counter",
-            0x0C => "Get Comm Event Log",
-            0x0F => "Write Multiple Coils",
-            0x10 => "Write Multiple Registers",
-            0x11 => "Report Server ID",
-            0x14 => "Read File Record",
-            0x15 => "Write File Record",
-            0x16 => "Mask Write Register",
-            0x17 => "Read/Write Multiple Registers",
-            0x18 => "Read FIFO Queue",
-            0x2B => "Encapsulated Interface Transport",
-            0xC8 => "ADC Graph",
-            _ => "Vendor-specific / unspecified function",
-        };
-        var interpretation = $"Modbus RTU interpretation: address={frame[0]}, function=0x{frame[1]:X2}, "
-            + $"base function=0x{function:X2} ({name}), kind={(isException ? "exception" : "normal")}";
-        if (isException)
-        {
-            var meaning = frame[2] switch
+            _logger.LogDebug("ADC [{Port}] HComm decoded {Command}, address={Address}, values={Values}.",
+                PortName, command, address, values is null ? "null" : string.Join(",", values));
+            if (command == Command.GraphAd && _command != Command.GraphAd)
             {
-                0x01 => "Illegal Function",
-                0x02 => "Illegal Data Address",
-                0x03 => "Illegal Data Value",
-                0x04 => "Server Device Failure",
-                0x05 => "Acknowledge",
-                0x06 => "Server Device Busy",
-                0x08 => "Memory Parity Error",
-                0x0A => "Gateway Path Unavailable",
-                0x0B => "Gateway Target Device Failed to Respond",
-                _ => "Vendor-specific / unspecified exception",
-            };
-            interpretation += $", exception=0x{frame[2]:X2} ({meaning}); ADC firmware meaning unconfirmed";
-        }
-        else
-            interpretation += $", data={Convert.ToHexString(frame.AsSpan(2, frame.Length - 4))}";
-        return $"{interpretation}; CRC valid; RX={Convert.ToHexString(frame)}.";
-    }
-
-    internal static async Task<AdcResponse> ReadResponseAsync(
-        Stream stream,
-        Action abortRead,
-        Action<byte[]> received,
-        byte slaveAddress,
-        AdcFunctionCode function,
-        CancellationToken cancellationToken,
-        int? expectedByteCount = null,
-        int? captureMilliseconds = null,
-        Action<byte[]>? curveReceived = null)
-    {
-        while (true)
-        {
-            var frame = await ReadFrameAsync(stream, abortRead, received, cancellationToken, captureMilliseconds);
-            if (captureMilliseconds is not null)
-                return new(frame);
-            if (frame[1] == (byte)AdcFunctionCode.RequestTorqueCurve
-                && function != AdcFunctionCode.RequestTorqueCurve)
-            {
-                var graph = ValidateResponse(frame, slaveAddress,
-                    AdcFunctionCode.RequestTorqueCurve).RequireSuccess();
-                curveReceived?.Invoke(graph);
-                continue;
+                Monitor.ReceiveTorqueCurveFrame(_received.ToArray());
+                return;
             }
-            return ValidateResponse(frame, slaveAddress, function, expectedByteCount);
+            if (_pending is null || _pending.Task.IsCompleted)
+                return;
+            byte? errorCode = null;
+            string? rejection = null;
+            if (command == Command.Error)
+            {
+                errorCode = values is { Length: > 0 } ? checked((byte)values[0]) : null;
+                rejection = $"HComm error {(errorCode is { } code ? $"0x{code:X2}" : "unknown")}";
+            }
+            else if (command != _command || values is null
+                || (command is Command.Read or Command.Mor && values.Length != _countOrValue)
+                || (command == Command.Write
+                    && (values.Length != 2 || values[0] != _address || values[1] != _countOrValue)))
+                rejection = $"HComm reply mismatch: received {command}, address={address}, values={values?.Length}";
+            if (rejection is not null)
+            {
+                rejection += $"; request={_command}, address={_address}, data={_countOrValue}; "
+                    + $"TX={Convert.ToHexString(_transmitted)}; RX={Convert.ToHexString(_received.ToArray())}.";
+                _logger.LogWarning("ADC [{Port}/{Slave}] {Rejection}", PortName, _slaveAddress, rejection);
+            }
+            _pending.TrySetResult(new(values ?? [], _received.ToArray(), rejection, errorCode));
         }
     }
 
-    // Read exactly one frame so a graph and the requested response never consume each other's bytes.
-    private static async Task<byte[]> ReadFrameAsync(
-        Stream stream, Action abortRead, Action<byte[]> received,
-        CancellationToken cancellationToken, int? captureMilliseconds = null)
+    private void OnConnectionChanged(bool connected)
     {
-        var bytes = new List<byte>();
-        var buffer = new byte[260];
-        using var capture = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (captureMilliseconds is { } duration)
-            capture.CancelAfter(duration);
-        try
-        {
-            while (true)
-            {
-                capture.Token.ThrowIfCancellationRequested();
-                var length = captureMilliseconds is null ? ResponseLength(bytes) : 0;
-                var maximumLength = bytes.Count >= 2
-                    && bytes[1] == (byte)AdcFunctionCode.RequestTorqueCurve ? 260 : 256;
-                if (length > maximumLength)
-                    throw new InvalidDataException($"ADC response exceeds the RTU frame limit; RX={Convert.ToHexString(bytes.ToArray())}.");
-                if (captureMilliseconds is null && length > 0 && bytes.Count == length)
-                {
-                    return bytes.ToArray();
-                }
-                var remaining = captureMilliseconds is not null ? buffer.Length
-                    : length > 0 ? length - bytes.Count : bytes.Count < 2 ? 2 - bytes.Count : 1;
-                var reading = stream.ReadAsync(buffer.AsMemory(0, remaining), capture.Token).AsTask();
-                await AwaitSerialIoAsync(reading, abortRead, capture.Token).ConfigureAwait(false);
-                var count = await reading.ConfigureAwait(false);
-                if (count == 0)
-                    throw new EndOfStreamException("ADC connection ended before the response was complete.");
-                var chunk = buffer[..count];
-                received(chunk);
-                bytes.AddRange(chunk);
-            }
-        }
-        catch (OperationCanceledException) when (captureMilliseconds is not null && !cancellationToken.IsCancellationRequested)
-        {
-            return bytes.ToArray();
-        }
-    }
-
-    internal static async Task AwaitSerialIoAsync(
-        Task operation,
-        Action abort,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await operation.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            // Windows SerialStream may ignore cancellation during native I/O.
-            // Drain the aborted read/write before the next request owns the bus.
-            try
-            {
-                abort();
-            }
-            finally
-            {
-                await operation.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-            }
-            throw;
-        }
-    }
-
-    private enum AdcExceptionCode : byte
-    {
-        IllegalFunction = 0x01,
-        IllegalAddress = 0x02,
-        InvalidDataLength = 0x03,
-        InvalidCrc = 0x07,
-        ByteCountExceeded = 0x0C,
-        ValueOutOfRange = 0x0E,
+        _logger.LogInformation("ADC [{Port}] HComm connection={Connected}.", PortName, connected);
+        if (connected)
+            return;
+        lock (_stateGate)
+            _pending?.TrySetException(new IOException($"HComm ADC {PortName}/{_slaveAddress} disconnected."));
+        Monitor.Stop();
     }
 }
 
-// Preserve the received frame and rejection reason until the caller checks success.
-internal sealed record AdcResponse(byte[] Frame, string? Rejection = null, byte? ErrorCode = null)
+internal sealed record AdcResponse(int[] Values, byte[] Frame, string? Rejection = null, byte? ErrorCode = null)
 {
-    public byte[] RequireSuccess()
+    public int[] RequireSuccess()
     {
         if (Rejection is { } rejection)
         {
+            if (ErrorCode == 0)
+                throw new TimeoutException(rejection);
+            if (ErrorCode == 255)
+                throw new InvalidDataException(rejection);
             if (ErrorCode is { } code)
                 throw new AdcResponseException(code, rejection);
             throw new AdcUnexpectedResponseException(rejection);
         }
-        return Frame;
+        return Values;
     }
 }
+

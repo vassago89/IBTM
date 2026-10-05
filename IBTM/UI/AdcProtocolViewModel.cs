@@ -277,15 +277,15 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            if (!byte.TryParse(SlaveText, out var slave))
+            if (!byte.TryParse(SlaveText, out var slave) || slave > 15)
             {
-                ConnectionStatus = UiText.Get("Slave must be 0–255.");
+                ConnectionStatus = UiText.Get("Slave must be 0–15.");
                 return;
             }
 
             var portName = SelectedPort!;
             var baudRate = SelectedBaudRate;
-            await Task.Run(() => Bus.Open(portName, baudRate), operation.Token);
+            await Task.Run(() => Bus.Open(portName, baudRate, slave), operation.Token);
             _connectedHead = null;
             Bus.Monitor.IntervalMilliseconds = _settings.StatusPollMilliseconds;
             await Bus.Monitor.StartAsync(slave, operation.Token);

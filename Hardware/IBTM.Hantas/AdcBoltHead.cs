@@ -80,7 +80,7 @@ public sealed class AdcBoltHead : IBoltHead
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeoutMilliseconds);
         // Wait for the shared acquisition loop, never issue a second status query here.
         var after = Stopwatch.GetTimestamp();
-        _bus.Open(_portName, _baudRate);
+        _bus.Open(_portName, _baudRate, _slaveAddress);
         Monitor.IntervalMilliseconds = _connection.StatusPollMilliseconds;
         await Monitor.StartAsync(_slaveAddress, cancellationToken);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -173,7 +173,7 @@ public sealed class AdcBoltHead : IBoltHead
         _io.CheckReady();
         if (_io.GetOutput(_start))
             throw new InvalidOperationException("Turn START OFF before reading preset settings.");
-        _bus.Open(_portName, _baudRate);
+        _bus.Open(_portName, _baudRate, _slaveAddress);
         Monitor.IntervalMilliseconds = _connection.StatusPollMilliseconds;
         await Monitor.StartAsync(_slaveAddress, cancellationToken);
         // ADC presets occupy 15 holding registers; the last is torque compensation (%).
@@ -335,7 +335,7 @@ public sealed class AdcBoltHead : IBoltHead
             _io.CheckReady();
             if (_io.GetOutput(_start))
                 throw new InvalidOperationException("Turn START OFF before fastening.");
-            _bus.Open(_portName, _baudRate);
+            _bus.Open(_portName, _baudRate, _slaveAddress);
             if (_requestedPreset is not { } preset)
                 throw new InvalidOperationException("Select an I/O fastening preset before starting.");
             for (var index = 0; index < _presets.Length; index++)
