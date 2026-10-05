@@ -25,7 +25,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class BoltFasteningTests
 {
     [Fact]
-    public async Task RejectedTorqueSetupStillCompletesCarrierAndReportsMissingGraph()
+    public async Task AdcTorqueMonitoringCompletesCarrierWithoutWritingMdcRegisters()
     {
         var settings = new BoltFasteningSettings
         {
@@ -61,13 +61,14 @@ public sealed class BoltFasteningTests
         await station.RunAsync(timeout.Token, selectedBolts: [bolt.Id]);
         Assert.True(work.Completed);
         Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(new (ushort, ushort)[] { (4100, 0) }, bus.RegisterWrites);
+        Assert.Empty(bus.RegisterWrites);
+        Assert.True(bus.GraphRequests > 0);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
         var row = Assert.Single(station.TorqueCurves);
         Assert.True(row.Result.Success);
         Assert.True(row.Result.IsComplete);
-        Assert.Null(row.Curve);
-        Assert.Equal(UiText.Get("Torque curve setup rejected (ADC 0x02)."), row.Error);
+        Assert.NotNull(row.Curve);
+        Assert.Null(row.Error);
     }
 
     [Theory]

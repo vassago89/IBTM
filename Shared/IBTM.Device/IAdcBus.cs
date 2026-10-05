@@ -35,6 +35,8 @@ public interface IAdcBus
         ushort value,
         CancellationToken cancellationToken = default);
 
+    Task<byte[]> RequestTorqueCurveAsync(byte slaveAddress, CancellationToken cancellationToken = default);
+
     Task<byte[]> ReadDeviceInformationAsync(
         byte slaveAddress,
         CancellationToken cancellationToken = default);
@@ -84,6 +86,9 @@ public enum AdcFunctionCode : byte
 
     [Description("Request Device Information")]
     RequestDeviceInformation = 0x11,
+
+    [Description("Request ADC Graph")]
+    RequestTorqueCurve = 0xC8,
 }
 
 public enum AdcRemoteRegister : ushort

@@ -129,6 +129,15 @@ public sealed class AdcBus : IAdcBus, IDisposable
         return response.RequireSuccess()[3..^2];
     }
 
+    public async Task<byte[]> RequestTorqueCurveAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+    {
+        // Hantas HComm GetGraph(4200, 1): 4200 is a queue key, not an on-wire register.
+        // HCSerial.PacketGetGraph sends [slave, 0xC8, 0x00, CRC low, CRC high].
+        var response = await ExchangeAsync(slaveAddress, AdcFunctionCode.RequestTorqueCurve,
+            AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, [0]), cancellationToken);
+        return response.RequireSuccess();
+    }
+
     public async Task<byte[]> CaptureDeviceInformationAsync(
         byte slaveAddress,
         int durationMilliseconds,
@@ -266,8 +275,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     {
                         var pending = await ReadFrameAsync(port.BaseStream, port.DiscardInBuffer,
                             OnReceived, timeout.Token);
-                        if (pending[1] is 0x64 or 0xC8)
-                            Monitor.ReceiveTorqueCurve(AdcTorqueCurve.FromFrame(pending, slaveAddress));
+                        if (pending[1] == (byte)AdcFunctionCode.RequestTorqueCurve)
+                            Monitor.ReceiveTorqueCurveFrame(ValidateResponse(pending, slaveAddress,
+                                AdcFunctionCode.RequestTorqueCurve).RequireSuccess());
                         else
                             _logger.LogWarning("ADC [{Port}] discarded stale response before TX: {Frame}.",
                                 port.PortName, Convert.ToHexString(pending));
@@ -284,7 +294,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                         timeout.CancelAfter(Timeout.Infinite);
                     response = await ReadResponseAsync(port.BaseStream, port.DiscardInBuffer, OnReceived,
                         slaveAddress, function, timeout.Token, expectedByteCount, captureMilliseconds,
-                        Monitor.ReceiveTorqueCurve);
+                        Monitor.ReceiveTorqueCurveFrame);
                     if (response.Rejection is { } rejection)
                     {
                         var detail = $"ADC {port.PortName}/{slaveAddress}; attempt={attempt}/{attempts}; baud={port.BaudRate}; "
@@ -364,9 +374,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
         if (bytes.Count < 2)
             return 0;
         var function = bytes[1];
-        // Vendor curve output has a two-byte length; 0xC8 is not a Modbus exception.
-        if (function is 0x64 or 0xC8)
-            return bytes.Count < 4 ? 0 : (bytes[2] << 8 | bytes[3]) + 6;
+        // ADC GraphAd uses one byte count. Its high function bit is not an exception.
+        if (function == (byte)AdcFunctionCode.RequestTorqueCurve)
+            return bytes.Count < 3 ? 0 : bytes[2] + 5;
         if ((function & ExceptionFunctionMask) != 0)
             return 5;
         switch (function)
@@ -401,7 +411,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
         AdcFunctionCode function, int? expectedByteCount = null)
     {
         // Integrity and request ownership are separate: a different function is not a broken frame.
-        if (frame.Length is < 5 or > 256 || (frame[1] & ~ExceptionFunctionMask) == 0
+        if (frame.Length < 5
+            || frame.Length > (frame[1] == (byte)AdcFunctionCode.RequestTorqueCurve ? 260 : 256)
+            || (frame[1] & ~ExceptionFunctionMask) == 0
             || ResponseLength(frame) != frame.Length)
             throw new InvalidDataException($"Invalid Modbus RTU response shape; RX={Convert.ToHexString(frame)}.");
         var receivedCrc = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));
@@ -420,7 +432,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 + $"CRC valid (0x{receivedCrc:X4}); RX={Convert.ToHexString(frame)}.");
         }
 
-        var isException = (frame[1] & ExceptionFunctionMask) != 0;
+        var isException = frame[1] != (byte)AdcFunctionCode.RequestTorqueCurve
+            && (frame[1] & ExceptionFunctionMask) != 0;
         var expectedFunction = isException ? (byte)((byte)function | ExceptionFunctionMask) : (byte)function;
         if (frame[1] != expectedFunction)
         {
@@ -442,8 +455,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     internal static string DescribeResponse(byte[] frame)
     {
-        var isException = (frame[1] & ExceptionFunctionMask) != 0;
-        var function = (byte)(frame[1] & ~ExceptionFunctionMask);
+        var isException = frame[1] != (byte)AdcFunctionCode.RequestTorqueCurve
+            && (frame[1] & ExceptionFunctionMask) != 0;
+        var function = isException ? (byte)(frame[1] & ~ExceptionFunctionMask) : frame[1];
         var name = function switch
         {
             0x01 => "Read Coils",
@@ -465,6 +479,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
             0x17 => "Read/Write Multiple Registers",
             0x18 => "Read FIFO Queue",
             0x2B => "Encapsulated Interface Transport",
+            0xC8 => "ADC Graph",
             _ => "Vendor-specific / unspecified function",
         };
         var interpretation = $"Modbus RTU interpretation: address={frame[0]}, function=0x{frame[1]:X2}, "
@@ -500,17 +515,18 @@ public sealed class AdcBus : IAdcBus, IDisposable
         CancellationToken cancellationToken,
         int? expectedByteCount = null,
         int? captureMilliseconds = null,
-        Action<AdcTorqueCurve>? curveReceived = null)
+        Action<byte[]>? curveReceived = null)
     {
         while (true)
         {
             var frame = await ReadFrameAsync(stream, abortRead, received, cancellationToken, captureMilliseconds);
             if (captureMilliseconds is not null)
                 return new(frame);
-            if (frame[1] is 0x64 or 0xC8)
+            if (frame[1] == (byte)AdcFunctionCode.RequestTorqueCurve
+                && function != AdcFunctionCode.RequestTorqueCurve)
             {
-                var curve = AdcTorqueCurve.FromFrame(frame, slaveAddress);
-                curveReceived?.Invoke(curve);
+                curveReceived?.Invoke(ValidateResponse(frame, slaveAddress,
+                    AdcFunctionCode.RequestTorqueCurve).RequireSuccess());
                 continue;
             }
             return ValidateResponse(frame, slaveAddress, function, expectedByteCount);
@@ -523,7 +539,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
         CancellationToken cancellationToken, int? captureMilliseconds = null)
     {
         var bytes = new List<byte>();
-        var buffer = new byte[836];
+        var buffer = new byte[260];
         using var capture = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (captureMilliseconds is { } duration)
             capture.CancelAfter(duration);
@@ -533,7 +549,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
             {
                 capture.Token.ThrowIfCancellationRequested();
                 var length = captureMilliseconds is null ? ResponseLength(bytes) : 0;
-                var maximumLength = bytes.Count >= 2 && bytes[1] is 0x64 or 0xC8 ? 836 : 256;
+                var maximumLength = bytes.Count >= 2
+                    && bytes[1] == (byte)AdcFunctionCode.RequestTorqueCurve ? 260 : 256;
                 if (length > maximumLength)
                     throw new InvalidDataException($"ADC response exceeds the RTU frame limit; RX={Convert.ToHexString(bytes.ToArray())}.");
                 if (captureMilliseconds is null && length > 0 && bytes.Count == length)

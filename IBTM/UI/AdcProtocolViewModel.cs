@@ -97,6 +97,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             AdcFunctionCode.ReadHoldingRegisters,
             AdcFunctionCode.ReadInputRegisters,
             AdcFunctionCode.WriteSingleRegister,
+            AdcFunctionCode.RequestTorqueCurve,
         ];
 
         ToggleConnectionCommand = new AsyncRelayCommand(
@@ -645,6 +646,11 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var slave = SlaveAddress;
             switch (access)
             {
+                case AdcFunctionCode.RequestTorqueCurve:
+                    var graph = await bus.Monitor.EnqueueAsync(
+                        token => bus.RequestTorqueCurveAsync(slave, token), operation.Token);
+                    RegisterResult = Convert.ToHexString(graph);
+                    break;
                 case AdcFunctionCode.ReadHoldingRegisters or AdcFunctionCode.ReadInputRegisters:
                     if (!ushort.TryParse(CountText, out var count))
                     {

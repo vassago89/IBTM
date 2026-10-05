@@ -37,6 +37,8 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public bool SuppressTorqueCurve { get; set; }
     public List<(ushort Address, ushort Value)> RegisterWrites { get; }
     public (ushort Address, ushort Value, Exception Error)? RegisterWriteFailure { get; set; }
+    public Exception? GraphRequestFailure { get; set; }
+    public int GraphRequests { get; private set; }
     public Queue<bool> RunReplies { get; }
     public bool ResultReadWhileRunning { get; private set; }
     public IOException? StatusReadFailure { get; set; }
@@ -152,6 +154,15 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                 }
                 break;
         }
+    }
+
+    public Task<byte[]> RequestTorqueCurveAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        GraphRequests++;
+        if (GraphRequestFailure is { } failure)
+            throw failure;
+        return Task.FromResult(AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, [2, 0, 0]));
     }
 
     public void BindIo(VirtualIoService io, FasteningHead head)

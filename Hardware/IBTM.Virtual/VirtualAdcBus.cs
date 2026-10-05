@@ -93,6 +93,15 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         BindIo(io, head, slaveAddress);
     }
 
+    public Task<byte[]> RequestTorqueCurveAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var request = AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, [0]);
+        var response = AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, [2, 0, 0]);
+        Transfer(request, response);
+        return Task.FromResult(response);
+    }
+
     public void BindIo(IIoService io, FasteningHead head, byte slaveAddress)
     {
         if (_io is not null && !ReferenceEquals(_io, io))
