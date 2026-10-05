@@ -3887,4 +3887,13 @@ COMPLETE: finish</value>
   <data name="raise both heads / table" xml:space="preserve">
     <value>Raise both heads / table</value>
   </data>
+  <data name="torque curves" xml:space="preserve"><value>Torque curves</value></data>
+  <data name="collect torque curves" xml:space="preserve"><value>Collect torque curves</value></data>
+  <data name="carrier work {0}" xml:space="preserve"><value>Carrier work {0}</value></data>
+  <data name="latest carrier only · memory only · cleared when the application closes" xml:space="preserve"><value>Latest carrier only · Memory only · Cleared when the application closes</value></data>
+  <data name="no torque curve" xml:space="preserve"><value>No torque curve</value></data>
+  <data name="torque curve not received" xml:space="preserve"><value>Torque curve not received</value></data>
+  <data name="torque (controller unit)" xml:space="preserve"><value>Torque (controller unit)</value></data>
+  <data name="time (ms)" xml:space="preserve"><value>Time (ms)</value></data>
+  <data name="curve covers only part of the fastening time" xml:space="preserve"><value>Curve covers only part of the fastening time</value></data>
 </root>

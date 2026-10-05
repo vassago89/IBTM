@@ -25,6 +25,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         ResultReplies = new();
         RunReplies = new();
         TorqueCompensations = new() { [1] = 100, [2] = 80, [3] = 100 };
+        RegisterWrites = [];
     }
 
     public AdcStatusMonitor Monitor { get; }
@@ -34,7 +35,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public Queue<AdcFasteningResult> ResultReplies { get; }
     public int ResultReads { get; private set; }
     public bool SuppressTorqueCurve { get; set; }
-    public List<(ushort Address, ushort Value)> RegisterWrites { get; } = [];
+    public List<(ushort Address, ushort Value)> RegisterWrites { get; }
     public Queue<bool> RunReplies { get; }
     public bool ResultReadWhileRunning { get; private set; }
     public IOException? StatusReadFailure { get; set; }
