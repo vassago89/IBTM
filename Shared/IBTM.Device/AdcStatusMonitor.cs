@@ -165,27 +165,10 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             if (!enabled)
                 return true;
             TorqueCurveError = null;
-            try
-            {
-                ReceiveTorqueCurveFrame(await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false));
-                _torqueCurveEnabledAt = Stopwatch.GetTimestamp();
-            }
-            catch (AdcResponseException exception) when (exception.ErrorCode == 0x02)
-            {
-                RecordTorqueCurveRejection(exception);
-            }
-            return TorqueCurveError is null;
+            ReceiveTorqueCurveFrame(await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false));
+            _torqueCurveEnabledAt = Stopwatch.GetTimestamp();
+            return true;
         }, cancellationToken).ConfigureAwait(false);
-    }
-
-    private void RecordTorqueCurveRejection(AdcResponseException exception)
-    {
-        IsTorqueCurveMonitoringRequested = false;
-        _torqueCurveEnabledAt = 0;
-        TorqueCurveError = UiText.Get("Torque curve setup rejected (ADC 0x02).");
-        _logger.LogWarning(exception,
-            "ADC {Port}/{Slave} rejected torque curve setup; continue fastening without torque curves.",
-            _bus.PortName, SlaveAddress);
     }
 
     public void ReceiveTorqueCurve(AdcTorqueCurve curve)
@@ -271,15 +254,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                         && Stopwatch.GetElapsedTime(_torqueCurveEnabledAt).TotalSeconds >= 5)
                     {
                         // Hantas HComm's ADC example repeats GetGraph every five seconds.
-                        try
-                        {
-                            ReceiveTorqueCurveFrame(await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false));
-                            _torqueCurveEnabledAt = Stopwatch.GetTimestamp();
-                        }
-                        catch (AdcResponseException exception) when (exception.ErrorCode == 0x02)
-                        {
-                            RecordTorqueCurveRejection(exception);
-                        }
+                        ReceiveTorqueCurveFrame(await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false));
+                        _torqueCurveEnabledAt = Stopwatch.GetTimestamp();
                     }
                     var response = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);
                     sample = new(startedAt, Stopwatch.GetTimestamp(), response.Status, null, response.Rejection);

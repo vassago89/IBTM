@@ -3,6 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
     xmlns:hantas="clr-namespace:IBTM.Hantas;assembly=IBTM.Hantas"
+    xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
@@ -165,6 +166,15 @@
                         <ComboBox SelectedItem="{Binding RegisterAccess, Mode=TwoWay}" Margin="0,14,0,12" ItemsSource="{Binding RegisterAccesses}"/>
 
                         <Grid>
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RegisterAccess}" Value="{x:Static device:AdcFunctionCode.RequestTorqueCurve}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="12"/>

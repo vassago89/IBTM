@@ -636,21 +636,23 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             RefreshControls();
             RegisterResult = "-";
             var access = RegisterAccess;
+            var bus = Bus;
+            var slave = SlaveAddress;
+            if (access == AdcFunctionCode.RequestTorqueCurve)
+            {
+                var graph = await bus.Monitor.EnqueueAsync(
+                    token => bus.RequestTorqueCurveAsync(slave, token), operation.Token);
+                RegisterResult = Convert.ToHexString(graph);
+                return;
+            }
             if (!ushort.TryParse(AddressText, out var address))
             {
                 RegisterResult = UiText.Get("Address must be 0–65535.");
                 return;
             }
 
-            var bus = Bus;
-            var slave = SlaveAddress;
             switch (access)
             {
-                case AdcFunctionCode.RequestTorqueCurve:
-                    var graph = await bus.Monitor.EnqueueAsync(
-                        token => bus.RequestTorqueCurveAsync(slave, token), operation.Token);
-                    RegisterResult = Convert.ToHexString(graph);
-                    break;
                 case AdcFunctionCode.ReadHoldingRegisters or AdcFunctionCode.ReadInputRegisters:
                     if (!ushort.TryParse(CountText, out var count))
                     {

@@ -44,10 +44,8 @@ public sealed class AdcProtocolTests
         Assert.Throws<InvalidDataException>(() => AdcBus.ValidateResponse(graph, 1, AdcFunctionCode.RequestTorqueCurve));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task TorqueMonitoringRefreshesAndOnlyReturnsTheCurrentMatchingCurve(bool rejectRefresh)
+    [Fact]
+    public async Task TorqueMonitoringRefreshesAndOnlyReturnsTheCurrentMatchingCurve()
     {
         using var bus = new AdcControllerStub();
         bus.Open("Virtual", 115200);
@@ -65,8 +63,6 @@ public sealed class AdcProtocolTests
         var expected = new AdcTorqueCurve(after + 2, 5, [0, 0.5, 1], 250, 1, 1, 2, 0);
         bus.Monitor.ReceiveTorqueCurve(expected);
         Assert.Same(expected, await waiting);
-        if (rejectRefresh)
-            bus.GraphRequestFailure = new AdcResponseException(2, "Refresh rejected.");
         await Task.Delay(5500);
         var requests = bus.GraphRequests;
         await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
@@ -74,55 +70,37 @@ public sealed class AdcProtocolTests
         Assert.Equal(requests, bus.GraphRequests);
         Assert.True(requests >= 2);
         Assert.Empty(bus.RegisterWrites);
-        if (rejectRefresh)
-        {
-            Assert.Contains("0x02", bus.Monitor.TorqueCurveError);
-            Assert.Null(bus.Monitor.Sample!.Error);
-            Assert.NotNull(bus.Monitor.Sample.Status);
-        }
-        else
-        {
-            Assert.Equal(UiText.Get("ADC graph received; sample format verification required."), bus.Monitor.TorqueCurveError);
-        }
+        Assert.Equal(UiText.Get("ADC graph received; sample format verification required."), bus.Monitor.TorqueCurveError);
     }
 
     [Fact]
-    public async Task RejectedTorqueRequestDoesNotSendCleanupOrPreventStatusQueries()
+    public async Task TorqueGraphRefreshFailureKeepsStatusUnknown()
     {
-        var rejection = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
-            [0x01, 0x86, 0x02, 0xC3, 0xA1], 1, AdcFunctionCode.WriteSingleRegister).RequireSuccess());
-        using var bus = new AdcControllerStub { GraphRequestFailure = rejection };
+        using var bus = new AdcControllerStub();
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
-        Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
-        Assert.Contains("0x02", bus.Monitor.TorqueCurveError);
+        var failure = new IOException("Graph connection lost.");
+        bus.GraphRequestFailure = failure;
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(
+            () => ReferenceEquals(bus.Monitor.Sample?.Error, failure), TimeSpan.FromSeconds(7)));
+        Assert.Null(bus.Monitor.Sample!.Status);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
         Assert.Empty(bus.RegisterWrites);
-        Assert.Equal(1, bus.GraphRequests);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var status = await bus.Monitor.WaitForSampleAsync(System.Diagnostics.Stopwatch.GetTimestamp(), timeout.Token);
         Assert.True(status.Ready);
-
-        // A new explicit setup can succeed after the controller configuration is corrected.
-        bus.GraphRequestFailure = null;
-        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, timeout.Token);
-        Assert.True(bus.Monitor.IsTorqueCurveMonitoringRequested);
-        Assert.Equal(2, bus.GraphRequests);
-        await bus.Monitor.SetTorqueCurveMonitoringAsync(false, timeout.Token);
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    [InlineData(2)]
     public async Task TorqueRequestPreservesOtherFailuresWithoutRegisterCleanup(int failureKind)
     {
         Exception failure = failureKind switch
         {
             0 => new IOException("Port disconnected."),
-            1 => new TimeoutException("Enable reply missing."),
-            _ => new AdcResponseException(3, "Other rejection."),
+            _ => new TimeoutException("Graph reply missing."),
         };
         using var bus = new AdcControllerStub { GraphRequestFailure = failure };
         bus.Open("Virtual", 115200);
@@ -243,6 +221,17 @@ public sealed class AdcProtocolTests
             Assert.True(pickup.IsOpen);
             await diagnostics.ExecuteRegisterCommand.ExecuteAsync(null);
             Assert.Contains(" = ", diagnostics.RegisterResult);
+            var transmissions = new List<byte[]>();
+            pickup.FrameTransferred += (direction, frame) =>
+            {
+                if (direction == AdcFrameDirection.Transmit)
+                    transmissions.Add(frame);
+            };
+            diagnostics.RegisterAccess = AdcFunctionCode.RequestTorqueCurve;
+            diagnostics.AddressText = "";
+            await diagnostics.ExecuteRegisterCommand.ExecuteAsync(null);
+            Assert.Contains(transmissions, frame => frame.SequenceEqual(new byte[] { 1, 0xC8, 0, 0x77, 0xC0 }));
+            Assert.StartsWith("01C802", diagnostics.RegisterResult);
             await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
             Assert.False(pickup.IsOpen);
         }
