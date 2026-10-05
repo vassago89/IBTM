@@ -782,7 +782,6 @@ public sealed class BoltFasteningStation : AutoUnit
                                     "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
                                     bolt.Head, bolt.HeatSink, bolt.Id, head.GetType().Name, dryRunMilliseconds);
                                 started = Stopwatch.GetTimestamp();
-                                var curveStartedAt = started;
                                 var completed = await head.TightenAsync(
                                     fastening.Token,
                                     keepHeadDown ? null : LowerHeadWhileFasteningAsync,
@@ -804,7 +803,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                     try
                                     {
                                         torqueCurve = await monitor.WaitForTorqueCurveAsync(
-                                            curveStartedAt, controller, completed.Torque, token);
+                                            monitor.TorqueCurveCaptureStartedAt, controller, completed.Torque, token);
                                     }
                                     catch (TimeoutException)
                                     {

@@ -45,6 +45,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     public AdcStatusSample? Sample => Volatile.Read(ref _sample);
     // Command ownership only; this does not claim that the controller accepted monitoring.
     public bool IsTorqueCurveMonitoringRequested { get; private set; }
+    public long TorqueCurveCaptureStartedAt { get; private set; }
     public byte SlaveAddress { get; private set; }
     public int IntervalMilliseconds
     {
@@ -157,6 +158,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         {
             Interlocked.Exchange(ref _torqueCurve, null);
             IsTorqueCurveMonitoringRequested = enabled;
+            _torqueCurveEnabledAt = 0;
             await _bus.WriteRegisterAsync(SlaveAddress, 4100, 0, token).ConfigureAwait(false);
             if (enabled)
             {
@@ -175,6 +177,12 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     {
         Interlocked.Exchange(ref _torqueCurve, curve);
         TorqueCurveReceived?.Invoke(curve);
+    }
+
+    public void BeginTorqueCurveCapture()
+    {
+        Interlocked.Exchange(ref _torqueCurve, null);
+        TorqueCurveCaptureStartedAt = Stopwatch.GetTimestamp();
     }
 
     public async Task<AdcTorqueCurve> WaitForTorqueCurveAsync(
@@ -234,7 +242,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 AdcStatusSample sample;
                 try
                 {
-                    if (IsTorqueCurveMonitoringRequested
+                    if (IsTorqueCurveMonitoringRequested && _torqueCurveEnabledAt != 0
                         && Stopwatch.GetElapsedTime(_torqueCurveEnabledAt).TotalSeconds >= 5)
                     {
                         // ADC turns curve output off after 10 s without an enable refresh.

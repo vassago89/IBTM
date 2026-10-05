@@ -255,6 +255,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 AdcResponse response;
                 try
                 {
+                    if (!Monitor.IsTorqueCurveMonitoringRequested && port.BytesToRead > 0)
+                    {
+                        _logger.LogWarning("ADC [{Port}] discarding {Count} stale bytes before TX.",
+                            port.PortName, port.BytesToRead);
+                        port.DiscardInBuffer();
+                    }
                     // Curve frames can arrive between requests. Consume complete frames before TX.
                     while (port.BytesToRead > 0)
                     {

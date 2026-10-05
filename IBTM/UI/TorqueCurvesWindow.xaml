@@ -6,7 +6,7 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     xmlns:bolt="clr-namespace:IBTM.BoltFastening;assembly=IBTM.BoltFastening"
     mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:TorqueCurvesViewModel, IsDesignTimeCreatable=False}"
-    Title="{ui:Text 'Torque curves'}" Width="1100" Height="640" MinWidth="760" MinHeight="460"
+    Title="{ui:Text 'Torque curves'}" Width="1100" Height="640" MinWidth="760" MinHeight="460" FontSize="14"
     Background="{StaticResource AppBgBrush}" Foreground="{StaticResource TextPrimaryBrush}"
     WindowStartupLocation="CenterOwner">
     <Grid Margin="20">
@@ -18,7 +18,8 @@
         </DockPanel>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-            <ListBox ItemsSource="{Binding Curves}" SelectedItem="{Binding SelectedCurve}" HorizontalContentAlignment="Stretch">
+            <ListBox ItemsSource="{Binding Curves}" SelectedItem="{Binding SelectedCurve}"
+                Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource FlatListItemStyle}">
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type bolt:FasteningTorqueCurve}">
                         <StackPanel Margin="8,6">

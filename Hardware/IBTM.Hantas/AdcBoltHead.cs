@@ -358,6 +358,8 @@ public sealed class AdcBoltHead : IBoltHead
             if (dryRunMilliseconds == 0 || feedAsync is not null)
                 Monitor.Sampled += OnStatusSampled;
             // Own STOP cleanup before requesting START or lowering the head.
+            if (Monitor.IsTorqueCurveMonitoringRequested)
+                Monitor.BeginTorqueCurveCapture();
             _io.SetOutput(_start, true);
             Interlocked.Exchange(ref startedAt, Stopwatch.GetTimestamp());
             if (feedAsync is not null && ioFailure is null)

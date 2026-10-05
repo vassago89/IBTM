@@ -25,16 +25,17 @@ namespace IBTM.Virtual.Tests;
 public sealed class BoltFasteningTests
 {
     [Theory]
-    [InlineData(false, false, false, false, true)]
-    [InlineData(false, true, false, false, true)]
-    [InlineData(false, false, true, false, true)]
-    [InlineData(true, false, false, false, true)]
-    [InlineData(true, true, false, false, true)]
-    [InlineData(true, false, true, false, true)]
-    [InlineData(true, false, true, true, true)]
-    [InlineData(true, false, true, false, false)]
+    [InlineData(false, false, false, false, true, false)]
+    [InlineData(false, true, false, false, true, false)]
+    [InlineData(false, false, true, false, true, false)]
+    [InlineData(true, false, false, false, true, false)]
+    [InlineData(true, true, false, false, true, false)]
+    [InlineData(true, false, true, false, true, false)]
+    [InlineData(true, false, true, true, true, false)]
+    [InlineData(true, false, true, false, false, false)]
+    [InlineData(false, false, false, false, true, true)]
     public async Task PickupStagesUseSelectedPresetsReversePerPcbAndResumeWithoutAnotherPickup(
-        bool twoStage, bool firstNg, bool resume, bool switchToSingle, bool cycleFinalHead)
+        bool twoStage, bool firstNg, bool resume, bool switchToSingle, bool cycleFinalHead, bool missingCurve)
     {
         var settings = new BoltFasteningSettings
         {
@@ -55,7 +56,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
         await HomeAsync(motion, 20_000);
-        using var bus = new AdcControllerStub();
+        using var bus = new AdcControllerStub { SuppressTorqueCurve = missingCurve };
         using var shootingBus = new AdcControllerStub();
         var log = new ApplicationLog();
         using var factory = log.CreateLoggerFactory();
@@ -243,9 +244,17 @@ public sealed class BoltFasteningTests
             Assert.Equal(work.CurrentJob.Id, station.TorqueCurveJobId);
             Assert.All(station.TorqueCurves.Where(row => row.Head == FasteningHead.Pickup), row =>
             {
-                Assert.NotNull(row.Curve);
-                Assert.Null(row.Error);
-                Assert.Equal(row.Result.Controller!.ScrewCount, row.Curve.ScrewCount);
+                if (missingCurve)
+                {
+                    Assert.Null(row.Curve);
+                    Assert.NotNull(row.Error);
+                }
+                else
+                {
+                    Assert.NotNull(row.Curve);
+                    Assert.Null(row.Error);
+                    Assert.Equal(row.Result.Controller!.ScrewCount, row.Curve.ScrewCount);
+                }
             });
             Assert.False(head.Monitor.IsTorqueCurveMonitoringRequested);
             Assert.Equal(twoStage && !switchToSingle ? 2 : 0, sameBoltFinals);
