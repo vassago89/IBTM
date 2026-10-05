@@ -133,6 +133,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
     {
         // Hantas HComm GetGraph(4200, 1): 4200 is a queue key, not an on-wire register.
         // HCSerial.PacketGetGraph sends [slave, 0xC8, 0x00, CRC low, CRC high].
+        // https://github.com/hantas-soft/HComm/blob/cafa7e6ac0e956232d262d8d6a9f567833803e8f/HComm/Device/HCSerial.cs#L231
         var response = await ExchangeAsync(slaveAddress, AdcFunctionCode.RequestTorqueCurve,
             AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, [0]), cancellationToken);
         return response.RequireSuccess();
@@ -525,8 +526,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
             if (frame[1] == (byte)AdcFunctionCode.RequestTorqueCurve
                 && function != AdcFunctionCode.RequestTorqueCurve)
             {
-                curveReceived?.Invoke(ValidateResponse(frame, slaveAddress,
-                    AdcFunctionCode.RequestTorqueCurve).RequireSuccess());
+                var graph = ValidateResponse(frame, slaveAddress,
+                    AdcFunctionCode.RequestTorqueCurve).RequireSuccess();
+                curveReceived?.Invoke(graph);
                 continue;
             }
             return ValidateResponse(frame, slaveAddress, function, expectedByteCount);

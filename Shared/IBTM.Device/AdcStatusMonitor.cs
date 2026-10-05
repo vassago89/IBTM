@@ -27,7 +27,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     private Task _completion;
     private AdcStatusSample? _sample;
     private AdcTorqueCurve? _torqueCurve;
-    private long _torqueCurveEnabledAt;
+    private long _torqueCurveRequestedAt;
 
     public AdcStatusMonitor(IAdcBus bus, ILogger<AdcStatusMonitor>? logger = null)
     {
@@ -161,12 +161,12 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         {
             Interlocked.Exchange(ref _torqueCurve, null);
             IsTorqueCurveMonitoringRequested = enabled;
-            _torqueCurveEnabledAt = 0;
+            _torqueCurveRequestedAt = 0;
             if (!enabled)
                 return true;
             TorqueCurveError = null;
             ReceiveTorqueCurveFrame(await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false));
-            _torqueCurveEnabledAt = Stopwatch.GetTimestamp();
+            _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
             return true;
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -250,12 +250,12 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 AdcStatusSample sample;
                 try
                 {
-                    if (IsTorqueCurveMonitoringRequested && _torqueCurveEnabledAt != 0
-                        && Stopwatch.GetElapsedTime(_torqueCurveEnabledAt).TotalSeconds >= 5)
+                    if (IsTorqueCurveMonitoringRequested && _torqueCurveRequestedAt != 0
+                        && Stopwatch.GetElapsedTime(_torqueCurveRequestedAt).TotalSeconds >= 5)
                     {
                         // Hantas HComm's ADC example repeats GetGraph every five seconds.
                         ReceiveTorqueCurveFrame(await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false));
-                        _torqueCurveEnabledAt = Stopwatch.GetTimestamp();
+                        _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
                     }
                     var response = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);
                     sample = new(startedAt, Stopwatch.GetTimestamp(), response.Status, null, response.Rejection);

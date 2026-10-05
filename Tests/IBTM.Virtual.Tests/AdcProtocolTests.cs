@@ -221,11 +221,11 @@ public sealed class AdcProtocolTests
             Assert.True(pickup.IsOpen);
             await diagnostics.ExecuteRegisterCommand.ExecuteAsync(null);
             Assert.Contains(" = ", diagnostics.RegisterResult);
-            var transmissions = new List<byte[]>();
+            var transmissions = new System.Collections.Concurrent.ConcurrentQueue<byte[]>();
             pickup.FrameTransferred += (direction, frame) =>
             {
                 if (direction == AdcFrameDirection.Transmit)
-                    transmissions.Add(frame);
+                    transmissions.Enqueue(frame);
             };
             diagnostics.RegisterAccess = AdcFunctionCode.RequestTorqueCurve;
             diagnostics.AddressText = "";

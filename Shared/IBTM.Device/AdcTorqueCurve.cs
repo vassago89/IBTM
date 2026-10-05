@@ -14,5 +14,4 @@ public sealed record AdcTorqueCurve(
             && TargetTorque == result.TargetTorque && FinalTorque == torque
             && ScrewCount == result.ScrewCount && ErrorCode == result.ErrorCode;
     }
-
 }
