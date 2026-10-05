@@ -2,6 +2,8 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -249,6 +251,15 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         Transfer(
             AdcRtuFrame.Build(slaveAddress, function, requestData),
             BuildReadResponse(slaveAddress, function, responseData));
+        if (Monitor.IsTorqueCurveMonitoringRequested && address == (ushort)AdcResultRegister.EventCount
+            && count == AdcFasteningResult.RegisterCount)
+        {
+            var result = AdcFasteningResult.FromRegisters(values);
+            var samples = Enumerable.Range(0, FasteningMilliseconds / 5)
+                .Select(index => result.Torque * Math.Min(1.0, index / 40.0)).ToArray();
+            Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), 5, samples,
+                result.FasteningTimeMilliseconds, result.TargetTorque, result.Torque, result.ScrewCount, result.Error));
+        }
         return Task.FromResult(values);
     }
 

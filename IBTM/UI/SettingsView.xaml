@@ -303,6 +303,9 @@
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
                                     <TextBlock Text="{ui:Text 'Fastening'}" Style="{StaticResource SettingSectionTitle}"/>
+                                    <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Margin="0,0,0,8"
+                                        Content="{ui:Text 'Collect torque curves'}"
+                                        IsChecked="{Binding Settings.BoltFastening.MonitorTorqueCurves, UpdateSourceTrigger=PropertyChanged}"/>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

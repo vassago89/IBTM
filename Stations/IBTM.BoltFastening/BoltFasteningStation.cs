@@ -968,13 +968,13 @@ public sealed class BoltFasteningStation : AutoUnit
             }
             finally
             {
-            pendingFeed?.Cancellation.Dispose();
-            operation?.Dispose();
-            _runJob = null;
-            _runTargets = null;
-            _runBolts = null;
+                pendingFeed?.Cancellation.Dispose();
+                operation?.Dispose();
+                _runJob = null;
+                _runTargets = null;
+                _runBolts = null;
+                _boltIndex = 0;
             }
-            _boltIndex = 0;
         }
     }
 

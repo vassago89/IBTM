@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,6 +33,8 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
 
     public Queue<AdcFasteningResult> ResultReplies { get; }
     public int ResultReads { get; private set; }
+    public bool SuppressTorqueCurve { get; set; }
+    public List<(ushort Address, ushort Value)> RegisterWrites { get; } = [];
     public Queue<bool> RunReplies { get; }
     public bool ResultReadWhileRunning { get; private set; }
     public IOException? StatusReadFailure { get; set; }
@@ -108,6 +111,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public Task WriteRegisterAsync(byte slaveAddress, ushort address, ushort value, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        RegisterWrites.Add((address, value));
         ApplyControl(address, value);
         return Task.CompletedTask;
     }
@@ -282,6 +286,10 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         }
         if (received.Status == AdcEventStatus.Error)
             CurrentAlarm = received.Error;
+        if (Monitor.IsTorqueCurveMonitoringRequested && !SuppressTorqueCurve)
+            Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), 5, [0, 0.5, received.Torque],
+                received.FasteningTimeMilliseconds, received.TargetTorque, received.Torque,
+                received.ScrewCount, received.Error));
         return Task.FromResult(received);
     }
 
