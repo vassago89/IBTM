@@ -12,12 +12,15 @@ public sealed class TorqueCurvePlot : FrameworkElement
 {
     public static readonly DependencyProperty CurveProperty;
     public static readonly DependencyProperty TargetTorqueProperty;
+    public static readonly DependencyProperty TorqueCompensationPercentProperty;
 
     static TorqueCurvePlot()
     {
         CurveProperty = DependencyProperty.Register(nameof(Curve), typeof(AdcTorqueCurve), typeof(TorqueCurvePlot),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
         TargetTorqueProperty = DependencyProperty.Register(nameof(TargetTorque), typeof(double?), typeof(TorqueCurvePlot),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+        TorqueCompensationPercentProperty = DependencyProperty.Register(nameof(TorqueCompensationPercent), typeof(ushort?), typeof(TorqueCurvePlot),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
     }
 
@@ -31,6 +34,12 @@ public sealed class TorqueCurvePlot : FrameworkElement
     {
         get => (double?)GetValue(TargetTorqueProperty);
         set => SetValue(TargetTorqueProperty, value);
+    }
+
+    public ushort? TorqueCompensationPercent
+    {
+        get => (ushort?)GetValue(TorqueCompensationPercentProperty);
+        set => SetValue(TorqueCompensationPercentProperty, value);
     }
 
     protected override void OnRender(DrawingContext drawing)
@@ -52,11 +61,18 @@ public sealed class TorqueCurvePlot : FrameworkElement
             DrawText(UiText.Get("No torque curve"), 30, 35, muted);
             return;
         }
+        if (TorqueCompensationPercent is not { } compensationPercent)
+        {
+            DrawText(UiText.Get("Torque compensation not recorded"), 30, 35, muted);
+            return;
+        }
+        // Scale only the display samples; the result retains the received curve unchanged.
+        var torques = curve.Torques.Select(torque => torque * compensationPercent / 100.0).ToArray();
         var plot = new Rect(64, 38, Math.Max(1, ActualWidth - 90), Math.Max(1, ActualHeight - 100));
-        var maximum = Math.Max(0.01, Math.Max(curve.Torques.Max(), TargetTorque ?? 0) * 1.1);
-        var minimum = Math.Min(0, curve.Torques.Min());
+        var maximum = Math.Max(0.01, Math.Max(torques.Max(), TargetTorque ?? 0) * 1.1);
+        var minimum = Math.Min(0, torques.Min());
         var duration = Math.Max(curve.SampleMilliseconds,
-            Math.Max(curve.FasteningMilliseconds, curve.StartMilliseconds + (curve.Torques.Length - 1) * curve.SampleMilliseconds));
+            Math.Max(curve.FasteningMilliseconds, curve.StartMilliseconds + (torques.Length - 1) * curve.SampleMilliseconds));
         var gridPen = new Pen(muted, 0.3);
         for (var tick = 0; tick <= 4; tick++)
         {
@@ -68,7 +84,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
             DrawText((duration * fraction).ToString("0"), x - 8, plot.Bottom + 8, muted);
         }
         DrawText(UiText.Get("Torque (controller unit)"), 12, 10, textBrush);
-        DrawText(UiText.Format($"{curve.SampleMilliseconds} ms · {curve.Torques.Length} samples"),
+        DrawText(UiText.Format($"{curve.SampleMilliseconds} ms · {torques.Length} samples"),
             plot.Right, 10, muted, TextAlignment.Right);
         DrawText(UiText.Get("Time (ms)"), Math.Max(64, plot.Right - 75), plot.Bottom + 30, textBrush);
         if (TargetTorque is { } targetTorque)
@@ -82,7 +98,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
         Point SamplePoint(int index)
         {
             return new(plot.Left + curve.StartMilliseconds / (double)duration * plot.Width + index * sampleWidth,
-                plot.Bottom - (curve.Torques[index] - minimum) * yScale);
+                plot.Bottom - (torques[index] - minimum) * yScale);
         }
         double Slope(double before, double after)
         {
@@ -94,12 +110,12 @@ public sealed class TorqueCurvePlot : FrameworkElement
         {
             var previous = SamplePoint(0);
             context.BeginFigure(previous, false, false);
-            for (var index = 1; index < curve.Torques.Length; index++)
+            for (var index = 1; index < torques.Length; index++)
             {
                 var point = SamplePoint(index);
-                var change = curve.Torques[index] - curve.Torques[index - 1];
-                var startSlope = Slope(index > 1 ? curve.Torques[index - 1] - curve.Torques[index - 2] : change, change);
-                var endSlope = Slope(change, index + 1 < curve.Torques.Length ? curve.Torques[index + 1] - curve.Torques[index] : change);
+                var change = torques[index] - torques[index - 1];
+                var startSlope = Slope(index > 1 ? torques[index - 1] - torques[index - 2] : change, change);
+                var endSlope = Slope(change, index + 1 < torques.Length ? torques[index + 1] - torques[index] : change);
                 context.BezierTo(
                     new(previous.X + sampleWidth / 3, previous.Y - startSlope * yScale / 3),
                     new(point.X - sampleWidth / 3, point.Y + endSlope * yScale / 3),
@@ -114,7 +130,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
             EndLineCap = PenLineCap.Round,
             LineJoin = PenLineJoin.Round,
         }, geometry);
-        if (curve.Torques.Length == 1)
+        if (torques.Length == 1)
             drawing.DrawEllipse(lineBrush, null, SamplePoint(0), 3, 3);
         if (curve.StartMilliseconds > 0)
             DrawText(UiText.Get("Curve covers only part of the fastening time"), 64, ActualHeight - 17, muted);
@@ -125,7 +141,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
         if (!plot.Contains(pointer))
             return;
         var samplePosition = ((pointer.X - plot.Left) / plot.Width * duration - curve.StartMilliseconds) / curve.SampleMilliseconds;
-        if (samplePosition < 0 || samplePosition > curve.Torques.Length - 1)
+        if (samplePosition < 0 || samplePosition > torques.Length - 1)
             return;
         var selectedIndex = (int)Math.Round(samplePosition);
         var selectedPoint = SamplePoint(selectedIndex);
@@ -134,7 +150,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
         drawing.DrawEllipse(lineBrush, new Pen(textBrush, 1.5), selectedPoint, 4, 4);
         // Show the nearest received sample immediately, not an interpolated measurement.
         var label = new FormattedText(
-            $"{curve.StartMilliseconds + selectedIndex * curve.SampleMilliseconds} ms · {UiText.Get("Torque")} {curve.Torques[selectedIndex]:0.##}",
+            $"{curve.StartMilliseconds + selectedIndex * curve.SampleMilliseconds} ms · {UiText.Get("Torque")} {torques[selectedIndex]:0.##}",
             CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, 13, textBrush,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
         var labelWidth = label.Width + 20;

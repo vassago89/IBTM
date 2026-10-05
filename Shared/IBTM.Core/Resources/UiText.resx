@@ -3887,6 +3887,7 @@ COMPLETE: finish</value>
   <data name="stored with pcb results" xml:space="preserve"><value>Stored with PCB results</value></data>
   <data name="graph" xml:space="preserve"><value>Graph</value></data>
   <data name="no torque curve" xml:space="preserve"><value>No torque curve</value></data>
+  <data name="torque compensation not recorded" xml:space="preserve"><value>Torque compensation not recorded</value></data>
   <data name="torque curve not received" xml:space="preserve"><value>Torque curve not received</value></data>
   <data name="invalid adc torque curve data" xml:space="preserve"><value>Invalid ADC torque curve data</value></data>
   <data name="request adc graph" xml:space="preserve"><value>Request ADC Graph</value></data>

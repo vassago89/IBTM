@@ -580,7 +580,7 @@ public sealed class PcbSupplyHandoffTests
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
-    public async Task RestartRepeatsForwardMoveBeforeHandoffThenStartsPickupFromPcbOne(int stoppedPcb)
+    public async Task RestartKeepsHandoffPositionOrReturnsAfterManualMovementThenStartsPickupFromPcbOne(int stoppedPcb)
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
@@ -647,7 +647,7 @@ public sealed class PcbSupplyHandoffTests
         try
         {
             await waiting.Task.WaitAsync(restart.Token);
-            Assert.True(moved);
+            Assert.Equal(stoppedPcb == 2, moved);
             Assert.Equal(
                 (rig.Settings.HandoffPosition.X, rig.Settings.HandoffPosition.Y, rig.Settings.HandoffPosition.Z),
                 rig.Motion.Position);
@@ -756,6 +756,8 @@ public sealed class PcbSupplyHandoffTests
         rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+        // A return is needed only when the stopped operator moved away from handoff.
+        await rig.Supplier.MoveAxisAsync(MotionAxis.X, rig.Settings.HandoffPosition.X + 10);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var interrupted = false;
         rig.Motion.PositionChanged += (x, y, z) =>

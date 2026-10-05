@@ -220,8 +220,12 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             throw new InvalidOperationException("Remove the Supply PCB before starting a new run.");
         Exception? failure = null;
         _pickStep = PickStep.Pcb1;
-        // A retained PCB follows the normal forward move before Placement may approach.
-        Phase = continueHandoff ? PcbSupplyState.MovingToHandoff : PcbSupplyState.MovingToPickup;
+        // Keep waiting in place only when current feedback still confirms the handoff position.
+        // Manual movement while stopped requires the normal return before Placement may approach.
+        if (continueHandoff)
+            Phase = RotationBlockReason is null ? PcbSupplyState.HandingOff : PcbSupplyState.MovingToHandoff;
+        else
+            Phase = PcbSupplyState.MovingToPickup;
         try
         {
             BeginRun(_units.PcbSupply ? Phase : PcbSupplyState.Disabled);
