@@ -601,7 +601,10 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
         if (Rotation != PcbSupplyRotationState.Rotated)
         {
-            await MoveToRotationPositionAsync(cancellationToken);
+            // Normal handoff already leaves Supply at the rotation position.
+            // Reposition only when current feedback does not confirm it is ready to rotate there.
+            if (Rotation == PcbSupplyRotationState.Between || RotationBlockReason is not null)
+                await MoveToRotationPositionAsync(cancellationToken);
             await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true, cancellationToken);
         }
         await MoveToPickupAsync(nextPick, cancellationToken);
@@ -678,9 +681,9 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
     }
 
-    public bool IsTeachingRotationAllowed => TeachingRotationBlockReason is null;
+    public bool IsTeachingRotationAllowed => RotationBlockReason is null;
 
-    private string? TeachingRotationBlockReason
+    private string? RotationBlockReason
     {
         get
         {
@@ -713,7 +716,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         string? blockedReason = null;
         void CheckPosition()
         {
-            if (rotation.IsCancellationRequested || TeachingRotationBlockReason is not { } reason)
+            if (rotation.IsCancellationRequested || RotationBlockReason is not { } reason)
                 return;
             // Preserve the first rejected feedback, even if it recovers before the await resumes.
             Interlocked.CompareExchange(ref blockedReason, reason, null);

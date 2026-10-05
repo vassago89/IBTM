@@ -53,6 +53,40 @@ public sealed class PcbSupplyHandoffTests
 
 
     [Fact]
+    public async Task HandoffReturnRotatesBeforeAnyAxisMoves()
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        var rotated = false;
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PcbSupplyRotate && on)
+            {
+                Assert.Equal((50d, 10d, 7d), rig.Motion.Position);
+                rotated = true;
+            }
+        };
+        rig.Motion.MovingChanged += moving =>
+        {
+            if (moving)
+                Assert.True(rotated);
+        };
+        var previous = rig.Motion.Position;
+        rig.Motion.PositionChanged += (x, y, z) =>
+        {
+            if (previous.X != x || previous.Y != y)
+                Assert.Equal(rig.Settings.TravelZ, z);
+            previous = (x, y, z);
+        };
+
+        await rig.Supplier.MoveFromHandoffAsync(rig.Recipes.Current.PcbSupply.Pcb2PickPosition);
+
+        Assert.True(rotated);
+        Assert.Equal(PcbSupplyRotationState.Rotated, rig.Supplier.Rotation);
+        Assert.Equal((20d, 10d, 3d), rig.Motion.Position);
+    }
+
+    [Fact]
     public async Task HandoffMoveDoesNotSkipSmallPositionError()
     {
         using var rig = new HandoffRig();

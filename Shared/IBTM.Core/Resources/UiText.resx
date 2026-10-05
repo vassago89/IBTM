@@ -3719,11 +3719,11 @@ COMPLETE: finish</value>
   <data name="preset delay must be 0 ms or greater." xml:space="preserve">
     <value>Preset delay must be 0 ms or greater.</value>
   </data>
-  <data name="same-bolt final delay (ms)" xml:space="preserve">
-    <value>Same-bolt final delay (ms)</value>
+  <data name="final cylinder down delay (ms)" xml:space="preserve">
+    <value>Final cylinder down delay (ms)</value>
   </data>
-  <data name="same-bolt pre → final only · 0 = no delay" xml:space="preserve">
-    <value>Same-bolt pre → final only · 0 = no delay</value>
+  <data name="same bolt only · after run, before down · 0 = no delay" xml:space="preserve">
+    <value>Same bolt only · after RUN, before DOWN · 0 = no delay</value>
   </data>
   <data name="i checked the carrier and placed pcbs. resume unfinished placement." xml:space="preserve">
     <value>Carrier / PCBs checked · Resume placement</value>

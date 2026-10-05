@@ -445,13 +445,13 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Same-bolt final delay (ms)'}" Style="{StaticResource SettingFieldLabel}"
+                                            <TextBlock Text="{ui:Text 'Final cylinder down delay (ms)'}" Style="{StaticResource SettingFieldLabel}"
                                                 Margin="0,0,12,0" VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.BoltFastening.HeadDownDelayMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Column="1"/>
                                         </Grid>
-                                        <TextBlock Text="{ui:Text 'Same-bolt pre → final only · 0 = no delay'}" Style="{StaticResource SettingHelpText}"/>
+                                        <TextBlock Text="{ui:Text 'Same bolt only · after RUN, before DOWN · 0 = no delay'}" Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
