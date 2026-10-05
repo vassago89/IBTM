@@ -720,7 +720,7 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Fact]
-    public async Task MatchingHandoffCoordinatesDoesNotStartTheHandoffStage()
+    public async Task ColdStartResumesConfirmedHandoffWithoutMovingOrReleasingEarly()
     {
         using var rig = new HandoffRig();
         rig.Io.Initialize();
@@ -737,13 +737,38 @@ public sealed class PcbSupplyHandoffTests
         Assert.True(rig.Supplier.PcbSecured);
         Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.Phase);
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
+        Assert.True(rig.Supplier.IsHandoffRestartAllowed);
 
-        await rig.Supplier.PrepareHandoffAsync(CancellationToken.None);
-        Assert.Equal(PcbSupplyHandoff.Holding, rig.Supplier.Handoff);
-        Assert.True(rig.Supplier.IsHandoffRestartAllowed);
-        await rig.Motion.MoveAxisAsync(MotionAxis.X, target.X + 10, 2_000);
-        Assert.Equal(PcbSupplyState.HandingOff, rig.Supplier.Phase);
-        Assert.True(rig.Supplier.IsHandoffRestartAllowed);
+        var moved = false;
+        var changedGripOrRotation = false;
+        rig.Motion.MovingChanged += moving => moved |= moving;
+        rig.Io.OutputChanged += (output, on) => changedGripOrRotation |= output
+            is OutputIo.PcbSupplyRotate or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward;
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Supplier.Trace += message =>
+        {
+            if (message.StartsWith("Waiting for feedback") && rig.Supplier.Phase == PcbSupplyState.HandingOff)
+                waiting.TrySetResult();
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token);
+        try
+        {
+            await waiting.Task.WaitAsync(stop.Token);
+            Assert.False(moved);
+            Assert.False(changedGripOrRotation);
+            Assert.Equal(PcbSupplyHandoff.Holding, rig.Supplier.Handoff);
+            rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+            Assert.True(await WaitUntilAsync(() => rig.Supplier.Phase == PcbSupplyState.WaitingForPlacementClear));
+            Assert.True(rig.Supplier.PcbReleased);
+            Assert.False(moved);
+            Assert.Equal((target.X, target.Y, target.Z), rig.Motion.Position);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
     }
 
     [Theory]

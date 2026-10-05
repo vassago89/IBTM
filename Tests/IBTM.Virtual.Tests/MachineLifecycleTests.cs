@@ -3977,8 +3977,10 @@ public sealed class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task StartAllowsSecuredSupplyWaitingAtHandoffInNormalMode()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartAllowsSecuredSupplyWaitingAtHandoffInNormalMode(bool withoutPreviousRun)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -3991,12 +3993,22 @@ public sealed class MachineLifecycleTests
         try
         {
             await machine.HomeAsync(CancellationToken.None);
-            await supplier.PrepareHandoffAsync(CancellationToken.None);
+            if (withoutPreviousRun)
+            {
+                await supplier.MoveToRotationPositionAsync();
+                Assert.Equal(PcbSupplyState.MovingToPickup, supplier.Phase);
+            }
+            else
+            {
+                await supplier.PrepareHandoffAsync(CancellationToken.None);
+            }
             io.AutoResponseEnabled = false;
             io.SetInputs((InputIo.PcbSupplyPcbDetected, true),
                 (InputIo.PcbSupplyGripperClosed, true), (InputIo.PcbSupplyGripperOpen, false),
                 (InputIo.PcbSupplyIpmFixerForward, true));
             Assert.True(supplier.IsHandoffRestartAllowed);
+            machine.CheckStartMaterials();
+            Assert.Equal(StartCheckState.HandoffReady, machine.StartChecks[StartArea.Supply]);
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             var admitted = false;
             state.PropertyChanged += (sender, args) =>

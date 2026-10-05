@@ -192,8 +192,12 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
     }
 
-    public bool IsHandoffRestartAllowed => Phase == PcbSupplyState.HandingOff
-        && Handoff == PcbSupplyHandoff.Holding;
+    public bool IsHandoffRestartAllowed => _units.PcbSupply && Io.IsReady
+        && PcbSecured && Rotation == PcbSupplyRotationState.Unrotated
+        // After an application restart, live position and grip can confirm an already waiting PCB.
+        && (Phase == PcbSupplyState.HandingOff
+            ? MotionServiceBase.IsReadyAndStopped(_motion)
+            : RotationBlockReason is null);
 
     // START is fresh except for a secured PCB already waiting for Placement.
     public PcbSupplyState Phase { get; private set; }
