@@ -113,7 +113,7 @@ public sealed class BoltFasteningSettings : Setting
             field = value;
         }
     } = 3;
-    // Extra RUN delay when the same bolt immediately continues from preliminary to final.
+    // Settling time after DOWN feedback, before starting final tightening.
     public int HeadDownDelayMilliseconds
     {
         get;

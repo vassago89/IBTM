@@ -453,26 +453,17 @@
                                             ToolTip="{ui:Text 'OFF: keep cylinder down and switch to the final preset.'}"
                                             IsChecked="{Binding Settings.BoltFastening.PickupFinalHeadCycleEnabled, UpdateSourceTrigger=PropertyChanged}"/>
                                         <Grid Margin="0,8,0,8" MinHeight="34">
-                                            <Grid.Style>
-                                                <Style TargetType="Grid">
-                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsChecked, ElementName=PickupFinalHeadCycle}" Value="True"><Setter Property="IsEnabled" Value="True"/></DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsChecked, ElementName=PickupFirstBoltRetightening}" Value="True"><Setter Property="IsEnabled" Value="True"/></DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Grid.Style>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Final cylinder down delay (ms)'}" Style="{StaticResource SettingFieldLabel}"
+                                            <TextBlock Text="{ui:Text 'Final tightening delay after DOWN (ms)'}" Style="{StaticResource SettingFieldLabel}"
                                                 Margin="0,0,12,0" VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.BoltFastening.HeadDownDelayMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Column="1"/>
                                         </Grid>
-                                        <TextBlock Text="{ui:Text 'Same bolt only · after RUN, before DOWN · 0 = no delay'}" Style="{StaticResource SettingHelpText}"/>
+                                        <TextBlock Text="{ui:Text 'After DOWN confirmation, before START · 0 = no delay'}" Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>

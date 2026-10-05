@@ -821,6 +821,16 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 CheckFasteningFeedback();
+                                fastening.Token.ThrowIfCancellationRequested();
+                                if (isFinal)
+                                {
+                                    if (!keepHeadDown)
+                                        Io.SetOutput(OutputIo.PickupHeadDown, true);
+                                    await Io.WaitForOutputFeedbackAsync(OutputIo.PickupHeadDown, true, fastening.Token);
+                                    _log?.LogInformation("Bolt {Head}: final head DOWN confirmed before START.", bolt.Head);
+                                    if (!keepHeadDown)
+                                        await Task.Delay(_settings.HeadDownDelayMilliseconds, fastening.Token);
+                                }
                                 var dryRunMilliseconds = !_units.IsBoltFeederEnabled(bolt.Head)
                                     ? _settings.DryRunMilliseconds : 0;
                                 _log?.LogInformation(
@@ -829,11 +839,9 @@ public sealed class BoltFasteningStation : AutoUnit
                                 started = Stopwatch.GetTimestamp();
                                 var completed = await head.TightenAsync(
                                     fastening.Token,
-                                    keepHeadDown ? null : LowerHeadWhileFasteningAsync,
+                                    isFinal ? null : LowerHeadWhileFasteningAsync,
                                     dryRunMilliseconds, received => result = received,
-                                    torqueCompensations.TryGetValue((bolt.Head, preset), out var compensation) ? compensation : null,
-                                    feedDelayMilliseconds: continuingFinal && !keepHeadDown
-                                        ? _settings.HeadDownDelayMilliseconds : 0);
+                                    torqueCompensations.TryGetValue((bolt.Head, preset), out var compensation) ? compensation : null);
                                 _log?.LogInformation("Bolt timing {Bolt}: controller START/result/STOP, elapsed={ElapsedMs:F1} ms, controller time={ControllerMs} ms.",
                                     bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds, completed.Controller?.FasteningTimeMilliseconds);
                                 completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };

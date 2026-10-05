@@ -3722,11 +3722,11 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="preset delay must be 0 ms or greater." xml:space="preserve">
     <value>프리셋 대기: 0ms 이상 입력</value>
   </data>
-  <data name="final cylinder down delay (ms)" xml:space="preserve">
-    <value>본체결 실린더 하강 대기 (ms)</value>
+  <data name="final tightening delay after down (ms)" xml:space="preserve">
+    <value>본체결 하강 후 대기 (ms)</value>
   </data>
-  <data name="same bolt only · after run, before down · 0 = no delay" xml:space="preserve">
-    <value>같은 볼트만 · RUN 확인 후 하강까지 · 0: 대기 없음</value>
+  <data name="after down confirmation, before start · 0 = no delay" xml:space="preserve">
+    <value>하강 확인 후 모터 시작까지 · 0: 대기 없음</value>
   </data>
   <data name="i checked the carrier and placed pcbs. resume unfinished placement." xml:space="preserve">
     <value>캐리어·PCB 확인 · 안착 재개</value>
