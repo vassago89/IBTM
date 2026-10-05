@@ -12,6 +12,10 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM.BoltFastening;
 
+public sealed record FasteningTorqueCurve(
+    Guid BoltId, string BoltName, HeatSinkSlot HeatSink, FasteningHead Head,
+    BoltResult Result, AdcTorqueCurve? Curve, string? Error);
+
 public sealed class BoltFasteningStation : AutoUnit
 {
     private readonly BoltFeederUnit _feeder;
@@ -68,6 +72,7 @@ public sealed class BoltFasteningStation : AutoUnit
         _units = units;
         _log = log;
         Motion = motionStatus;
+        TorqueCurves = [];
         InitializeRecipeBoltPositions();
         recipes.Changed += InitializeRecipeBoltPositions;
         station.Changed += NotifyChanged;
@@ -78,6 +83,10 @@ public sealed class BoltFasteningStation : AutoUnit
     public IBoltHead PickupHead { get; }
 
     public ConveyorStation Station { get; }
+
+    // Only the most recent carrier is retained in memory. No graph data enters PCB persistence.
+    public long? TorqueCurveJobId { get; private set; }
+    public IReadOnlyList<FasteningTorqueCurve> TorqueCurves { get; private set; }
 
     private bool IsReadyToFasten => Station.CarrierSeated && !Station.Completed;
 
@@ -447,6 +456,15 @@ public sealed class BoltFasteningStation : AutoUnit
                     _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     Station.Changed += CheckCarrier;
                     CheckCarrier();
+                    if (_settings.MonitorTorqueCurves)
+                    {
+                        if (_units.PickupBoltFeeder && work.Any(item => item.Bolt.Head == FasteningHead.Pickup)
+                            && PickupHead.Monitor is { } pickupMonitor)
+                            await pickupMonitor.SetTorqueCurveMonitoringAsync(true, _carrierOperation.Token);
+                        if (_units.ShootingBoltFeeder && work.Any(item => item.Bolt.Head == FasteningHead.Shooting)
+                            && ShootingHead.Monitor is { } shootingMonitor)
+                            await shootingMonitor.SetTorqueCurveMonitoringAsync(true, _carrierOperation.Token);
+                    }
                     NotifyChanged();
                     return true;
                 case BoltFasteningState.CompletingCarrier:
@@ -696,6 +714,8 @@ public sealed class BoltFasteningStation : AutoUnit
                         job.Id, bolt.Id, Stopwatch.GetElapsedTime(cycleStarted).TotalMilliseconds, feeding);
                     TraceStep(step, target, job.Id, "fastening controller result");
                     BoltResult? result = null;
+                    AdcTorqueCurve? torqueCurve = null;
+                    string? torqueCurveError = null;
                     Exception? fasteningFailure = null;
                     double? minimumTurns;
                     double? maximumTurns;
@@ -762,6 +782,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                     "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
                                     bolt.Head, bolt.HeatSink, bolt.Id, head.GetType().Name, dryRunMilliseconds);
                                 started = Stopwatch.GetTimestamp();
+                                var curveStartedAt = started;
                                 var completed = await head.TightenAsync(
                                     fastening.Token,
                                     keepHeadDown ? null : LowerHeadWhileFasteningAsync,
@@ -777,6 +798,21 @@ public sealed class BoltFasteningStation : AutoUnit
                                     bolt.Head, bolt.HeatSink, bolt.Id, completed.Success, completed.Source, completed.Error);
                                 Station.RequireCurrentJob(job);
                                 result = completed;
+                                if (_settings.MonitorTorqueCurves && dryRunMilliseconds == 0
+                                    && completed.Controller is { } controller && head.Monitor is { } monitor)
+                                {
+                                    try
+                                    {
+                                        torqueCurve = await monitor.WaitForTorqueCurveAsync(
+                                            curveStartedAt, controller, completed.Torque, token);
+                                    }
+                                    catch (TimeoutException)
+                                    {
+                                        torqueCurveError = UiText.Get("Torque curve not received");
+                                        _log?.LogWarning("Torque curve not received for carrier {Job}, bolt {Bolt}, stage {Stage}.",
+                                            job.Id, bolt.Id, stage);
+                                    }
+                                }
                             }
                             catch (OperationCanceledException) when (fastening.IsCancellationRequested && !token.IsCancellationRequested)
                             {
@@ -832,6 +868,14 @@ public sealed class BoltFasteningStation : AutoUnit
                                 };
                                 var recordStarted = Stopwatch.GetTimestamp();
                                 assembly.RecordBolt(bolt.Head, bolt.Id, result);
+                                if (TorqueCurveJobId != job.Id)
+                                {
+                                    TorqueCurveJobId = job.Id;
+                                    TorqueCurves = [];
+                                }
+                                TorqueCurves = [.. TorqueCurves.Where(row => row.BoltId != bolt.Id || row.Result.Stage != stage),
+                                    new(bolt.Id, _recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, bolt.Head,
+                                        result, torqueCurve, torqueCurveError)];
                                 resultReceived?.Invoke(bolt, result);
                                 _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}, minimum={MinimumTurns}, maximum={MaximumTurns}, turns result={TurnsResult}.",
                                     bolt.Id, result.Success, result.TotalTurns, result.MinimumTurns, result.MaximumTurns, result.TurnsResult);
@@ -908,11 +952,28 @@ public sealed class BoltFasteningStation : AutoUnit
         }
         finally
         {
+            try
+            {
+                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                try
+                {
+                    if (PickupHead.Monitor is { IsTorqueCurveMonitoringRequested: true } pickupMonitor)
+                        await pickupMonitor.SetTorqueCurveMonitoringAsync(false, cleanup.Token);
+                }
+                finally
+                {
+                    if (ShootingHead.Monitor is { IsTorqueCurveMonitoringRequested: true } shootingMonitor)
+                        await shootingMonitor.SetTorqueCurveMonitoringAsync(false, cleanup.Token);
+                }
+            }
+            finally
+            {
             pendingFeed?.Cancellation.Dispose();
             operation?.Dispose();
             _runJob = null;
             _runTargets = null;
             _runBolts = null;
+            }
             _boltIndex = 0;
         }
     }

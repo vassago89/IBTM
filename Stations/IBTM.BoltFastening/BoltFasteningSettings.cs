@@ -13,6 +13,7 @@ public sealed class BoltFasteningSettings : Setting
         ShootingHead = new();
         PickupHead = new();
         PickupFinalHeadCycleEnabled = true;
+        MonitorTorqueCurves = true;
     }
 
     public MotionSettings Motion { get; set; }
@@ -58,6 +59,7 @@ public sealed class BoltFasteningSettings : Setting
     } = 1;
 
     public bool PickupFinalHeadCycleEnabled { get; set; }
+    public bool MonitorTorqueCurves { get; set; }
 
     public int PickupVacuumDelayMilliseconds
     {

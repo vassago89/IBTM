@@ -233,12 +233,6 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 // allow at least 3.5 characters, with a conservative 2 ms minimum at higher baud rates.
                 var frameGapMilliseconds = Math.Max(2, (int)Math.Ceiling(35_000.0 / port.BaudRate));
                 await Task.Delay(frameGapMilliseconds, cancellationToken);
-                // No unsolicited data is used. Start each request without leftovers from an expired exchange.
-                if (port.BytesToRead > 0)
-                {
-                    _logger.LogWarning("ADC [{Port}] discarding {Count} stale bytes before TX.", port.PortName, port.BytesToRead);
-                    port.DiscardInBuffer();
-                }
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(responseTimeout);
                 var started = Stopwatch.GetTimestamp();
@@ -261,6 +255,17 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 AdcResponse response;
                 try
                 {
+                    // Curve frames can arrive between requests. Consume complete frames before TX.
+                    while (port.BytesToRead > 0)
+                    {
+                        var pending = await ReadFrameAsync(port.BaseStream, port.DiscardInBuffer,
+                            OnReceived, timeout.Token);
+                        if (pending[1] is 0x64 or 0xC8)
+                            Monitor.ReceiveTorqueCurve(AdcTorqueCurve.FromFrame(pending, slaveAddress));
+                        else
+                            _logger.LogWarning("ADC [{Port}] discarded stale response before TX: {Frame}.",
+                                port.PortName, Convert.ToHexString(pending));
+                    }
                     FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
                     _logger.LogInformation("ADC [{Port}] TX {Frame}", port.PortName, Convert.ToHexString(request));
                     writeStartedAt = Stopwatch.GetTimestamp();
@@ -272,7 +277,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     if (captureMilliseconds is not null)
                         timeout.CancelAfter(Timeout.Infinite);
                     response = await ReadResponseAsync(port.BaseStream, port.DiscardInBuffer, OnReceived,
-                        slaveAddress, function, timeout.Token, expectedByteCount, captureMilliseconds);
+                        slaveAddress, function, timeout.Token, expectedByteCount, captureMilliseconds,
+                        Monitor.ReceiveTorqueCurve);
                     if (response.Rejection is { } rejection)
                     {
                         var detail = $"ADC {port.PortName}/{slaveAddress}; attempt={attempt}/{attempts}; baud={port.BaudRate}; "
@@ -352,6 +358,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
         if (bytes.Count < 2)
             return 0;
         var function = bytes[1];
+        // Vendor curve output has a two-byte length; 0xC8 is not a Modbus exception.
+        if (function is 0x64 or 0xC8)
+            return bytes.Count < 4 ? 0 : (bytes[2] << 8 | bytes[3]) + 6;
         if ((function & ExceptionFunctionMask) != 0)
             return 5;
         switch (function)
@@ -476,7 +485,6 @@ public sealed class AdcBus : IAdcBus, IDisposable
         return $"{interpretation}; CRC valid; RX={Convert.ToHexString(frame)}.";
     }
 
-    // Read only this request's response; fragmented serial reads are joined up to the RTU frame length.
     internal static async Task<AdcResponse> ReadResponseAsync(
         Stream stream,
         Action abortRead,
@@ -485,10 +493,31 @@ public sealed class AdcBus : IAdcBus, IDisposable
         AdcFunctionCode function,
         CancellationToken cancellationToken,
         int? expectedByteCount = null,
-        int? captureMilliseconds = null)
+        int? captureMilliseconds = null,
+        Action<AdcTorqueCurve>? curveReceived = null)
+    {
+        while (true)
+        {
+            var frame = await ReadFrameAsync(stream, abortRead, received, cancellationToken, captureMilliseconds);
+            if (captureMilliseconds is not null)
+                return new(frame);
+            if (frame[1] is 0x64 or 0xC8)
+            {
+                var curve = AdcTorqueCurve.FromFrame(frame, slaveAddress);
+                curveReceived?.Invoke(curve);
+                continue;
+            }
+            return ValidateResponse(frame, slaveAddress, function, expectedByteCount);
+        }
+    }
+
+    // Read exactly one frame so a graph and the requested response never consume each other's bytes.
+    private static async Task<byte[]> ReadFrameAsync(
+        Stream stream, Action abortRead, Action<byte[]> received,
+        CancellationToken cancellationToken, int? captureMilliseconds = null)
     {
         var bytes = new List<byte>();
-        var buffer = new byte[256];
+        var buffer = new byte[836];
         using var capture = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (captureMilliseconds is { } duration)
             capture.CancelAfter(duration);
@@ -498,11 +527,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
             {
                 capture.Token.ThrowIfCancellationRequested();
                 var length = captureMilliseconds is null ? ResponseLength(bytes) : 0;
-                if (length > buffer.Length)
+                var maximumLength = bytes.Count >= 2 && bytes[1] is 0x64 or 0xC8 ? 836 : 256;
+                if (length > maximumLength)
                     throw new InvalidDataException($"ADC response exceeds the RTU frame limit; RX={Convert.ToHexString(bytes.ToArray())}.");
                 if (captureMilliseconds is null && length > 0 && bytes.Count == length)
                 {
-                    return ValidateResponse(bytes.ToArray(), slaveAddress, function, expectedByteCount);
+                    return bytes.ToArray();
                 }
                 var remaining = captureMilliseconds is not null ? buffer.Length
                     : length > 0 ? length - bytes.Count : bytes.Count < 2 ? 2 - bytes.Count : 1;
@@ -518,7 +548,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
         }
         catch (OperationCanceledException) when (captureMilliseconds is not null && !cancellationToken.IsCancellationRequested)
         {
-            return new(bytes.ToArray());
+            return bytes.ToArray();
         }
     }
 

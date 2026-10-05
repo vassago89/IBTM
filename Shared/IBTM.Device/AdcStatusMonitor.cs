@@ -25,6 +25,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     private CancellationTokenSource? _lifetime;
     private Task _completion;
     private AdcStatusSample? _sample;
+    private AdcTorqueCurve? _torqueCurve;
+    private long _torqueCurveEnabledAt;
 
     public AdcStatusMonitor(IAdcBus bus, ILogger<AdcStatusMonitor>? logger = null)
     {
@@ -39,7 +41,10 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<AdcStatusSample>? Sampled;
+    public event Action<AdcTorqueCurve>? TorqueCurveReceived;
     public AdcStatusSample? Sample => Volatile.Read(ref _sample);
+    // Command ownership only; this does not claim that the controller accepted monitoring.
+    public bool IsTorqueCurveMonitoringRequested { get; private set; }
     public byte SlaveAddress { get; private set; }
     public int IntervalMilliseconds
     {
@@ -90,6 +95,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         lock (_stateGate)
         {
             _lifetime?.Cancel();
+            IsTorqueCurveMonitoringRequested = false;
+            Interlocked.Exchange(ref _torqueCurve, null);
             var now = Stopwatch.GetTimestamp();
             Publish(new(now, now, null,
                 new IOException($"ADC {_bus.PortName}/{SlaveAddress} status monitor is disconnected.")));
@@ -144,6 +151,54 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         return completion.Task;
     }
 
+    public async Task SetTorqueCurveMonitoringAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        await EnqueueAsync(async token =>
+        {
+            Interlocked.Exchange(ref _torqueCurve, null);
+            IsTorqueCurveMonitoringRequested = enabled;
+            await _bus.WriteRegisterAsync(SlaveAddress, 4100, 0, token).ConfigureAwait(false);
+            if (enabled)
+            {
+                await _bus.WriteRegisterAsync(SlaveAddress, 4101, 1, token).ConfigureAwait(false);
+                await _bus.WriteRegisterAsync(SlaveAddress, 4102, 0, token).ConfigureAwait(false);
+                await _bus.WriteRegisterAsync(SlaveAddress, 4103, 1, token).ConfigureAwait(false);
+                await _bus.WriteRegisterAsync(SlaveAddress, 4104, 1, token).ConfigureAwait(false);
+                await _bus.WriteRegisterAsync(SlaveAddress, 4100, 1, token).ConfigureAwait(false);
+                _torqueCurveEnabledAt = Stopwatch.GetTimestamp();
+            }
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public void ReceiveTorqueCurve(AdcTorqueCurve curve)
+    {
+        Interlocked.Exchange(ref _torqueCurve, curve);
+        TorqueCurveReceived?.Invoke(curve);
+    }
+
+    public async Task<AdcTorqueCurve> WaitForTorqueCurveAsync(
+        long after, IBTM.Core.BoltControllerData result, double? torque, CancellationToken token)
+    {
+        var received = new TaskCompletionSource<AdcTorqueCurve>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnReceived(AdcTorqueCurve curve)
+        {
+            if (curve.ReceivedAt >= after && curve.Matches(result, torque))
+                received.TrySetResult(curve);
+        }
+        TorqueCurveReceived += OnReceived;
+        try
+        {
+            if (Volatile.Read(ref _torqueCurve) is { } curve)
+                OnReceived(curve);
+            return await received.Task.WaitAsync(TimeSpan.FromSeconds(1), token).ConfigureAwait(false);
+        }
+        finally
+        {
+            TorqueCurveReceived -= OnReceived;
+        }
+    }
+
     private async Task RunAsync(CancellationToken token)
     {
         long? lastStatusAt = null;
@@ -179,6 +234,13 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 AdcStatusSample sample;
                 try
                 {
+                    if (IsTorqueCurveMonitoringRequested
+                        && Stopwatch.GetElapsedTime(_torqueCurveEnabledAt).TotalSeconds >= 5)
+                    {
+                        // ADC turns curve output off after 10 s without an enable refresh.
+                        await _bus.WriteRegisterAsync(SlaveAddress, 4100, 1, token).ConfigureAwait(false);
+                        _torqueCurveEnabledAt = Stopwatch.GetTimestamp();
+                    }
                     var response = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);
                     sample = new(startedAt, Stopwatch.GetTimestamp(), response.Status, null, response.Rejection);
                 }
