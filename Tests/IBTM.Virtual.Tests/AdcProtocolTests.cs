@@ -372,10 +372,13 @@ public sealed class AdcProtocolTests
         using var transport = new HCommTransportStub();
         using var bus = new AdcBus(transport.Communication);
         var status = bus.ReadControllerStatusAsync(0);
-        await transport.NextRequestAsync();
         var frame = AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters, [2, 0, 1]);
         frame[^1] ^= 0xFF;
-        transport.Receive(frame);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            await transport.NextRequestAsync();
+            transport.Receive(frame);
+        }
         await Assert.ThrowsAsync<InvalidDataException>(() => status);
         status = bus.ReadControllerStatusAsync(0);
         await transport.NextRequestAsync();
@@ -438,9 +441,13 @@ public sealed class AdcProtocolTests
     public async Task HCommTimeoutAndCloseReleasePendingCalls()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(transport.Communication);
+        using var bus = new AdcBus(transport.Communication, settings: new() { ReadAttempts = 2 });
         var status = bus.ReadControllerStatusAsync(0);
-        await transport.NextRequestAsync();
+        var first = await transport.NextRequestAsync();
+        Assert.Equal(first, await transport.NextRequestAsync());
+        Assert.Null(bus.Monitor.Sample?.Status);
+        Assert.Null(bus.Monitor.Sample?.Error);
+        Assert.Contains("timeout", bus.Monitor.Sample?.Rejection);
         await Assert.ThrowsAsync<TimeoutException>(() => status);
         var read = bus.ReadDeviceInformationAsync(0);
         await transport.NextRequestAsync();
@@ -450,6 +457,100 @@ public sealed class AdcProtocolTests
             0, AdcFunctionCode.ReadInputRegisters, (ushort)AdcStatusRegister.Preset, 7));
         Assert.False(bus.IsOpen);
         Assert.Null(bus.Monitor.Sample?.Status);
+    }
+
+    [Fact]
+    public async Task HCommStatusTimeoutThenEquipmentRejectionDoesNotStopTheBoltBeforeItsResult()
+    {
+        using var transport = new HCommTransportStub(1);
+        var settings = new HantasSettings { ReadAttempts = 3, StatusPollMilliseconds = 100, PresetSettleMilliseconds = 0 };
+        using var bus = new AdcBus(transport.Communication, 1, settings);
+        var io = new VirtualIoService(VirtualTestSupport.Outputs(), new());
+        var head = new AdcBoltHead(bus, io, FasteningHead.Pickup, settings, 1, string.Empty, 0);
+        var starts = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupBoltStart && on)
+                starts++;
+        };
+        void Reply(params ushort[] words)
+        {
+            var payload = new byte[1 + words.Length * 2];
+            payload[0] = checked((byte)(words.Length * 2));
+            for (var index = 0; index < words.Length; index++)
+                BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(1 + index * 2), words[index]);
+            transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, payload));
+        }
+        ushort[] ready = [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0];
+        var statusRequest = Convert.FromHexString("01040CE4000E32A9");
+        var selecting = head.SelectPresetAsync(1);
+        Assert.Equal(statusRequest, await transport.NextRequestAsync());
+        Reply(ready);
+        await selecting.WaitAsync(TimeSpan.FromSeconds(2));
+
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var cycle = head.TightenAsync(stop.Token);
+        try
+        {
+            var request = await transport.NextRequestAsync();
+            while (BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(2)) == 3300)
+            {
+                Reply(ready);
+                request = await transport.NextRequestAsync();
+            }
+            Assert.Equal(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [0x0C, 0x80, 0, 1]), request);
+            Reply(1); // A fresh result-event baseline before START.
+            Assert.Equal(statusRequest, await transport.NextRequestAsync());
+            Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+            Reply(447, 302, 1810, 1, 0, 0, 0, 1, 0, 0, 1, 9, 8, 2526);
+
+            Assert.Equal(statusRequest, await transport.NextRequestAsync());
+            // Replay the equipment's one-second silence, then its 0x03 rejection.
+            Assert.Equal(statusRequest, await transport.NextRequestAsync());
+            Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.Null(bus.Monitor.Sample?.Status);
+            Assert.Null(bus.Monitor.Sample?.Error);
+            Assert.Contains("timeout", bus.Monitor.Sample?.Rejection);
+            Assert.False(cycle.IsCompleted);
+            transport.Receive(Convert.FromHexString("0184030301"));
+            Assert.Equal(statusRequest, await transport.NextRequestAsync());
+            Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.Null(bus.Monitor.Sample?.Status);
+            Assert.Contains("0x03", bus.Monitor.Sample?.Rejection);
+            Assert.False(cycle.IsCompleted);
+            Reply(ready); // Only this actual RUN OFF can authorize the result read.
+
+            request = await transport.NextRequestAsync();
+            Assert.Equal(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [0x0C, 0x80, 0, 14]), request);
+            Reply(2, 580, 1, 800, 808, 1000, 360, 0, 0, 1, 0, 0, 1, 0);
+            var result = await cycle.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(result.Success, result.Error);
+            Assert.Equal((ushort)2, result.Controller?.EventCount);
+            Assert.Equal(1, starts);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        }
+        finally
+        {
+            stop.Cancel();
+            bus.Close();
+            await cycle.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task HCommWriteAndGraphTimeoutsAreNotRetried(bool write)
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(transport.Communication);
+        var operation = write ? bus.WriteRegisterAsync(0, 4101, 1) : bus.RequestTorqueCurveAsync(0);
+        await transport.NextRequestAsync();
+        await Assert.ThrowsAsync<TimeoutException>(() => operation.WaitAsync(TimeSpan.FromSeconds(2)));
+        var info = bus.ReadDeviceInformationAsync(0);
+        Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, []), await transport.NextRequestAsync());
+        transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, [2, 0x12, 0x34]));
+        Assert.Equal(new byte[] { 0x12, 0x34 }, await info);
     }
 
     [Fact]

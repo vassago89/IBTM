@@ -17,6 +17,7 @@ namespace IBTM.Hantas;
 
 public sealed class AdcBus : IAdcBus, IDisposable
 {
+    private readonly HantasSettings _settings;
     private readonly ILogger<AdcBus> _logger;
     private readonly SemaphoreSlim _exchange;
     private readonly Lock _stateGate;
@@ -33,9 +34,10 @@ public sealed class AdcBus : IAdcBus, IDisposable
     private byte _slaveAddress;
     private byte[] _transmitted;
 
-    public AdcBus(ILogger<AdcBus>? logger = null,
+    public AdcBus(HantasSettings settings, ILogger<AdcBus>? logger = null,
         ILogger<AdcStatusMonitor>? monitorLogger = null)
     {
+        _settings = settings;
         _logger = logger ?? NullLogger<AdcBus>.Instance;
         _exchange = new(1, 1);
         _stateGate = new();
@@ -46,7 +48,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
     }
 
     // Tests supply HComm with an in-memory IHComm transport, without opening hardware.
-    internal AdcBus(HantasComm communication, byte slaveAddress = 0) : this()
+    internal AdcBus(HantasComm communication, byte slaveAddress = 0, HantasSettings? settings = null)
+        : this(settings ?? new())
     {
         _slaveAddress = slaveAddress;
         Attach(communication);
@@ -208,6 +211,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             var startedAt = Stopwatch.GetTimestamp();
             var graphBlock = 1;
+            var attempts = captureMilliseconds is null && command is Command.Read or Command.Mor or Command.Info
+                ? _settings.ReadAttempts : 1;
+            var attempt = 1;
             AdcResponse response;
             while (true)
             {
@@ -245,6 +251,25 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 {
                     Close();
                     throw new TimeoutException($"HComm did not finish ADC {PortName}/{slaveAddress} {command}; connection closed.");
+                }
+                if (response.ErrorCode is 0 or 255 && attempt < attempts)
+                {
+                    // The SDK has finished this read. Keep the bus until the same read succeeds
+                    // or exhausts the existing budget; missing feedback is unknown while retrying.
+                    Monitor.InvalidateSample(response.Rejection!);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    attempt++;
+                    _logger.LogWarning(
+                        "ADC {Port}/{Slave}: retrying read {Attempt}/{Attempts}; request={Command}, address={Address}, data={Data}.",
+                        PortName, slaveAddress, attempt, attempts, command, address, countOrValue);
+                    lock (_stateGate)
+                    {
+                        _received.Clear();
+                        _transmitted = [];
+                        pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                        _pending = pending;
+                    }
+                    continue;
                 }
                 lock (_stateGate)
                 {
