@@ -9,6 +9,7 @@ namespace IBTM.UI;
 public partial class OperationView : UserControl
 {
     private PcbResultsWindow? _pcbDetails;
+    private TorqueCurvesWindow? _torqueCurves;
 
     public OperationView()
     {
@@ -64,5 +65,26 @@ public partial class OperationView : UserControl
     private void OnViewUnloaded(object sender, RoutedEventArgs e)
     {
         _pcbDetails?.Close();
+        _torqueCurves?.Close();
+    }
+
+    private void OnTorqueCurvesClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not OperationViewModel viewModel)
+            return;
+        _torqueCurves?.Close();
+        _torqueCurves = new(new(viewModel.Fastening.TorqueCurveJobId, viewModel.Fastening.TorqueCurves))
+        {
+            Owner = Window.GetWindow(this),
+        };
+        _torqueCurves.Closed += OnTorqueCurvesClosed;
+        _torqueCurves.Show();
+    }
+
+    private void OnTorqueCurvesClosed(object? sender, EventArgs e)
+    {
+        if (sender is TorqueCurvesWindow window)
+            window.Closed -= OnTorqueCurvesClosed;
+        _torqueCurves = null;
     }
 }
