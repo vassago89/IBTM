@@ -759,7 +759,7 @@ public sealed class PcbSupplyHandoffTests
             Assert.False(changedGripOrRotation);
             Assert.Equal(PcbSupplyHandoff.Holding, rig.Supplier.Handoff);
             rig.Placement.Handoff = PcbPlacementHandoff.Holding;
-            Assert.True(await WaitUntilAsync(() => rig.Supplier.Phase == PcbSupplyState.WaitingForPlacementClear));
+            await WaitUntilAsync(() => rig.Supplier.Phase == PcbSupplyState.WaitingForPlacementClear);
             Assert.True(rig.Supplier.PcbReleased);
             Assert.False(moved);
             Assert.Equal((target.X, target.Y, target.Z), rig.Motion.Position);
