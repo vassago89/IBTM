@@ -41,8 +41,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
         await HomeAsync(motion, 20_000);
-        var rejection = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
-            [0x01, 0x86, 0x02, 0xC3, 0xA1], 1, AdcFunctionCode.WriteSingleRegister).RequireSuccess());
+        var rejection = new AdcResponseException(2, "HComm error 0x02; RX=018602C3A1.");
         using var bus = new AdcControllerStub { RegisterWriteFailure = (4100, 0, rejection) };
         var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200);
         var work = ConveyorStation.CreateBoltFastening(io);
@@ -1563,9 +1562,7 @@ public sealed class BoltFasteningTests
         if (rejectedResponse)
         {
             // Exact exception reply in the equipment log, including CRC.
-            bus.NextResultReadFailure = Assert.Throws<AdcResponseException>(
-                () => AdcBus.ValidateResponse([0x01, 0x84, 0x03, 0x03, 0x01],
-                    1, AdcFunctionCode.ReadInputRegisters).RequireSuccess());
+            bus.NextResultReadFailure = new AdcResponseException(3, "HComm error 0x03; RX=0184030301.");
         }
         else
         {

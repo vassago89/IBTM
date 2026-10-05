@@ -14,6 +14,8 @@ public sealed class HantasSettings : Setting
     public int ShootingBaudRate { get; set; } = 115_200;
     public byte PickupSlaveAddress { get; set; } = 0;
     public byte ShootingSlaveAddress { get; set; } = 1;
+    // Preserve stored names: these two values set the READY wait window in AdcBoltHead.
+    // HComm owns its fixed 1 s communication timeout and does not use ReadAttempts.
     public int ResponseTimeoutMilliseconds { get; set; } = 1_000;
     public int ReadAttempts
     {

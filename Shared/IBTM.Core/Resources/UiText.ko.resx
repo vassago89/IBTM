@@ -2033,7 +2033,7 @@
     <value>응답</value>
   </data>
   <data name="response timeout (s)" xml:space="preserve">
-    <value>1회 응답 제한 시간 (s)</value>
+    <value>준비 확인 기본 대기 (s)</value>
   </data>
   <data name="restore air pressure, then press reset" xml:space="preserve">
     <value>공압 복구 후 리셋</value>
@@ -2219,10 +2219,10 @@
     <value>설정 저장됨; 레시피 미저장. </value>
   </data>
   <data name="read requests" xml:space="preserve">
-    <value>조회 통신</value>
+    <value>준비 상태 확인</value>
   </data>
   <data name="read attempts (including first)" xml:space="preserve">
-    <value>조회 시도 횟수 (최초 포함)</value>
+    <value>준비 확인 대기 배수</value>
   </data>
   <data name="shoot bolt" xml:space="preserve">
     <value>볼트 슈팅</value>
@@ -3686,8 +3686,8 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="light disconnected · check com port" xml:space="preserve">
     <value>조명 연결 끊김 · COM 포트 확인</value>
   </data>
-  <data name="slave must be 0–255." xml:space="preserve">
-    <value>Slave: 0–255 입력</value>
+  <data name="slave must be 0–15." xml:space="preserve">
+    <value>Slave: 0–15 입력</value>
   </data>
   <data name="address must be 0–65535." xml:space="preserve">
     <value>주소: 0–65535 입력</value>

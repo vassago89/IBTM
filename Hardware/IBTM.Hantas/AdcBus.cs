@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -41,8 +42,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
     }
 
     // Tests supply HComm with an in-memory IHComm transport, without opening hardware.
-    internal AdcBus(HantasSettings settings, HantasComm communication) : this(settings)
+    internal AdcBus(HantasSettings settings, HantasComm communication, byte slaveAddress = 0) : this(settings)
     {
+        _slaveAddress = slaveAddress;
         Attach(communication);
     }
 
@@ -161,11 +163,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
     public async Task<(AdcControllerStatus? Status, string? Rejection)> ReadControllerStatusAsync(
         byte slaveAddress, CancellationToken cancellationToken = default)
     {
-        var response = await ExchangeAsync(slaveAddress, Command.Mor,
-            (ushort)AdcStatusRegister.Preset, AdcControllerStatus.RegisterCount, cancellationToken);
+        // Read HComm's complete default status block (3300..3313).
+        var response = await ExchangeAsync(slaveAddress, Command.Mor, 3300, 14, cancellationToken);
         if (response.Rejection is { } rejection && response.ErrorCode is not (0 or 255))
             return (null, rejection);
-        var values = response.RequireSuccess().Select(value => checked((ushort)value)).ToArray();
+        var values = response.RequireSuccess().Skip((ushort)AdcStatusRegister.Preset - 3300)
+            .Take(AdcControllerStatus.RegisterCount).Select(value => checked((ushort)value)).ToArray();
         return (AdcControllerStatus.FromRegisters(values), null);
     }
 
@@ -214,6 +217,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
             }
             if (!accepted)
                 throw new IOException($"HComm did not queue {command}, address={address}, data={countOrValue}.");
+            var startedAt = Stopwatch.GetTimestamp();
 
             // HComm owns its 1 s response timeout. Drain an accepted request before cancellation
             // releases this bus, so its late response cannot become the next request's result.
@@ -229,7 +233,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
             }
             if (captureMilliseconds is { } duration)
             {
-                await Task.Delay(duration, cancellationToken).ConfigureAwait(false);
+                var remaining = TimeSpan.FromMilliseconds(duration) - Stopwatch.GetElapsedTime(startedAt);
+                if (remaining > TimeSpan.Zero)
+                    await Task.Delay(remaining, cancellationToken).ConfigureAwait(false);
                 lock (_stateGate)
                     response = response with { Frame = _received.ToArray() };
             }
@@ -250,7 +256,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
         {
             if (send)
                 _transmitted = packet.ToArray();
-            else
+            else if (_pending is not null)
                 _received.AddRange(packet);
         }
         FrameTransferred?.Invoke(send ? AdcFrameDirection.Transmit : AdcFrameDirection.Receive, packet);
@@ -276,9 +282,16 @@ public sealed class AdcBus : IAdcBus, IDisposable
             if (command == Command.Error)
             {
                 errorCode = values is { Length: > 0 } ? checked((byte)values[0]) : null;
-                rejection = $"HComm error {(errorCode is { } code ? $"0x{code:X2}" : "unknown")}";
+                rejection = errorCode switch
+                {
+                    0 => "HComm response timeout (0x00)",
+                    255 => "HComm CRC error (0xFF)",
+                    { } code => $"HComm controller rejection (0x{code:X2})",
+                    null => "HComm error: missing error code",
+                };
             }
-            else if (command != _command || values is null
+            else if (_received.Count == 0 || _received[0] != _slaveAddress
+                || command != _command || values is null
                 || (command is Command.Read or Command.Mor && values.Length != _countOrValue)
                 || (command == Command.Write
                     && (values.Length != 2 || values[0] != _address || values[1] != _countOrValue)))

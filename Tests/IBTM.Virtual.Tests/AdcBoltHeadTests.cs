@@ -845,8 +845,7 @@ public sealed class AdcBoltHeadTests
                 startDuringSummary = io.GetOutput(OutputIo.PickupBoltStart);
         };
         await head.SelectPresetAsync(1);
-        var rejection = AdcBus.ValidateResponse(
-            Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14).Rejection;
+        var rejection = $"HComm error 0x03; RX={response}.";
         Assert.NotNull(rejection);
         var rejected = 0;
         var unknownDuringRejection = true;
@@ -907,8 +906,7 @@ public sealed class AdcBoltHeadTests
             FasteningTimeoutMilliseconds = 150,
         });
         await head.SelectPresetAsync(1);
-        var rejection = AdcBus.ValidateResponse(
-            Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14).Rejection;
+        var rejection = $"HComm error 0x03; RX={response}.";
         Assert.NotNull(rejection);
         void RejectStatusWhileStarted(OutputIo output, bool on)
         {
@@ -1024,20 +1022,16 @@ public sealed class AdcBoltHeadTests
     private static IOException ResultReplyFailure(bool rejected)
     {
         if (rejected)
-            return Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
-                [0x01, 0x84, 0x03, 0x03, 0x01], 1, AdcFunctionCode.ReadInputRegisters, 28).RequireSuccess());
-        return Assert.Throws<AdcUnexpectedResponseException>(() => AdcBus.ValidateResponse(
-            [0x01, 0x8C, 0x03, 0x04, 0xC1], 1, AdcFunctionCode.ReadInputRegisters, 28).RequireSuccess());
+            return new AdcResponseException(3, "HComm error 0x03; RX=0184030301.");
+        return new AdcUnexpectedResponseException("HComm reply mismatch for fastening result.");
     }
 
     [Fact]
     public async Task OtherResultQueryRejectionsStillEndTheCycleAfterStop()
     {
-        var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)0x84, [0x02]);
         using var bus = new AdcControllerStub
         {
-            NextResultReadFailure = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
-                frame, 1, AdcFunctionCode.ReadInputRegisters, 28).RequireSuccess()),
+            NextResultReadFailure = new AdcResponseException(2, "HComm error 0x02."),
         };
         var (io, head) = Create(bus, new());
         await head.SelectPresetAsync(1);

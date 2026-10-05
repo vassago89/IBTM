@@ -199,7 +199,7 @@ Operation의 카메라 위치와 검사 마커는 검사 기준 핀 좌표계로
 
 모든 화면의 명령과 편집값은 XAML에서 해당 ViewModel에 바인딩한다. ADC 진단도 창 객체가 아니라
 `AdcProtocolViewModel`이 포트·슬레이브·레지스터 입력과 통신 작업을 소유한다. 프리셋 선택은 1번 고정이다.
-픽업·슈팅 ADC는 각각 `FasteningHead` 키로 등록한 별도 `IAdcBus`와 SerialPort를 사용한다.
+픽업·슈팅 ADC는 각각 `FasteningHead` 키로 등록한 별도 `IAdcBus`와 HComm 시리얼 연결을 사용한다.
 COM 포트·Baud Rate·Slave ID는 헤드별로 설정하며, 서로 다른 포트에서는 Slave ID가 같아도 된다.
 기존 `HantasSettings`의 JSON `PortName`·`BaudRate`는 픽업 설정으로 유지한다. 슈팅 COM 포트는 별도로 입력한다.
 ADC 진단창의 헤드 선택은 해당 포트에만 연결·해제·명령을 적용한다. 실행 중에는 선택을 바꿀 수 없고,
@@ -865,7 +865,11 @@ Settings → Operation & Timing → Bolt Fastening · Timing에서 시간을 조
 피더 ON인 실제 체결은 I/O START로 구동하고 ADC 조회 응답의 실제 OK/NG 결과를 기록한다.
 ADC 상태 조회는 연결별 `AdcStatusMonitor`가 소유한다. 최초 연결/준비 확인 때 시작하고 운전·정지·화면 전환 중에도 계속 조회하며 연결 해제 시 취소한다. Operation과 ADC TEST는 같은 모니터의 READY/RUN/ALARM을 바인딩한다. 통신 실패/연결 해제는 null(화면 —)이며 RUN OFF로 대체하지 않는다.
 Settings → Connections → ADC의 RUN Status Poll (ms), 기본 100ms는 상태 응답 후 다음 요청까지의 간격이다. 체결 명령은 별도 상태 조회 루프를 만들지 않는다. 준비·리셋·STOP 확인도 기존 모니터에서 명령 후 시작된 새 샘플을 기다린다.
-`AdcStatusMonitor`의 요청 큐가 상태/결과/진단 요청을 한 경로로 실행한다. `AdcBus`는 `_exchange` 세마포어를 잡은 채 전송과 `ReadResponseAsync` 수신을 끝낸다. 분할 수신은 해당 요청 안에서 조립하며 별도 `DataReceived` 수신 경로는 없다. 모니터 시작/종료와 샘플 발행을 동기화하고 불변 샘플을 원자적으로 교체한다. 동일 포트의 생산/진단 헤드가 모니터를 중복 생성하지 않는다.
+`AdcStatusMonitor`의 요청 큐가 상태/결과/진단 요청을 한 경로로 실행한다. `AdcBus`는 HComm NuGet 1.2.9.18의 `GetParam`, `GetState`, `SetParam`, `GetInfo`, `GetGraph`를 호출하고 완료 콜백을 기다린다. 포트·패킷·CRC·분할 수신·요청 타임아웃은 HComm이 소유한다. 자체 RTU 수신 파서와 통신 재시도는 제거했다. 상태는 HComm 기본 블록 3300~3313을 읽고 그중 기존 READY/RUN/ALARM 필드를 사용한다. SDK에 수락된 요청은 응답 또는 SDK 타임아웃까지 마친 뒤 취소를 반환해 다음 요청에 이전 응답이 연결되지 않게 한다. SDK 콜백 자체가 3초 동안 끝나지 않으면 연결을 닫아 대기 요청을 해제한다. 동일 포트의 생산/진단 헤드는 모니터를 공유한다.
+
+HComm 연결 시 포트·속도·Slave를 함께 고정한다. RS422 Slave 범위는 SDK에 맞춰 0~15다. `SendReceiveMsg`의 원시 TX/RX와 `ReceivedMsg` 오류 코드, 요청 주소·개수/값을 기존 통신 로그에 함께 기록한다. `0x00`은 SDK 요청 타임아웃, `0xFF`는 SDK CRC 실패이고, 그 외 오류는 컨트롤러 거부 코드로 전달한다. 기존 설정 이름 `ResponseTimeoutMilliseconds`와 `ReadAttempts`는 저장 호환성을 유지하며 준비 확인 대기 시간 계산에만 사용한다. SDK 통신 타임아웃은 1초다.
+
+ADC 그래프는 `GetGraph(4200, 1)`을 사용한다. 4100~4104 설정은 전송하지 않는다. HComm은 ADC 데이터를 정수 배열까지 해석하지만 샘플별 토크 단위·시간 간격·블록 합치기 규격은 제공하지 않으므로, 실제 곡선 변환은 장비 응답 확인이 남아 있다. Virtual 곡선은 시뮬레이션용이다. 그래프 DB 저장은 추가하지 않았다.
 START 전 이벤트 번호(3200)는 한 번 읽어 이전 결과와 구분한다. START 직전에 모니터 이벤트를 구독하고 이번 START 이후의 RUN ON → OFF를 기다린다. START 직후 RUN OFF만으로 완료로 판단하지 않는다. 알람은 즉시 종료 처리하고, RUN OFF면 전체 결과(3200~3213)를 한 번 읽어 실제 OK/NG/Error를 기록한다. RUN 중 알람이면 START부터 끄고 해당 볼트를 NG로 기록한다.
 이벤트 번호는 시작 전과 다른지만 비교하며 +1이나 증가 방향을 가정하지 않는다. 이전 번호·중간 이벤트·방향/프리셋 불일치를 새 체결 성공으로 기록하지 않는다. `84 03`을 자발적 완료 통지로 가정하던 분기는 제거했다.
 RUN ON 또는 OFF를 확인하지 못하면 기존 체결 제한 시간에 따라 START OFF 후 NG를 기록한다. 결과 조회 거절은 재조회하지 않으며 토크를 임의로 만들지 않는다.

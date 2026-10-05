@@ -2033,7 +2033,7 @@ Operation failed. Check controller status.</value>
     <value>RESPONSE</value>
   </data>
   <data name="response timeout (s)" xml:space="preserve">
-    <value>Response timeout per attempt (s)</value>
+    <value>Readiness base wait (s)</value>
   </data>
   <data name="restore air pressure, then press reset" xml:space="preserve">
     <value>Restore air pressure, then press RESET</value>
@@ -2219,10 +2219,10 @@ Operation failed. Check controller status.</value>
     <value>Settings saved; recipe was not saved. </value>
   </data>
   <data name="read requests" xml:space="preserve">
-    <value>Read requests</value>
+    <value>Readiness checks</value>
   </data>
   <data name="read attempts (including first)" xml:space="preserve">
-    <value>Read attempts (including first)</value>
+    <value>Readiness wait multiplier</value>
   </data>
   <data name="shoot bolt" xml:space="preserve">
     <value>Shoot Bolt</value>
@@ -3683,8 +3683,8 @@ COMPLETE: finish</value>
   <data name="light disconnected · check com port" xml:space="preserve">
     <value>Light disconnected · check COM port</value>
   </data>
-  <data name="slave must be 0–255." xml:space="preserve">
-    <value>Slave must be 0–255.</value>
+  <data name="slave must be 0–15." xml:space="preserve">
+    <value>Slave must be 0–15.</value>
   </data>
   <data name="address must be 0–65535." xml:space="preserve">
     <value>Address must be 0–65535.</value>

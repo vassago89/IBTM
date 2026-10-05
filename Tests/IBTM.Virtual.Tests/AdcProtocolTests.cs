@@ -1,14 +1,10 @@
 using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Ports;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Channels;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
@@ -22,26 +18,181 @@ namespace IBTM.Virtual.Tests;
 public sealed class AdcProtocolTests
 {
     [Fact]
-    public async Task AdcGraphUsesOneByteLengthAndIsSeparatedFromOtherReplies()
+    public async Task HCommOwnsReadWriteInfoAndAdcGraphRequests()
     {
-        // HComm HCSerial treats ADC C8 replies as [slave, C8, byte count, payload, CRC].
-        var graph = AdcRtuFrame.Build(1, AdcFunctionCode.RequestTorqueCurve,
-            [254, .. Enumerable.Range(0, 254).Select(value => (byte)value)]);
-        var result = ResultFrame(10);
-        using var stream = new ReplyStream { MaximumRead = 3 };
-        stream.Feed([.. graph, .. result, .. graph]);
-        var curves = new List<byte[]>();
-        var response = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28, curveReceived: curves.Add);
-        Assert.Equal(result, response.RequireSuccess());
-        Assert.Equal(graph, Assert.Single(curves));
-        var requested = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.RequestTorqueCurve, CancellationToken.None);
-        Assert.Equal(graph, requested.RequireSuccess());
-        Assert.Contains("kind=normal", AdcBus.DescribeResponse(graph));
-        Assert.Throws<InvalidDataException>(() => AdcBus.ValidateResponse(graph, 2, AdcFunctionCode.RequestTorqueCurve));
-        graph[^1] ^= 0xFF;
-        Assert.Throws<InvalidDataException>(() => AdcBus.ValidateResponse(graph, 1, AdcFunctionCode.RequestTorqueCurve));
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        var read = bus.ReadRegistersAsync(0, AdcFunctionCode.ReadHoldingRegisters, 10, 1);
+        Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.ReadHoldingRegisters, [0, 10, 0, 1]),
+            await transport.NextRequestAsync());
+        transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.ReadHoldingRegisters, [2, 0x12, 0x34]));
+        Assert.Equal(new ushort[] { 0x1234 }, await read);
+
+        var write = bus.WriteRegisterAsync(0, 4004, 2);
+        var request = await transport.NextRequestAsync();
+        Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.WriteSingleRegister, [0x0F, 0xA4, 0, 2]), request);
+        transport.Receive(request);
+        await write;
+
+        var info = bus.ReadDeviceInformationAsync(0);
+        Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, []), await transport.NextRequestAsync());
+        transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, [2, 0x12, 0x34]));
+        Assert.Equal(new byte[] { 0x12, 0x34 }, await info);
+
+        var graph = bus.RequestTorqueCurveAsync(0);
+        Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [0]), await transport.NextRequestAsync());
+        var frame = AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [4, 1, 2, 0xFF, 0xFE]);
+        transport.Receive(frame[..3]);
+        Assert.False(graph.IsCompleted);
+        transport.Receive(frame[3..]);
+        Assert.Equal(frame, await graph);
+    }
+
+    [Theory]
+    [InlineData("018602C3A1", 2)]
+    [InlineData("0184030301", 3)]
+    [InlineData("018C0304C1", 3)]
+    public async Task HCommReplaysEquipmentErrorsWithRequestAndRawBytes(string rx, byte code)
+    {
+        using var transport = new HCommTransportStub(1);
+        using var bus = new AdcBus(new(), transport.Communication, 1);
+        var reading = bus.ReadRegistersAsync(1, AdcFunctionCode.ReadInputRegisters, 3200, 14);
+        var tx = await transport.NextRequestAsync();
+        transport.Receive(Convert.FromHexString(rx));
+        var error = await Assert.ThrowsAsync<AdcResponseException>(() => reading);
+        Assert.Equal(code, error.ErrorCode);
+        Assert.Contains("request=Mor, address=3200, data=14", error.Message);
+        Assert.Contains($"TX={Convert.ToHexString(tx)}", error.Message);
+        Assert.Contains($"RX={rx}", error.Message);
+    }
+
+    [Fact]
+    public async Task HCommStatusRejectsUnknownFeedbackAndAcceptsTheNextSample()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        var status = bus.ReadControllerStatusAsync(0);
+        await transport.NextRequestAsync();
+        transport.Receive(Convert.FromHexString("018C0304C1"));
+        var rejected = await status;
+        Assert.Null(rejected.Status);
+        Assert.Contains("0x03", rejected.Rejection);
+        status = bus.ReadControllerStatusAsync(0);
+        await transport.NextRequestAsync();
+        transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters,
+            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        Assert.True((await status).Status?.Ready);
+    }
+
+    [Fact]
+    public async Task HCommKeepsGraphEventsSeparateFromStatusReplies()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        var status = bus.ReadControllerStatusAsync(0);
+        await transport.NextRequestAsync();
+        transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [2, 0, 0]));
+        Assert.False(status.IsCompleted);
+        transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters,
+            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        Assert.True((await status).Status?.Ready);
+        Assert.NotNull(bus.Monitor.TorqueCurveError);
+    }
+
+    [Fact]
+    public async Task HCommCrcAndLengthFailuresCannotBecomeFeedback()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        var status = bus.ReadControllerStatusAsync(0);
+        await transport.NextRequestAsync();
+        var frame = AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters, [2, 0, 1]);
+        frame[^1] ^= 0xFF;
+        transport.Receive(frame);
+        await Assert.ThrowsAsync<InvalidDataException>(() => status);
+        status = bus.ReadControllerStatusAsync(0);
+        await transport.NextRequestAsync();
+        frame[^1] ^= 0xFF;
+        transport.Receive(frame);
+        var mismatch = await status;
+        Assert.Null(mismatch.Status);
+        Assert.Contains("reply mismatch", mismatch.Rejection);
+    }
+
+    [Fact]
+    public async Task HCommForeignSlaveAndWrongWriteEchoCannotCompleteTheRequest()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        var read = bus.ReadRegistersAsync(0, AdcFunctionCode.ReadInputRegisters, 3200, 1);
+        await transport.NextRequestAsync();
+        transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [2, 0, 1]));
+        await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() => read);
+        var write = bus.WriteRegisterAsync(0, 4004, 1);
+        await transport.NextRequestAsync();
+        transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.WriteSingleRegister, [0x0F, 0xA4, 0, 2]));
+        await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() => write);
+    }
+
+    [Fact]
+    public async Task HCommRawCaptureRetainsUnparsedBytesWithoutTurningThemIntoFeedback()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        var capture = bus.CaptureDeviceInformationAsync(0, 50);
+        await transport.NextRequestAsync();
+        byte[] raw = [0, 0x11, 0, 0, 0]; // Deliberately invalid CRC, retained by the raw diagnostic.
+        transport.Receive(raw);
+        Assert.Equal(raw, await capture);
+        Assert.Null(bus.Monitor.Sample?.Status);
+    }
+
+    [Fact]
+    public async Task HCommCancellationDrainsTheRequestBeforeAnotherCommand()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        using var cancellation = new CancellationTokenSource();
+        var first = bus.ReadRegistersAsync(0, AdcFunctionCode.ReadInputRegisters, 3200, 1, cancellation.Token);
+        await transport.NextRequestAsync();
+        cancellation.Cancel();
+        var next = bus.ReadRegistersAsync(0, AdcFunctionCode.ReadInputRegisters, 3303, 1);
+        Assert.False(first.IsCompleted);
+        Assert.False(next.IsCompleted);
+        transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters, [2, 0, 5]));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters, [0x0C, 0xE7, 0, 1]),
+            await transport.NextRequestAsync());
+        transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters, [2, 0, 9]));
+        Assert.Equal(new ushort[] { 9 }, await next);
+    }
+
+    [Fact]
+    public async Task HCommTimeoutAndCloseReleasePendingCalls()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        var status = bus.ReadControllerStatusAsync(0);
+        await transport.NextRequestAsync();
+        await Assert.ThrowsAsync<TimeoutException>(() => status);
+        var read = bus.ReadDeviceInformationAsync(0);
+        await transport.NextRequestAsync();
+        bus.Close();
+        await Assert.ThrowsAsync<IOException>(() => read);
+        Assert.False(bus.IsOpen);
+        Assert.Null(bus.Monitor.Sample?.Status);
+    }
+
+    [Fact]
+    public void HCommConnectionCannotChangePortBaudOrSlaveWhileOpen()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        bus.Open(string.Empty, 0, 0);
+        Assert.Throws<InvalidOperationException>(() => bus.Open("COM3", 0, 0));
+        Assert.Throws<InvalidOperationException>(() => bus.Open(string.Empty, 19200, 0));
+        Assert.Throws<InvalidOperationException>(() => bus.Open(string.Empty, 0, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => bus.Open(string.Empty, 0, 16));
     }
 
     [Fact]
@@ -213,7 +364,7 @@ public sealed class AdcProtocolTests
             diagnostics.SlaveText = "256";
             await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
             Assert.False(pickup.IsOpen);
-            Assert.Equal("Slave must be 0–255.", diagnostics.ConnectionStatus);
+            Assert.Equal("Slave must be 0–15.", diagnostics.ConnectionStatus);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
 
             diagnostics.SlaveText = "1";
@@ -240,20 +391,6 @@ public sealed class AdcProtocolTests
             await diagnostics.ShutdownAsync();
             await machine.ShutdownAsync();
         }
-    }
-
-    [Fact]
-    public void AdcConnectionMustMatchBothRequestedSettings()
-    {
-        // Constructing a SerialPort does not open it or access hardware.
-        using var port = new SerialPort("COM4", 19200);
-        AdcBus.VerifyConnectionSettings(port, "com4", 19200);
-        var wrongPort = Assert.Throws<InvalidOperationException>(
-            () => AdcBus.VerifyConnectionSettings(port, "COM3", 19200));
-        Assert.Contains("COM4", wrongPort.Message);
-        Assert.Contains("COM3", wrongPort.Message);
-        Assert.Throws<InvalidOperationException>(
-            () => AdcBus.VerifyConnectionSettings(port, "COM4", 9600));
     }
 
     [Fact]
@@ -337,397 +474,4 @@ public sealed class AdcProtocolTests
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.ReadAttempts = 0);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SerialCancellationDrainsTheNativeOperationEvenWhenAbortFails(bool abortFails)
-    {
-        using var cancellation = new CancellationTokenSource();
-        var nativeIo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var abortCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var abortFailure = new IOException("Native serial abort failed.");
-        Action abort = () =>
-        {
-            abortCalled.SetResult();
-            if (abortFails)
-                throw abortFailure;
-        };
-        var wait = AdcBus.AwaitSerialIoAsync(nativeIo.Task, abort, cancellation.Token);
-        cancellation.Cancel();
-        await abortCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.False(wait.IsCompleted); // A following bus request must not overlap the aborted native IO.
-        nativeIo.SetException(new IOException("Native serial IO aborted."));
-        if (abortFails)
-            Assert.Same(abortFailure, await Assert.ThrowsAsync<IOException>(() => wait));
-        else
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
-    }
-
-    [Theory]
-    [InlineData(AdcResponseKind.Valid)]
-    [InlineData(AdcResponseKind.InvalidCrc)]
-    [InlineData(AdcResponseKind.WrongAddress)]
-    [InlineData(AdcResponseKind.WriteResponse)]
-    [InlineData(AdcResponseKind.ControllerError)]
-    public async Task RequestReadLogsEachChunkBeforeFrameValidation(AdcResponseKind kind)
-    {
-        var function = kind switch
-        {
-            AdcResponseKind.ControllerError => (AdcFunctionCode)0x84,
-            AdcResponseKind.WriteResponse => AdcFunctionCode.WriteSingleRegister,
-            _ => AdcFunctionCode.ReadInputRegisters,
-        };
-        byte[] data = kind switch
-        {
-            AdcResponseKind.ControllerError => [0x03],
-            AdcResponseKind.WriteResponse => [0x0F, 0xA3, 0x00, 0x00],
-            _ => [0x02, 0x12, 0x34],
-        };
-        var frame = AdcRtuFrame.Build((byte)(kind == AdcResponseKind.WrongAddress ? 1 : 0), function, data);
-        if (kind == AdcResponseKind.InvalidCrc)
-            frame[^1] ^= 0xFF;
-        using var stream = new ReplyStream { MaximumRead = 1 };
-        var chunks = new List<byte[]>();
-        stream.Feed(frame);
-        var waiting = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, chunks.Add,
-            0, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 2);
-
-        if (kind == AdcResponseKind.Valid)
-            Assert.Equal(frame, (await waiting.WaitAsync(TimeSpan.FromSeconds(2))).RequireSuccess());
-        else if (kind == AdcResponseKind.ControllerError)
-        {
-            var response = await waiting;
-            var error = Assert.Throws<AdcResponseException>(() => response.RequireSuccess());
-            Assert.Equal(3, error.ErrorCode);
-            Assert.Contains("InvalidDataLength", error.Message);
-            Assert.Contains(Convert.ToHexString(frame), error.Message);
-        }
-        else if (kind == AdcResponseKind.WriteResponse)
-        {
-            var response = await waiting;
-            var error = Assert.Throws<AdcUnexpectedResponseException>(() => response.RequireSuccess());
-            Assert.Contains("Write Single Register", error.Message);
-            Assert.Contains("kind=normal", error.Message);
-        }
-        else
-            await Assert.ThrowsAsync<InvalidDataException>(() => waiting);
-        Assert.Equal(frame, chunks.SelectMany(chunk => chunk).ToArray());
-        Assert.All(chunks, chunk => Assert.Single(chunk));
-    }
-
-    [Fact]
-    public async Task Logged8C03ReplyIsInterpretedAsAModbusExceptionForADifferentFunction()
-    {
-        using var stream = new ReplyStream();
-        // Exact equipment reply: CRC is valid, but the expected exception function was 0x84.
-        byte[] frame = [0x01, 0x8C, 0x03, 0x04, 0xC1];
-        stream.Feed(frame[..2]);
-        var waiting = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28);
-        Assert.False(waiting.IsCompleted);
-        stream.Feed(frame[2..]);
-        var response = await waiting;
-        var error = Assert.Throws<AdcUnexpectedResponseException>(() => response.RequireSuccess());
-        Assert.Contains("RX=018C0304C1", error.Message);
-        Assert.Contains("function=0x8C", error.Message);
-        Assert.Contains("base function=0x0C (Get Comm Event Log)", error.Message);
-        Assert.Contains("exception=0x03 (Illegal Data Value)", error.Message);
-        Assert.Contains("expected response=0x84", error.Message);
-        Assert.Contains("ADC firmware meaning unconfirmed", error.Message);
-        Assert.DoesNotContain("InvalidDataLength", error.Message);
-    }
-
-    [Theory]
-    [InlineData(AdcFunctionCode.ReadInputRegisters, 14, 0x8C, 0x03)]
-    [InlineData(AdcFunctionCode.ReadInputRegisters, 28, 0x8C, 0x04)]
-    [InlineData(AdcFunctionCode.ReadInputRegisters, 28, 0x86, 0x03)]
-    [InlineData(AdcFunctionCode.WriteSingleRegister, 28, 0x8C, 0x03)]
-    public void ValidRtuExceptionsAreInterpretedRegardlessOfThePendingRequest(
-        AdcFunctionCode request, int byteCount, byte function, byte data)
-    {
-        var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)function, [data]);
-        var error = Assert.Throws<AdcUnexpectedResponseException>(
-            () => AdcBus.ValidateResponse(frame, 1, request, byteCount).RequireSuccess());
-        Assert.Contains($"function=0x{function:X2}", error.Message);
-        Assert.Contains($"exception=0x{data:X2}", error.Message);
-        Assert.Contains("CRC valid", error.Message);
-    }
-
-    [Theory]
-    [InlineData(0x83, "06", "Read Holding Registers", "Server Device Busy")]
-    [InlineData(0x91, "04", "Report Server ID", "Server Device Failure")]
-    [InlineData(0xD1, "55", "Vendor-specific / unspecified function", "unspecified exception")]
-    [InlineData(0x03, "021234", "Read Holding Registers", "data=021234")]
-    [InlineData(0x05, "0001FF00", "Write Single Coil", "data=0001FF00")]
-    [InlineData(0x07, "01", "Read Exception Status", "data=01")]
-    [InlineData(0x0B, "00000001", "Get Comm Event Counter", "data=00000001")]
-    [InlineData(0x16, "0001FFFF0000", "Mask Write Register", "data=0001FFFF0000")]
-    [InlineData(0x18, "000400011234", "Read FIFO Queue", "data=000400011234")]
-    [InlineData(0x2B, "0E0101000001000141", "Encapsulated Interface Transport", "data=0E0101000001000141")]
-    public async Task DifferentRtuResponseShapesAreReassembledAndInterpreted(
-        byte function, string data, string functionName, string interpretedData)
-    {
-        using var stream = new ReplyStream { MaximumRead = 1 };
-        var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)function, Convert.FromHexString(data));
-        var result = ResultFrame(31);
-        stream.Feed([.. frame, .. result]);
-        var response = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28);
-        var error = Assert.Throws<AdcUnexpectedResponseException>(() => response.RequireSuccess());
-        Assert.Contains(functionName, error.Message);
-        Assert.Contains(interpretedData, error.Message);
-        Assert.Contains($"RX={Convert.ToHexString(frame)}", error.Message);
-        // Read only the first frame, leaving the following frame intact.
-        Assert.Equal(result, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28)).RequireSuccess());
-    }
-
-    [Fact]
-    public void ValidCrcDoesNotMakeAnInvalidRtuShapeAcceptable()
-    {
-        // The byte count claims eight bytes, but only two follow it.
-        var frame = AdcRtuFrame.Build(1, AdcFunctionCode.ReadHoldingRegisters, [8, 0x12, 0x34]);
-        Assert.Throws<InvalidDataException>(() => AdcBus.ValidateResponse(
-            frame, 1, AdcFunctionCode.ReadInputRegisters, 28));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task NonstandardExceptionWithBadCrcOrAddressRemainsACommunicationFailure(bool wrongAddress)
-    {
-        using var stream = new ReplyStream();
-        byte[] frame = [0x01, 0x8C, 0x03, 0x04, 0xC1];
-        if (wrongAddress)
-        {
-            frame[0] = 2;
-            BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(^2), AdcRtuFrame.CalculateCrc(frame.AsSpan(0, 3)));
-        }
-        else
-            frame[^1] ^= 0xFF;
-        stream.Feed(frame);
-        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28));
-        Assert.Contains(wrongAddress ? "address=2" : "CRC is invalid", error.Message);
-        Assert.Contains($"RX={Convert.ToHexString(frame)}", error.Message);
-        Assert.Contains(wrongAddress ? "CRC valid" : "calculated=", error.Message);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(4)]
-    public async Task CancelledReadKeepsLoggedBytesAndNextRequestUsesANewBuffer(int receivedCount)
-    {
-        var oldFrame = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [2, 0x12, 0x34]);
-        var nextFrame = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [2, 0x56, 0x78]);
-        using var stream = new ReplyStream();
-        using var cancellation = new CancellationTokenSource();
-        var logged = new List<byte[]>();
-        if (receivedCount > 0)
-            stream.Feed(oldFrame[..receivedCount]);
-        var waiting = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, logged.Add,
-            1, AdcFunctionCode.ReadInputRegisters, cancellation.Token, 2);
-        Assert.False(waiting.IsCompleted);
-        Assert.Equal(oldFrame[..receivedCount], logged.SelectMany(chunk => chunk).ToArray());
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
-
-        // The exchange discards bytes from an expired request before sending again.
-        stream.Feed(oldFrame[receivedCount..]);
-        stream.DiscardInput();
-        stream.Feed(nextFrame);
-        Assert.Equal(nextFrame, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 2)).RequireSuccess());
-    }
-
-    [Theory]
-    [InlineData("0184030301", 3)]
-    [InlineData("018C0304C1", null)]
-    public async Task LoggedStatusReadRejectionReturnsWithoutThrowing(string frame, int? errorCode)
-    {
-        using var stream = new ReplyStream { MaximumRead = 1 };
-        byte[] statusData = [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
-        var status = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, statusData);
-        stream.Feed([.. Convert.FromHexString(frame), .. status]);
-        var reading = new AsyncLocal<bool> { Value = true };
-        var exceptions = 0;
-        void OnFirstChanceException(object? sender, FirstChanceExceptionEventArgs args)
-        {
-            if (reading.Value && args.Exception is AdcResponseException or AdcUnexpectedResponseException)
-                Interlocked.Increment(ref exceptions);
-        }
-        AppDomain.CurrentDomain.FirstChanceException += OnFirstChanceException;
-        try
-        {
-            var response = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14);
-            Assert.Equal(errorCode, (int?)response.ErrorCode);
-            Assert.Contains(frame, response.Rejection);
-            Assert.Contains("CRC valid", response.Rejection);
-            var next = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14);
-            Assert.Equal(status, next.RequireSuccess());
-            Assert.Equal(0, Volatile.Read(ref exceptions));
-        }
-        finally
-        {
-            AppDomain.CurrentDomain.FirstChanceException -= OnFirstChanceException;
-            reading.Value = false;
-        }
-    }
-
-    [Fact]
-    public async Task StatusAndResultRepliesAreReadSeparatelyAndLengthMismatchIsRejected()
-    {
-        using var stream = new ReplyStream();
-        byte[] statusData = [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
-        var status = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, statusData);
-        var result = ResultFrame(10);
-        stream.Feed([.. status, .. result]);
-        Assert.Equal(status, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14)).RequireSuccess());
-        Assert.Equal(result, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28)).RequireSuccess());
-        stream.Feed(result);
-        var mismatch = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14);
-        Assert.Contains("28 data bytes; expected 14", mismatch.Rejection);
-        Assert.Throws<AdcUnexpectedResponseException>(() => mismatch.RequireSuccess());
-    }
-
-    [Fact]
-    public async Task OversizedFrameIsRejectedBeforeWaitingForItsPayload()
-    {
-        using var stream = new ReplyStream();
-        stream.Feed([1, 4, 255]);
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14));
-    }
-
-    [Fact]
-    public async Task RawCaptureKeepsEchoAndLateBytesUntilDeadline()
-    {
-        using var stream = new ReplyStream();
-        byte[] echo = [0, 0x11, 0xC1, 0xBC];
-        var frame = AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, [2, 1, 0xFF]);
-        stream.Feed(echo);
-        var capture = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            0, AdcFunctionCode.RequestDeviceInformation, CancellationToken.None, captureMilliseconds: 100);
-        await Task.Delay(10);
-        Assert.False(capture.IsCompleted);
-        stream.Feed([.. frame, 0xAB]);
-        Assert.Equal([.. echo, .. frame, 0xAB], (await capture).Frame);
-    }
-
-    [Fact]
-    public async Task RawCaptureCancellationLeavesTheStreamAvailableForTheNextResponse()
-    {
-        using var stream = new ReplyStream();
-        using var cancellation = new CancellationTokenSource();
-        byte[] echo = [0, 0x11, 0xC1, 0xBC];
-        stream.Feed(echo);
-        var chunks = new List<byte[]>();
-        var capture = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, chunks.Add,
-            0, AdcFunctionCode.RequestDeviceInformation, cancellation.Token, captureMilliseconds: 3000);
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => capture);
-        Assert.Equal(echo, chunks.SelectMany(chunk => chunk).ToArray());
-        var frame = AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, [2, 1, 0xFF]);
-        stream.Feed(frame);
-        Assert.Equal(frame, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            0, AdcFunctionCode.RequestDeviceInformation, CancellationToken.None)).RequireSuccess());
-    }
-
-    [Fact]
-    public async Task ClosingTheStreamReleasesAPendingResponse()
-    {
-        using var stream = new ReplyStream();
-        var waiting = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14);
-        stream.Dispose();
-        await Assert.ThrowsAsync<EndOfStreamException>(() => waiting);
-    }
-
-    private static byte[] ResultFrame(ushort eventCount)
-    {
-        var data = new byte[29];
-        data[0] = 28;
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(1), eventCount);
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(25), (ushort)AdcEventStatus.FasteningOk);
-        return AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, data);
-    }
-
-    // Test serial input with independently arriving fragments; never opens hardware.
-    private sealed class ReplyStream : Stream
-    {
-        private readonly Channel<byte[]> _chunks;
-        private ReadOnlyMemory<byte> _remaining;
-
-        public ReplyStream()
-        {
-            _chunks = Channel.CreateUnbounded<byte[]>();
-        }
-
-        public int MaximumRead { get; init; } = 256;
-        public override bool CanRead => true;
-        public override bool CanWrite => false;
-        public override bool CanSeek => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-
-        public void Feed(byte[] bytes)
-        {
-            _chunks.Writer.TryWrite(bytes);
-        }
-
-        public void DiscardInput()
-        {
-            _remaining = default;
-            while (_chunks.Reader.TryRead(out _)) { }
-        }
-
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            if (_remaining.IsEmpty)
-            {
-                try
-                {
-                    _remaining = await _chunks.Reader.ReadAsync(cancellationToken);
-                }
-                catch (ChannelClosedException)
-                {
-                    return 0;
-                }
-            }
-            var count = Math.Min(MaximumRead, Math.Min(buffer.Length, _remaining.Length));
-            _remaining[..count].CopyTo(buffer);
-            _remaining = _remaining[count..];
-            return count;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-                _chunks.Writer.TryComplete();
-            base.Dispose(disposing);
-        }
-
-        public override int Read(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
-        public override void Write(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
-        public override long Seek(long offset, SeekOrigin origin) { throw new NotSupportedException(); }
-        public override void SetLength(long value) { throw new NotSupportedException(); }
-        public override void Flush() { throw new NotSupportedException(); }
-    }
-
-    public enum AdcResponseKind
-    {
-        Valid,
-        InvalidCrc,
-        WrongAddress,
-        WriteResponse,
-        ControllerError,
-    }
 }
