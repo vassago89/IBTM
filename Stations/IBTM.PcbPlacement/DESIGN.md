@@ -7,7 +7,7 @@ handoff X. After placement, keep that heat sink's Y and return Z followed by X.
 This Z is also the XY travel height. `HandoffPosition.Y` is used only for receiving
 a PCB. `ReceiveZ` is taught separately at the same handoff X/Y.
 Handler Rotate output stays OFF during automatic and manual operation.
-HOME ALL homes Placement in Z -> Y -> X order to avoid interference, then starts
+HOME ALL homes Placement in Y -> Z -> X order to avoid interference, then starts
 the other units. Each axis must finish successfully before the next starts.
 Individual Placement HOME still homes Z first, followed by X/Y together.
 
@@ -53,9 +53,12 @@ and relative handler positions do not gate this sequence.
 Placement and optional pressing run in `PlacingPcb`. Once the assembly is recorded,
 `Retracting` raises IPM and handler and returns Z followed by X before starting
 the next PCB or completing the carrier. START uses the same standby movement;
-an already completed carrier keeps its completion and is not placed again. A new START does not resume the interrupted rise or placement.
-The placement feedback check requires PCB presence through completion; the sensor
-may clear during retraction. The operation uses its selected carrier and heat-sink target;
+an already completed carrier keeps its completion and is not placed again. A new START
+executes the full standby preparation, not an interrupted actuator step.
+PCB presence and vacuum are required through arrival at placement Z and checked
+again immediately before commanding the handler Down. Both may clear during
+lowering and pressing. Handler/IPM endpoint feedback, carrier seating and the
+selected heat sink remain required. The operation uses its selected carrier and heat-sink target;
 it never guesses a heat sink from X/Y. Receipt confirms PCB detection and vacuum
 before Supply may release. IPM Down prepares receipt and pressing; unknown or
 contradictory IPM endpoint feedback blocks handoff readiness.
@@ -68,8 +71,15 @@ false for those waits; it does not split axis moves or vacuum/IPM actions into
 separate state-machine ticks. Placement keeps the original job and cancels its
 remaining commands if carrier identity or seating changes.
 After STOP, remove PCBs from the handler and clear vacuum before START.
-Machine START also rejects an unfinished carrier still present at S1/S2/S3.
+Machine START rejects an unfinished carrier still present at S1/S2/S3 unless the operator
+explicitly confirms supported remaining-work resume or clears the station's results for rework.
 Carrier or support feedback changes during active work stop the run, including waits
-between PCBs and the final standby return. Sensor edges never reset the target index
-or clear its job. A new admitted carrier starts at the
-first present heat sink; recorded results do not select a resume point. A completed carrier stays complete.
+between PCBs and the final standby return. Sensor edges never clear its job or completion records.
+`HeatSinkAssembly.IsPlacementCompleted` is set only after the full press sequence and final
+IPM Down feedback. It is completion history, not a PCB presence sensor. START review lists
+each detected heat sink's completion record. Confirmed S1 resume skips recorded placements
+on the same seated carrier; a missing record never implies successful placement. A changed
+carrier, target configuration or seating feedback revokes UI confirmation. START still checks
+held material and all other interlocks. If every placement is recorded, standby return completes
+the carrier without receiving another PCB. Clear results resets these placement markers for
+rework while preserving assembly identity. A new carrier starts at its first present heat sink.

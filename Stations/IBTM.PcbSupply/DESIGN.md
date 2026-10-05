@@ -33,10 +33,10 @@ Only `Record Position` changes `PCB Handoff`. Its Z is independent of Travel Z.
 PCB 1 XY + Travel Z, rotated
   -> wait for upstream Board Available
   -> selected PCB pickup Z
-  -> PCB detection
   -> close supply gripper and confirm
   -> advance IPM fixer and confirm
   -> Travel Z
+  -> PCB detection
   -> handoff X/Y together
   -> handoff Z
   -> rotation IO OFF and unrotated input confirmed at handoff XYZ
@@ -51,8 +51,11 @@ PCB 1 XY + Travel Z, rotated
 
 PCB 2 follows the same pickup and handoff sequence, without another upstream
 handshake. After PCB 2, the next pickup X/Y is PCB 1 of the next carrier.
-If a pickup has no PCB, return to Travel Z without gripping or rotating and
-advance to the next slot. The second empty check completes the same handshake.
+Every slot is gripped and lifted before checking PCB presence at Travel Z.
+Gripper, fixer and rotation feedback remain required during the lift; PCB detection
+is required only after it. If no PCB is detected at Travel Z, retract the fixer,
+open the gripper and advance to the next slot without rotating.
+The second empty check completes the same handshake.
 
 `MovingToPickup` prepares the PCB 1 standby position even when SMEMA is absent.
 If rotation is required on startup, move Travel Z -> handoff XY -> handoff Z,
@@ -164,9 +167,16 @@ Placement confirms holding. No coordinate comparison is used to admit this resta
 The next pickup scan always starts at PCB 1, including after this handoff; the
 previous slot is not resumed. Partial release and interrupted travel still require PCB removal. A confirmed open gripper is not considered to hold
 a PCB merely because the PCB detector or IPM fixer input is ON. On a new run,
-the open gripper's extended fixer is retracted and its feedback awaited before
+the empty handler retracts its fixer and opens its gripper, awaiting feedback before
 empty travel. Unknown gripper feedback still blocks a detected PCB at START.
 An empty new run moves to PCB 1 standby. Grip loss during the pickup lift stops the operation.
+
+The start review's `All stations to standby` uses `MoveToStandbyAsync` after Placement
+has cleared the handoff. It shares the empty fixer/gripper preparation with START,
+then follows Travel Z -> handoff XY/Z -> Rotated -> Travel Z -> PCB 1 XY.
+Already Rotated feedback skips the handoff detour. It does not descend to pickup Z,
+grip a PCB, or drive the upstream handshake. Held material must be cleared first;
+work records are retained and HOME is required before this manual move.
 
 Focused regressions cover standby before SMEMA, both pickup slots, rotation at
 handoff XYZ, travel at a different Travel Z, motion cancellation,

@@ -203,6 +203,20 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
+    public async Task MoveToStandbyAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var position = StandbyPosition
+            ?? throw new InvalidOperationException("Teach the first shooting bolt before moving Fastening to standby.");
+        await RaiseCylindersAsync(cancellationToken);
+        await MoveZAsync(0, cancellationToken);
+        await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
+        EnsureCanMoveHorizontal(cancellationToken);
+        await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
+        if (position.Z != 0)
+            await MoveZAsync(position.Z, cancellationToken);
+    }
+
     public async Task RunAsync(
         CancellationToken cancellationToken = default,
         IReadOnlyCollection<Guid>? selectedBolts = null,
@@ -260,13 +274,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         $"Startup: Z=0 -> X={position.X}, Y={position.Y} -> Z={position.Z}",
                         Station.CurrentJob.Id);
                     var startupStarted = Stopwatch.GetTimestamp();
-                    await RaiseCylindersAsync(cancellationToken);
-                    await MoveZAsync(0, cancellationToken);
-                    await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
-                    EnsureCanMoveHorizontal(cancellationToken);
-                    await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
-                    if (position.Z != 0)
-                        await MoveZAsync(position.Z, cancellationToken);
+                    await MoveToStandbyAsync(cancellationToken);
                     _log?.LogInformation("Bolt timing {Job}: startup standby complete, total={ElapsedMs:F1} ms.",
                         Station.CurrentJob.Id, Stopwatch.GetElapsedTime(startupStarted).TotalMilliseconds);
                 }

@@ -3552,9 +3552,9 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="s2 backup plate is up. check the carrier and bolts, then check resume again." xml:space="preserve">
     <value>S2 상승 확인 · 캐리어·볼트 확인 후 재개 체크</value>
   </data>
-  <data name="s2 backup plate is down. in manual mode, check the carrier and head clearance, then select raise plate. after up feedback, check resume again." xml:space="preserve">
+  <data name="s2 backup plate is down. in manual mode, check the carrier and head clearance, then select raise/lower carrier support. after up feedback, check resume again." xml:space="preserve">
     <value>S2 하강 · 재개 불가
-수동: 캐리어·헤드 간섭 확인 → [플레이트 상승] → 상승 확인 후 재개 체크</value>
+수동: 캐리어·헤드 간섭 확인 → [받침 상승·하강] → 상승 확인 후 재개 체크</value>
   </data>
   <data name="cannot confirm s2 backup plate position. check the actual position and the up/down sensors. resume requires up on and down off." xml:space="preserve">
     <value>S2 위치 미확인 · 실제 위치·센서 확인
@@ -3736,5 +3736,116 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   </data>
   <data name="same-bolt pre → final only · 0 = no delay" xml:space="preserve">
     <value>같은 볼트 가체결 → 본체결만 · 0: 대기 없음</value>
+  </data>
+  <data name="i checked the carrier and placed pcbs. resume unfinished placement." xml:space="preserve">
+    <value>캐리어와 안착된 PCB를 확인했습니다. 남은 안착을 재개합니다.</value>
+  </data>
+  <data name="pcb placement records" xml:space="preserve">
+    <value>PCB 안착 기록</value>
+  </data>
+  <data name="placement complete" xml:space="preserve">
+    <value>안착 완료</value>
+  </data>
+  <data name="completed placements are not repeated. if all are recorded, the handler returns and the carrier work is completed." xml:space="preserve">
+    <value>안착 완료된 PCB는 다시 작업하지 않습니다. 모두 완료되어 있으면 핸들러 복귀 후 캐리어 작업을 완료합니다.</value>
+  </data>
+  <data name="no completion record means placement is unconfirmed. check the actual pcb before rework." xml:space="preserve">
+    <value>완료 기록이 없으면 안착 여부를 확정할 수 없습니다. 재작업 전에 실제 PCB를 확인하세요.</value>
+  </data>
+  <data name="release material grip" xml:space="preserve">
+    <value>소재 잡기 해제</value>
+  </data>
+  <data name="raise tooling" xml:space="preserve">
+    <value>작업부 상승</value>
+  </data>
+  <data name="raise/lower carrier support" xml:space="preserve">
+    <value>받침 상승·하강</value>
+  </data>
+  <data name="raise/lower stopper" xml:space="preserve">
+    <value>스토퍼 상승·하강</value>
+  </data>
+  <data name="restart preparation" xml:space="preserve">
+    <value>재시작 준비</value>
+  </data>
+  <data name="stop the equipment and select manual mode. each button waits for its sequence to finish." xml:space="preserve">
+    <value>장비를 정지하고 수동 모드로 전환하세요. 각 버튼은 동작 순서대로 완료를 확인합니다.</value>
+  </data>
+  <data name="support the material before releasing its grip. remove any remaining pcb or bolt, then select check again." xml:space="preserve">
+    <value>소재를 받친 뒤 잡기를 해제하세요. 남은 PCB나 볼트를 제거한 후 ‘다시 확인’을 누르세요.</value>
+  </data>
+  <data name="raises the working cylinders in order without axis motion. material grip is retained." xml:space="preserve">
+    <value>축 이동 없이 작업부 실린더를 차례로 상승시킵니다. 소재 잡기는 유지합니다.</value>
+  </data>
+  <data name="raises the tooling first, then operates only the selected support or stopper and waits for feedback. work records are retained." xml:space="preserve">
+    <value>작업부 상승 후 선택한 받침 또는 스토퍼만 조작하고 완료 신호를 확인합니다. 작업 기록은 유지합니다.</value>
+  </data>
+  <data name="advanced · individual i/o" xml:space="preserve">
+    <value>상세 조작 · 개별 I/O</value>
+  </data>
+  <data name="preparation stopped. check machine status." xml:space="preserve">
+    <value>준비가 완료되지 않았습니다. 장비 상태를 확인하세요.</value>
+  </data>
+  <data name="in progress" xml:space="preserve">
+    <value>진행 중</value>
+  </data>
+  <data name="placement pcb detected. ipm support is retained. support or remove the pcb, then raise the tooling again." xml:space="preserve">
+    <value>안착부에 PCB가 감지되어 IPM 지지를 유지했습니다. PCB를 받치거나 제거한 뒤 ‘작업부 상승’을 다시 누르세요.</value>
+  </data>
+  <data name="all stations to standby" xml:space="preserve">
+    <value>전체 대기 위치 이동</value>
+  </data>
+  <data name="moves enabled stations in order. supply waits above pcb 1 at travel z. home is required; held material must be cleared first." xml:space="preserve">
+    <value>사용 중인 스테이션을 순서대로 이동합니다. Supply는 PCB 1번 위에서 이동 Z 높이로 대기합니다. 원점 복귀와 잡고 있는 소재 정리가 필요합니다.</value>
+  </data>
+  <data name="moving all enabled stations to standby..." xml:space="preserve">
+    <value>전체 대기 위치로 이동 중입니다...</value>
+  </data>
+  <data name="all enabled stations are at standby. select check again." xml:space="preserve">
+    <value>전체 대기 위치 이동을 완료했습니다. ‘다시 확인’을 누르세요.</value>
+  </data>
+  <data name="stop the machine, select manual mode, and home all enabled axes before standby." xml:space="preserve">
+    <value>장비를 정지하고 수동 모드에서 사용 중인 모든 축을 원점 복귀한 뒤 대기 위치로 이동하세요.</value>
+  </data>
+  <data name="supply is holding a pcb. support and release it before moving all stations to standby." xml:space="preserve">
+    <value>Supply가 PCB를 잡고 있습니다. PCB를 받치고 잡기를 해제한 뒤 전체 대기 위치로 이동하세요.</value>
+  </data>
+  <data name="remove the head bolts and release vacuum before moving all stations to standby." xml:space="preserve">
+    <value>헤드의 볼트를 제거하고 진공을 해제한 뒤 전체 대기 위치로 이동하세요.</value>
+  </data>
+  <data name="finish or release the ng carrier transfer and confirm the gripper is open before standby." xml:space="preserve">
+    <value>NG 캐리어 이송을 완료하거나 소재를 받쳐 잡기를 해제하고, 그리퍼 열림을 확인한 뒤 대기 위치로 이동하세요.</value>
+  </data>
+  <data name="teach the first shooting bolt before moving fastening to standby." xml:space="preserve">
+    <value>체결부 대기 위치로 이동하기 전에 첫 번째 슈팅 볼트 위치를 티칭하세요.</value>
+  </data>
+  <data name="each button lowers an up cylinder and raises a down cylinder. unknown position blocks operation." xml:space="preserve">
+    <value>현재 상승 상태이면 하강, 하강 상태이면 상승합니다. 위치가 불명확하면 조작을 차단합니다.</value>
+  </data>
+  <data name="confirm the selected support or stopper up/down sensors before operating it." xml:space="preserve">
+    <value>선택한 받침 또는 스토퍼의 상승·하강 센서를 확인한 뒤 조작하세요.</value>
+  </data>
+  <data name="the selected support or stopper moved during preparation. check its position and try again." xml:space="preserve">
+    <value>작업부 상승 중 선택한 받침 또는 스토퍼 위치가 바뀌었습니다. 위치를 확인한 뒤 다시 조작하세요.</value>
+  </data>
+  <data name="i/o controls" xml:space="preserve">
+    <value>I/O 조작</value>
+  </data>
+  <data name="process review" xml:space="preserve">
+    <value>공정 확인</value>
+  </data>
+  <data name="pcb placement review" xml:space="preserve">
+    <value>PCB 안착 확인</value>
+  </data>
+  <data name="bolt fastening review" xml:space="preserve">
+    <value>볼트 체결 확인</value>
+  </data>
+  <data name="select s1 for pcb placement or s2 for fastening review." xml:space="preserve">
+    <value>S1을 선택하면 PCB 안착 기록을, S2를 선택하면 볼트 체결 기록을 확인할 수 있습니다.</value>
+  </data>
+  <data name="carrier work actions" xml:space="preserve">
+    <value>작업 완료 처리 · 결과 삭제</value>
+  </data>
+  <data name="check the seated s1 carrier and the placement records above. resume requires matching records and the backup plate up." xml:space="preserve">
+    <value>착좌된 S1 캐리어와 위의 안착 기록을 확인하세요. 실제 상태가 기록과 일치하고 받침이 상승해야 재개할 수 있습니다.</value>
   </data>
 </root>

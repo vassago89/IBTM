@@ -26,6 +26,195 @@ namespace IBTM.Virtual.Tests;
 [Collection("Machine integration")]
 public sealed class MachineLifecycleTests
 {
+    [Fact]
+    public async Task AllStandbyMovesEnabledStationsInOrderAndPreservesPlacementRecords()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.Units.PcbPlacement = true;
+        settings.Units.BoltFastening = true;
+        settings.Units.Inspection = true;
+        settings.BoltFastening.FirstFasteningHead = FasteningHead.Pickup;
+        settings.PcbSupply.TravelZ = 3;
+        settings.PcbSupply.HandoffPosition.Z = 7;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 20, Z = 15 };
+        recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 40, Y = 50, Z = 15 };
+        recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 70, Z = 15 };
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+            var order = new ConcurrentQueue<MotionGroup>();
+            foreach (var (group, motion) in motions)
+                motion.MovingChanged += moving => { if (moving) order.Enqueue(group); };
+            io.SetInputs((InputIo.PcbPlacementHeatSink1Present, true), (InputIo.PcbPlacementHeatSink2Present, true));
+            var station = services.GetRequiredService<PcbPlacer>().Station;
+            var job = station.CurrentJob;
+            var assembly = station.GetAssembly(HeatSinkSlot.HeatSink1);
+            assembly.IsPlacementCompleted = true;
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+            review.SelectStartAreaCommand.Execute(StartArea.Station3);
+            review.IsPlacementResumeConfirmed = true;
+            review.IsFasteningResumeConfirmed = true;
+
+            await review.MoveAllToStandbyCommand.ExecuteAsync(null);
+
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.Equal(UiText.Get("All enabled stations are at standby. Select Check again."), review.StartActionMessage);
+            Assert.Equal(new[] { MotionGroup.PcbPlacementHandler, MotionGroup.PcbSupply,
+                MotionGroup.BoltFastening, MotionGroup.InspectionGantry }, order.Distinct().ToArray());
+            Assert.Equal((80d, 70d, 10d), motions[MotionGroup.PcbPlacementHandler].Position);
+            Assert.Equal((10d, 20d, 3d), motions[MotionGroup.PcbSupply].Position);
+            Assert.Equal((100d, 50d, 0d), motions[MotionGroup.BoltFastening].Position);
+            Assert.Equal((5d, 20d, 0d), motions[MotionGroup.InspectionGantry].Position);
+            Assert.True(io.GetInput(InputIo.PcbSupplyGripperOpen));
+            Assert.False(io.GetInput(InputIo.PcbSupplyIpmFixerForward)); // The actual hardware has one fixer sensor.
+            Assert.True(io.GetInput(InputIo.PcbSupplyRotated));
+            Assert.Same(job, station.CurrentJob);
+            Assert.True(assembly.IsPlacementCompleted);
+            Assert.False(station.Completed);
+            Assert.False(review.IsPlacementResumeConfirmed);
+            Assert.False(review.IsFasteningResumeConfirmed);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task AllStandbyRequiresHomingAndRejectsHeldPcbBeforeAnyOutput()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.Units.PcbPlacement = true;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.MoveAllToStandbyAsync(default));
+            Assert.Contains("HOME", error.Message);
+            await machine.HomeAsync(default);
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+            io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            var outputs = new ConcurrentQueue<OutputIo>();
+            io.OutputChanged += (output, value) => outputs.Enqueue(output);
+            error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.MoveAllToStandbyAsync(default));
+            Assert.Contains("Supply is holding", error.Message);
+            Assert.Empty(outputs);
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AllStandbyStopsBeforeNextStationWhenCancelledOrCylinderTimesOut(bool timeout)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.PcbSupply = true;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            io.AutoResponseEnabled = false;
+            if (timeout)
+                settings.Options.TimeoutMilliseconds = 100;
+            var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+            var supplyPosition = motions[MotionGroup.PcbSupply].Position;
+            var moving = review.MoveAllToStandbyCommand.ExecuteAsync(null);
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementIpmDown, false);
+            Assert.False(moving.IsCompleted);
+            if (!timeout)
+                await review.StopCommand.ExecuteAsync(null);
+            await moving.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(supplyPosition, motions[MotionGroup.PcbSupply].Position);
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
+            Assert.Equal(timeout ? MachineAlarm.PcbPlacement : MachineAlarm.None, state.Alarm);
+            Assert.NotEqual(UiText.Get("All enabled stations are at standby. Select Check again."), review.StartActionMessage);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AllStandbyCancelsOnTransientMaterialDetectionOrManualModeLoss(bool changeMode)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.PcbSupply = true;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            io.AutoResponseEnabled = false;
+            var moving = review.MoveAllToStandbyCommand.ExecuteAsync(null);
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementIpmDown, false);
+            if (changeMode)
+            {
+                io.SetInput(InputIo.AutoMode, false);
+                io.SetInput(InputIo.AutoMode, true);
+            }
+            else
+            {
+                io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+                io.SetInput(InputIo.PcbPlacementPcbDetected, false);
+            }
+            await moving.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
+            Assert.Equal(UiText.Get(changeMode ? "Preparation stopped. Check machine status."
+                : "Clear the Placement PCB and vacuum before starting a new run."), review.StartActionMessage);
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(FasteningHead.Pickup, false)]
     [InlineData(FasteningHead.Shooting, false)]
@@ -1806,12 +1995,13 @@ public sealed class MachineLifecycleTests
 
         head.ReadinessReleased.TrySetResult();
         var resumed = machine.StartAsync();
-        await WaitUntilAsync(() => state.AutomaticRunning);
+        Assert.True(await WaitUntilAsync(() => state.AutomaticRunning, TimeSpan.FromSeconds(2)),
+            $"block={machine.StartBlock}; alarm={state.Alarm}; detail={state.AlarmDetail}; run={resumed.Status}; error={resumed.Exception}");
         await WaitUntilAsync(() => io.GetOutput(OutputIo.TowerLampGreen));
         machine.Stop();
         await resumed.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(state.IsRunning);
-        Assert.Equal(MachineAlarm.None, state.Alarm);
+        Assert.False(state.IsError, state.AlarmDetail);
     }
 
     [Theory]
@@ -2041,6 +2231,7 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.ResetButton, false);
 
         Assert.Equal(MachineAlarm.None, state.Alarm);
+        await WaitUntilAsync(() => machine.IsStartAllowed);
         var resumed = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
         machine.Stop();
@@ -4005,6 +4196,7 @@ public sealed class MachineLifecycleTests
             var assemblies = Enum.GetValues<HeatSinkSlot>().Select(station.GetAssembly).ToArray();
             foreach (var assembly in assemblies)
             {
+                assembly.IsPlacementCompleted = true;
                 assembly.PcbBarcode = $"PCB-{assembly.HeatSink}";
                 assembly.RecordBolt(FasteningHead.Shooting, BoltId(1), new(true, 8));
                 assembly.RecordBolt(FasteningHead.Pickup, BoltId(2), new(false, 2) { MinimumTurns = 3 });
@@ -4046,6 +4238,7 @@ public sealed class MachineLifecycleTests
             foreach (var assembly in assemblies)
             {
                 Assert.Same(assembly, station.GetAssembly(assembly.HeatSink));
+                Assert.Equal(area != StartArea.Station1, assembly.IsPlacementCompleted);
                 var record = records.Single(record => record.Number == assembly.PcbNumber);
                 if (area == StartArea.Station2)
                 {
@@ -4088,6 +4281,505 @@ public sealed class MachineLifecycleTests
             Assert.NotNull(running);
             Assert.Throws<InvalidOperationException>(() => machine.ChangeCarrierWork(StartArea.Station1, placement.CurrentJob, CarrierWorkAction.Complete));
             Assert.False(placement.Completed);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConfirmedPlacementResumeKeepsFirstPcbAndStartsAtSecondHeatSink()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacer>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+            await placement.Station.SeatAsync(CancellationToken.None);
+            var job = placement.Station.CurrentJob;
+            var assembly = placement.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+            assembly.IsPlacementCompleted = true;
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.Equal(StartArea.Station1, review.SelectedStartArea);
+            Assert.Equal(new[] { new PlacementResumeRow(HeatSinkSlot.HeatSink1, true),
+                new PlacementResumeRow(HeatSinkSlot.HeatSink2, false) }, review.PlacementResumeTargets);
+            Assert.True(review.IsPlacementResumeAvailable);
+            Assert.False(review.IsStartReviewAllowed);
+            await review.ConfirmStartCommand.ExecuteAsync(null);
+            await machine.StartAsync();
+            Assert.False(state.AutomaticRunning);
+            Assert.False(placement.IsRunning);
+
+            HeatSinkSlot? selected = null;
+            placement.StepChanged += () =>
+            {
+                if (placement.Step is PcbPlacementState.MovingToHandoff)
+                {
+                    selected = placement.ActivePcb;
+                    machine.Stop();
+                }
+            };
+            review.IsPlacementResumeConfirmed = true;
+            Assert.True(review.IsStartReviewAllowed);
+            await review.ConfirmStartCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(HeatSinkSlot.HeatSink2, selected);
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.Same(job, placement.Station.CurrentJob);
+            Assert.Same(assembly, Assert.Single(placement.Station.Assemblies));
+            Assert.True(assembly.IsPlacementCompleted);
+            Assert.False(placement.Station.Completed);
+            Assert.False(review.IsPlacementResumeConfirmed);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.False(review.IsStartReviewAllowed); // Each START needs a new confirmation.
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartPreparationSupplyReleaseWaitsForFixerBeforeOpeningGripper()
+    {
+        var settings = FlowSettings();
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+            io.AutoResponseEnabled = false;
+            var commands = new ConcurrentQueue<OutputIo>();
+            io.OutputChanged += (output, on) => commands.Enqueue(output);
+            review.SelectStartAreaCommand.Execute(StartArea.Supply);
+            review.IsPlacementResumeConfirmed = true;
+            review.IsFasteningResumeConfirmed = true;
+            var releasing = review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.ReleaseMaterial);
+            await WaitForOutputAsync(io, OutputIo.PcbSupplyIpmFixerForward, false);
+            Assert.False(releasing.IsCompleted);
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.False(review.IsPlacementResumeConfirmed);
+            Assert.False(review.IsFasteningResumeConfirmed);
+            review.SelectStartAreaCommand.Execute(StartArea.Station2); // Keep the area captured at button press.
+            io.SetInputs((InputIo.PcbSupplyIpmFixerForward, false), (InputIo.PcbSupplyIpmFixerBackward, true));
+            await WaitForOutputAsync(io, OutputIo.PcbSupplyGripperClosed, false);
+            Assert.False(releasing.IsCompleted);
+            io.SetInputs((InputIo.PcbSupplyGripperClosed, false), (InputIo.PcbSupplyGripperOpen, true));
+            await releasing.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(new[] { OutputIo.PcbSupplyIpmFixerForward, OutputIo.PcbSupplyGripperClosed }, commands.ToArray());
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.Contains(UiText.Get("Completed"), review.StartActionMessage);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartPreparationStopsBeforeNextOutputOnCancelOrMissingFeedback(bool timeout)
+    {
+        var settings = FlowSettings();
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+            io.AutoResponseEnabled = false;
+            if (timeout)
+                settings.Options.TimeoutMilliseconds = 100;
+            review.SelectStartAreaCommand.Execute(StartArea.Supply);
+            var releasing = review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.ReleaseMaterial);
+            await WaitForOutputAsync(io, OutputIo.PcbSupplyIpmFixerForward, false);
+            if (!timeout)
+                await review.StopCommand.ExecuteAsync(null);
+            await releasing.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.False(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward)); // Cancellation never reverses the cylinder.
+            Assert.Equal(timeout ? MachineAlarm.PcbSupply : MachineAlarm.None, state.Alarm);
+            Assert.DoesNotContain(UiText.Get("Completed"), review.StartActionMessage);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartPreparationMovesCarrierSupportAndStopperIndependentlyAfterRaisingTools()
+    {
+        var settings = FlowSettings();
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacer>();
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+            var job = placement.Station.CurrentJob;
+            var assembly = placement.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+            assembly.IsPlacementCompleted = true;
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementBackupPlateUp, false);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementStopperUp, false);
+            var writes = new ConcurrentQueue<(OutputIo Output, bool On)>();
+            io.OutputChanged += (output, on) =>
+            {
+                if (output == OutputIo.PcbPlacementBackupPlateUp)
+                {
+                    Assert.Equal(StationCylinderState.Up, placement.Lift);
+                    Assert.Equal(StationCylinderState.Up, placement.IpmLift);
+                }
+                writes.Enqueue((output, on));
+            };
+            var motion = placement.Motion.Position;
+            Assert.True(await machine.PrepareStartAreaAsync(StartArea.Station1, StartPreparationAction.ToggleCarrierSupport, CancellationToken.None));
+            Assert.True(placement.Station.CarrierSeated);
+            Assert.Equal(StationCylinderState.Down, placement.Station.Stopper);
+            Assert.Equal(new[] {
+                (OutputIo.PcbPlacementHandlerDown, false), (OutputIo.PcbPlacementIpmDown, false),
+                (OutputIo.PcbPlacementBackupPlateUp, true),
+            }, writes.ToArray());
+            writes.Clear();
+            Assert.True(await machine.PrepareStartAreaAsync(StartArea.Station1, StartPreparationAction.ToggleStopper, CancellationToken.None));
+            Assert.True(placement.Station.CarrierSeated);
+            Assert.Equal(StationCylinderState.Up, placement.Station.Stopper);
+            Assert.Equal(new[] { (OutputIo.PcbPlacementStopperUp, true) }, writes.ToArray());
+            writes.Clear();
+            Assert.True(await machine.PrepareStartAreaAsync(StartArea.Station1, StartPreparationAction.ToggleCarrierSupport, CancellationToken.None));
+            Assert.Equal(StationCylinderState.Down, placement.Station.BackupPlate);
+            Assert.Equal(StationCylinderState.Up, placement.Station.Stopper);
+            Assert.Equal(new[] { (OutputIo.PcbPlacementBackupPlateUp, false) }, writes.ToArray());
+            writes.Clear();
+            io.AutoResponseEnabled = false;
+            var loweringStopper = machine.PrepareStartAreaAsync(StartArea.Station1, StartPreparationAction.ToggleStopper, CancellationToken.None);
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementStopperUp, false);
+            Assert.False(loweringStopper.IsCompleted);
+            Assert.Equal(StationCylinderState.Down, placement.Station.BackupPlate);
+            Assert.Equal(new[] { (OutputIo.PcbPlacementStopperUp, false) }, writes.ToArray());
+            io.SetInputs((InputIo.PcbPlacementStopperUp, false), (InputIo.PcbPlacementStopperDown, true));
+            Assert.True(await loweringStopper.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(StationCylinderState.Down, placement.Station.BackupPlate);
+            Assert.Equal(StationCylinderState.Down, placement.Station.Stopper);
+            Assert.Same(job, placement.Station.CurrentJob);
+            Assert.Same(assembly, Assert.Single(placement.Station.Assemblies));
+            Assert.True(assembly.IsPlacementCompleted);
+            Assert.False(placement.Station.Completed);
+            Assert.Equal(motion, placement.Motion.Position);
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartPreparationFasteningReleasesBothHeadsAndRaisesTableLast()
+    {
+        var settings = FlowSettings();
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupHeadDown, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, true);
+            io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
+            io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
+            var writes = new ConcurrentQueue<(OutputIo Output, bool On)>();
+            io.OutputChanged += (output, on) => writes.Enqueue((output, on));
+            Assert.True(await machine.PrepareStartAreaAsync(StartArea.Station2, StartPreparationAction.ReleaseMaterial, CancellationToken.None));
+            Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
+            Assert.False(io.GetInput(InputIo.ShootingHeadVacuumDetected));
+            Assert.False(io.GetOutput(OutputIo.ShootBolt));
+            Assert.True(io.GetOutput(OutputIo.PickupHeadDown)); // Grip release does not raise the tooling.
+            Assert.True(io.GetOutput(OutputIo.ShootingHeadDown));
+            Assert.DoesNotContain(writes, write => write.On);
+            writes.Clear();
+            Assert.True(await machine.PrepareStartAreaAsync(StartArea.Station2, StartPreparationAction.RaiseTooling, CancellationToken.None));
+            Assert.Equal(new[] { (OutputIo.PickupHeadDown, false), (OutputIo.ShootingHeadDown, false),
+                (OutputIo.PickupTableDown, false) }, writes.ToArray());
+            Assert.True(io.GetInput(InputIo.PickupTableUp));
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(StartPreparationAction.ToggleCarrierSupport, false)]
+    [InlineData(StartPreparationAction.ToggleStopper, true)]
+    public async Task StartPreparationCylinderToggleUsesLiveFeedbackAndRejectsUnknownPosition(
+        StartPreparationAction action, bool conflictingSensors)
+    {
+        await using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var (output, up, down) = action == StartPreparationAction.ToggleCarrierSupport
+            ? (OutputIo.PcbPlacementBackupPlateUp, InputIo.PcbPlacementBackupPlateUp, InputIo.PcbPlacementBackupPlateDown)
+            : (OutputIo.PcbPlacementStopperUp, InputIo.PcbPlacementStopperUp, InputIo.PcbPlacementStopperDown);
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            io.AutoResponseEnabled = false;
+            io.SetOutput(output, false);
+            io.SetInputs((up, conflictingSensors), (down, conflictingSensors));
+            var writes = new ConcurrentQueue<OutputIo>();
+            io.OutputChanged += (signal, value) => writes.Enqueue(signal);
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.PrepareStartAreaAsync(
+                StartArea.Station1, action, CancellationToken.None));
+            Assert.Contains("Up/Down sensors", error.Message);
+            Assert.Empty(writes);
+
+            // The physical cylinder is UP even though its previous UP command is OFF.
+            io.SetInputs((up, true), (down, false));
+            var lowering = machine.PrepareStartAreaAsync(StartArea.Station1, action, CancellationToken.None);
+            Assert.False(lowering.IsCompleted);
+            Assert.False(io.GetOutput(output));
+            io.SetInputs((up, false), (down, true));
+            Assert.True(await lowering.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Empty(writes);
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartPreparationRejectsAutomaticModeAndCancelsWhenManualModeIsLost()
+    {
+        var settings = FlowSettings();
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+            io.AutoResponseEnabled = false;
+            io.SetInput(InputIo.AutoMode, false);
+            Assert.False(await machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.ReleaseMaterial, CancellationToken.None));
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
+            io.SetInput(InputIo.AutoMode, true);
+            var releasing = machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.ReleaseMaterial, CancellationToken.None);
+            await WaitForOutputAsync(io, OutputIo.PcbSupplyIpmFixerForward, false);
+            io.SetInput(InputIo.AutoMode, false);
+            Assert.False(await releasing.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task PlacementResumeCancelsIfTargetsChangeDuringStartupPreparation()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<PcbPlacer>().Station;
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+            await station.SeatAsync(CancellationToken.None);
+            var assembly = station.GetAssembly(HeatSinkSlot.HeatSink1);
+            assembly.IsPlacementCompleted = true;
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, true);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            review.IsPlacementResumeConfirmed = true;
+            Assert.True(review.IsStartReviewAllowed);
+            var changed = false;
+            io.OutputChanged += (output, on) =>
+            {
+                if (!changed && output == OutputIo.PcbPlacementHandlerDown && !on)
+                {
+                    changed = true;
+                    io.SetInput(InputIo.PcbPlacementHeatSink2Present, false);
+                    io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+                }
+            };
+            var started = false;
+            state.PropertyChanged += (sender, args) =>
+            {
+                if (state.AutomaticRunning)
+                {
+                    started = true;
+                    machine.Stop();
+                }
+            };
+            await review.ConfirmStartCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(changed);
+            Assert.False(started);
+            Assert.False(review.IsPlacementResumeConfirmed);
+            Assert.True(assembly.IsPlacementCompleted);
+            Assert.False(station.Completed);
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartPreparationRetainsIpmSupportAndCarrierSupportWhenPlacementStillDetectsPcb()
+    {
+        var settings = FlowSettings();
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacer>();
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+            await placement.Station.SeatAsync(CancellationToken.None);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, true);
+            io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.PrepareStartAreaAsync(
+                StartArea.Station1, StartPreparationAction.ToggleCarrierSupport, CancellationToken.None));
+            Assert.Contains("IPM support is retained", error.Message);
+            Assert.Equal(StationCylinderState.Up, placement.Lift);
+            Assert.Equal(StationCylinderState.Down, placement.IpmLift);
+            Assert.True(placement.Station.CarrierSeated);
+            Assert.False(state.IsError);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+
+            io.SetInput(InputIo.PcbPlacementPcbDetected, false);
+            Assert.True(await machine.PrepareStartAreaAsync(StartArea.Station1, StartPreparationAction.ToggleCarrierSupport, CancellationToken.None));
+            Assert.Equal(StationCylinderState.Up, placement.IpmLift);
+            Assert.Equal(StationCylinderState.Down, placement.Station.BackupPlate);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task PlacementResumeConfirmationRejectsChangedCarrierAndHeldPcb()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<PcbPlacer>().Station;
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+            await station.SeatAsync(CancellationToken.None);
+            var job = station.CurrentJob;
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.False(review.IsPlacementResumeAvailable); // No confirmed placement to skip.
+            station.GetAssembly(HeatSinkSlot.HeatSink1).IsPlacementCompleted = true;
+            await review.CheckStartCommand.ExecuteAsync(null);
+            review.IsPlacementResumeConfirmed = true;
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.False(review.IsPlacementResumeConfirmed);
+
+            var writes = 0;
+            io.OutputChanged += (output, on) => writes++;
+            review.IsPlacementResumeConfirmed = true;
+            io.SetInputs((InputIo.PcbPlacementBackupPlateUp, false), (InputIo.PcbPlacementBackupPlateDown, true));
+            Assert.False(review.IsPlacementResumeConfirmed);
+            Assert.False(review.IsPlacementResumeAvailable);
+            await machine.StartAsync(resumePlacement: job);
+            Assert.Equal(0, writes);
+            io.SetInputs((InputIo.PcbPlacementBackupPlateUp, true), (InputIo.PcbPlacementBackupPlateDown, false));
+            Assert.True(review.IsPlacementResumeAvailable);
+            Assert.False(review.IsPlacementResumeConfirmed);
+
+            review.IsPlacementResumeConfirmed = true;
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, false);
+            Assert.False(review.IsPlacementResumeAvailable);
+            Assert.False(review.IsPlacementResumeConfirmed);
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+
+            review.IsPlacementResumeConfirmed = true;
+            io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+            await review.ConfirmStartCommand.ExecuteAsync(null);
+            Assert.False(state.AutomaticRunning);
+            Assert.False(review.IsPlacementResumeConfirmed);
+            Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+            Assert.Equal(0, writes);
+            io.SetInput(InputIo.PcbPlacementPcbDetected, false);
+
+            SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, false);
+            station.ClearJob();
+            SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
+            station.GetAssembly(HeatSinkSlot.HeatSink1).IsPlacementCompleted = true;
+            Assert.False(review.IsPlacementResumeAvailable);
+            await machine.StartAsync(resumePlacement: job);
+            Assert.False(state.AutomaticRunning);
+            Assert.Equal(0, writes);
         }
         finally
         {
@@ -4833,7 +5525,7 @@ public sealed class MachineLifecycleTests
             Assert.NotNull(taskFailure);
             Assert.Contains(failure.Message, taskFailure.ToString());
             if (!emergencyStop)
-                Assert.Contains("OK  Torque", diagnostics.ResultMessage);
+                Assert.Contains($"OK  {UiText.Get("Result torque")}", diagnostics.ResultMessage);
             Assert.Contains("failed", diagnostics.ResultMessage);
             Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.BoltFastening, state.Alarm);
             Assert.Contains(failure.Message, state.AlarmDetail);
@@ -6541,7 +7233,8 @@ public sealed class MachineLifecycleTests
 
         public Task<ushort> ReadTorqueCompensationAsync(ushort preset, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult((ushort)100);
         }
 
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)

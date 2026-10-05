@@ -17,7 +17,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private readonly RecipeManager _recipes;
     private readonly UnitSettings _units;
     private HeatSinkSlot[]? _runTargets;
-    private int _targetIndex;
     private long _cycleStartedAt;
 
     public PcbPlacer(
@@ -152,11 +151,13 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             if (Station.Completed)
                 return null;
-            if (_runTargets is { } targets)
-                return _targetIndex < targets.Length ? targets[_targetIndex] : null;
-            if (Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1))
-                return HeatSinkSlot.HeatSink1;
-            return Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2) ? HeatSinkSlot.HeatSink2 : null;
+            foreach (var target in _runTargets ?? Enum.GetValues<HeatSinkSlot>())
+            {
+                if (Station.IsHeatSinkPresent(target)
+                    && !Station.Assemblies.Any(assembly => assembly.HeatSink == target && assembly.IsPlacementCompleted))
+                    return target;
+            }
+            return null;
         }
     }
 
@@ -188,7 +189,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         if (_units.PcbPlacement && (Pcb != PlacementPcbState.None || Io.GetInput(InputIo.PcbPlacementVacuumDetected)))
             throw new InvalidOperationException("Clear the Placement PCB and vacuum before starting a new run.");
         _runTargets = null;
-        _targetIndex = 0;
         Phase = _units.PcbPlacement ? PcbPlacementState.Retracting
             : PcbPlacementState.WaitingForCarrier;
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -215,7 +215,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 if (Station.Completed)
                 {
                     _runTargets = null;
-                    _targetIndex = 0;
                 }
                 var heatSink = TargetHeatSink;
                 var step = GetNextStep(heatSink);
@@ -332,14 +331,12 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 var carryingPcb = true;
                 if (!PcbSecured)
                     throw new InvalidOperationException("Placement requires confirmed PCB holding before travelling to its target.");
-                var checkingPcbPresence = false;
                 using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 void CheckPlacementFeedback()
                 {
                     if (!Station.CarrierSeated || !ReferenceEquals(job, Station.CurrentJob)
                         || !Station.IsHeatSinkPresent(target)
-                        || carryingPcb && !PcbSecured
-                        || checkingPcbPresence && Pcb == PlacementPcbState.None)
+                        || carryingPcb && !PcbSecured)
                         OperationCancellation.CancelIfNotDisposed(operation);
                 }
                 Changed += CheckPlacementFeedback;
@@ -353,28 +350,27 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     await MoveAxisAsync(MotionAxis.Y, position.Y, operation.Token);
                     await MoveAxisAsync(MotionAxis.X, position.X, operation.Token);
                     await MoveAxisAsync(MotionAxis.Z, position.Z, operation.Token);
+                    CheckPlacementFeedback();
+                    operation.Token.ThrowIfCancellationRequested();
+                    // PCB/vacuum feedback can turn OFF as the placement cylinder lowers the PCB.
+                    carryingPcb = false;
                     await SetLiftDownAsync(true, operation.Token);
                     operation.Token.ThrowIfCancellationRequested();
-                    // Grip is no longer required after confirmed placement descent.
-                    carryingPcb = false;
                     await SetVacuumAsync(false, operation.Token);
 
                     await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false, operation.Token);
-                    checkingPcbPresence = true;
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
                     await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true, operation.Token);
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
-                    Station.GetAssembly(job, target);
-                    _targetIndex++;
-                    checkingPcbPresence = false;
+                    Station.GetAssembly(job, target).IsPlacementCompleted = true;
                     // Return to standby before allowing the carrier to leave.
                     EnterStep(PcbPlacementState.Retracting);
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                    throw new InvalidOperationException("Placement lost PCB grip, PCB presence during pressing, the target heat sink, or the original seated carrier.");
+                    throw new InvalidOperationException("Placement lost PCB grip before lowering, the target heat sink, or the original seated carrier.");
                 }
                 finally
                 {
@@ -391,7 +387,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     var cycleTime = _runTargets is { Length: > 0 }
                         ? Stopwatch.GetElapsedTime(_cycleStartedAt) : (TimeSpan?)null;
                     _runTargets = null;
-                    _targetIndex = 0;
                     Station.Complete(job, cycleTime);
                 }
                 EnterStep(carrierComplete ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
@@ -403,6 +398,14 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported PCB placement step.");
         }
         return true;
+    }
+
+    public async Task MoveToStandbyAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Pcb != PlacementPcbState.None || Io.GetInput(InputIo.PcbPlacementVacuumDetected))
+            throw new InvalidOperationException("Clear the Placement PCB and vacuum before starting a new run.");
+        await MoveToStandbyAsync(TargetHeatSink ?? HeatSinkSlot.HeatSink1, cancellationToken);
     }
 
     private async Task MoveToStandbyAsync(HeatSinkSlot? departure, CancellationToken cancellationToken)

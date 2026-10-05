@@ -27,6 +27,8 @@ public sealed record DoorSensorDisplay(string Name, IoInputStatus Input);
 
 public sealed record RecentFasteningView(string BoltName, HeatSinkSlot HeatSink, FasteningHead Head, BoltResult Result);
 
+public sealed record PlacementResumeRow(HeatSinkSlot HeatSink, bool IsCompleted);
+
 public sealed record FasteningResumeRow(string Label, HeatSinkSlot HeatSink, BoltResult? Result)
 {
     public string Status => Result is null ? "Not recorded"
@@ -52,6 +54,7 @@ public partial class OperationViewModel : ObservableObject
     private int _pcbHistoryLimit;
     private bool _pcbHistoryLoaded;
     private ConveyorStation.Job? _reviewedFasteningJob;
+    private ConveyorStation.Job? _reviewedPlacementJob;
 
     public OperationViewModel(
         MachineState state,
@@ -80,6 +83,8 @@ public partial class OperationViewModel : ObservableObject
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
+        PrepareStartAreaCommand = new AsyncRelayCommand<StartPreparationAction>(PrepareStartAreaAsync);
+        MoveAllToStandbyCommand = new AsyncRelayCommand(MoveAllToStandbyAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         ResetCommand = new AsyncRelayCommand(ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
@@ -87,6 +92,7 @@ public partial class OperationViewModel : ObservableObject
         RetryPcbSaveCommand = new AsyncRelayCommand(RetryPcbSaveAsync);
         PcbRecords = new();
         FasteningResumeBolts = new();
+        PlacementResumeTargets = new();
         _pcbHistoryLimit = MachineStore.PcbHistoryPageSize;
         _store = store;
         _windows = windows;
@@ -278,7 +284,8 @@ public partial class OperationViewModel : ObservableObject
             return Units.PcbPlacement
                 && Placement.Station.CarrierPresent
                 && Placement.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)
-                && Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1);
+                && Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1
+                    && assembly.IsPlacementCompleted);
         }
     }
 
@@ -289,7 +296,8 @@ public partial class OperationViewModel : ObservableObject
             return Units.PcbPlacement
                 && Placement.Station.CarrierPresent
                 && Placement.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)
-                && Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2);
+                && Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2
+                    && assembly.IsPlacementCompleted);
         }
     }
 
@@ -519,13 +527,39 @@ public partial class OperationViewModel : ObservableObject
         Machine.PcbHistory.ImageSaved -= OnPcbImageSaved;
         return CommandShutdown.WaitAsync(
             CommandShutdown.CancelAndWaitAsync(
-                [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
+                [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, PrepareStartAreaCommand, MoveAllToStandbyCommand,
                     HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand,
                     .. StartOutputGroups.Values.SelectMany(rows => rows).Distinct().Select(row => row.ToggleOutputCommand)]),
             PcbDetails.ShutdownAsync());
     }
 
     public ObservableCollection<FasteningResumeRow> FasteningResumeBolts { get; }
+
+    public ObservableCollection<PlacementResumeRow> PlacementResumeTargets { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStartReviewAllowed))]
+    public partial bool IsPlacementResumeConfirmed { get; set; }
+
+    public bool IsPlacementResumeAvailable => State.Available && !State.IsRunning
+        && _reviewedPlacementJob is { } job && Machine.IsPlacementResumeAllowed(job)
+        && Enum.GetValues<HeatSinkSlot>().All(target => Placement.Station.IsHeatSinkPresent(target)
+            == PlacementResumeTargets.Any(row => row.HeatSink == target))
+        && PlacementResumeTargets.All(row => row.IsCompleted
+            == Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == row.HeatSink
+                && assembly.IsPlacementCompleted));
+
+    private void RefreshPlacementResume()
+    {
+        IsPlacementResumeConfirmed = false;
+        _reviewedPlacementJob = Placement.Station.CurrentJob;
+        PlacementResumeTargets.Clear();
+        foreach (var target in Enum.GetValues<HeatSinkSlot>().Where(Placement.Station.IsHeatSinkPresent))
+            PlacementResumeTargets.Add(new(target,
+                Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == target && assembly.IsPlacementCompleted)));
+        OnPropertyChanged(nameof(IsPlacementResumeAvailable));
+        OnPropertyChanged(nameof(IsStartReviewAllowed));
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsStartReviewAllowed))]
@@ -583,6 +617,67 @@ public partial class OperationViewModel : ObservableObject
 
     public IRelayCommand<StartArea> SelectStartAreaCommand { get; }
     public IAsyncRelayCommand<CarrierWorkAction> ChangeCarrierWorkCommand { get; }
+    public IAsyncRelayCommand<StartPreparationAction> PrepareStartAreaCommand { get; }
+    public IAsyncRelayCommand MoveAllToStandbyCommand { get; }
+
+    private async Task MoveAllToStandbyAsync(CancellationToken cancellationToken)
+    {
+        IsPlacementResumeConfirmed = false;
+        IsFasteningResumeConfirmed = false;
+        StartActionMessage = UiText.Get("Moving all enabled stations to standby...");
+        try
+        {
+            var completed = await Machine.MoveAllToStandbyAsync(cancellationToken);
+            StartActionMessage = UiText.Get(completed
+                ? "All enabled stations are at standby. Select Check again."
+                : "Preparation stopped. Check machine status.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            StartActionMessage = UiText.Get("Preparation stopped. Check machine status.");
+        }
+        catch (Exception exception)
+        {
+            _log.LogError(exception, "START standby failed.");
+            StartActionMessage = UiText.Get(exception.Message);
+        }
+        finally
+        {
+            RefreshPlacementResume();
+            RefreshFasteningResume();
+        }
+    }
+
+    private async Task PrepareStartAreaAsync(StartPreparationAction action, CancellationToken cancellationToken)
+    {
+        var area = SelectedStartArea;
+        IsPlacementResumeConfirmed = false;
+        IsFasteningResumeConfirmed = false;
+        StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action)} · {UiText.Get("In progress")}";
+        try
+        {
+            var completed = await Machine.PrepareStartAreaAsync(area, action, cancellationToken);
+            var result = completed ? "Completed" : "Preparation stopped. Check machine status.";
+            StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action)} · {UiText.Get(result)}";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            StartActionMessage = UiText.Get("Preparation stopped. Check machine status.");
+        }
+        catch (Exception exception)
+        {
+            _log.LogError(exception, "START preparation failed: {Area}, {Action}.", area, action);
+            StartActionMessage = UiText.Get(exception.Message);
+        }
+        finally
+        {
+            RefreshPlacementResume();
+            RefreshFasteningResume();
+            OnPropertyChanged(nameof(StartStation));
+            // Leave material admission to the explicit Check again / START review.
+        }
+    }
+
     private void SelectStartArea(StartArea area)
     {
         SelectedStartArea = area;
@@ -599,6 +694,7 @@ public partial class OperationViewModel : ObservableObject
         {
             await Task.Run(() => Machine.ChangeCarrierWork(area, job, action, cancellationToken), cancellationToken);
             RefreshFasteningResume();
+            RefreshPlacementResume();
             StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action == CarrierWorkAction.Complete ? "Marked complete" : "Results cleared")}";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
@@ -618,15 +714,19 @@ public partial class OperationViewModel : ObservableObject
         && Machine.StartChecks.All(check => check.Value is not (StartCheckState.NotChecked or StartCheckState.Unknown
             or StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier)
             || check.Key == StartArea.Station2 && check.Value == StartCheckState.UnfinishedCarrier
-                && IsFasteningResumeConfirmed && IsFasteningResumeAvailable);
+                && IsFasteningResumeConfirmed && IsFasteningResumeAvailable
+            || check.Key == StartArea.Station1 && check.Value == StartCheckState.UnfinishedCarrier
+                && IsPlacementResumeConfirmed && IsPlacementResumeAvailable);
 
     private async Task ConfirmStartAsync(CancellationToken cancellationToken)
     {
         if (!IsStartReviewAllowed)
             return;
         var resume = IsFasteningResumeConfirmed ? _reviewedFasteningJob : null;
+        var resumePlacement = IsPlacementResumeConfirmed ? _reviewedPlacementJob : null;
         IsFasteningResumeConfirmed = false;
-        await Machine.StartAsync(cancellationToken, resume);
+        IsPlacementResumeConfirmed = false;
+        await Machine.StartAsync(cancellationToken, resume, resumePlacement);
     }
 
     private async Task CheckStartAsync(CancellationToken cancellationToken)
@@ -635,7 +735,10 @@ public partial class OperationViewModel : ObservableObject
         {
             await Task.Run(Machine.CheckStartMaterials, cancellationToken);
             RefreshFasteningResume();
-            if (Machine.StartChecks[StartArea.Station2] == StartCheckState.UnfinishedCarrier)
+            RefreshPlacementResume();
+            if (Machine.StartChecks[StartArea.Station1] == StartCheckState.UnfinishedCarrier)
+                SelectedStartArea = StartArea.Station1;
+            else if (Machine.StartChecks[StartArea.Station2] == StartCheckState.UnfinishedCarrier)
                 SelectedStartArea = StartArea.Station2;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -659,6 +762,7 @@ public partial class OperationViewModel : ObservableObject
         if (State.IsRunning || cancellationToken.IsCancellationRequested)
             return;
         IsFasteningResumeConfirmed = false;
+        IsPlacementResumeConfirmed = false;
         // Register the async command's cancellation before entering the modal message loop.
         await Task.Yield();
         if (cancellationToken.IsCancellationRequested)
@@ -677,6 +781,7 @@ public partial class OperationViewModel : ObservableObject
         {
             _active = wasActive;
             IsFasteningResumeConfirmed = false;
+            IsPlacementResumeConfirmed = false;
         }
         // The window starts production; this command owns its lifetime after the window closes.
         if (ConfirmStartCommand.ExecutionTask is { } starting)
@@ -690,7 +795,7 @@ public partial class OperationViewModel : ObservableObject
         var previous = StopCommand.ExecutionTask;
         try
         {
-            IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand,
+            IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, PrepareStartAreaCommand, MoveAllToStandbyCommand,
                 HomeCommand,
                 .. StartOutputGroups.Values.SelectMany(rows => rows).Distinct().Select(row => row.ToggleOutputCommand)];
             var pending = CommandShutdown.Capture(commands);
@@ -827,6 +932,7 @@ public partial class OperationViewModel : ObservableObject
         if (e.PropertyName is nameof(MachineState.IsRunning) or nameof(MachineState.Available))
         {
             OnPropertyChanged(nameof(IsFasteningResumeAvailable));
+            OnPropertyChanged(nameof(IsPlacementResumeAvailable));
             OnPropertyChanged(nameof(IsStartReviewAllowed));
         }
         if (e.PropertyName is null or nameof(MachineState.Available) or nameof(MachineState.SafetyReady)
@@ -927,6 +1033,10 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnPcbPlacementChanged()
     {
+        if (IsPlacementResumeConfirmed && !IsPlacementResumeAvailable)
+            IsPlacementResumeConfirmed = false;
+        OnPropertyChanged(nameof(IsPlacementResumeAvailable));
+        OnPropertyChanged(nameof(IsStartReviewAllowed));
         if (!_active)
             return;
 

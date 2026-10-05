@@ -49,3 +49,15 @@ public enum CarrierWorkAction
     [Description("Clear results")]
     Clear,
 }
+
+public enum StartPreparationAction
+{
+    [Description("Release material grip")]
+    ReleaseMaterial,
+    [Description("Raise tooling")]
+    RaiseTooling,
+    [Description("Raise/lower carrier support")]
+    ToggleCarrierSupport,
+    [Description("Raise/lower stopper")]
+    ToggleStopper,
+}

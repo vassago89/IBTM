@@ -37,6 +37,9 @@ public sealed class HeatSinkAssembly
 
     public long? PcbNumber { get; set; }
 
+    // Completion history for this carrier, not a live PCB presence signal.
+    public bool IsPlacementCompleted { get; set; }
+
     public event Action<HeatSinkAssembly>? ResultsChanged;
     public event Action<InspectionCapture>? InspectionCaptured;
     public event Action<HeatSinkAssembly>? InspectionCleared;

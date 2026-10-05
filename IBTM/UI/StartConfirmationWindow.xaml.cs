@@ -45,8 +45,11 @@ public partial class StartConfirmationWindow : Window
     private void OnClosed(object? sender, EventArgs e)
     {
         _viewModel.IsFasteningResumeConfirmed = false;
+        _viewModel.IsPlacementResumeConfirmed = false;
         _viewModel.CheckStartCommand.Cancel();
         _viewModel.ChangeCarrierWorkCommand.Cancel();
+        _viewModel.PrepareStartAreaCommand.Cancel();
+        _viewModel.MoveAllToStandbyCommand.Cancel();
         foreach (var row in _viewModel.StartOutputGroups.Values.SelectMany(rows => rows).Distinct())
             row.ToggleOutputCommand.Cancel();
         if (DialogResult != true)

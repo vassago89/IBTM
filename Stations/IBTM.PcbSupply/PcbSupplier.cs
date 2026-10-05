@@ -226,11 +226,10 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         {
             BeginRun(_units.PcbSupply ? Phase : PcbSupplyState.Disabled);
             placement.Changed += WakeRun;
-            // An open gripper can see a PCB below. Retract its fixer before empty travel.
-            if (_units.PcbSupply && !continueHandoff
-                && Gripper == PcbSupplyCylinderState.Backward
-                && Io.GetInput(InputIo.PcbSupplyIpmFixerForward))
-                await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, cancellationToken);
+            if (_units.PcbSupply && !continueHandoff)
+            {
+                await PrepareEmptyGripperAsync(cancellationToken);
+            }
             while (!cancellationToken.IsCancellationRequested)
             {
                 // Pickup checks its support below; other partial grips require a live handoff.
@@ -290,13 +289,14 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             : recipe.Pcb2PickPosition;
                         using var pickup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         var carrierChanged = false;
-                        var holdingRequired = false;
+                        var gripRequired = false;
                         void CheckPickupFeedback()
                         {
                             if (!UpstreamCarrierAvailable)
                                 carrierChanged = true;
                             if (carrierChanged || Rotation != PcbSupplyRotationState.Rotated
-                                || holdingRequired && !PcbSecured)
+                                || gripRequired && (Gripper != PcbSupplyCylinderState.Forward
+                                    || !Io.GetInput(InputIo.PcbSupplyIpmFixerForward)))
                                 OperationCancellation.CancelIfNotDisposed(pickup);
                         }
 
@@ -312,19 +312,24 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             await _motion.MoveAxisAsync(MotionAxis.Z, pickPosition.Z, _settings.Motion.ZSpeed, pickup.Token);
                             pickup.Token.ThrowIfCancellationRequested();
                             EnterStep(step);
+                            // Pick at the taught XYZ, then judge PCB presence only after reaching Travel Z.
+                            await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true, pickup.Token);
+                            await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true, pickup.Token);
+                            gripRequired = true;
+                            CheckPickupFeedback();
+                            pickup.Token.ThrowIfCancellationRequested();
+                            await MoveAxisAsync(MotionAxis.Z, _settings.TravelZ, pickup.Token);
+                            CheckPickupFeedback();
+                            pickup.Token.ThrowIfCancellationRequested();
                             if (Pcb == PcbSupplyPcbState.None)
                             {
-                                await MoveAxisAsync(MotionAxis.Z, _settings.TravelZ, pickup.Token);
+                                gripRequired = false;
+                                await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, pickup.Token);
+                                await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, pickup.Token);
                                 EnterStep(PcbSupplyState.WaitingForCarrier);
                             }
                             else
                             {
-                                // Presence can be ON before reaching the PCB; grip only at the taught pickup XYZ.
-                                await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true, pickup.Token);
-                                await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true, pickup.Token);
-                                holdingRequired = true;
-                                CheckPickupFeedback();
-                                pickup.Token.ThrowIfCancellationRequested();
                                 EnterStep(PcbSupplyState.MovingToHandoff);
                             }
 
@@ -333,7 +338,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             if (!carrierChanged)
                             {
                                 _pickStep = pickStep == PickStep.Pcb1 ? PickStep.Pcb2 : PickStep.WaitingForCarrierExit;
-                                if (!PcbSecured && _pickStep == PickStep.WaitingForCarrierExit)
+                                if (Phase == PcbSupplyState.WaitingForCarrier && _pickStep == PickStep.WaitingForCarrierExit)
                                     EnterStep(PcbSupplyState.WaitingForCarrierExit);
                             }
                         }
@@ -347,8 +352,9 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         }
                         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                         {
-                            if (holdingRequired && !PcbSecured)
-                                throw new InvalidOperationException("Supply lost PCB holding feedback during pickup lift.");
+                            if (gripRequired && (Gripper != PcbSupplyCylinderState.Forward
+                                || !Io.GetInput(InputIo.PcbSupplyIpmFixerForward)))
+                                throw new InvalidOperationException("Supply lost gripper or IPM fixation feedback during pickup lift.");
                             throw new MotionInterlockException("Supply rotation must remain confirmed Rotated throughout PCB pickup.");
                         }
                         finally
@@ -535,6 +541,52 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(point));
+        }
+    }
+
+    public async Task MoveToStandbyAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Rotation == PcbSupplyRotationState.Between)
+            throw new MotionInterlockException("Confirm Supply rotation feedback before moving to the handoff position.");
+        var position = _recipes.Current.PcbSupply.Pcb1PickPosition;
+        if (position.Y is null)
+            throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
+        await PrepareEmptyGripperAsync(cancellationToken);
+        await MoveFromHandoffAsync(position, cancellationToken);
+    }
+
+    private async Task PrepareEmptyGripperAsync(CancellationToken cancellationToken)
+    {
+        using var preparation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        void CheckStartupPcb()
+        {
+            // An open gripper can see a supported PCB below without holding it.
+            if (Io.GetInput(InputIo.PcbSupplyPcbDetected)
+                && Gripper != PcbSupplyCylinderState.Backward)
+                OperationCancellation.CancelIfNotDisposed(preparation);
+        }
+
+        Changed += CheckStartupPcb;
+        try
+        {
+            CheckStartupPcb();
+            await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, preparation.Token);
+            CheckStartupPcb();
+            await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, preparation.Token);
+            CheckStartupPcb();
+            preparation.Token.ThrowIfCancellationRequested();
+            if (!PcbReleased)
+                throw new MotionInterlockException("Supply startup requires an open gripper and retracted IPM fixer before moving.");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(
+                "Supply detected a PCB with its gripper not open during startup. Check and remove the PCB before restarting.");
+        }
+        finally
+        {
+            Changed -= CheckStartupPcb;
         }
     }
 

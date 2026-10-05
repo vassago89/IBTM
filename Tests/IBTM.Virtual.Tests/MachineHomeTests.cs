@@ -31,7 +31,7 @@ public sealed class MachineHomeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PlacementHomeReportsHorizontalFailureAfterZHome(bool allUnits)
+    public async Task PlacementHomeReportsHorizontalFailureBeforeFollowingAxes(bool allUnits)
     {
         var settings = FlowSettings();
         if (!allUnits)
@@ -53,7 +53,7 @@ public sealed class MachineHomeTests
             else
                 await teaching.HomeCommand.ExecuteAsync(null);
 
-            Assert.True(motion.GetAxisState(MotionAxis.Z).Homed);
+            Assert.Equal(!allUnits, motion.GetAxisState(MotionAxis.Z).Homed);
             Assert.False(motion.GetAxisState(MotionAxis.X).Homed);
             Assert.False(motion.GetAxisState(MotionAxis.Y).Homed);
             if (allUnits)
@@ -153,9 +153,9 @@ public sealed class MachineHomeTests
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.Empty(outputs);
             Assert.Equal(allUnits ? 3 : 2, placementStarts.Count);
-            Assert.Equal(MotionAxis.Z, placementHomeOrder[0]);
+            Assert.Equal(allUnits ? MotionAxis.Y : MotionAxis.Z, placementHomeOrder[0]);
             if (allUnits)
-                Assert.Equal(new[] { MotionAxis.Z, MotionAxis.Y, MotionAxis.X }, placementHomeOrder);
+                Assert.Equal(new[] { MotionAxis.Y, MotionAxis.Z, MotionAxis.X }, placementHomeOrder);
             Assert.Equal(allUnits ? motions.Count - 1 : 0, starts.Select(start => start.Group).Distinct().Count());
             Assert.All(starts, start => Assert.True(start.PlacementHomed, $"{start.Group} started before Placement HOME completed."));
             foreach (var (group, motion) in motions)
@@ -174,9 +174,10 @@ public sealed class MachineHomeTests
     }
 
     [Theory]
-    [InlineData(MotionAxis.Y)]
-    [InlineData(MotionAxis.X)]
-    public async Task StopAfterPlacementHomeAxisPreventsFollowingHomeAndAllowsRestart(MotionAxis stopAfter)
+    [InlineData(MotionAxis.Y, 1)]
+    [InlineData(MotionAxis.Z, 2)]
+    [InlineData(MotionAxis.X, 3)]
+    public async Task StopAfterPlacementHomeAxisPreventsFollowingHomeAndAllowsRestart(MotionAxis stopAfter, int expectedHomes)
     {
         await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
@@ -206,7 +207,9 @@ public sealed class MachineHomeTests
         {
             await machine.HomeAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
 
-            Assert.Equal(Enumerable.Repeat(MotionGroup.PcbPlacementHandler, stopAfter == MotionAxis.Y ? 2 : 3), starts);
+            Assert.Equal(Enumerable.Repeat(MotionGroup.PcbPlacementHandler, expectedHomes), starts);
+            Assert.True(placement.GetAxisState(MotionAxis.Y).Homed);
+            Assert.Equal(stopAfter != MotionAxis.Y, placement.GetAxisState(MotionAxis.Z).Homed);
             Assert.Equal(stopAfter == MotionAxis.X, placement.GetAxisState(MotionAxis.X).Homed);
             Assert.False(state.IsHoming);
             Assert.False(operations.HasActiveOperations);

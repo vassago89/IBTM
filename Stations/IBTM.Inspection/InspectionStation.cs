@@ -501,7 +501,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         NotifyChanged();
     }
 
-    private async Task MoveToWaitingPositionAsync(CancellationToken cancellationToken)
+    public async Task MoveToWaitingPositionAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var position = _settings.WaitingPosition

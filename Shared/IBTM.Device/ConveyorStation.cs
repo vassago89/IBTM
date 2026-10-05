@@ -327,7 +327,7 @@ public sealed class ConveyorStation : INotifyPropertyChanged
             // Only an explicit operator clear admits unfinished work at the next START.
             job.RestartAllowed = allowStart;
         }
-        // Keep recorded quality results with the carrier; they do not select sequence steps.
+        // Keep recorded results with the carrier; the caller decides whether to clear or resume them.
         Changed?.Invoke();
     }
 

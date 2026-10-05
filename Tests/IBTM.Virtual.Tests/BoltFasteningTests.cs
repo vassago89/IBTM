@@ -2880,7 +2880,8 @@ public sealed class BoltFasteningTests
                 }
                 : [(1, -25, 235, 16), (1, -15, 225, 16), (2, 280, 410, 12), (2, 270, 420, 12)];
             Assert.Equal(expected, starts);
-            Assert.Equal(expected.Select(item => (item.Head, (ushort)1)), presets);
+            // Matching preset outputs are retained; each operation still checks current preset/READY feedback.
+            Assert.Equal(expected.Select(item => (item.Head, (ushort)1)).Distinct(), presets);
             Assert.Equal(0, pickups); // Feeder OFF preserves pickup travel without vacuum ON.
             Assert.Equal(1, tableDescents);
             Assert.All(work.Assemblies, assembly => Assert.Single(assembly.PickupBoltResults));

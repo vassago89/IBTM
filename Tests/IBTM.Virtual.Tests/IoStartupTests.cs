@@ -849,6 +849,7 @@ public sealed class IoStartupTests
             io.PendingInput = (input, !value);
             await WaitUntilAsync(() => io.GetInput(input) == !value);
             machine.Stop();
+            await WaitUntilAsync(() => machine.IsResetAllowed);
             Assert.True(machine.IsResetAllowed);
             await machine.ResetAsync();
             Assert.False(state.IsError);

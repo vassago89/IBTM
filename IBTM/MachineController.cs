@@ -699,6 +699,16 @@ public sealed class MachineController : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
     }
 
+    public bool IsPlacementResumeAllowed(ConveyorStation.Job job)
+    {
+        return _units.PcbPlacement && _io.IsReady
+            && ReferenceEquals(job, _pcbPlacement.Station.CurrentJob)
+            && _pcbPlacement.Station.CarrierSeated && !_pcbPlacement.Station.Completed
+            && _pcbPlacement.Station.Assemblies.Any(assembly => assembly.IsPlacementCompleted)
+            && _pcbPlacement.Station.Assemblies.All(assembly => !assembly.IsPlacementCompleted
+                || _pcbPlacement.Station.IsHeatSinkPresent(assembly.HeatSink));
+    }
+
     public void ChangeCarrierWork(
         StartArea area, ConveyorStation.Job job, CarrierWorkAction action, CancellationToken cancellationToken = default)
     {
@@ -728,6 +738,9 @@ public sealed class MachineController : INotifyPropertyChanged
                 {
                     switch (area)
                     {
+                        case StartArea.Station1:
+                            assembly.IsPlacementCompleted = false;
+                            break;
                         case StartArea.Station2:
                             assembly.ClearFasteningResults();
                             break;
@@ -803,7 +816,8 @@ public sealed class MachineController : INotifyPropertyChanged
     }
 
     public async Task StartAsync(
-        CancellationToken cancellationToken = default, ConveyorStation.Job? resumeFastening = null)
+        CancellationToken cancellationToken = default, ConveyorStation.Job? resumeFastening = null,
+        ConveyorStation.Job? resumePlacement = null)
     {
         await Task.Run(async () =>
         {
@@ -823,10 +837,20 @@ public sealed class MachineController : INotifyPropertyChanged
                 CheckStartMaterials();
                 if (resumeFastening is not null && !IsFasteningResumeAllowed(resumeFastening))
                     return;
+                if (resumePlacement is not null && !IsPlacementResumeAllowed(resumePlacement))
+                    return;
+                var placementTargets = resumePlacement is null ? null
+                    : Enum.GetValues<HeatSinkSlot>().Where(_pcbPlacement.Station.IsHeatSinkPresent).ToArray();
                 if (StartChecks.Any(check => check.Value is StartCheckState.Unknown or StartCheckState.MaterialRemaining
                     || check.Value == StartCheckState.UnfinishedCarrier
-                        && !(check.Key == StartArea.Station2 && resumeFastening is not null)))
+                        && !(check.Key == StartArea.Station2 && resumeFastening is not null)
+                        && !(check.Key == StartArea.Station1 && resumePlacement is not null)))
                     return;
+
+                if (resumePlacement is not null)
+                    _log?.LogInformation("Operator confirmed placement resume: job={Job}, completed={Targets}.",
+                        resumePlacement.Id, string.Join(", ", _pcbPlacement.Station.Assemblies
+                            .Where(assembly => assembly.IsPlacementCompleted).Select(assembly => assembly.HeatSink)));
 
                 // Only an accepted START clears work from stations that are now empty.
                 if (!_pcbPlacement.Station.CarrierPresent)
@@ -864,6 +888,16 @@ public sealed class MachineController : INotifyPropertyChanged
                             || !_state.DoorInterlockReady)
                         {
                             _log?.LogInformation("Automatic stop: I/O, selector, emergency stop, air or door condition changed.");
+                            operation.Cancel();
+                            return;
+                        }
+
+                        if (!_state.AutomaticRunning && resumePlacement is not null
+                            && (!IsPlacementResumeAllowed(resumePlacement)
+                                || Enum.GetValues<HeatSinkSlot>().Any(target =>
+                                    _pcbPlacement.Station.IsHeatSinkPresent(target) != placementTargets!.Contains(target))))
+                        {
+                            _log?.LogInformation("Placement resume cancelled: reviewed carrier or heat-sink feedback changed during START preparation.");
                             operation.Cancel();
                             return;
                         }
@@ -927,6 +961,12 @@ public sealed class MachineController : INotifyPropertyChanged
 
                 try
                 {
+                    if (resumePlacement is not null)
+                    {
+                        _pcbPlacement.Changed += StopWhenOperationBecomesUnavailable;
+                        StopWhenOperationBecomesUnavailable();
+                        operation.Token.ThrowIfCancellationRequested();
+                    }
                     var (startAlarm, startError) = await InitializeHardwareAsync(operation.Token);
                     if (startAlarm != MachineAlarm.None)
                     {
@@ -961,6 +1001,7 @@ public sealed class MachineController : INotifyPropertyChanged
                         await _conveyor.PrepareEmptyStationsAsync(operation.Token);
                     }
 
+                    StopWhenOperationBecomesUnavailable();
                     operation.Token.ThrowIfCancellationRequested();
                     failureAlarm = MachineAlarm.IoCommunication;
                     _state.AutomaticRunning = true;
@@ -969,6 +1010,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 }
                 finally
                 {
+                    _pcbPlacement.Changed -= StopWhenOperationBecomesUnavailable;
                     _state.Changed -= StopWhenOperationBecomesUnavailable;
                     _feedback.Sampled -= StopWhenMotionFeedbackBecomesUnavailable;
                     _state.AutomaticRunning = false;
@@ -1528,12 +1570,12 @@ public sealed class MachineController : INotifyPropertyChanged
                     failureAlarm = MachineAlarm.HomeFailed;
                     if (_units.PcbPlacement)
                     {
-                        // Avoid interference: home Placement Z, Y, then X before any other unit starts.
-                        await CheckHomeAsync(
-                            _pcbPlacement.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken);
-                        cancellationToken.ThrowIfCancellationRequested();
+                        // Avoid interference: home Placement Y, Z, then X before any other unit starts.
                         await CheckHomeAsync(
                             _pcbPlacement.HomeAxisAsync(MotionAxis.Y, cancellationToken), cancellationToken);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await CheckHomeAsync(
+                            _pcbPlacement.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
                         await CheckHomeAsync(
                             _pcbPlacement.HomeAxisAsync(MotionAxis.X, cancellationToken), cancellationToken);
@@ -2217,6 +2259,261 @@ public sealed class MachineController : INotifyPropertyChanged
         }
 
         return stopReason;
+    }
+
+    public async Task<bool> MoveAllToStandbyAsync(CancellationToken cancellationToken)
+    {
+        var groups = Enum.GetValues<MotionGroup>().Where(_units.IsMotionEnabled).ToArray();
+        var activeToken = cancellationToken;
+        var alarm = MachineAlarm.MotionUnavailable;
+        string? materialBlock = null;
+        try
+        {
+            using var operation = BeginManualOperation(
+                () => _state.Available && _state.ManualMode && _state.SafetyReady
+                    && !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
+                    && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
+                    && groups.All(group => IsManualMotionReady(group)),
+                cancellationToken);
+            if (operation is null)
+                return false;
+            activeToken = operation.Token;
+            if (activeToken.IsCancellationRequested || groups.Length == 0
+                || _state.IsRunningFor(includeOperations: false)
+                || groups.Any(group => _motions[group].Axes.Any(axis => _motions[group].GetAxisState(axis).InMotion)))
+                throw new InvalidOperationException("Stop the machine, select manual mode, and HOME all enabled axes before standby.");
+            materialBlock = StandbyMaterialBlock;
+            if (materialBlock is not null)
+                throw new InvalidOperationException(materialBlock);
+            if (_units.PcbSupply && _pcbSupply.Rotation == PcbSupplyRotationState.Between)
+                throw new InvalidOperationException("Confirm Supply rotation feedback before moving to the handoff position.");
+
+            void CheckMaterial(InputIo input, bool value)
+            {
+                if (!_io.IsReady)
+                {
+                    operation.Cancel();
+                    return;
+                }
+                materialBlock ??= StandbyMaterialBlock;
+                if (materialBlock is not null)
+                    operation.Cancel();
+            }
+
+            _io.InputChanged += CheckMaterial;
+            try
+            {
+                CheckMaterial(default, false);
+                activeToken.ThrowIfCancellationRequested();
+                // Clear Placement from the shared handoff before Supply returns through it.
+                if (_units.PcbPlacement)
+                {
+                    alarm = MachineAlarm.PcbPlacement;
+                    _log?.LogInformation("START standby: Placement.");
+                    await _pcbPlacement.MoveToStandbyAsync(activeToken);
+                }
+                if (_units.PcbSupply)
+                {
+                    alarm = MachineAlarm.PcbSupply;
+                    _log?.LogInformation("START standby: Supply.");
+                    await _pcbSupply.MoveToStandbyAsync(activeToken);
+                }
+                if (_units.BoltFastening)
+                {
+                    alarm = MachineAlarm.BoltFastening;
+                    _log?.LogInformation("START standby: Fastening.");
+                    await _fasteningStation.MoveToStandbyAsync(activeToken);
+                }
+                if (_units.Inspection)
+                {
+                    alarm = MachineAlarm.Inspection;
+                    _log?.LogInformation("START standby: Inspection.");
+                    await _inspectionStation.SetLiftUpAsync(true, activeToken);
+                    await _inspectionStation.MoveToWaitingPositionAsync(activeToken);
+                }
+                activeToken.ThrowIfCancellationRequested();
+                _log?.LogInformation("START standby: all enabled stations completed.");
+                return true;
+            }
+            finally
+            {
+                _io.InputChanged -= CheckMaterial;
+            }
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested || _operations.IsShuttingDown)
+        {
+            if (materialBlock is not null)
+                throw new InvalidOperationException(materialBlock);
+            return false;
+        }
+        catch (Exception exception) when (IsDeviceFailure(exception))
+        {
+            ReportManualFailure(alarm, exception);
+            throw;
+        }
+    }
+
+    private string? StandbyMaterialBlock
+    {
+        get
+        {
+            if (_units.PcbSupply && _pcbSupply.Pcb != PcbSupplyPcbState.None
+                && _pcbSupply.Gripper != PcbSupplyCylinderState.Backward)
+                return "Supply is holding a PCB. Support and release it before moving all stations to standby.";
+            if (_units.PcbPlacement && (_io.GetInput(InputIo.PcbPlacementPcbDetected)
+                || _io.GetInput(InputIo.PcbPlacementVacuumDetected)))
+                return "Clear the Placement PCB and vacuum before starting a new run.";
+            if (_units.BoltFastening && (_io.GetInput(InputIo.PickupHeadVacuumDetected)
+                || _io.GetInput(InputIo.ShootingHeadVacuumDetected)
+                || _io.GetInput(InputIo.ShootingTubeBoltDetected)))
+                return "Remove the head bolts and release vacuum before moving all stations to standby.";
+            if (_units.Inspection && (_inspectionStation.IsTransferPending
+                || _inspectionStation.Gripper != NgTransferGripperState.Open))
+                return "Finish or release the NG carrier transfer and confirm the gripper is open before standby.";
+            return null;
+        }
+    }
+
+    public async Task<bool> PrepareStartAreaAsync(
+        StartArea area, StartPreparationAction action, CancellationToken cancellationToken)
+    {
+        var motion = area switch
+        {
+            StartArea.Supply => _pcbSupply.Motion.Feedback,
+            StartArea.Placement or StartArea.Station1 => _pcbPlacement.Motion.Feedback,
+            StartArea.PickupHead or StartArea.ShootingHead or StartArea.Station2 => _fasteningStation.Motion.Feedback,
+            StartArea.Station3 => _inspectionStation.Motion.Feedback,
+            _ => throw new ArgumentOutOfRangeException(nameof(area)),
+        };
+        var activeToken = cancellationToken;
+        try
+        {
+            using var operation = BeginManualOperation(
+                () => _state.Available && _state.ManualMode && _state.SafetyReady
+                    && !_state.IsRunningFor(includeOperations: false)
+                    && motion.IsReady && motion.Axes.All(axis => !motion.GetAxisState(axis).InMotion),
+                cancellationToken);
+            if (operation is null)
+                return false;
+            activeToken = operation.Token;
+            activeToken.ThrowIfCancellationRequested();
+            _log?.LogInformation("START preparation: {Area}, {Action} started.", area, action);
+            switch (action)
+            {
+                case StartPreparationAction.ReleaseMaterial:
+                    switch (area)
+                    {
+                        case StartArea.Supply:
+                            await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, activeToken);
+                            await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, activeToken);
+                            break;
+                        case StartArea.Placement or StartArea.Station1:
+                            await _pcbPlacement.SetVacuumAsync(false, activeToken);
+                            break;
+                        case StartArea.PickupHead:
+                            await _fasteningStation.SetVacuumAsync(FasteningHead.Pickup, false, activeToken);
+                            break;
+                        case StartArea.ShootingHead or StartArea.Station2:
+                            activeToken.ThrowIfCancellationRequested();
+                            _io.SetOutput(OutputIo.ShootBolt, false);
+                            await _fasteningStation.SetVacuumAsync(FasteningHead.Shooting, false, activeToken);
+                            await _io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected, false, activeToken, requireCurrent: true);
+                            if (area == StartArea.Station2)
+                                await _fasteningStation.SetVacuumAsync(FasteningHead.Pickup, false, activeToken);
+                            break;
+                        case StartArea.Station3:
+                            await _inspectionStation.SetGripperOpenAsync(true, activeToken);
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(area));
+                    }
+                    break;
+                case StartPreparationAction.RaiseTooling:
+                    await RaiseStartToolingAsync(area, activeToken);
+                    break;
+                case StartPreparationAction.ToggleCarrierSupport or StartPreparationAction.ToggleStopper:
+                    var (station, plate, stopper) = area switch
+                    {
+                        StartArea.Station1 => (_pcbPlacement.Station, OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp),
+                        StartArea.Station2 => (_fasteningStation.Station, OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp),
+                        StartArea.Station3 => (_inspectionStation.Station, OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp),
+                        _ => throw new ArgumentOutOfRangeException(nameof(area)),
+                    };
+                    var support = action == StartPreparationAction.ToggleCarrierSupport;
+                    var position = support ? station.BackupPlate : station.Stopper;
+                    if (position == StationCylinderState.Between)
+                        throw new InvalidOperationException("Confirm the selected support or stopper Up/Down sensors before operating it.");
+                    var up = position == StationCylinderState.Down;
+                    if (support && up && !station.CarrierPresent)
+                        throw new InvalidOperationException("No carrier is detected at this station.");
+                    // Clear the tooling, then move only the selected carrier cylinder.
+                    await RaiseStartToolingAsync(area, activeToken);
+                    if ((support ? station.BackupPlate : station.Stopper) != position)
+                        throw new InvalidOperationException("The selected support or stopper moved during preparation. Check its position and try again.");
+                    if (support)
+                    {
+                        await _io.SetOutputAndWaitAsync(plate, up, activeToken);
+                        if (up && !station.CarrierPresent)
+                            throw new MotionInterlockException("No carrier is detected at this station.");
+                    }
+                    else
+                        await _io.SetOutputAndWaitAsync(stopper, up, activeToken);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(action));
+            }
+            activeToken.ThrowIfCancellationRequested();
+            _log?.LogInformation("START preparation: {Area}, {Action} completed.", area, action);
+            return true;
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested || _operations.IsShuttingDown)
+        {
+            _log?.LogInformation("START preparation: {Area}, {Action} cancelled.", area, action);
+            return false;
+        }
+        catch (Exception exception) when (IsDeviceFailure(exception))
+        {
+            ReportManualFailure(area switch
+            {
+                StartArea.Supply => MachineAlarm.PcbSupply,
+                StartArea.Placement or StartArea.Station1 => MachineAlarm.PcbPlacement,
+                StartArea.PickupHead or StartArea.ShootingHead or StartArea.Station2 => MachineAlarm.BoltFastening,
+                StartArea.Station3 => MachineAlarm.NgCarrierTransfer,
+                _ => MachineAlarm.IoCommunication,
+            }, exception);
+            throw;
+        }
+    }
+
+    private async Task RaiseStartToolingAsync(StartArea area, CancellationToken cancellationToken)
+    {
+        switch (area)
+        {
+            case StartArea.Placement or StartArea.Station1:
+                var pcbDetected = _io.GetInput(InputIo.PcbPlacementPcbDetected);
+                await _pcbPlacement.SetLiftDownAsync(false, cancellationToken);
+                if (pcbDetected || _io.GetInput(InputIo.PcbPlacementPcbDetected))
+                    throw new InvalidOperationException("Placement PCB detected. IPM support is retained. Support or remove the PCB, then raise the tooling again.");
+                await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false, cancellationToken);
+                break;
+            case StartArea.PickupHead:
+                await _fasteningStation.SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
+                await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
+                break;
+            case StartArea.ShootingHead:
+                await _fasteningStation.SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken);
+                break;
+            case StartArea.Station2:
+                await _fasteningStation.SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
+                await _fasteningStation.SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken);
+                await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
+                break;
+            case StartArea.Station3:
+                await _inspectionStation.SetLiftUpAsync(true, cancellationToken);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(area));
+        }
     }
 
     // Teaching may coordinate a handler as well as its cylinder output.

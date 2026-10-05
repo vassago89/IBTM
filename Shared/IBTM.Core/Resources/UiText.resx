@@ -3551,8 +3551,8 @@ COMPLETE: finish</value>
   <data name="s2 backup plate is up. check the carrier and bolts, then check resume again." xml:space="preserve">
     <value>S2 backup plate is UP. Check the carrier and bolts, then check resume again.</value>
   </data>
-  <data name="s2 backup plate is down. in manual mode, check the carrier and head clearance, then select raise plate. after up feedback, check resume again." xml:space="preserve">
-    <value>S2 backup plate is DOWN. In Manual mode, check the carrier and head clearance, then select Raise plate. After UP feedback, check resume again.</value>
+  <data name="s2 backup plate is down. in manual mode, check the carrier and head clearance, then select raise/lower carrier support. after up feedback, check resume again." xml:space="preserve">
+    <value>S2 backup plate is DOWN. In Manual mode, check the carrier and head clearance, then select Raise/lower carrier support. After UP feedback, check resume again.</value>
   </data>
   <data name="cannot confirm s2 backup plate position. check the actual position and the up/down sensors. resume requires up on and down off." xml:space="preserve">
     <value>Cannot confirm S2 backup plate position. Check the actual position and the UP/DOWN sensors. Resume requires UP ON and DOWN OFF.</value>
@@ -3733,5 +3733,116 @@ COMPLETE: finish</value>
   </data>
   <data name="same-bolt pre → final only · 0 = no delay" xml:space="preserve">
     <value>Same-bolt pre → final only · 0 = no delay</value>
+  </data>
+  <data name="i checked the carrier and placed pcbs. resume unfinished placement." xml:space="preserve">
+    <value>I checked the carrier and placed PCBs. Resume unfinished placement.</value>
+  </data>
+  <data name="pcb placement records" xml:space="preserve">
+    <value>PCB placement records</value>
+  </data>
+  <data name="placement complete" xml:space="preserve">
+    <value>Placement complete</value>
+  </data>
+  <data name="completed placements are not repeated. if all are recorded, the handler returns and the carrier work is completed." xml:space="preserve">
+    <value>Completed placements are not repeated. If all are recorded, the handler returns and the carrier work is completed.</value>
+  </data>
+  <data name="no completion record means placement is unconfirmed. check the actual pcb before rework." xml:space="preserve">
+    <value>No completion record means placement is unconfirmed. Check the actual PCB before rework.</value>
+  </data>
+  <data name="release material grip" xml:space="preserve">
+    <value>Release material grip</value>
+  </data>
+  <data name="raise tooling" xml:space="preserve">
+    <value>Raise tooling</value>
+  </data>
+  <data name="raise/lower carrier support" xml:space="preserve">
+    <value>Raise/lower carrier support</value>
+  </data>
+  <data name="raise/lower stopper" xml:space="preserve">
+    <value>Raise/lower stopper</value>
+  </data>
+  <data name="restart preparation" xml:space="preserve">
+    <value>Restart preparation</value>
+  </data>
+  <data name="stop the equipment and select manual mode. each button waits for its sequence to finish." xml:space="preserve">
+    <value>Stop the equipment and select Manual mode. Each button waits for its sequence to finish.</value>
+  </data>
+  <data name="support the material before releasing its grip. remove any remaining pcb or bolt, then select check again." xml:space="preserve">
+    <value>Support the material before releasing its grip. Remove any remaining PCB or bolt, then select Check again.</value>
+  </data>
+  <data name="raises the working cylinders in order without axis motion. material grip is retained." xml:space="preserve">
+    <value>Raises the working cylinders in order without axis motion. Material grip is retained.</value>
+  </data>
+  <data name="raises the tooling first, then operates only the selected support or stopper and waits for feedback. work records are retained." xml:space="preserve">
+    <value>Raises the tooling first, then operates only the selected support or stopper and waits for feedback. Work records are retained.</value>
+  </data>
+  <data name="advanced · individual i/o" xml:space="preserve">
+    <value>Advanced · Individual I/O</value>
+  </data>
+  <data name="preparation stopped. check machine status." xml:space="preserve">
+    <value>Preparation stopped. Check machine status.</value>
+  </data>
+  <data name="in progress" xml:space="preserve">
+    <value>In progress</value>
+  </data>
+  <data name="placement pcb detected. ipm support is retained. support or remove the pcb, then raise the tooling again." xml:space="preserve">
+    <value>Placement PCB detected. IPM support is retained. Support or remove the PCB, then raise the tooling again.</value>
+  </data>
+  <data name="all stations to standby" xml:space="preserve">
+    <value>All stations to standby</value>
+  </data>
+  <data name="moves enabled stations in order. supply waits above pcb 1 at travel z. home is required; held material must be cleared first." xml:space="preserve">
+    <value>Moves enabled stations in order. Supply waits above PCB 1 at travel Z. HOME is required; held material must be cleared first.</value>
+  </data>
+  <data name="moving all enabled stations to standby..." xml:space="preserve">
+    <value>Moving all enabled stations to standby...</value>
+  </data>
+  <data name="all enabled stations are at standby. select check again." xml:space="preserve">
+    <value>All enabled stations are at standby. Select Check again.</value>
+  </data>
+  <data name="stop the machine, select manual mode, and home all enabled axes before standby." xml:space="preserve">
+    <value>Stop the machine, select manual mode, and HOME all enabled axes before standby.</value>
+  </data>
+  <data name="supply is holding a pcb. support and release it before moving all stations to standby." xml:space="preserve">
+    <value>Supply is holding a PCB. Support and release it before moving all stations to standby.</value>
+  </data>
+  <data name="remove the head bolts and release vacuum before moving all stations to standby." xml:space="preserve">
+    <value>Remove the head bolts and release vacuum before moving all stations to standby.</value>
+  </data>
+  <data name="finish or release the ng carrier transfer and confirm the gripper is open before standby." xml:space="preserve">
+    <value>Finish or release the NG carrier transfer and confirm the gripper is open before standby.</value>
+  </data>
+  <data name="teach the first shooting bolt before moving fastening to standby." xml:space="preserve">
+    <value>Teach the first shooting bolt before moving Fastening to standby.</value>
+  </data>
+  <data name="each button lowers an up cylinder and raises a down cylinder. unknown position blocks operation." xml:space="preserve">
+    <value>Each button lowers an UP cylinder and raises a DOWN cylinder. Unknown position blocks operation.</value>
+  </data>
+  <data name="confirm the selected support or stopper up/down sensors before operating it." xml:space="preserve">
+    <value>Confirm the selected support or stopper Up/Down sensors before operating it.</value>
+  </data>
+  <data name="the selected support or stopper moved during preparation. check its position and try again." xml:space="preserve">
+    <value>The selected support or stopper moved during preparation. Check its position and try again.</value>
+  </data>
+  <data name="i/o controls" xml:space="preserve">
+    <value>I/O controls</value>
+  </data>
+  <data name="process review" xml:space="preserve">
+    <value>Process review</value>
+  </data>
+  <data name="pcb placement review" xml:space="preserve">
+    <value>PCB placement review</value>
+  </data>
+  <data name="bolt fastening review" xml:space="preserve">
+    <value>Bolt fastening review</value>
+  </data>
+  <data name="select s1 for pcb placement or s2 for fastening review." xml:space="preserve">
+    <value>Select S1 for PCB placement or S2 for fastening review.</value>
+  </data>
+  <data name="carrier work actions" xml:space="preserve">
+    <value>Carrier work actions</value>
+  </data>
+  <data name="check the seated s1 carrier and the placement records above. resume requires matching records and the backup plate up." xml:space="preserve">
+    <value>Check the seated S1 carrier and the placement records above. Resume requires matching records and the backup plate UP.</value>
   </data>
 </root>
