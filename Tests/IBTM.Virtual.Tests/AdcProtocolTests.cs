@@ -151,6 +151,46 @@ public sealed class AdcProtocolTests
         return AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, data);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HCommEmptyGraphReplyDoesNotBecomeACurveOrBlockFollowingStatus(bool captureStarted)
+    {
+        using var transport = new HCommTransportStub(1);
+        using var bus = new AdcBus(transport.Communication, 1);
+        if (captureStarted)
+            bus.Monitor.BeginTorqueCurveCapture();
+        AdcTorqueCurve? curve = null;
+        bus.Monitor.TorqueCurveReceived += received => curve = received;
+        var graph = bus.RequestTorqueCurveAsync(1);
+        Assert.Equal(Convert.FromHexString("01C80077C0"), await transport.NextRequestAsync());
+        // Exact equipment response: one data byte, 00, with a valid CRC.
+        var empty = Convert.FromHexString("01C8010081B6");
+        transport.Receive(empty[..3]);
+        transport.Receive(empty[3..]);
+        Assert.Equal(empty, await graph);
+        Assert.Null(curve);
+        Assert.Null(bus.Monitor.TorqueCurveError);
+        Assert.True(bus.IsOpen);
+
+        var status = bus.ReadControllerStatusAsync(1);
+        Assert.Equal((byte)AdcFunctionCode.ReadInputRegisters, (await transport.NextRequestAsync())[1]);
+        transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
+            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        Assert.True((await status).Status?.Ready);
+    }
+
+    [Fact]
+    public async Task HCommUnknownSingleByteGraphReplyIsNotTreatedAsNoData()
+    {
+        using var transport = new HCommTransportStub(1);
+        using var bus = new AdcBus(transport.Communication, 1);
+        var graph = bus.RequestTorqueCurveAsync(1);
+        await transport.NextRequestAsync();
+        transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.RequestTorqueCurve, [1, 1]));
+        await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() => graph);
+    }
+
     [Fact]
     public async Task AdcGraphRequestsEachBlockAfterTheEquipmentFirstResponse()
     {

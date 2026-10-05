@@ -300,6 +300,15 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 PortName, command, address, values is null ? "null" : string.Join(",", values));
             if (command == Command.GraphAd)
             {
+                // ADC returns C8 / length 1 / 00 when no curve is available. HComm validates
+                // the frame CRC but supplies null values because there are no 16-bit words.
+                if (values is null && _received is [var slave, 0xC8, 1, 0, _, _] && slave == _slaveAddress)
+                {
+                    _logger.LogDebug("ADC {Port}/{Slave}: no torque curve available.", PortName, _slaveAddress);
+                    if (_command == Command.GraphAd)
+                        _pending?.TrySetResult(new([], _received.ToArray()));
+                    return;
+                }
                 try
                 {
                     if (values is not { Length: > 1 })
