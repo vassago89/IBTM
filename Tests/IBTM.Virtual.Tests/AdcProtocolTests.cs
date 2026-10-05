@@ -22,7 +22,7 @@ public sealed class AdcProtocolTests
     public async Task HCommOwnsReadWriteInfoAndAdcGraphRequests()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         var read = bus.ReadRegistersAsync(0, AdcFunctionCode.ReadHoldingRegisters, 10, 1);
         Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.ReadHoldingRegisters, [0, 10, 0, 1]),
             await transport.NextRequestAsync());
@@ -42,7 +42,7 @@ public sealed class AdcProtocolTests
 
         var graph = bus.RequestTorqueCurveAsync(0);
         Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [0]), await transport.NextRequestAsync());
-        var frame = AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [4, 1, 2, 0xFF, 0xFE]);
+        var frame = AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [4, 1, 1, 0xFF, 0xFE]);
         transport.Receive(frame[..3]);
         Assert.False(graph.IsCompleted);
         transport.Receive(frame[3..]);
@@ -56,7 +56,7 @@ public sealed class AdcProtocolTests
     public async Task HCommReplaysEquipmentErrorsWithRequestAndRawBytes(string rx, byte code)
     {
         using var transport = new HCommTransportStub(1);
-        using var bus = new AdcBus(new(), transport.Communication, 1);
+        using var bus = new AdcBus(transport.Communication, 1);
         var reading = bus.ReadRegistersAsync(1, AdcFunctionCode.ReadInputRegisters, 3200, 14);
         var tx = await transport.NextRequestAsync();
         transport.Receive(Convert.FromHexString(rx));
@@ -71,7 +71,7 @@ public sealed class AdcProtocolTests
     public async Task HCommStatusRejectsUnknownFeedbackAndAcceptsTheNextSample()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         var status = bus.ReadControllerStatusAsync(0);
         await transport.NextRequestAsync();
         transport.Receive(Convert.FromHexString("018C0304C1"));
@@ -89,7 +89,7 @@ public sealed class AdcProtocolTests
     public async Task HCommKeepsGraphEventsSeparateFromStatusReplies()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         bus.Monitor.BeginTorqueCurveCapture();
         AdcTorqueCurve? curve = null;
         bus.Monitor.TorqueCurveReceived += received => curve = received;
@@ -135,10 +135,57 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
+    public async Task AdcGraphRequestDrainsEveryBlockBeforeTheNextCommand()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(transport.Communication);
+        var graph = bus.RequestTorqueCurveAsync(0);
+        await transport.NextRequestAsync();
+        var first = GraphBlock(3, 1, [1, 0, 1, 1, 2, 10, 100, 90]);
+        var middle = GraphBlock(3, 2, [1000, 0, 0, 0, 0, 1, 0, 10]);
+        var last = GraphBlock(3, 3, [90]);
+        transport.Receive(first);
+        // Starting a new bolt during a refresh must still drain the old graph completely.
+        bus.Monitor.BeginTorqueCurveCapture();
+        var next = bus.WriteRegisterAsync(0, 4004, 1);
+        transport.Receive(middle);
+        Assert.False(graph.IsCompleted);
+        Assert.False(next.IsCompleted);
+        transport.Receive(last);
+        Assert.Equal(first.Concat(middle).Concat(last).ToArray(), await graph);
+        Assert.Null(bus.Monitor.TorqueCurveError);
+        var write = await transport.NextRequestAsync();
+        Assert.Equal((byte)AdcFunctionCode.WriteSingleRegister, write[1]);
+        transport.Receive(write);
+        await next;
+    }
+
+    [Fact]
+    public async Task CompletedBoltRequestsAFreshCurveEvenWhenThePreviousValuesMatch()
+    {
+        using var bus = new AdcControllerStub { SuppressTorqueCurve = true };
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
+        bus.Monitor.BeginTorqueCurveCapture();
+        var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);
+        var previous = new AdcTorqueCurve(System.Diagnostics.Stopwatch.GetTimestamp(), 5, [0, 1], 250, 1, 1, 2, 0);
+        bus.Monitor.ReceiveTorqueCurve(previous);
+        var waiting = bus.Monitor.ReadTorqueCurveAsync(controller, 1, CancellationToken.None);
+        Assert.False(waiting.IsCompleted);
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.GraphRequests == 2, TimeSpan.FromSeconds(1)));
+        bus.Monitor.ReceiveTorqueCurve(previous);
+        Assert.False(waiting.IsCompleted);
+        var current = previous with { ReceivedAt = System.Diagnostics.Stopwatch.GetTimestamp(), Torques = [0, 0.5, 1] };
+        bus.Monitor.ReceiveTorqueCurve(current);
+        Assert.Same(current, await waiting);
+    }
+
+    [Fact]
     public void AdcGraphRejectsMissingBlocksAndDoesNotCombineDifferentBolts()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         bus.Monitor.BeginTorqueCurveCapture();
         AdcTorqueCurve? curve = null;
         bus.Monitor.TorqueCurveReceived += received => curve = received;
@@ -148,6 +195,9 @@ public sealed class AdcProtocolTests
         bus.Monitor.BeginTorqueCurveCapture();
         transport.Receive(last);
         Assert.Null(curve);
+        Assert.Null(bus.Monitor.TorqueCurveError);
+        transport.Receive(GraphBlock(3, 1, [1, 0, 1, 1, 2, 10, 100, 90]));
+        transport.Receive(GraphBlock(3, 3, [10, 90]));
         Assert.NotNull(bus.Monitor.TorqueCurveError);
         transport.Receive(first);
         transport.Receive(last);
@@ -165,7 +215,7 @@ public sealed class AdcProtocolTests
     public void AdcGraphUsesChannelTwoTorqueAndFullBufferTimeOffset()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         bus.Monitor.BeginTorqueCurveCapture();
         AdcTorqueCurve? curve = null;
         bus.Monitor.TorqueCurveReceived += received => curve = received;
@@ -183,7 +233,7 @@ public sealed class AdcProtocolTests
     public async Task HCommStatusStillCompletesAfterIgnoredGraphOutsideCapture()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         var status = bus.ReadControllerStatusAsync(0);
         await transport.NextRequestAsync();
         transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [2, 0, 0]));
@@ -197,7 +247,7 @@ public sealed class AdcProtocolTests
     public async Task HCommCrcAndLengthFailuresCannotBecomeFeedback()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         var status = bus.ReadControllerStatusAsync(0);
         await transport.NextRequestAsync();
         var frame = AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters, [2, 0, 1]);
@@ -217,7 +267,7 @@ public sealed class AdcProtocolTests
     public async Task HCommForeignSlaveAndWrongWriteEchoCannotCompleteTheRequest()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         var read = bus.ReadRegistersAsync(0, AdcFunctionCode.ReadInputRegisters, 3200, 1);
         await transport.NextRequestAsync();
         transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [2, 0, 1]));
@@ -232,7 +282,7 @@ public sealed class AdcProtocolTests
     public async Task HCommRawCaptureRetainsUnparsedBytesWithoutTurningThemIntoFeedback()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         var capture = bus.CaptureDeviceInformationAsync(0, 50);
         await transport.NextRequestAsync();
         byte[] raw = [0, 0x11, 0, 0, 0]; // Deliberately invalid CRC, retained by the raw diagnostic.
@@ -245,7 +295,7 @@ public sealed class AdcProtocolTests
     public async Task HCommCancellationDrainsTheRequestBeforeAnotherCommand()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         using var cancellation = new CancellationTokenSource();
         var first = bus.ReadRegistersAsync(0, AdcFunctionCode.ReadInputRegisters, 3200, 1, cancellation.Token);
         await transport.NextRequestAsync();
@@ -265,7 +315,7 @@ public sealed class AdcProtocolTests
     public async Task HCommTimeoutAndCloseReleasePendingCalls()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         var status = bus.ReadControllerStatusAsync(0);
         await transport.NextRequestAsync();
         await Assert.ThrowsAsync<TimeoutException>(() => status);
@@ -281,7 +331,7 @@ public sealed class AdcProtocolTests
     public void HCommConnectionCannotChangePortBaudOrSlaveWhileOpen()
     {
         using var transport = new HCommTransportStub();
-        using var bus = new AdcBus(new(), transport.Communication);
+        using var bus = new AdcBus(transport.Communication);
         bus.Open(string.Empty, 0, 0);
         Assert.Throws<InvalidOperationException>(() => bus.Open("COM3", 0, 0));
         Assert.Throws<InvalidOperationException>(() => bus.Open(string.Empty, 19200, 0));
@@ -302,10 +352,11 @@ public sealed class AdcProtocolTests
         var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);
         var after = System.Diagnostics.Stopwatch.GetTimestamp();
         bus.Monitor.ReceiveTorqueCurve(new(after - 1, 5, [0, 1], 250, 1, 1, 2, 0));
-        var waiting = bus.Monitor.WaitForTorqueCurveAsync(after, controller, 1, CancellationToken.None);
-        bus.Monitor.ReceiveTorqueCurve(new(after + 1, 5, [0, 1], 250, 1, 1, 1, 0));
+        var waiting = bus.Monitor.ReadTorqueCurveAsync(controller, 1, CancellationToken.None);
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.GraphRequests >= 2, TimeSpan.FromSeconds(1)));
+        bus.Monitor.ReceiveTorqueCurve(new(System.Diagnostics.Stopwatch.GetTimestamp(), 5, [0, 1], 250, 1, 1, 1, 0));
         Assert.False(waiting.IsCompleted);
-        var expected = new AdcTorqueCurve(after + 2, 5, [0, 0.5, 1], 250, 1, 1, 2, 0);
+        var expected = new AdcTorqueCurve(System.Diagnostics.Stopwatch.GetTimestamp(), 5, [0, 0.5, 1], 250, 1, 1, 2, 0);
         bus.Monitor.ReceiveTorqueCurve(expected);
         Assert.Same(expected, await waiting);
         await Task.Delay(5500);

@@ -26,7 +26,6 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     private CancellationTokenSource? _lifetime;
     private Task _completion;
     private AdcStatusSample? _sample;
-    private AdcTorqueCurve? _torqueCurve;
     private long _torqueCurveRequestedAt;
 
     public AdcStatusMonitor(IAdcBus bus, ILogger<AdcStatusMonitor>? logger = null)
@@ -101,7 +100,6 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             _lifetime?.Cancel();
             IsTorqueCurveMonitoringRequested = false;
             TorqueCurveCaptureStartedAt = 0;
-            Interlocked.Exchange(ref _torqueCurve, null);
             var now = Stopwatch.GetTimestamp();
             Publish(new(now, now, null,
                 new IOException($"ADC {_bus.PortName}/{SlaveAddress} status monitor is disconnected.")));
@@ -162,7 +160,6 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         {
             lock (_stateGate)
             {
-                Interlocked.Exchange(ref _torqueCurve, null);
                 IsTorqueCurveMonitoringRequested = enabled;
                 TorqueCurveCaptureStartedAt = 0;
                 TorqueCurveError = null;
@@ -185,7 +182,6 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     public void ReceiveTorqueCurve(AdcTorqueCurve? curve, string? error = null)
     {
         TorqueCurveError = error;
-        Interlocked.Exchange(ref _torqueCurve, curve);
         if (curve is not null)
             TorqueCurveReceived?.Invoke(curve);
     }
@@ -194,36 +190,39 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     {
         lock (_stateGate)
         {
-            Interlocked.Exchange(ref _torqueCurve, null);
             TorqueCurveError = null;
             TorqueCurveCaptureStartedAt = Stopwatch.GetTimestamp();
         }
     }
 
-    public async Task<AdcTorqueCurve> WaitForTorqueCurveAsync(
-        long after, IBTM.Core.BoltControllerData result, double? torque, CancellationToken token)
+    public async Task<AdcTorqueCurve> ReadTorqueCurveAsync(
+        BoltControllerData result, double? torque, CancellationToken token)
     {
         var received = new TaskCompletionSource<AdcTorqueCurve>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requestedAt = long.MaxValue;
         void OnReceived(AdcTorqueCurve curve)
         {
-            if (curve.ReceivedAt >= after && curve.Matches(result, torque))
+            if (curve.ReceivedAt >= Volatile.Read(ref requestedAt)
+                && curve.FasteningMilliseconds == result.FasteningTimeMilliseconds
+                && curve.TargetTorque == result.TargetTorque
+                && curve.FinalTorque == torque
+                && curve.ScrewCount == result.ScrewCount
+                && curve.ErrorCode == result.ErrorCode)
                 received.TrySetResult(curve);
         }
         TorqueCurveReceived += OnReceived;
         try
         {
-            if (Volatile.Read(ref _torqueCurve) is { } curve)
-                OnReceived(curve);
-            if (!received.Task.IsCompleted)
+            // Query after completion: an earlier curve can have identical torque/time/count
+            // values, so those fields alone cannot identify this bolt.
+            await EnqueueAsync(async cancellationToken =>
             {
-                // Collect this bolt before the next fastening can replace the controller's graph.
-                await EnqueueAsync(async cancellationToken =>
-                {
-                    await _bus.RequestTorqueCurveAsync(SlaveAddress, cancellationToken).ConfigureAwait(false);
-                    _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
-                    return true;
-                }, token).ConfigureAwait(false);
-            }
+                TorqueCurveError = null;
+                Volatile.Write(ref requestedAt, Stopwatch.GetTimestamp());
+                await _bus.RequestTorqueCurveAsync(SlaveAddress, cancellationToken).ConfigureAwait(false);
+                _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
+                return true;
+            }, token).ConfigureAwait(false);
             return await received.Task.WaitAsync(TimeSpan.FromSeconds(1), token).ConfigureAwait(false);
         }
         finally

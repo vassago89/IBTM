@@ -800,20 +800,15 @@ public sealed class BoltFasteningStation : AutoUnit
                                 if (_settings.MonitorTorqueCurves && dryRunMilliseconds == 0
                                     && completed.Controller is { } controller && head.Monitor is { } monitor)
                                 {
-                                    torqueCurveError = monitor.TorqueCurveError;
-                                    if (torqueCurveError is null)
+                                    try
                                     {
-                                        try
-                                        {
-                                            torqueCurve = await monitor.WaitForTorqueCurveAsync(
-                                                monitor.TorqueCurveCaptureStartedAt, controller, completed.Torque, token);
-                                        }
-                                        catch (TimeoutException)
-                                        {
-                                            torqueCurveError = monitor.TorqueCurveError ?? UiText.Get("Torque curve not received");
-                                            _log?.LogWarning("Torque curve not received for carrier {Job}, bolt {Bolt}, stage {Stage}.",
-                                                job.Id, bolt.Id, stage);
-                                        }
+                                        torqueCurve = await monitor.ReadTorqueCurveAsync(controller, completed.Torque, token);
+                                    }
+                                    catch (TimeoutException)
+                                    {
+                                        torqueCurveError = monitor.TorqueCurveError ?? UiText.Get("Torque curve not received");
+                                        _log?.LogWarning("Torque curve not received for carrier {Job}, bolt {Bolt}, stage {Stage}.",
+                                            job.Id, bolt.Id, stage);
                                     }
                                 }
                             }

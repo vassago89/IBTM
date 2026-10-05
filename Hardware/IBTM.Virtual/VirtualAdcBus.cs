@@ -99,6 +99,21 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         var request = AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, [0]);
         var response = AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, [2, 0, 0]);
         Transfer(request, response);
+        if (Monitor.IsTorqueCurveMonitoringRequested)
+        {
+            var controller = _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
+            var values = new ushort[AdcFasteningResult.RegisterCount];
+            lock (controller)
+            {
+                for (var index = 0; index < values.Length; index++)
+                    values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
+            }
+            var result = AdcFasteningResult.FromRegisters(values);
+            var samples = Enumerable.Range(0, FasteningMilliseconds / 5)
+                .Select(index => result.Torque * Math.Min(1.0, index / 40.0)).ToArray();
+            Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), 5, samples,
+                result.FasteningTimeMilliseconds, result.TargetTorque, result.Torque, result.ScrewCount, result.Error));
+        }
         return Task.FromResult(response);
     }
 
@@ -260,15 +275,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         Transfer(
             AdcRtuFrame.Build(slaveAddress, function, requestData),
             BuildReadResponse(slaveAddress, function, responseData));
-        if (Monitor.IsTorqueCurveMonitoringRequested && address == (ushort)AdcResultRegister.EventCount
-            && count == AdcFasteningResult.RegisterCount)
-        {
-            var result = AdcFasteningResult.FromRegisters(values);
-            var samples = Enumerable.Range(0, FasteningMilliseconds / 5)
-                .Select(index => result.Torque * Math.Min(1.0, index / 40.0)).ToArray();
-            Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), 5, samples,
-                result.FasteningTimeMilliseconds, result.TargetTorque, result.Torque, result.ScrewCount, result.Error));
-        }
         return Task.FromResult(values);
     }
 

@@ -17,7 +17,6 @@ namespace IBTM.Hantas;
 
 public sealed class AdcBus : IAdcBus, IDisposable
 {
-    private readonly HantasSettings _settings;
     private readonly ILogger<AdcBus> _logger;
     private readonly SemaphoreSlim _exchange;
     private readonly Lock _stateGate;
@@ -34,10 +33,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
     private byte _slaveAddress;
     private byte[] _transmitted;
 
-    public AdcBus(HantasSettings settings, ILogger<AdcBus>? logger = null,
+    public AdcBus(ILogger<AdcBus>? logger = null,
         ILogger<AdcStatusMonitor>? monitorLogger = null)
     {
-        _settings = settings;
         _logger = logger ?? NullLogger<AdcBus>.Instance;
         _exchange = new(1, 1);
         _stateGate = new();
@@ -48,7 +46,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
     }
 
     // Tests supply HComm with an in-memory IHComm transport, without opening hardware.
-    internal AdcBus(HantasSettings settings, HantasComm communication, byte slaveAddress = 0) : this(settings)
+    internal AdcBus(HantasComm communication, byte slaveAddress = 0) : this()
     {
         _slaveAddress = slaveAddress;
         Attach(communication);
@@ -63,7 +61,6 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     public void Open(string portName, int baudRate, byte slaveAddress = 0)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_settings.ResponseTimeoutMilliseconds);
         if (slaveAddress > 15)
             throw new ArgumentOutOfRangeException(nameof(slaveAddress), "HComm serial slave must be 0–15.");
         if (IsOpen)
@@ -220,7 +217,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     accepted = communication.GetInfo();
                     break;
                 case Command.GraphAd:
-                    accepted = communication.GetGraph(4200, 1);
+                    accepted = communication.GetGraph(address, countOrValue);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(command));
@@ -282,45 +279,45 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 PortName, command, address, values is null ? "null" : string.Join(",", values));
             if (command == Command.GraphAd)
             {
-                if (Monitor.TorqueCurveCaptureStartedAt != 0)
+                try
                 {
-                    try
-                    {
-                        if (values is not { Length: > 1 })
-                            throw new InvalidDataException("ADC graph block has no samples.");
-                        // HComm decodes words; C8's first word contains the block number and total.
-                        var block = values[0] & 0xFF;
-                        var count = (values[0] >> 8) & 0xFF;
-                        if (block == 1)
-                        {
-                            _torqueCurveWords.Clear();
-                            _torqueCurveNextBlock = 1;
-                            _torqueCurveBlockCount = count;
-                            _torqueCurveBlockStartedAt = Stopwatch.GetTimestamp();
-                        }
-                        if (count == 0 || block == 0 || block > count
-                            || count != _torqueCurveBlockCount || block != _torqueCurveNextBlock
-                            || _torqueCurveBlockStartedAt < Monitor.TorqueCurveCaptureStartedAt)
-                            throw new InvalidDataException(
-                                $"ADC graph block sequence: {block}/{count}, expected {_torqueCurveNextBlock}/{_torqueCurveBlockCount}.");
-                        _torqueCurveWords.AddRange(values.AsSpan(1));
-                        _torqueCurveNextBlock++;
-                        if (block == count)
-                        {
-                            var curve = AdcTorqueCurve.FromRegisters(_torqueCurveWords, _torqueCurveBlockStartedAt);
-                            _torqueCurveWords.Clear();
-                            _torqueCurveNextBlock = 0;
-                            Monitor.ReceiveTorqueCurve(curve);
-                        }
-                    }
-                    catch (InvalidDataException exception)
+                    if (values is not { Length: > 1 })
+                        throw new InvalidDataException("ADC graph block has no samples.");
+                    // HComm decodes words; C8's first word contains the block number and total.
+                    var block = values[0] & 0xFF;
+                    var count = (values[0] >> 8) & 0xFF;
+                    if (block == 1)
                     {
                         _torqueCurveWords.Clear();
-                        _torqueCurveNextBlock = 0;
-                        Monitor.ReceiveTorqueCurve(null, UiText.Get("Invalid ADC torque curve data"));
-                        _logger.LogWarning(exception, "ADC {Port}/{Slave} torque curve rejected.", PortName, _slaveAddress);
+                        _torqueCurveNextBlock = 1;
+                        _torqueCurveBlockCount = count;
+                        _torqueCurveBlockStartedAt = Stopwatch.GetTimestamp();
+                    }
+                    if (count == 0 || block == 0 || block > count
+                        || count != _torqueCurveBlockCount || block != _torqueCurveNextBlock)
+                        throw new InvalidDataException(
+                            $"ADC graph block sequence: {block}/{count}, expected {_torqueCurveNextBlock}/{_torqueCurveBlockCount}.");
+                    _torqueCurveWords.AddRange(values.AsSpan(1));
+                    _torqueCurveNextBlock++;
+                    // Hold this exchange through the final block, including the initial query
+                    // before capture. Otherwise HComm can dequeue the next command on a C8 block.
+                    if (block != count)
+                        return;
+                    if (Monitor.TorqueCurveCaptureStartedAt != 0
+                        && _torqueCurveBlockStartedAt >= Monitor.TorqueCurveCaptureStartedAt)
+                    {
+                        var curve = AdcTorqueCurve.FromRegisters(_torqueCurveWords, _torqueCurveBlockStartedAt);
+                        Monitor.ReceiveTorqueCurve(curve);
                     }
                 }
+                catch (InvalidDataException exception)
+                {
+                    if (Monitor.TorqueCurveCaptureStartedAt != 0)
+                        Monitor.ReceiveTorqueCurve(null, UiText.Get("Invalid ADC torque curve data"));
+                    _logger.LogWarning(exception, "ADC {Port}/{Slave} torque curve rejected.", PortName, _slaveAddress);
+                }
+                _torqueCurveWords.Clear();
+                _torqueCurveNextBlock = 0;
                 if (_command != Command.GraphAd)
                     return;
             }
@@ -345,13 +342,14 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 || (command == Command.Write
                     && (values.Length != 2 || values[0] != _address || values[1] != _countOrValue)))
                 rejection = $"HComm reply mismatch: received {command}, address={address}, values={values?.Length}";
+            var frame = _received.ToArray();
             if (rejection is not null)
             {
                 rejection += $"; request={_command}, address={_address}, data={_countOrValue}; "
-                    + $"TX={Convert.ToHexString(_transmitted)}; RX={Convert.ToHexString(_received.ToArray())}.";
+                    + $"TX={Convert.ToHexString(_transmitted)}; RX={Convert.ToHexString(frame)}.";
                 _logger.LogWarning("ADC [{Port}/{Slave}] {Rejection}", PortName, _slaveAddress, rejection);
             }
-            _pending.TrySetResult(new(values ?? [], _received.ToArray(), rejection, errorCode));
+            _pending.TrySetResult(new(values ?? [], frame, rejection, errorCode));
         }
     }
 

@@ -1268,7 +1268,7 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task InfiniteResponseTimeoutCannotStartStatusAcquisitionOrSerialExchange()
+    public async Task InvalidReadyTimeoutCannotStartStatusAcquisition()
     {
         var settings = new HantasSettings { ResponseTimeoutMilliseconds = -1 };
         using var controller = new AdcControllerStub();
@@ -1277,11 +1277,6 @@ public sealed class AdcBoltHeadTests
         Assert.False(controller.IsOpen);
         Assert.Equal(0, controller.StatusReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-
-        // No port is opened: timeout validation must precede any serial access.
-        using var bus = new AdcBus(settings);
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => bus.ReadRegistersAsync(
-            1, AdcFunctionCode.ReadInputRegisters, (ushort)AdcStatusRegister.Preset, 7));
     }
 
     [Fact]

@@ -24,8 +24,10 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltFasteningTests
 {
-    [Fact]
-    public async Task AdcTorqueMonitoringCompletesCarrierWithoutWritingMdcEnableRegister()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdcTorqueMonitoringCompletesCarrierWithoutWritingMdcEnableRegister(bool earlierGraphError)
     {
         var settings = new BoltFasteningSettings
         {
@@ -55,13 +57,15 @@ public sealed class BoltFasteningTests
         {
             if (output == OutputIo.PickupHeadVacuumPump)
                 io.SetInput(InputIo.PickupHeadVacuumDetected, on);
+            if (earlierGraphError && output == OutputIo.PickupBoltStart && !on && bus.StartWrites > 0)
+                bus.Monitor.ReceiveTorqueCurve(null, "Previous graph block was incomplete.");
         };
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await station.RunAsync(timeout.Token, selectedBolts: [bolt.Id]);
         Assert.True(work.Completed);
         Assert.Equal(1, bus.StartWrites);
         Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, 1), (4104, 1) }, bus.RegisterWrites);
-        Assert.True(bus.GraphRequests > 0);
+        Assert.True(bus.GraphRequests >= 2);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
         var row = Assert.Single(station.TorqueCurves);
         Assert.True(row.Result.Success);

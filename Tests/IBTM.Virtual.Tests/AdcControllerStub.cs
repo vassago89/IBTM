@@ -162,6 +162,12 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         GraphRequests++;
         if (GraphRequestFailure is { } failure)
             throw failure;
+        if (Monitor.IsTorqueCurveMonitoringRequested && !SuppressTorqueCurve)
+        {
+            var result = AdcFasteningResult.FromRegisters(ResultRegisters);
+            Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), 5, [0, 0.5, result.Torque],
+                result.FasteningTimeMilliseconds, result.TargetTorque, result.Torque, result.ScrewCount, result.Error));
+        }
         return Task.FromResult(AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, [2, 0, 0]));
     }
 
@@ -301,10 +307,6 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         }
         if (received.Status == AdcEventStatus.Error)
             CurrentAlarm = received.Error;
-        if (Monitor.IsTorqueCurveMonitoringRequested && !SuppressTorqueCurve)
-            Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), 5, [0, 0.5, received.Torque],
-                received.FasteningTimeMilliseconds, received.TargetTorque, received.Torque,
-                received.ScrewCount, received.Error));
         return Task.FromResult(received);
     }
 
