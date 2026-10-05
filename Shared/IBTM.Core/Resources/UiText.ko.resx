@@ -3897,6 +3897,5 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="no torque curve" xml:space="preserve"><value>그래프 데이터 없음</value></data>
   <data name="torque curve not received" xml:space="preserve"><value>토크 그래프 미수신</value></data>
   <data name="torque (controller unit)" xml:space="preserve"><value>토크 (컨트롤러 단위)</value></data>
-  <data name="time (ms)" xml:space="preserve"><value>시간 (ms)</value></data>
   <data name="curve covers only part of the fastening time" xml:space="preserve"><value>체결 시간 중 일부 구간만 수집됨</value></data>
 </root>

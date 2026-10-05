@@ -22,6 +22,60 @@ namespace IBTM.Virtual.Tests;
 public sealed class AdcProtocolTests
 {
     [Theory]
+    [InlineData(0x64)]
+    [InlineData(0xC8)]
+    public async Task TorqueCurveFramesAreSeparatedFromFragmentedStatusAndResultReplies(int function)
+    {
+        ushort[] registers = [1, 0, 1, 1, 400, 2000, 200, 199, 1000, 0, 0, 0, 0, 7, 1,
+            .. Enumerable.Range(0, 400).Select(value => (ushort)value)];
+        var data = new byte[2 + registers.Length * 2];
+        BinaryPrimitives.WriteUInt16BigEndian(data, (ushort)(registers.Length * 2));
+        for (var index = 0; index < registers.Length; index++)
+            BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2 + index * 2), registers[index]);
+        var graph = AdcRtuFrame.Build(1, (AdcFunctionCode)function, data);
+        var result = ResultFrame(10);
+        using var stream = new ReplyStream { MaximumRead = 3 };
+        stream.Feed([.. graph, .. result]);
+        var curves = new List<AdcTorqueCurve>();
+        var response = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28, curveReceived: curves.Add);
+        Assert.Equal(result, response.RequireSuccess());
+        var curve = Assert.Single(curves);
+        Assert.Equal(400, curve.Torques.Length);
+        Assert.Equal(3.99, curve.Torques[^1]);
+        Assert.Equal(5, curve.SampleMilliseconds);
+        Assert.Equal(7, curve.ScrewCount);
+        Assert.Throws<InvalidDataException>(() => AdcTorqueCurve.FromFrame(graph, 2));
+        graph[^1] ^= 0xFF;
+        Assert.Throws<InvalidDataException>(() => AdcTorqueCurve.FromFrame(graph, 1));
+    }
+
+    [Fact]
+    public async Task TorqueMonitoringRefreshesAndOnlyReturnsTheCurrentMatchingCurve()
+    {
+        using var bus = new AdcControllerStub();
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
+        Assert.Equal(new (ushort, ushort)[] { (4100, 0), (4101, 1), (4102, 0), (4103, 1), (4104, 1), (4100, 1) },
+            bus.RegisterWrites);
+        var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);
+        var after = System.Diagnostics.Stopwatch.GetTimestamp();
+        bus.Monitor.ReceiveTorqueCurve(new(after - 1, 5, [0, 1], 250, 1, 1, 2, 0));
+        var waiting = bus.Monitor.WaitForTorqueCurveAsync(after, controller, 1, CancellationToken.None);
+        bus.Monitor.ReceiveTorqueCurve(new(after + 1, 5, [0, 1], 250, 1, 1, 1, 0));
+        Assert.False(waiting.IsCompleted);
+        var expected = new AdcTorqueCurve(after + 2, 5, [0, 0.5, 1], 250, 1, 1, 2, 0);
+        bus.Monitor.ReceiveTorqueCurve(expected);
+        Assert.Same(expected, await waiting);
+        await Task.Delay(5500);
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
+        Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
+        Assert.True(bus.RegisterWrites.Count(write => write == (4100, 1)) >= 2);
+        Assert.Equal(((ushort)4100, (ushort)0), bus.RegisterWrites[^1]);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task DiagnosticStopAttemptsOffWhenPendingQueryFailsAndCloseRetainsErrors(bool failStop)

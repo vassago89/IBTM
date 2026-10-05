@@ -239,6 +239,15 @@ public sealed class BoltFasteningTests
             Assert.Equal(Enumerable.Repeat(FasteningHead.Pickup, expected.Length)
                 .Append(FasteningHead.Shooting), headOrder);
             Assert.Equal(4, pickups);
+            Assert.Equal(expected.Length + 1, station.TorqueCurves.Count);
+            Assert.Equal(work.CurrentJob.Id, station.TorqueCurveJobId);
+            Assert.All(station.TorqueCurves.Where(row => row.Head == FasteningHead.Pickup), row =>
+            {
+                Assert.NotNull(row.Curve);
+                Assert.Null(row.Error);
+                Assert.Equal(row.Result.Controller!.ScrewCount, row.Curve.ScrewCount);
+            });
+            Assert.False(head.Monitor.IsTorqueCurveMonitoringRequested);
             Assert.Equal(twoStage && !switchToSingle ? 2 : 0, sameBoltFinals);
             Assert.Equal(cycleFinalHead ? sameBoltFinals : 0,
                 log.Entries.Count(entry => entry.Message.Contains("RUN ON confirmed; waiting")));
@@ -613,6 +622,7 @@ public sealed class BoltFasteningTests
         Assert.Equal(PickupFasteningMode.SingleStage, settings.PickupFasteningMode);
         Assert.Equal((ushort)1, settings.PickupFinalPreset);
         Assert.True(settings.PickupFinalHeadCycleEnabled);
+        Assert.True(settings.MonitorTorqueCurves);
         Assert.Equal(100, settings.HeadDownDelayMilliseconds);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.HeadDownDelayMilliseconds = -1);
         settings.HeadDownDelayMilliseconds = 250;
@@ -622,6 +632,7 @@ public sealed class BoltFasteningTests
         settings.PickupPreliminaryPreset = 1;
         settings.PickupFinalPreset = 3;
         settings.PickupFinalHeadCycleEnabled = false;
+        settings.MonitorTorqueCurves = false;
         var store = OpenMachineStore();
         await store.SaveSettingsAsync([settings]);
         var loaded = (await MachineSettings.LoadAsync(store)).BoltFastening;
@@ -630,6 +641,7 @@ public sealed class BoltFasteningTests
         Assert.Equal(settings.PickupPreliminaryPreset, loaded.PickupPreliminaryPreset);
         Assert.Equal(settings.PickupFinalPreset, loaded.PickupFinalPreset);
         Assert.False(loaded.PickupFinalHeadCycleEnabled);
+        Assert.False(loaded.MonitorTorqueCurves);
         Assert.Equal(250, loaded.HeadDownDelayMilliseconds);
         settings.PickupFasteningMode = PickupFasteningMode.SingleStage;
         settings.HeadDownDelayMilliseconds = 0;

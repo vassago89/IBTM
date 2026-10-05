@@ -3894,6 +3894,5 @@ COMPLETE: finish</value>
   <data name="no torque curve" xml:space="preserve"><value>No torque curve</value></data>
   <data name="torque curve not received" xml:space="preserve"><value>Torque curve not received</value></data>
   <data name="torque (controller unit)" xml:space="preserve"><value>Torque (controller unit)</value></data>
-  <data name="time (ms)" xml:space="preserve"><value>Time (ms)</value></data>
   <data name="curve covers only part of the fastening time" xml:space="preserve"><value>Curve covers only part of the fastening time</value></data>
 </root>
