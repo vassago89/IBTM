@@ -140,7 +140,7 @@ public sealed class AdcProtocolTests
         Assert.Equal(new double[] { 0.1, 0.9 }, curve.Torques);
     }
 
-    private static byte[] GraphBlock(byte total, byte block, int[] words)
+    private static byte[] GraphBlock(byte total, byte block, int[] words, byte slaveAddress = 0)
     {
         var data = new byte[3 + words.Length * 2];
         data[0] = checked((byte)(data.Length - 1));
@@ -148,7 +148,7 @@ public sealed class AdcProtocolTests
         data[2] = block;
         for (var index = 0; index < words.Length; index++)
             BinaryPrimitives.WriteInt16BigEndian(data.AsSpan(3 + index * 2), unchecked((short)words[index]));
-        return AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, data);
+        return AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestTorqueCurve, data);
     }
 
     [Fact]
@@ -173,13 +173,7 @@ public sealed class AdcProtocolTests
             Assert.Equal(query, await transport.NextRequestAsync());
             Assert.False(graph.IsCompleted);
             var words = Enumerable.Repeat(808, block == 8 ? 5 : 30).ToArray();
-            var data = new byte[3 + words.Length * 2];
-            data[0] = checked((byte)(data.Length - 1));
-            data[1] = 8;
-            data[2] = block;
-            for (var index = 0; index < words.Length; index++)
-                BinaryPrimitives.WriteInt16BigEndian(data.AsSpan(3 + index * 2), (short)words[index]);
-            var frame = AdcRtuFrame.Build(1, AdcFunctionCode.RequestTorqueCurve, data);
+            var frame = GraphBlock(8, block, words, 1);
             transport.Receive(frame);
             frames.AddRange(frame);
         }

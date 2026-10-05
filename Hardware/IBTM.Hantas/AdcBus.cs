@@ -199,44 +199,65 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 _received.Clear();
                 _transmitted = [];
                 _pending = pending;
+                if (command == Command.GraphAd)
+                {
+                    _torqueCurveWords.Clear();
+                    _torqueCurveNextBlock = 0;
+                }
             }
             cancellationToken.ThrowIfCancellationRequested();
-            bool accepted;
-            switch (command)
-            {
-                case Command.Read:
-                    accepted = communication.GetParam(address, countOrValue, merge: true);
-                    break;
-                case Command.Mor:
-                    accepted = communication.GetState(address, countOrValue);
-                    break;
-                case Command.Write:
-                    accepted = communication.SetParam(address, countOrValue);
-                    break;
-                case Command.Info:
-                    accepted = communication.GetInfo();
-                    break;
-                case Command.GraphAd:
-                    accepted = communication.GetGraph(address, countOrValue);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(command));
-            }
-            if (!accepted)
-                throw new IOException($"HComm did not queue {command}, address={address}, data={countOrValue}.");
             var startedAt = Stopwatch.GetTimestamp();
-
-            // HComm owns its 1 s response timeout. Drain an accepted request before cancellation
-            // releases this bus, so its late response cannot become the next request's result.
+            var graphBlock = 1;
             AdcResponse response;
-            try
+            while (true)
             {
-                response = await pending.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
-            {
-                Close();
-                throw new TimeoutException($"HComm did not finish ADC {PortName}/{slaveAddress} {command}; connection closed.");
+                bool accepted;
+                switch (command)
+                {
+                    case Command.Read:
+                        accepted = communication.GetParam(address, countOrValue, merge: true);
+                        break;
+                    case Command.Mor:
+                        accepted = communication.GetState(address, countOrValue);
+                        break;
+                    case Command.Write:
+                        accepted = communication.SetParam(address, countOrValue);
+                        break;
+                    case Command.Info:
+                        accepted = communication.GetInfo();
+                        break;
+                    case Command.GraphAd:
+                        accepted = communication.GetGraph(address, countOrValue);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(command));
+                }
+                if (!accepted)
+                    throw new IOException($"HComm did not queue {command}, address={address}, data={countOrValue}.");
+
+                // HComm owns its 1 s response timeout. Finish an accepted request before
+                // cancellation releases the bus, so a late reply cannot reach the next caller.
+                try
+                {
+                    response = await pending.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    Close();
+                    throw new TimeoutException($"HComm did not finish ADC {PortName}/{slaveAddress} {command}; connection closed.");
+                }
+                lock (_stateGate)
+                {
+                    if (command != Command.GraphAd || response.Rejection is not null || _torqueCurveNextBlock == 0)
+                        break;
+                    if ((response.Values[0] & 0xFF) != graphBlock)
+                        throw new InvalidDataException($"ADC graph restarted before block {graphBlock} was received.");
+                    graphBlock++;
+                    // ADC returns one block per GetGraph. Keep the bus for the entire curve,
+                    // but complete each SDK request before asking for the next block.
+                    pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _pending = pending;
+                }
             }
             if (captureMilliseconds is { } duration)
             {
@@ -299,25 +320,26 @@ public sealed class AdcBus : IAdcBus, IDisposable
                             $"ADC graph block sequence: {block}/{count}, expected {_torqueCurveNextBlock}/{_torqueCurveBlockCount}.");
                     _torqueCurveWords.AddRange(values.AsSpan(1));
                     _torqueCurveNextBlock++;
-                    // Hold this exchange through the final block, including the initial query
-                    // before capture. Otherwise HComm can dequeue the next command on a C8 block.
-                    if (block != count)
-                        return;
-                    if (Monitor.TorqueCurveCaptureStartedAt != 0
-                        && _torqueCurveBlockStartedAt >= Monitor.TorqueCurveCaptureStartedAt)
+                    if (block == count)
                     {
-                        var curve = AdcTorqueCurve.FromRegisters(_torqueCurveWords, _torqueCurveBlockStartedAt);
-                        Monitor.ReceiveTorqueCurve(curve);
+                        if (Monitor.TorqueCurveCaptureStartedAt != 0
+                            && _torqueCurveBlockStartedAt >= Monitor.TorqueCurveCaptureStartedAt)
+                        {
+                            var curve = AdcTorqueCurve.FromRegisters(_torqueCurveWords, _torqueCurveBlockStartedAt);
+                            Monitor.ReceiveTorqueCurve(curve);
+                        }
+                        _torqueCurveWords.Clear();
+                        _torqueCurveNextBlock = 0;
                     }
                 }
                 catch (InvalidDataException exception)
                 {
+                    _torqueCurveWords.Clear();
+                    _torqueCurveNextBlock = 0;
                     if (Monitor.TorqueCurveCaptureStartedAt != 0)
                         Monitor.ReceiveTorqueCurve(null, UiText.Get("Invalid ADC torque curve data"));
                     _logger.LogWarning(exception, "ADC {Port}/{Slave} torque curve rejected.", PortName, _slaveAddress);
                 }
-                _torqueCurveWords.Clear();
-                _torqueCurveNextBlock = 0;
                 if (_command != Command.GraphAd)
                     return;
             }
