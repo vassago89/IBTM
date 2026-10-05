@@ -103,15 +103,25 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         {
             var controller = _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
             var values = new ushort[AdcFasteningResult.RegisterCount];
+            var samplingCode = (ushort)1;
             lock (controller)
             {
                 for (var index = 0; index < values.Length; index++)
                     values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
+                samplingCode = controller.Registers.GetValueOrDefault((ushort)4103, (ushort)1);
             }
             var result = AdcFasteningResult.FromRegisters(values);
-            var samples = Enumerable.Range(0, FasteningMilliseconds / 5)
-                .Select(index => result.Torque * Math.Min(1.0, index / 40.0)).ToArray();
-            Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), 5, samples,
+            var sampleMilliseconds = samplingCode switch
+            {
+                1 => 5,
+                2 => 10,
+                3 => 15,
+                4 => 30,
+                _ => throw new InvalidOperationException($"Unsupported virtual ADC sampling code: {samplingCode}."),
+            };
+            var samples = Enumerable.Range(0, (FasteningMilliseconds + sampleMilliseconds - 1) / sampleMilliseconds)
+                .Select(index => result.Torque * Math.Min(1.0, index * sampleMilliseconds / 200.0)).ToArray();
+            Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), sampleMilliseconds, samples,
                 result.FasteningTimeMilliseconds, result.TargetTorque, result.Torque, result.ScrewCount, result.Error));
         }
         return Task.FromResult(response);

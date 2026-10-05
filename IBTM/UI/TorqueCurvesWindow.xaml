@@ -13,7 +13,15 @@
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,16">
             <TextBlock DockPanel.Dock="Right" Text="{Binding JobId, StringFormat={ui:Text 'Carrier work {0}'}, TargetNullValue='—'}"
-                VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding JobId}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <TextBlock Text="{ui:Text 'Torque curves'}" FontSize="24" FontWeight="SemiBold"/>
         </DockPanel>
         <Grid Grid.Row="1">
@@ -39,11 +47,11 @@
                     <TextBlock Text="{Binding SelectedCurve.BoltName}" FontSize="18" FontWeight="SemiBold" Margin="0,0,12,0"/>
                     <TextBlock Text="{Binding SelectedCurve.Result.Stage, Converter={StaticResource UiTextConverter}}" VerticalAlignment="Center"/>
                 </WrapPanel>
-                <ui:TorqueCurvePlot Grid.Row="1" Curve="{Binding SelectedCurve.Curve}"/>
-                <TextBlock Grid.Row="2" Text="{Binding SelectedCurve.Error}" Foreground="{StaticResource AccentAmberBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                <ui:TorqueCurvePlot Grid.Row="1" Curve="{Binding SelectedCurve.Result.TorqueCurve}"/>
+                <TextBlock Grid.Row="2" Text="{Binding SelectedCurve.Result.TorqueCurveError}" Foreground="{StaticResource AccentAmberBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
             </Grid>
         </Grid>
-        <TextBlock Grid.Row="2" Text="{ui:Text 'Latest carrier only · Memory only · Cleared when the application closes'}"
+        <TextBlock Grid.Row="2" Text="{ui:Text 'Memory only · Cleared when the application closes'}"
             Foreground="{StaticResource TextMutedBrush}" Margin="0,14,0,0"/>
     </Grid>
 </Window>

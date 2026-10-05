@@ -14,7 +14,7 @@ namespace IBTM.BoltFastening;
 
 public sealed record FasteningTorqueCurve(
     Guid BoltId, string BoltName, HeatSinkSlot HeatSink, FasteningHead Head,
-    BoltResult Result, AdcTorqueCurve? Curve, string? Error);
+    BoltResult Result);
 
 public sealed class BoltFasteningStation : AutoUnit
 {
@@ -802,7 +802,8 @@ public sealed class BoltFasteningStation : AutoUnit
                                 {
                                     try
                                     {
-                                        torqueCurve = await monitor.ReadTorqueCurveAsync(controller, completed.Torque, token);
+                                        torqueCurve = await monitor.ReadTorqueCurveAsync(
+                                            controller, completed.Torque, _settings.TorqueCurveTimeoutMilliseconds, token);
                                     }
                                     catch (TimeoutException)
                                     {
@@ -863,6 +864,8 @@ public sealed class BoltFasteningStation : AutoUnit
                                     PreliminaryResult = preliminary,
                                     MinimumTurns = minimumTurns,
                                     MaximumTurns = maximumTurns,
+                                    TorqueCurve = torqueCurve,
+                                    TorqueCurveError = torqueCurveError,
                                 };
                                 var recordStarted = Stopwatch.GetTimestamp();
                                 assembly.RecordBolt(bolt.Head, bolt.Id, result);
@@ -873,7 +876,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 }
                                 TorqueCurves = [.. TorqueCurves.Where(row => row.BoltId != bolt.Id || row.Result.Stage != stage),
                                     new(bolt.Id, _recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, bolt.Head,
-                                        result, torqueCurve, torqueCurveError)];
+                                        result)];
                                 resultReceived?.Invoke(bolt, result);
                                 _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}, minimum={MinimumTurns}, maximum={MaximumTurns}, turns result={TurnsResult}.",
                                     bolt.Id, result.Success, result.TotalTurns, result.MinimumTurns, result.MaximumTurns, result.TurnsResult);
@@ -952,7 +955,8 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             try
             {
-                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                using var cleanup = new CancellationTokenSource(
+                    TimeSpan.FromMilliseconds(_settings.TorqueCurveStopTimeoutMilliseconds));
                 try
                 {
                     if (PickupHead.Monitor is { IsTorqueCurveMonitoringRequested: true } pickupMonitor)

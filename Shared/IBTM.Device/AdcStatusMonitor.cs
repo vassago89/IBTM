@@ -26,7 +26,6 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     private CancellationTokenSource? _lifetime;
     private Task _completion;
     private AdcStatusSample? _sample;
-    private long _torqueCurveRequestedAt;
 
     public AdcStatusMonitor(IAdcBus bus, ILogger<AdcStatusMonitor>? logger = null)
     {
@@ -164,17 +163,16 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 TorqueCurveCaptureStartedAt = 0;
                 TorqueCurveError = null;
             }
-            _torqueCurveRequestedAt = 0;
             if (!enabled)
                 return true;
-            // Torque / channel 2 off / 5 ms / fastening.
+            // Torque / channel 2 off / 30 ms / fastening.
+            // ADC retains 200 samples: 30 ms covers up to 6 s instead of the last 1 s.
             // ADC requests use GetGraph(4200, 1), not the MDC 4100 enable/disable write.
             await _bus.WriteRegisterAsync(SlaveAddress, 4101, 1, token).ConfigureAwait(false);
             await _bus.WriteRegisterAsync(SlaveAddress, 4102, 0, token).ConfigureAwait(false);
-            await _bus.WriteRegisterAsync(SlaveAddress, 4103, 1, token).ConfigureAwait(false);
+            await _bus.WriteRegisterAsync(SlaveAddress, 4103, 4, token).ConfigureAwait(false);
             await _bus.WriteRegisterAsync(SlaveAddress, 4104, 1, token).ConfigureAwait(false);
             await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false);
-            _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
             return true;
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -196,8 +194,9 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     }
 
     public async Task<AdcTorqueCurve> ReadTorqueCurveAsync(
-        BoltControllerData result, double? torque, CancellationToken token)
+        BoltControllerData result, double? torque, int timeoutMilliseconds, CancellationToken token)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeoutMilliseconds);
         var received = new TaskCompletionSource<AdcTorqueCurve>(TaskCreationOptions.RunContinuationsAsynchronously);
         var requestedAt = long.MaxValue;
         void OnReceived(AdcTorqueCurve curve)
@@ -220,10 +219,9 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 TorqueCurveError = null;
                 Volatile.Write(ref requestedAt, Stopwatch.GetTimestamp());
                 await _bus.RequestTorqueCurveAsync(SlaveAddress, cancellationToken).ConfigureAwait(false);
-                _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
                 return true;
             }, token).ConfigureAwait(false);
-            return await received.Task.WaitAsync(TimeSpan.FromSeconds(1), token).ConfigureAwait(false);
+            return await received.Task.WaitAsync(TimeSpan.FromMilliseconds(timeoutMilliseconds), token).ConfigureAwait(false);
         }
         finally
         {
@@ -266,13 +264,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 AdcStatusSample sample;
                 try
                 {
-                    if (IsTorqueCurveMonitoringRequested && _torqueCurveRequestedAt != 0
-                        && Stopwatch.GetElapsedTime(_torqueCurveRequestedAt).TotalSeconds >= 5)
-                    {
-                        // Hantas HComm's ADC example repeats GetGraph every five seconds.
-                        await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false);
-                        _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
-                    }
+                    // Retrieve curves before the carrier and after each result, not while
+                    // waiting for RUN OFF. A graph query is not controller status feedback.
                     var response = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);
                     sample = new(startedAt, Stopwatch.GetTimestamp(), response.Status, null, response.Rejection);
                 }

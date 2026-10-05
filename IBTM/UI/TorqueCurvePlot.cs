@@ -47,7 +47,8 @@ public sealed class TorqueCurvePlot : FrameworkElement
         var plot = new Rect(64, 38, Math.Max(1, ActualWidth - 90), Math.Max(1, ActualHeight - 100));
         var maximum = Math.Max(0.01, Math.Max(curve.Torques.Max(), curve.TargetTorque) * 1.1);
         var minimum = Math.Min(0, curve.Torques.Min());
-        var duration = Math.Max(curve.SampleMilliseconds, (curve.Torques.Length - 1) * curve.SampleMilliseconds);
+        var duration = Math.Max(curve.SampleMilliseconds,
+            Math.Max(curve.FasteningMilliseconds, curve.StartMilliseconds + (curve.Torques.Length - 1) * curve.SampleMilliseconds));
         var gridPen = new Pen(muted, 0.3);
         for (var tick = 0; tick <= 4; tick++)
         {
@@ -56,7 +57,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
             drawing.DrawLine(gridPen, new(plot.Left, y), new(plot.Right, y));
             DrawText((minimum + (maximum - minimum) * fraction).ToString("0.##"), 8, y - 8, muted);
             var x = plot.Left + plot.Width * fraction;
-            DrawText((curve.StartMilliseconds + duration * fraction).ToString("0"), x - 8, plot.Bottom + 8, muted);
+            DrawText((duration * fraction).ToString("0"), x - 8, plot.Bottom + 8, muted);
         }
         DrawText(UiText.Get("Torque (controller unit)"), 12, 10, textBrush);
         DrawText(UiText.Get("Time (ms)"), Math.Max(64, plot.Right - 75), plot.Bottom + 30, textBrush);
@@ -68,7 +69,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
         {
             for (var index = 0; index < curve.Torques.Length; index++)
             {
-                var point = new Point(plot.Left + index * curve.SampleMilliseconds / (double)duration * plot.Width,
+                var point = new Point(plot.Left + (curve.StartMilliseconds + index * curve.SampleMilliseconds) / (double)duration * plot.Width,
                     plot.Bottom - (curve.Torques[index] - minimum) / (maximum - minimum) * plot.Height);
                 if (index == 0)
                     context.BeginFigure(point, false, false);
@@ -78,7 +79,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
         }
         geometry.Freeze();
         drawing.DrawGeometry(null, new Pen(lineBrush, 2), geometry);
-        if (curve.Torques.Length * curve.SampleMilliseconds < curve.FasteningMilliseconds)
+        if (curve.StartMilliseconds > 0)
             DrawText(UiText.Get("Curve covers only part of the fastening time"), 64, ActualHeight - 17, muted);
     }
 
@@ -88,7 +89,15 @@ public sealed class TorqueCurvePlot : FrameworkElement
         if (Curve is not { Torques.Length: > 0 } curve)
             return;
         var fraction = Math.Clamp((e.GetPosition(this).X - 64) / Math.Max(1, ActualWidth - 90), 0, 1);
-        var index = (int)Math.Round(fraction * (curve.Torques.Length - 1));
+        var duration = Math.Max(curve.SampleMilliseconds,
+            Math.Max(curve.FasteningMilliseconds, curve.StartMilliseconds + (curve.Torques.Length - 1) * curve.SampleMilliseconds));
+        var samplePosition = (duration * fraction - curve.StartMilliseconds) / curve.SampleMilliseconds;
+        if (samplePosition < 0 || samplePosition > curve.Torques.Length - 1)
+        {
+            ToolTip = null;
+            return;
+        }
+        var index = (int)Math.Round(samplePosition);
         ToolTip = $"{curve.StartMilliseconds + index * curve.SampleMilliseconds} ms · {curve.Torques[index]:0.##}";
     }
 }

@@ -60,8 +60,8 @@
   <data name="adc communication log" xml:space="preserve">
     <value>ADC 통신 로그</value>
   </data>
-  <data name="adc response timeout must be greater than 0 s." xml:space="preserve">
-    <value>ADC 응답 제한 시간: 0초 초과 필요</value>
+  <data name="adc readiness base wait must be greater than 0 s." xml:space="preserve">
+    <value>ADC 준비 확인 기본 대기: 0초 초과 필요</value>
   </data>
   <data name="adc shutdown failed" xml:space="preserve">
     <value>ADC 종료 실패</value>
@@ -2032,7 +2032,7 @@
   <data name="response" xml:space="preserve">
     <value>응답</value>
   </data>
-  <data name="response timeout (s)" xml:space="preserve">
+  <data name="readiness base wait (s)" xml:space="preserve">
     <value>준비 확인 기본 대기 (s)</value>
   </data>
   <data name="restore air pressure, then press reset" xml:space="preserve">
@@ -2222,7 +2222,7 @@
     <value>준비 상태 확인</value>
   </data>
   <data name="read attempts (including first)" xml:space="preserve">
-    <value>준비 확인 대기 배수</value>
+    <value>읽기 시도 횟수 (최초 포함)</value>
   </data>
   <data name="shoot bolt" xml:space="preserve">
     <value>볼트 슈팅</value>
@@ -3710,17 +3710,11 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="pickup → shooting" xml:space="preserve">
     <value>픽업 → 슈팅</value>
   </data>
-  <data name="compensation (%)" xml:space="preserve">
-    <value>보정 (%)</value>
-  </data>
   <data name="final tightening position is not ready." xml:space="preserve">
     <value>본체결 위치·헤드·테이블을 확인하세요.</value>
   </data>
   <data name="final tightening head or table feedback was lost." xml:space="preserve">
     <value>본체결 헤드·테이블 위치를 확인하세요.</value>
-  </data>
-  <data name="raw torque" xml:space="preserve">
-    <value>원본 토크</value>
   </data>
   <data name="preset change delay (ms)" xml:space="preserve">
     <value>프리셋 변경 대기 (ms)</value>
@@ -3893,11 +3887,19 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="torque curves" xml:space="preserve"><value>토크 그래프</value></data>
   <data name="collect torque curves" xml:space="preserve"><value>토크 그래프 수집</value></data>
   <data name="carrier work {0}" xml:space="preserve"><value>캐리어 작업 {0}</value></data>
-  <data name="latest carrier only · memory only · cleared when the application closes" xml:space="preserve"><value>최근 캐리어 · 임시 보관 · 프로그램 종료 시 삭제</value></data>
+  <data name="memory only · cleared when the application closes" xml:space="preserve"><value>임시 보관 · 프로그램 종료 시 삭제</value></data>
+  <data name="graph" xml:space="preserve"><value>그래프</value></data>
   <data name="no torque curve" xml:space="preserve"><value>그래프 데이터 없음</value></data>
   <data name="torque curve not received" xml:space="preserve"><value>토크 그래프 미수신</value></data>
   <data name="invalid adc torque curve data" xml:space="preserve"><value>ADC 토크 그래프 데이터 오류</value></data>
   <data name="request adc graph" xml:space="preserve"><value>ADC 그래프 조회</value></data>
   <data name="torque (controller unit)" xml:space="preserve"><value>토크 (컨트롤러 단위)</value></data>
   <data name="curve covers only part of the fastening time" xml:space="preserve"><value>체결 시간 중 일부 구간만 수집됨</value></data>
+  <data name="sdk completion wait (s)" xml:space="preserve"><value>SDK 완료 대기 (s)</value></data>
+  <data name="torque curve result wait (s)" xml:space="preserve"><value>그래프 결과 대기 (s)</value></data>
+  <data name="torque curve stop wait (s)" xml:space="preserve"><value>그래프 종료 대기 (s)</value></data>
+  <data name="hcomm response timeout: 1 s (fixed)" xml:space="preserve"><value>HComm 통신 응답: 1초 (고정)</value></data>
+  <data name="ready wait = base wait × read attempts + status poll interval." xml:space="preserve"><value>준비 확인 대기 = 기본 대기 × 읽기 시도 횟수 + 상태 조회 간격.</value></data>
+  <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>SDK가 요청을 끝내지 못하면 연결을 종료합니다. HComm 내부 통신 응답 제한은 바뀌지 않습니다.</value></data>
+  <data name="wait for a curve matching the completed bolt after the graph request finishes." xml:space="preserve"><value>그래프 조회가 끝난 뒤 해당 볼트의 체결 결과와 일치하는 곡선을 기다립니다.</value></data>
 </root>

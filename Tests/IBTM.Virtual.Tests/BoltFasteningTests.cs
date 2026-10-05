@@ -64,14 +64,15 @@ public sealed class BoltFasteningTests
         await station.RunAsync(timeout.Token, selectedBolts: [bolt.Id]);
         Assert.True(work.Completed);
         Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, 1), (4104, 1) }, bus.RegisterWrites);
+        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, 4), (4104, 1) }, bus.RegisterWrites);
         Assert.True(bus.GraphRequests >= 2);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
         var row = Assert.Single(station.TorqueCurves);
         Assert.True(row.Result.Success);
         Assert.True(row.Result.IsComplete);
-        Assert.NotNull(row.Curve);
-        Assert.Null(row.Error);
+        Assert.NotNull(row.Result.TorqueCurve);
+        Assert.Null(row.Result.TorqueCurveError);
+        Assert.Same(row.Result.TorqueCurve, work.GetAssembly(bolt.HeatSink).PickupBoltResults[bolt.Id].TorqueCurve);
     }
 
     [Theory]
@@ -296,14 +297,14 @@ public sealed class BoltFasteningTests
             {
                 if (missingCurve)
                 {
-                    Assert.Null(row.Curve);
-                    Assert.NotNull(row.Error);
+                    Assert.Null(row.Result.TorqueCurve);
+                    Assert.NotNull(row.Result.TorqueCurveError);
                 }
                 else
                 {
-                    Assert.NotNull(row.Curve);
-                    Assert.Null(row.Error);
-                    Assert.Equal(row.Result.Controller!.ScrewCount, row.Curve.ScrewCount);
+                    Assert.NotNull(row.Result.TorqueCurve);
+                    Assert.Null(row.Result.TorqueCurveError);
+                    Assert.Equal(row.Result.Controller!.ScrewCount, row.Result.TorqueCurve.ScrewCount);
                 }
             });
             Assert.False(head.Monitor.IsTorqueCurveMonitoringRequested);
@@ -682,6 +683,8 @@ public sealed class BoltFasteningTests
         Assert.Equal((ushort)1, settings.PickupFinalPreset);
         Assert.True(settings.PickupFinalHeadCycleEnabled);
         Assert.True(settings.MonitorTorqueCurves);
+        Assert.Equal(1_000, settings.TorqueCurveTimeoutMilliseconds);
+        Assert.Equal(3_000, settings.TorqueCurveStopTimeoutMilliseconds);
         Assert.Equal(100, settings.HeadDownDelayMilliseconds);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.HeadDownDelayMilliseconds = -1);
         settings.HeadDownDelayMilliseconds = 250;
@@ -692,6 +695,8 @@ public sealed class BoltFasteningTests
         settings.PickupFinalPreset = 3;
         settings.PickupFinalHeadCycleEnabled = false;
         settings.MonitorTorqueCurves = false;
+        settings.TorqueCurveTimeoutMilliseconds = 2_000;
+        settings.TorqueCurveStopTimeoutMilliseconds = 5_000;
         var store = OpenMachineStore();
         await store.SaveSettingsAsync([settings]);
         var loaded = (await MachineSettings.LoadAsync(store)).BoltFastening;
@@ -701,6 +706,8 @@ public sealed class BoltFasteningTests
         Assert.Equal(settings.PickupFinalPreset, loaded.PickupFinalPreset);
         Assert.False(loaded.PickupFinalHeadCycleEnabled);
         Assert.False(loaded.MonitorTorqueCurves);
+        Assert.Equal(2_000, loaded.TorqueCurveTimeoutMilliseconds);
+        Assert.Equal(5_000, loaded.TorqueCurveStopTimeoutMilliseconds);
         Assert.Equal(250, loaded.HeadDownDelayMilliseconds);
         settings.PickupFasteningMode = PickupFasteningMode.SingleStage;
         settings.HeadDownDelayMilliseconds = 0;

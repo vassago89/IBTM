@@ -33,17 +33,18 @@ public sealed record BoltResult(
     public BoltFasteningStage Stage { get; init; }
     public BoltResult? PreliminaryResult { get; init; }
 
+    // Curves follow their exact result in memory; graph persistence is deferred.
+    [JsonIgnore]
+    public AdcTorqueCurve? TorqueCurve { get; init; }
+    [JsonIgnore]
+    public string? TorqueCurveError { get; init; }
+
     [JsonIgnore]
     public bool IsComplete => Stage != BoltFasteningStage.Preliminary
         || !Success || Source == BoltResultSource.DryRun;
     // Keep the bolt's applied criterion with the measurement, independent of later recipe edits.
     public double? MinimumTurns { get; init; }
     public double? MaximumTurns { get; init; }
-
-    // Display the captured compensation without changing the received/stored torque.
-    [JsonIgnore]
-    public double? CompensatedTorque => Controller?.TorqueCompensationPercent is { } percent
-        ? Torque * percent / 100.0 : null;
 
     [JsonIgnore]
     public double? MeasuredTurns => Source == BoltResultSource.Controller

@@ -810,6 +810,44 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
+    public async Task LongFasteningWaitDoesNotRequestGraphsBeforeTheResult()
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
+        bus.GraphRequestFailure = new TimeoutException("No graph available while fastening.");
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var cycle = head.TightenAsync(stop.Token);
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => head.Monitor.Sample?.Status?.Running == true, TimeSpan.FromSeconds(2)));
+            await Task.Delay(5_300, stop.Token);
+            Assert.False(cycle.IsCompleted);
+            Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.True(head.Monitor.Sample?.Status?.Running);
+            Assert.Equal(1, bus.GraphRequests);
+            Assert.Equal(0, bus.ResultReads);
+
+            bus.SuppressCompletion = false;
+            var result = await cycle.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(result.Success, result.Error);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            bus.GraphRequestFailure = null;
+            var curve = await bus.Monitor.ReadTorqueCurveAsync(result.Controller!, result.Torque, 1_000, stop.Token);
+            Assert.Equal(result.Torque, curve.FinalTorque);
+            Assert.Equal(2, bus.GraphRequests);
+        }
+        finally
+        {
+            stop.Cancel();
+            await ((Task)cycle).ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Fact]
     public async Task MonitorReadFailureDuringFasteningStopsInsteadOfTreatingUnknownAsRunOff()
     {
         using var bus = new AdcControllerStub { SuppressCompletion = true };

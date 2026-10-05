@@ -245,7 +245,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 // cancellation releases the bus, so a late reply cannot reach the next caller.
                 try
                 {
-                    response = await pending.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+                    response = await pending.Task.WaitAsync(
+                        TimeSpan.FromMilliseconds(_settings.SdkCompletionTimeoutMilliseconds)).ConfigureAwait(false);
                 }
                 catch (TimeoutException)
                 {

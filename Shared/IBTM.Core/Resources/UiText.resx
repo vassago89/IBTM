@@ -60,8 +60,8 @@ Operation failed. Check controller status.</value>
   <data name="adc communication log" xml:space="preserve">
     <value>ADC communication log</value>
   </data>
-  <data name="adc response timeout must be greater than 0 s." xml:space="preserve">
-    <value>ADC response timeout must be greater than 0 s.</value>
+  <data name="adc readiness base wait must be greater than 0 s." xml:space="preserve">
+    <value>ADC readiness base wait must be greater than 0 s.</value>
   </data>
   <data name="adc shutdown failed" xml:space="preserve">
     <value>ADC Shutdown Failed</value>
@@ -2032,7 +2032,7 @@ Operation failed. Check controller status.</value>
   <data name="response" xml:space="preserve">
     <value>RESPONSE</value>
   </data>
-  <data name="response timeout (s)" xml:space="preserve">
+  <data name="readiness base wait (s)" xml:space="preserve">
     <value>Readiness base wait (s)</value>
   </data>
   <data name="restore air pressure, then press reset" xml:space="preserve">
@@ -2222,7 +2222,7 @@ Operation failed. Check controller status.</value>
     <value>Readiness checks</value>
   </data>
   <data name="read attempts (including first)" xml:space="preserve">
-    <value>Readiness wait multiplier</value>
+    <value>Read attempts (including first)</value>
   </data>
   <data name="shoot bolt" xml:space="preserve">
     <value>Shoot Bolt</value>
@@ -3707,17 +3707,11 @@ COMPLETE: finish</value>
   <data name="pickup → shooting" xml:space="preserve">
     <value>Pickup → Shooting</value>
   </data>
-  <data name="compensation (%)" xml:space="preserve">
-    <value>Compensation (%)</value>
-  </data>
   <data name="final tightening position is not ready." xml:space="preserve">
     <value>Final tightening position is not ready.</value>
   </data>
   <data name="final tightening head or table feedback was lost." xml:space="preserve">
     <value>Final tightening head or table feedback was lost.</value>
-  </data>
-  <data name="raw torque" xml:space="preserve">
-    <value>Raw torque</value>
   </data>
   <data name="preset change delay (ms)" xml:space="preserve">
     <value>Preset change delay (ms)</value>
@@ -3890,11 +3884,19 @@ COMPLETE: finish</value>
   <data name="torque curves" xml:space="preserve"><value>Torque curves</value></data>
   <data name="collect torque curves" xml:space="preserve"><value>Collect torque curves</value></data>
   <data name="carrier work {0}" xml:space="preserve"><value>Carrier work {0}</value></data>
-  <data name="latest carrier only · memory only · cleared when the application closes" xml:space="preserve"><value>Latest carrier only · Memory only · Cleared when the application closes</value></data>
+  <data name="memory only · cleared when the application closes" xml:space="preserve"><value>Memory only · Cleared when the application closes</value></data>
+  <data name="graph" xml:space="preserve"><value>Graph</value></data>
   <data name="no torque curve" xml:space="preserve"><value>No torque curve</value></data>
   <data name="torque curve not received" xml:space="preserve"><value>Torque curve not received</value></data>
   <data name="invalid adc torque curve data" xml:space="preserve"><value>Invalid ADC torque curve data</value></data>
   <data name="request adc graph" xml:space="preserve"><value>Request ADC Graph</value></data>
   <data name="torque (controller unit)" xml:space="preserve"><value>Torque (controller unit)</value></data>
   <data name="curve covers only part of the fastening time" xml:space="preserve"><value>Curve covers only part of the fastening time</value></data>
+  <data name="sdk completion wait (s)" xml:space="preserve"><value>SDK completion wait (s)</value></data>
+  <data name="torque curve result wait (s)" xml:space="preserve"><value>Torque curve result wait (s)</value></data>
+  <data name="torque curve stop wait (s)" xml:space="preserve"><value>Torque curve stop wait (s)</value></data>
+  <data name="hcomm response timeout: 1 s (fixed)" xml:space="preserve"><value>HComm response timeout: 1 s (fixed)</value></data>
+  <data name="ready wait = base wait × read attempts + status poll interval." xml:space="preserve"><value>READY wait = base wait × read attempts + status poll interval.</value></data>
+  <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>Closes the connection if the SDK does not finish a request. Does not change the fixed HComm response timeout.</value></data>
+  <data name="wait for a curve matching the completed bolt after the graph request finishes." xml:space="preserve"><value>Wait for a curve matching the completed bolt after the graph request finishes.</value></data>
 </root>

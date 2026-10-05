@@ -22,6 +22,45 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbHistoryTests
 {
     [Fact]
+    public async Task LiveResultKeepsEachStageCurveWhileStorageOmitsTemporaryGraphs()
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var history = services.GetRequiredService<PcbHistoryWriter>();
+        var store = services.GetRequiredService<MachineStore>();
+        var settings = services.GetRequiredService<MachineSettings>();
+        settings.PcbHistory.Directory = store.DatabaseFile + ".results";
+        var assembly = services.GetRequiredService<BoltFasteningStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        var boltId = VirtualTestSupport.BoltId(1);
+        var preliminaryCurve = new AdcTorqueCurve(1, 30, [0, 0.5], 60, 0.5, 0.5, 1, 0);
+        var finalCurve = new AdcTorqueCurve(2, 30, [0.5, 1], 60, 1, 1, 2, 0);
+        var preliminary = new BoltResult(true, 0.5)
+        {
+            Stage = BoltFasteningStage.Preliminary,
+            TorqueCurve = preliminaryCurve,
+        };
+        PcbRecord? published = null;
+        history.Saved += record => published = record;
+        assembly.RecordBolt(FasteningHead.Pickup, boltId, new(true, 1)
+        {
+            Stage = BoltFasteningStage.Final,
+            PreliminaryResult = preliminary,
+            TorqueCurve = finalCurve,
+        });
+        await history.FlushAsync();
+
+        Assert.NotNull(published);
+        var details = services.GetRequiredService<PcbResultsViewModel>();
+        details.Record = published;
+        var stages = Assert.Single(details.BoltResults).StageResults.ToArray();
+        Assert.Same(preliminaryCurve, stages[0].Result.TorqueCurve);
+        Assert.Same(finalCurve, stages[1].Result.TorqueCurve);
+        var stored = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).PickupBoltResults[boltId];
+        Assert.Null(stored.TorqueCurve);
+        Assert.Null(stored.PreliminaryResult!.TorqueCurve);
+        Assert.Same(finalCurve, stages[1].Result.TorqueCurve);
+    }
+
+    [Fact]
     public async Task DataMatrixThresholdAndDilationSurviveHistoryWriterAndReload()
     {
         var store = VirtualTestSupport.OpenMachineStore();

@@ -311,6 +311,27 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="180"/>
                                         </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Torque curve result wait (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                            ToolTip="{ui:Text 'Wait for a curve matching the completed bolt after the graph request finishes.'}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Column="1" VerticalAlignment="Center"
+                                            Text="{Binding Settings.BoltFastening.TorqueCurveTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="180"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Torque curve stop wait (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Column="1" VerticalAlignment="Center"
+                                            Text="{Binding Settings.BoltFastening.TorqueCurveStopTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="180"/>
+                                        </Grid.ColumnDefinitions>
                                         <TextBlock Text="{ui:Text 'Head order'}" Style="{StaticResource SettingFieldLabel}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
@@ -865,12 +886,25 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Response timeout (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                            <TextBlock Text="{ui:Text 'Readiness base wait (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                                ToolTip="{ui:Text 'READY wait = base wait × read attempts + status poll interval.'}"
                                                 VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.ResponseTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Column="1"/>
                                         </Grid>
+                                        <Grid Margin="0,0,0,8" MinHeight="34">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="140"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{ui:Text 'SDK completion wait (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                                ToolTip="{ui:Text 'Closes the connection if the SDK does not finish a request. Does not change the fixed HComm response timeout.'}"
+                                                Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                            <TextBox IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Column="1" VerticalAlignment="Center"
+                                                Text="{Binding Settings.Hantas.SdkCompletionTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                        </Grid>
+                                        <TextBlock Text="{ui:Text 'HComm response timeout: 1 s (fixed)'}" Margin="0,0,0,8"/>
                                         <Grid Margin="0,0,0,8" MinHeight="34">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>

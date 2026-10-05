@@ -1,7 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace IBTM.Device;
+namespace IBTM.Core;
 
 // Decoded torque samples with the fastening result they belong to.
 public sealed record AdcTorqueCurve(
@@ -13,7 +14,7 @@ public sealed record AdcTorqueCurve(
 
     // A full ADC buffer contains the last 200 points of the fastening.
     public int StartMilliseconds => Torques.Length == 200
-        ? FasteningMilliseconds - Torques.Length * SampleMilliseconds : 0;
+        ? Math.Max(0, FasteningMilliseconds - Torques.Length * SampleMilliseconds) : 0;
 
     public static AdcTorqueCurve FromRegisters(IReadOnlyList<int> values, long receivedAt)
     {

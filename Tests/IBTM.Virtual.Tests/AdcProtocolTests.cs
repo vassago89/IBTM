@@ -294,7 +294,7 @@ public sealed class AdcProtocolTests
         var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);
         var previous = new AdcTorqueCurve(System.Diagnostics.Stopwatch.GetTimestamp(), 5, [0, 1], 250, 1, 1, 2, 0);
         bus.Monitor.ReceiveTorqueCurve(previous);
-        var waiting = bus.Monitor.ReadTorqueCurveAsync(controller, 1, CancellationToken.None);
+        var waiting = bus.Monitor.ReadTorqueCurveAsync(controller, 1, 1_000, CancellationToken.None);
         Assert.False(waiting.IsCompleted);
         Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.GraphRequests == 2, TimeSpan.FromSeconds(1)));
         bus.Monitor.ReceiveTorqueCurve(previous);
@@ -350,6 +350,54 @@ public sealed class AdcProtocolTests
         Assert.Equal(200, curve.Torques.Length);
         Assert.All(curve.Torques, torque => Assert.Equal(0.9, torque));
         Assert.Equal(500, curve.StartMilliseconds);
+    }
+
+    [Fact]
+    public async Task VirtualGraphUsesTheConfiguredThirtyMillisecondSampling()
+    {
+        using var bus = new VirtualAdcBus();
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        AdcTorqueCurve? curve = null;
+        bus.Monitor.TorqueCurveReceived += received => curve = received;
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
+
+        Assert.NotNull(curve);
+        Assert.Equal(30, curve.SampleMilliseconds);
+        Assert.Equal(9, curve.Torques.Length);
+        Assert.Equal(0, curve.StartMilliseconds);
+    }
+
+    [Theory]
+    [InlineData(2479, 83, 0)]
+    [InlineData(5990, 200, 0)]
+    [InlineData(7500, 200, 1500)]
+    public async Task AdcGraphThirtyMillisecondSamplingPreservesTheCollectedTimeRange(
+        ushort fasteningMilliseconds, int sampleCount, int expectedStart)
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(transport.Communication);
+        bus.Monitor.BeginTorqueCurveCapture();
+        AdcTorqueCurve? curve = null;
+        bus.Monitor.TorqueCurveReceived += received => curve = received;
+        int[] words = [1, 0, 4, 1, sampleCount, fasteningMilliseconds, 800, 809, 200, 0, 0, 0, 0, 1, 0,
+            .. Enumerable.Range(0, sampleCount)];
+        var blocks = words.Chunk(100).ToArray();
+        var request = bus.RequestTorqueCurveAsync(0);
+        for (var block = 0; block < blocks.Length; block++)
+        {
+            await transport.NextRequestAsync();
+            transport.Receive(GraphBlock((byte)blocks.Length, (byte)(block + 1), blocks[block]));
+        }
+        await request;
+
+        Assert.NotNull(curve);
+        Assert.Equal(30, curve.SampleMilliseconds);
+        Assert.Equal(fasteningMilliseconds, curve.FasteningMilliseconds);
+        Assert.Equal(sampleCount, curve.Torques.Length);
+        Assert.Equal(0, curve.Torques[0]);
+        Assert.Equal((sampleCount - 1) / 100.0, curve.Torques[^1]);
+        Assert.Equal(expectedStart, curve.StartMilliseconds);
     }
 
     [Fact]
@@ -533,7 +581,8 @@ public sealed class AdcProtocolTests
         {
             stop.Cancel();
             bus.Close();
-            await cycle.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await ((Task)cycle).ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
         }
     }
 
@@ -566,52 +615,90 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
-    public async Task TorqueMonitoringRefreshesAndOnlyReturnsTheCurrentMatchingCurve()
+    public async Task TorqueMonitoringOnlyReturnsTheCurrentMatchingCurve()
     {
         using var bus = new AdcControllerStub();
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
-        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, 1), (4104, 1) }, bus.RegisterWrites);
+        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, 4), (4104, 1) }, bus.RegisterWrites);
         Assert.Equal(1, bus.GraphRequests);
         Assert.Null(bus.Monitor.TorqueCurveError);
         var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);
         var after = System.Diagnostics.Stopwatch.GetTimestamp();
         bus.Monitor.ReceiveTorqueCurve(new(after - 1, 5, [0, 1], 250, 1, 1, 2, 0));
-        var waiting = bus.Monitor.ReadTorqueCurveAsync(controller, 1, CancellationToken.None);
+        var waiting = bus.Monitor.ReadTorqueCurveAsync(controller, 1, 1_000, CancellationToken.None);
         Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.GraphRequests >= 2, TimeSpan.FromSeconds(1)));
         bus.Monitor.ReceiveTorqueCurve(new(System.Diagnostics.Stopwatch.GetTimestamp(), 5, [0, 1], 250, 1, 1, 1, 0));
         Assert.False(waiting.IsCompleted);
         var expected = new AdcTorqueCurve(System.Diagnostics.Stopwatch.GetTimestamp(), 5, [0, 0.5, 1], 250, 1, 1, 2, 0);
         bus.Monitor.ReceiveTorqueCurve(expected);
         Assert.Same(expected, await waiting);
-        await Task.Delay(5500);
         var requests = bus.GraphRequests;
         await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
         Assert.Equal(requests, bus.GraphRequests);
-        Assert.True(requests >= 2);
+        Assert.Equal(2, requests);
         Assert.Equal(4, bus.RegisterWrites.Count);
         Assert.Null(bus.Monitor.TorqueCurveError);
     }
 
     [Fact]
-    public async Task TorqueGraphRefreshFailureKeepsStatusUnknown()
+    public async Task TorqueGraphRequestFailureDoesNotReplaceControllerStatus()
     {
         using var bus = new AdcControllerStub();
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
-        var failure = new IOException("Graph connection lost.");
+        var failure = new TimeoutException("Graph reply missing.");
         bus.GraphRequestFailure = failure;
-        Assert.True(await VirtualTestSupport.WaitUntilAsync(
-            () => ReferenceEquals(bus.Monitor.Sample?.Error, failure), TimeSpan.FromSeconds(7)));
-        Assert.Null(bus.Monitor.Sample!.Status);
-        await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
-        Assert.Equal(4, bus.RegisterWrites.Count);
+        var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);
+        Assert.Same(failure, await Assert.ThrowsAsync<TimeoutException>(() =>
+            bus.Monitor.ReadTorqueCurveAsync(controller, 1, 1_000, CancellationToken.None)));
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var status = await bus.Monitor.WaitForSampleAsync(System.Diagnostics.Stopwatch.GetTimestamp(), timeout.Token);
         Assert.True(status.Ready);
+        Assert.Null(bus.Monitor.Sample!.Error);
+        Assert.Equal(2, bus.GraphRequests);
+    }
+
+    [Fact]
+    public async Task SdkCompletionTimeoutUsesTheConfiguredWaitAndClosesTheConnection()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(transport.Communication, settings: new() { SdkCompletionTimeoutMilliseconds = 200 });
+        var waiting = bus.ReadDeviceInformationAsync(0);
+        await transport.NextRequestAsync();
+        var failure = await Assert.ThrowsAsync<TimeoutException>(() => waiting);
+        Assert.Contains("connection closed", failure.Message);
+        Assert.False(bus.IsOpen);
+        Assert.Null(bus.Monitor.Sample?.Status);
+    }
+
+    [Theory]
+    [InlineData(75, false)]
+    [InlineData(2_000, true)]
+    public async Task TorqueCurveMatchingWaitUsesTheConfiguredTimeout(int timeoutMilliseconds, bool receiveCurve)
+    {
+        using var bus = new AdcControllerStub { SuppressTorqueCurve = true };
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);
+        var waiting = bus.Monitor.ReadTorqueCurveAsync(controller, 1, timeoutMilliseconds, CancellationToken.None);
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.GraphRequests == 1, TimeSpan.FromSeconds(1)));
+        if (receiveCurve)
+        {
+            // This matching result arrives after the former fixed one-second deadline.
+            await Task.Delay(1_100);
+            var curve = new AdcTorqueCurve(System.Diagnostics.Stopwatch.GetTimestamp(), 5, [0, 1], 250, 1, 1, 2, 0);
+            bus.Monitor.ReceiveTorqueCurve(curve);
+            Assert.Same(curve, await waiting);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<TimeoutException>(() => waiting.WaitAsync(TimeSpan.FromMilliseconds(500)));
+            Assert.True(waiting.IsFaulted);
+        }
     }
 
     [Theory]
@@ -818,6 +905,7 @@ public sealed class AdcProtocolTests
         Assert.Equal((byte)3, settings.ShootingSlaveAddress);
         Assert.Equal(100, settings.StatusPollMilliseconds);
         Assert.Equal(1_000, settings.ResponseTimeoutMilliseconds);
+        Assert.Equal(3_000, settings.SdkCompletionTimeoutMilliseconds);
         Assert.Equal(200, settings.PresetSettleMilliseconds);
         Assert.Equal(3, settings.ReadAttempts);
         settings.ShootingPortName = "COM5";
@@ -825,6 +913,7 @@ public sealed class AdcProtocolTests
         settings.ShootingSlaveAddress = 2;
         settings.StatusPollMilliseconds = 75;
         settings.ResponseTimeoutMilliseconds = 250;
+        settings.SdkCompletionTimeoutMilliseconds = 4_000;
         settings.PresetSettleMilliseconds = 400;
         settings.ReadAttempts = 2;
 
@@ -837,12 +926,14 @@ public sealed class AdcProtocolTests
         Assert.Equal(reloaded.PickupSlaveAddress, reloaded.ShootingSlaveAddress);
         Assert.Equal(75, reloaded.StatusPollMilliseconds);
         Assert.Equal(250, reloaded.ResponseTimeoutMilliseconds);
+        Assert.Equal(4_000, reloaded.SdkCompletionTimeoutMilliseconds);
         Assert.Equal(400, reloaded.PresetSettleMilliseconds);
         settings.PresetSettleMilliseconds = 0;
         Assert.Equal(0, JsonSerializer.Deserialize<HantasSettings>(JsonSerializer.Serialize(settings))!.PresetSettleMilliseconds);
         Assert.Equal(2, reloaded.ReadAttempts);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.StatusPollMilliseconds = 0);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.ReadAttempts = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.SdkCompletionTimeoutMilliseconds = 0);
     }
 
 }

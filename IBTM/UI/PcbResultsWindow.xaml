@@ -311,7 +311,6 @@
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="{ui:Text 'Stage'}" Binding="{Binding Result.Stage, Converter={StaticResource UiTextConverter}}" Width="*" MinWidth="100"/>
                                                     <DataGridTextColumn Header="{ui:Text 'Preset'}" Binding="{Binding Result.Controller.Preset, TargetNullValue='—', FallbackValue='—'}" Width="75"/>
-                                                    <DataGridTextColumn Header="{ui:Text 'Compensation (%)'}" Binding="{Binding Result.Controller.TorqueCompensationPercent, TargetNullValue='—', FallbackValue='—'}" Width="125"/>
                                                     <DataGridTemplateColumn Header="{ui:Text 'Result'}" Width="110"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                                         <TextBlock Text="{Binding StageVerdict}" Tag="{Binding Result.Success}">
                                                             <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}"><Style.Triggers>
@@ -320,9 +319,27 @@
                                                         </TextBlock>
                                                     </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                                     <DataGridTextColumn Header="{ui:Text 'Turns'}" Binding="{Binding Result.MeasuredTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
-                                                    <DataGridTextColumn Header="{ui:Text 'Result torque'}" Binding="{Binding Result.CompensatedTorque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
-                                                    <DataGridTextColumn Header="{ui:Text 'Raw torque'}" Binding="{Binding Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
+                                                    <DataGridTextColumn Header="{ui:Text 'Result torque'}" Binding="{Binding Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
                                                     <DataGridTextColumn Header="{ui:Text 'Fastening time (ms)'}" Binding="{Binding Result.Controller.FasteningTimeMilliseconds, TargetNullValue='—', FallbackValue='—'}" Width="130"/>
+                                                    <DataGridTemplateColumn Header="{ui:Text 'Torque curves'}" Width="100">
+                                                        <DataGridTemplateColumn.CellTemplate>
+                                                            <DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
+                                                                <Button Content="{ui:Text 'Graph'}" CommandParameter="{Binding}" Click="OnTorqueCurveClick" Padding="8,2" Margin="4,2"
+                                                                    ToolTipService.ShowOnDisabled="True">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Result.TorqueCurve}" Value="{x:Null}">
+                                                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                                                    <Setter Property="ToolTip" Value="{ui:Text 'No torque curve'}"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                </Button>
+                                                            </DataTemplate>
+                                                        </DataGridTemplateColumn.CellTemplate>
+                                                    </DataGridTemplateColumn>
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                             <StackPanel Orientation="Horizontal" Margin="8,14,0,0" VerticalAlignment="Center">
@@ -352,10 +369,8 @@
                                 </TabItem>
                                 <TabItem Header="{ui:Text 'Measurements'}" Padding="10,4">
                                     <UniformGrid Columns="4" Margin="0,8,0,0" VerticalAlignment="Top">
-                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Result torque'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.CompensatedTorque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
-                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Raw torque'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
+                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Result torque'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Target torque'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.TargetTorque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
-                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Compensation (%)'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.TorqueCompensationPercent, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Target speed (rpm)'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.TargetSpeedRpm, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Fastening time (ms)'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.FasteningTimeMilliseconds, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Angle A1 (°)'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.Angle1, StringFormat=0.##, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>

@@ -14,6 +14,8 @@ public sealed class BoltFasteningSettings : Setting
         PickupHead = new();
         PickupFinalHeadCycleEnabled = true;
         MonitorTorqueCurves = true;
+        TorqueCurveTimeoutMilliseconds = 1_000;
+        TorqueCurveStopTimeoutMilliseconds = 3_000;
     }
 
     public MotionSettings Motion { get; set; }
@@ -60,6 +62,24 @@ public sealed class BoltFasteningSettings : Setting
 
     public bool PickupFinalHeadCycleEnabled { get; set; }
     public bool MonitorTorqueCurves { get; set; }
+    public int TorqueCurveTimeoutMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            field = value;
+        }
+    }
+    public int TorqueCurveStopTimeoutMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            field = value;
+        }
+    }
 
     public int PickupVacuumDelayMilliseconds
     {
