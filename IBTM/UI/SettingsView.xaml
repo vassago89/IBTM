@@ -423,13 +423,6 @@
                                                     <DataTrigger Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.TwoStage}">
                                                         <Setter Property="Text" Value="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 · per PCB'}"/>
                                                     </DataTrigger>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.TwoStage}"/>
-                                                            <Condition Binding="{Binding IsChecked, ElementName=PickupFirstBoltRetightening}" Value="True"/>
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Text" Value="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 → Retighten 1 · per PCB'}"/>
-                                                    </MultiDataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
@@ -442,28 +435,23 @@
                                         </Style.Triggers></Style></StackPanel.Style>
                                         <TextBlock Text="{ui:Text '2-stage turns = pre-tightening + final tightening'}" Style="{StaticResource SettingHelpText}"/>
                                         <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource SettingHelpText}"/>
-                                        <CheckBox x:Name="PickupFirstBoltRetightening" Margin="0,8,0,0"
-                                            IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Content="{ui:Text 'Retighten bolt 1 once with cylinder up/down'}"
-                                            ToolTip="{ui:Text 'Same final preset; total turns include retightening. NG skips the extra pass.'}"
-                                            IsChecked="{Binding Settings.BoltFastening.PickupFirstBoltRetighteningEnabled, UpdateSourceTrigger=PropertyChanged}"/>
                                         <CheckBox x:Name="PickupFinalHeadCycle" Margin="0,8,0,0"
                                             IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Content="{ui:Text 'Cycle cylinder before same-bolt final tightening'}"
                                             ToolTip="{ui:Text 'OFF: keep cylinder down and switch to the final preset.'}"
                                             IsChecked="{Binding Settings.BoltFastening.PickupFinalHeadCycleEnabled, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <Grid Margin="0,8,0,8" MinHeight="34">
+                                        <Grid Margin="0,8,0,8" MinHeight="34" IsEnabled="{Binding IsChecked, ElementName=PickupFinalHeadCycle}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Final tightening delay after DOWN (ms)'}" Style="{StaticResource SettingFieldLabel}"
+                                            <TextBlock Text="{ui:Text 'Final cylinder down delay (ms)'}" Style="{StaticResource SettingFieldLabel}"
                                                 Margin="0,0,12,0" VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.BoltFastening.HeadDownDelayMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Column="1"/>
                                         </Grid>
-                                        <TextBlock Text="{ui:Text 'After DOWN confirmation, before START · 0 = no delay'}" Style="{StaticResource SettingHelpText}"/>
+                                        <TextBlock Text="{ui:Text 'Same bolt only · after RUN, before DOWN · 0 = no delay'}" Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>

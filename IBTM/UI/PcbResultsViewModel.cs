@@ -113,8 +113,7 @@ public partial class PcbResultsViewModel : ObservableObject
             .Select(row => new PcbBoltResultView(row.Key, record.GetBoltOrdinal(row.Key), row.Head, row.Value,
                 record.BoltPresenceResults.TryGetValue(row.Key, out var present) ? present : null,
                 recipe))
-            .OrderBy(row => row.Result.PreviousFinalResult?.PreliminaryResult?.RecordedAt
-                ?? row.Result.PreliminaryResult?.RecordedAt ?? row.Result.RecordedAt ?? DateTimeOffset.MaxValue)
+            .OrderBy(row => row.Result.PreliminaryResult?.RecordedAt ?? row.Result.RecordedAt ?? DateTimeOffset.MaxValue)
             .ThenBy(row => row.Ordinal).ThenBy(row => row.Head).ToArray();
         SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
             ?? BoltResults.FirstOrDefault();
@@ -325,8 +324,7 @@ public sealed record PcbBoltResultView(
     public string HeadLabel => UiText.Get(Head);
     public string BoltLabel => Recipe?.Pcb.GetBoltName(BoltId, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
     public string Title => $"{BoltLabel} · {HeadLabel}";
-    public string Verdict => !Result.IsComplete
-        ? UiText.Get(Result.Stage == BoltFasteningStage.FinalBeforeRetightening ? "Retightening pending" : "Final tightening pending")
+    public string Verdict => !Result.IsComplete ? UiText.Get("Final tightening pending")
         : Result.Source == BoltResultSource.DryRun ? StageVerdict
         : Result.Stage == BoltFasteningStage.Preliminary ? UiText.Get("Pre-tightening NG")
         : StageVerdict;
@@ -339,10 +337,8 @@ public sealed record PcbBoltResultView(
     {
         get
         {
-            if ((Result.PreliminaryResult ?? Result.PreviousFinalResult?.PreliminaryResult) is { } preliminary)
+            if (Result.PreliminaryResult is { } preliminary)
                 yield return this with { Result = preliminary };
-            if (Result.PreviousFinalResult is { } previousFinal)
-                yield return this with { Result = previousFinal };
             yield return this;
         }
     }

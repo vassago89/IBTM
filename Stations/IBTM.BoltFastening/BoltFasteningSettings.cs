@@ -62,7 +62,6 @@ public sealed class BoltFasteningSettings : Setting
     } = 1;
 
     public bool PickupFinalHeadCycleEnabled { get; set; }
-    public bool PickupFirstBoltRetighteningEnabled { get; set; }
     public bool MonitorTorqueCurves { get; set; }
     public AdcTorqueCurveSampling TorqueCurveSampling
     {
@@ -113,7 +112,7 @@ public sealed class BoltFasteningSettings : Setting
             field = value;
         }
     } = 3;
-    // Settling time after DOWN feedback, before starting final tightening.
+    // Extra RUN delay when the same bolt immediately continues from preliminary to final.
     public int HeadDownDelayMilliseconds
     {
         get;
