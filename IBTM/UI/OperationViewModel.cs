@@ -624,13 +624,12 @@ public partial class OperationViewModel : ObservableObject
     {
         IsPlacementResumeConfirmed = false;
         IsFasteningResumeConfirmed = false;
-        StartActionMessage = UiText.Get("Moving all enabled stations to standby...");
+        StartActionMessage = null;
         try
         {
             var completed = await Machine.MoveAllToStandbyAsync(cancellationToken);
-            StartActionMessage = UiText.Get(completed
-                ? "All enabled stations are at standby. Select Check again."
-                : "Preparation stopped. Check machine status.");
+            if (!completed)
+                StartActionMessage = UiText.Get("Preparation stopped. Check machine status.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -653,12 +652,12 @@ public partial class OperationViewModel : ObservableObject
         var area = SelectedStartArea;
         IsPlacementResumeConfirmed = false;
         IsFasteningResumeConfirmed = false;
-        StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action)} · {UiText.Get("In progress")}";
+        StartActionMessage = null;
         try
         {
             var completed = await Machine.PrepareStartAreaAsync(area, action, cancellationToken);
-            var result = completed ? "Completed" : "Preparation stopped. Check machine status.";
-            StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action)} · {UiText.Get(result)}";
+            if (!completed)
+                StartActionMessage = UiText.Get("Preparation stopped. Check machine status.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -674,7 +673,7 @@ public partial class OperationViewModel : ObservableObject
             RefreshPlacementResume();
             RefreshFasteningResume();
             OnPropertyChanged(nameof(StartStation));
-            // Leave material admission to the explicit Check again / START review.
+            // Leave material admission to the RESET / START review.
         }
     }
 
@@ -690,12 +689,12 @@ public partial class OperationViewModel : ObservableObject
         var job = StartStation?.CurrentJob;
         if (job is null)
             return;
+        StartActionMessage = null;
         try
         {
             await Task.Run(() => Machine.ChangeCarrierWork(area, job, action, cancellationToken), cancellationToken);
             RefreshFasteningResume();
             RefreshPlacementResume();
-            StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action == CarrierWorkAction.Complete ? "Marked complete" : "Results cleared")}";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)
@@ -834,10 +833,17 @@ public partial class OperationViewModel : ObservableObject
             return;
         // Acknowledge even when hardware recovery is blocked; the controller owns admission.
         ResetError = null;
+        IsPlacementResumeConfirmed = false;
+        IsFasteningResumeConfirmed = false;
         _log.LogInformation("On-screen RESET requested.");
         try
         {
             await Machine.ResetAsync();
+            if (!Machine.IsResetting && !State.IsRunning)
+            {
+                StartActionMessage = null;
+                await CheckStartCommand.ExecuteAsync(null);
+            }
         }
         catch (Exception exception)
         {

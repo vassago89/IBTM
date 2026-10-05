@@ -3258,9 +3258,6 @@ Clear results: run this station again</value>
   <data name="mark complete" xml:space="preserve">
     <value>Mark complete</value>
   </data>
-  <data name="select a carrier or handler in the diagram." xml:space="preserve">
-    <value>Select a carrier or handler in the diagram.</value>
-  </data>
   <data name="tube bolt detected" xml:space="preserve">
     <value>Tube bolt detected</value>
   </data>
@@ -3358,7 +3355,7 @@ Clear results: run this station again</value>
     <value>Check the actual condition of the remaining bolts.</value>
   </data>
   <data name="i checked the carrier and bolts. resume unfinished fastening." xml:space="preserve">
-    <value>I checked the carrier and bolts. Resume unfinished fastening.</value>
+    <value>Carrier / bolts checked · Resume fastening</value>
   </data>
   <data name="count reset failed: {0}" xml:space="preserve">
     <value>Count reset failed: {0}</value>
@@ -3548,9 +3545,6 @@ COMPLETE: finish</value>
   <data name="completed bolts are not fastened again, including ng and dry runs. with zero remaining, the head returns and the carrier work is completed." xml:space="preserve">
     <value>Completed bolts are not fastened again, including NG and dry runs. With zero remaining, the head returns and the carrier work is completed.</value>
   </data>
-  <data name="s2 backup plate is up. check the carrier and bolts, then check resume again." xml:space="preserve">
-    <value>S2 backup plate is UP. Check the carrier and bolts, then check resume again.</value>
-  </data>
   <data name="s2 backup plate is down. in manual mode, check the carrier and head clearance, then select raise/lower carrier support. after up feedback, check resume again." xml:space="preserve">
     <value>S2 backup plate is DOWN. In Manual mode, check the carrier and head clearance, then select Raise/lower carrier support. After UP feedback, check resume again.</value>
   </data>
@@ -3735,7 +3729,7 @@ COMPLETE: finish</value>
     <value>Same-bolt pre → final only · 0 = no delay</value>
   </data>
   <data name="i checked the carrier and placed pcbs. resume unfinished placement." xml:space="preserve">
-    <value>I checked the carrier and placed PCBs. Resume unfinished placement.</value>
+    <value>Carrier / PCBs checked · Resume placement</value>
   </data>
   <data name="pcb placement records" xml:space="preserve">
     <value>PCB placement records</value>
@@ -3844,5 +3838,17 @@ COMPLETE: finish</value>
   </data>
   <data name="check the seated s1 carrier and the placement records above. resume requires matching records and the backup plate up." xml:space="preserve">
     <value>Check the seated S1 carrier and the placement records above. Resume requires matching records and the backup plate UP.</value>
+  </data>
+  <data name="review carrier and records." xml:space="preserve">
+    <value>Review carrier and records.</value>
+  </data>
+  <data name="raise carrier support." xml:space="preserve">
+    <value>Raise carrier support.</value>
+  </data>
+  <data name="carrier support position unknown." xml:space="preserve">
+    <value>Carrier support position unknown.</value>
+  </data>
+  <data name="carrier not detected." xml:space="preserve">
+    <value>Carrier not detected.</value>
   </data>
 </root>

@@ -27,6 +27,54 @@ namespace IBTM.Virtual.Tests;
 public sealed class MachineLifecycleTests
 {
     [Fact]
+    public async Task ScreenResetRefreshesStartReviewAndRequiresNewOperatorConfirmation()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.BoltFastening = true;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        var bolt = new BoltPoint { HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Shooting };
+        services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints.Add(bolt);
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => review.IsResetAllowed);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.Station1]);
+            Assert.Empty(review.PlacementResumeTargets);
+            Assert.Empty(review.FasteningResumeBolts);
+            io.SetInputs((InputIo.PcbPlacementHeatSink1Present, true), (InputIo.BoltFasteningHeatSink1Present, true));
+            var placed = review.Placement.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+            placed.IsPlacementCompleted = true;
+            var fastened = review.Fastening.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+            fastened.RecordBolt(bolt.Head, bolt.Id, new(true, 1.2));
+            state.SetError(MachineAlarm.Inspection);
+            review.IsPlacementResumeConfirmed = true;
+            review.IsFasteningResumeConfirmed = true;
+
+            await review.ResetCommand.ExecuteAsync(null);
+
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station1]);
+            Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station2]);
+            Assert.True(Assert.Single(review.PlacementResumeTargets).IsCompleted);
+            Assert.True(Assert.Single(review.FasteningResumeBolts).Result!.IsComplete);
+            Assert.Same(placed, review.Placement.Station.GetAssembly(HeatSinkSlot.HeatSink1));
+            Assert.Same(fastened, review.Fastening.Station.GetAssembly(HeatSinkSlot.HeatSink1));
+            Assert.False(review.IsPlacementResumeConfirmed);
+            Assert.False(review.IsFasteningResumeConfirmed);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task AllStandbyMovesEnabledStationsInOrderAndPreservesPlacementRecords()
     {
         var settings = FlowSettings();
@@ -69,7 +117,7 @@ public sealed class MachineLifecycleTests
             await review.MoveAllToStandbyCommand.ExecuteAsync(null);
 
             Assert.False(state.IsError, state.AlarmDetail);
-            Assert.Equal(UiText.Get("All enabled stations are at standby. Select Check again."), review.StartActionMessage);
+            Assert.Null(review.StartActionMessage);
             Assert.Equal(new[] { MotionGroup.PcbPlacementHandler, MotionGroup.PcbSupply,
                 MotionGroup.BoltFastening, MotionGroup.InspectionGantry }, order.Distinct().ToArray());
             Assert.Equal((80d, 70d, 10d), motions[MotionGroup.PcbPlacementHandler].Position);
@@ -160,7 +208,7 @@ public sealed class MachineLifecycleTests
             Assert.Equal(supplyPosition, motions[MotionGroup.PcbSupply].Position);
             Assert.True(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
             Assert.Equal(timeout ? MachineAlarm.PcbPlacement : MachineAlarm.None, state.Alarm);
-            Assert.NotEqual(UiText.Get("All enabled stations are at standby. Select Check again."), review.StartActionMessage);
+            Assert.False(string.IsNullOrWhiteSpace(review.StartActionMessage));
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         }
         finally
@@ -4386,7 +4434,7 @@ public sealed class MachineLifecycleTests
             Assert.Equal(new[] { OutputIo.PcbSupplyIpmFixerForward, OutputIo.PcbSupplyGripperClosed }, commands.ToArray());
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-            Assert.Contains(UiText.Get("Completed"), review.StartActionMessage);
+            Assert.Null(review.StartActionMessage);
         }
         finally
         {
@@ -4423,7 +4471,7 @@ public sealed class MachineLifecycleTests
             Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
             Assert.False(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward)); // Cancellation never reverses the cylinder.
             Assert.Equal(timeout ? MachineAlarm.PcbSupply : MachineAlarm.None, state.Alarm);
-            Assert.DoesNotContain(UiText.Get("Completed"), review.StartActionMessage);
+            Assert.False(string.IsNullOrWhiteSpace(review.StartActionMessage));
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         }
         finally

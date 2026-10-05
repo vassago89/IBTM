@@ -3259,9 +3259,6 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="mark complete" xml:space="preserve">
     <value>완료 처리</value>
   </data>
-  <data name="select a carrier or handler in the diagram." xml:space="preserve">
-    <value>캐리어·핸들러 선택</value>
-  </data>
   <data name="tube bolt detected" xml:space="preserve">
     <value>튜브 볼트 감지</value>
   </data>
@@ -3359,7 +3356,7 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
     <value>남은 볼트의 실제 체결 상태 확인</value>
   </data>
   <data name="i checked the carrier and bolts. resume unfinished fastening." xml:space="preserve">
-    <value>캐리어·볼트 확인 완료 · 남은 체결 재개</value>
+    <value>캐리어·볼트 확인 · 체결 재개</value>
   </data>
   <data name="count reset failed: {0}" xml:space="preserve">
     <value>수량 초기화 실패: {0}</value>
@@ -3549,9 +3546,6 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
     <value>완료 볼트(NG·DryRun 포함)는 재체결 안 함.
 남은 0개: 헤드 복귀 후 작업 완료.</value>
   </data>
-  <data name="s2 backup plate is up. check the carrier and bolts, then check resume again." xml:space="preserve">
-    <value>S2 상승 확인 · 캐리어·볼트 확인 후 재개 체크</value>
-  </data>
   <data name="s2 backup plate is down. in manual mode, check the carrier and head clearance, then select raise/lower carrier support. after up feedback, check resume again." xml:space="preserve">
     <value>S2 하강 · 재개 불가
 수동: 캐리어·헤드 간섭 확인 → [받침 상승·하강] → 상승 확인 후 재개 체크</value>
@@ -3738,7 +3732,7 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
     <value>같은 볼트 가체결 → 본체결만 · 0: 대기 없음</value>
   </data>
   <data name="i checked the carrier and placed pcbs. resume unfinished placement." xml:space="preserve">
-    <value>캐리어와 안착된 PCB를 확인했습니다. 남은 안착을 재개합니다.</value>
+    <value>캐리어·PCB 확인 · 안착 재개</value>
   </data>
   <data name="pcb placement records" xml:space="preserve">
     <value>PCB 안착 기록</value>
@@ -3847,5 +3841,17 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   </data>
   <data name="check the seated s1 carrier and the placement records above. resume requires matching records and the backup plate up." xml:space="preserve">
     <value>착좌된 S1 캐리어와 위의 안착 기록을 확인하세요. 실제 상태가 기록과 일치하고 받침이 상승해야 재개할 수 있습니다.</value>
+  </data>
+  <data name="review carrier and records." xml:space="preserve">
+    <value>캐리어·기록 재확인 필요</value>
+  </data>
+  <data name="raise carrier support." xml:space="preserve">
+    <value>받침 상승 필요</value>
+  </data>
+  <data name="carrier support position unknown." xml:space="preserve">
+    <value>받침 위치 확인 불가</value>
+  </data>
+  <data name="carrier not detected." xml:space="preserve">
+    <value>캐리어 미감지</value>
   </data>
 </root>
