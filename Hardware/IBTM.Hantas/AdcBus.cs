@@ -336,7 +336,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     null => "HComm error: missing error code",
                 };
             }
-            else if (_received.Count == 0 || _received[0] != _slaveAddress
+            // HComm attaches its raw callback after the first valid frame connects the port.
+            // That decoded reply is valid even though its raw bytes were not forwarded.
+            else if ((_received.Count > 0 && _received[0] != _slaveAddress)
                 || command != _command || values is null
                 || (command is Command.Read or Command.Mor && values.Length != _countOrValue)
                 || (command == Command.Write

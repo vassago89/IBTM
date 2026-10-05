@@ -86,6 +86,23 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
+    public async Task HCommFirstDecodedStatusDoesNotRequireTheRawCallbackAttachedByThatReply()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(transport.Communication, 1);
+        var status = bus.ReadControllerStatusAsync(1);
+        await transport.NextRequestAsync();
+        // HcSerial reports raw bytes before its first valid frame establishes the connection.
+        // HComm attaches its raw callback during that connection notification.
+        transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
+            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            rawBeforeConnection: true);
+        var response = await status;
+        Assert.Null(response.Rejection);
+        Assert.True(response.Status?.Ready);
+    }
+
+    [Fact]
     public async Task HCommKeepsGraphEventsSeparateFromStatusReplies()
     {
         using var transport = new HCommTransportStub();

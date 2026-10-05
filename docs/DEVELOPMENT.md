@@ -807,6 +807,9 @@ dotnet build IBTM/IBTM.csproj -c Debug --no-restore
 
 기존 `IBTM-logging-packages.zip`은 로그 관련 패키지만 담았으므로 위 전체 패키지 ZIP을 사용한다.
 패키지 참조나 버전을 변경하면 로컬 패키지도 함께 갱신해야 한다.
+`packages-offline`과 패키지 ZIP은 Git에서 제외하므로 소스 bundle만으로는 전달되지 않는다.
+HComm 1.2.9.18 추가분은 `artifacts/IBTM-hcomm-packages.zip`이며 기존 오프라인 패키지 폴더에 덮어 푼다.
+이 추가분에는 HComm, SuperSocket.ClientEngine 0.10.0, SuperSocket.ProtoBase 1.7.0.17, hidlibrary 3.3.40이 포함된다.
 ZIP은 .NET SDK·Visual Studio·장비 SDK 설치 파일을 포함하지 않는다.
 NuGet의 원본 지정과 취약성 검사 옵션은 [공식 복원 문서](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-restore)를 참고한다.
 

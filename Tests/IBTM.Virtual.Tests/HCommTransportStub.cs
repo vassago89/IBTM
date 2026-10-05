@@ -69,14 +69,17 @@ internal sealed class HCommTransportStub : IHComm, IDisposable
         return await _requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
     }
 
-    public void Receive(byte[] raw)
+    public void Receive(byte[] raw, bool rawBeforeConnection = false)
     {
+        if (rawBeforeConnection)
+            AckRawReceived?.Invoke(raw);
         if (!IsConnected)
         {
             IsConnected = true;
             ConnectionChanged(true);
         }
-        AckRawReceived?.Invoke(raw);
+        if (!rawBeforeConnection)
+            AckRawReceived?.Invoke(raw);
         _serial.AckReceived = AckReceived;
         var queue = (ConcurrentQueue<byte>)typeof(HcSerial)
             .GetProperty("ReceiveBuf", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(_serial)!;
