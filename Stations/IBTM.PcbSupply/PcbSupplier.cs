@@ -313,8 +313,8 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             pickup.Token.ThrowIfCancellationRequested();
                             EnterStep(step);
                             // Pick at the taught XYZ, then judge PCB presence only after reaching Travel Z.
-                            await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true, pickup.Token);
                             await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true, pickup.Token);
+                            await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true, pickup.Token);
                             gripRequired = true;
                             CheckPickupFeedback();
                             pickup.Token.ThrowIfCancellationRequested();

@@ -80,9 +80,15 @@ public sealed class PcbSupplyHandoffTests
         var completed = false;
         rig.Io.OutputChanged += (output, on) =>
         {
+            if (output == OutputIo.PcbSupplyIpmFixerForward && on)
+            {
+                Assert.Equal((pick.X, pick.Y!.Value, pick.Z), rig.Motion.Position);
+                Assert.Equal(PcbSupplyCylinderState.Backward, rig.Supplier.Gripper);
+            }
             if (output == OutputIo.PcbSupplyGripperClosed && on)
             {
                 Assert.Equal((pick.X, pick.Y!.Value, pick.Z), rig.Motion.Position);
+                Assert.True(rig.Io.GetInput(InputIo.PcbSupplyIpmFixerForward));
                 Assert.Equal(!detectedAtTravelZ, rig.Io.GetInput(InputIo.PcbSupplyPcbDetected));
                 gripped = true;
             }
@@ -334,7 +340,9 @@ public sealed class PcbSupplyHandoffTests
             () => rig.Supplier.RunAsync(rig.Placement, stop.Token));
 
         Assert.True(departed);
-        Assert.True(rig.Supplier.PcbSecured);
+        Assert.Equal(afterGrip, rig.Supplier.PcbSecured);
+        Assert.Equal(afterGrip, rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+        Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
         Assert.False(rig.Motion.IsMoving);
         Assert.Equal((10d, 10d, afterGrip ? rig.Settings.TravelZ : 8d), rig.Motion.Position);
         Assert.NotEqual(PcbSupplyState.WaitingForCarrier, rig.Supplier.Phase);
