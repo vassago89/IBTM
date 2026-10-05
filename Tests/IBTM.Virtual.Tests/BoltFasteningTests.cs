@@ -25,21 +25,23 @@ namespace IBTM.Virtual.Tests;
 public sealed class BoltFasteningTests
 {
     [Theory]
-    [InlineData(false, false, false, false)]
-    [InlineData(false, true, false, false)]
-    [InlineData(false, false, true, false)]
-    [InlineData(true, false, false, false)]
-    [InlineData(true, true, false, false)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, false, true, true)]
+    [InlineData(false, false, false, false, true)]
+    [InlineData(false, true, false, false, true)]
+    [InlineData(false, false, true, false, true)]
+    [InlineData(true, false, false, false, true)]
+    [InlineData(true, true, false, false, true)]
+    [InlineData(true, false, true, false, true)]
+    [InlineData(true, false, true, true, true)]
+    [InlineData(true, false, true, false, false)]
     public async Task PickupStagesUseSelectedPresetsReversePerPcbAndResumeWithoutAnotherPickup(
-        bool twoStage, bool firstNg, bool resume, bool switchToSingle)
+        bool twoStage, bool firstNg, bool resume, bool switchToSingle, bool cycleFinalHead)
     {
         var settings = new BoltFasteningSettings
         {
             FirstFasteningHead = FasteningHead.Pickup,
             PickupFasteningMode = twoStage ? PickupFasteningMode.TwoStage : PickupFasteningMode.SingleStage,
             PickupPreliminaryPreset = 2, PickupFinalPreset = 3,
+            PickupFinalHeadCycleEnabled = cycleFinalHead,
             PickupVacuumDelayMilliseconds = 0,
             DryRunMilliseconds = 10,
             SafeZ = 0, PickupPosition = new() { X = 100, Y = 100, Z = 5 },
@@ -153,11 +155,8 @@ public sealed class BoltFasteningTests
                 bus.SuppressCompletion = true;
                 if (station.ActiveStage == BoltFasteningStage.Final)
                     Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
-                Assert.False(io.GetOutput(OutputIo.PickupHeadDown));
-                Assert.Equal(StationCylinderState.Up, station.PickupHeadPosition);
                 if (previousPickupStart is { } previous)
                 {
-                    Assert.True(headRetractions > previous.Retractions);
                     if (station.ActiveStage == BoltFasteningStage.Final
                         && previous.Stage == BoltFasteningStage.Preliminary
                         && previous.Bolt == station.ActiveBolt!.Id)
@@ -166,7 +165,17 @@ public sealed class BoltFasteningTests
                         sameBoltFinals++;
                         continuingSameBolt = true;
                     }
+                    if (continuingSameBolt && !cycleFinalHead)
+                        Assert.Equal(previous.Retractions, headRetractions);
+                    else
+                        Assert.True(headRetractions > previous.Retractions);
                 }
+                var keepHeadDown = continuingSameBolt && !cycleFinalHead;
+                Assert.Equal(keepHeadDown, io.GetOutput(OutputIo.PickupHeadDown));
+                Assert.Equal(keepHeadDown ? StationCylinderState.Down : StationCylinderState.Up,
+                    station.PickupHeadPosition);
+                if (keepHeadDown)
+                    bus.SuppressCompletion = false;
                 previousPickupStart = (station.ActiveBolt!.Id, station.ActiveStage, headRetractions, moves);
                 Assert.Equal(expectedCompensationReads, bus.CompensationReads);
                 // Simulate a parameter edit to expose an accidental per-bolt reread.
@@ -231,7 +240,8 @@ public sealed class BoltFasteningTests
                 .Append(FasteningHead.Shooting), headOrder);
             Assert.Equal(4, pickups);
             Assert.Equal(twoStage && !switchToSingle ? 2 : 0, sameBoltFinals);
-            Assert.Equal(sameBoltFinals, log.Entries.Count(entry => entry.Message.Contains("RUN ON confirmed; waiting")));
+            Assert.Equal(cycleFinalHead ? sameBoltFinals : 0,
+                log.Entries.Count(entry => entry.Message.Contains("RUN ON confirmed; waiting")));
             Assert.True(station.IsFasteningRecorded);
             foreach (var bolt in bolts)
             {
@@ -259,7 +269,7 @@ public sealed class BoltFasteningTests
             }
             if (resume && !twoStage)
                 Assert.Same(beforeStop, work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults[bolts[0].Id]);
-            Assert.Equal(headOrder.Count, loweredHeads);
+            Assert.Equal(headOrder.Count - (cycleFinalHead ? 0 : sameBoltFinals), loweredHeads);
         }
         finally
         {
@@ -602,6 +612,7 @@ public sealed class BoltFasteningTests
         settings.FirstFasteningHead = FasteningHead.Pickup;
         Assert.Equal(PickupFasteningMode.SingleStage, settings.PickupFasteningMode);
         Assert.Equal((ushort)1, settings.PickupFinalPreset);
+        Assert.True(settings.PickupFinalHeadCycleEnabled);
         Assert.Equal(100, settings.HeadDownDelayMilliseconds);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.HeadDownDelayMilliseconds = -1);
         settings.HeadDownDelayMilliseconds = 250;
@@ -610,6 +621,7 @@ public sealed class BoltFasteningTests
         settings.PickupFasteningMode = PickupFasteningMode.TwoStage;
         settings.PickupPreliminaryPreset = 1;
         settings.PickupFinalPreset = 3;
+        settings.PickupFinalHeadCycleEnabled = false;
         var store = OpenMachineStore();
         await store.SaveSettingsAsync([settings]);
         var loaded = (await MachineSettings.LoadAsync(store)).BoltFastening;
@@ -617,15 +629,18 @@ public sealed class BoltFasteningTests
         Assert.Equal(PickupFasteningMode.TwoStage, loaded.PickupFasteningMode);
         Assert.Equal(settings.PickupPreliminaryPreset, loaded.PickupPreliminaryPreset);
         Assert.Equal(settings.PickupFinalPreset, loaded.PickupFinalPreset);
+        Assert.False(loaded.PickupFinalHeadCycleEnabled);
         Assert.Equal(250, loaded.HeadDownDelayMilliseconds);
         settings.PickupFasteningMode = PickupFasteningMode.SingleStage;
         settings.HeadDownDelayMilliseconds = 0;
         settings.FirstFasteningHead = FasteningHead.Shooting;
+        settings.PickupFinalHeadCycleEnabled = true;
         await store.SaveSettingsAsync([settings]);
         loaded = (await MachineSettings.LoadAsync(store)).BoltFastening;
         Assert.Equal(PickupFasteningMode.SingleStage, loaded.PickupFasteningMode);
         Assert.Equal(FasteningHead.Shooting, loaded.FirstFasteningHead);
         Assert.Equal((ushort)3, loaded.PickupFinalPreset);
+        Assert.True(loaded.PickupFinalHeadCycleEnabled);
         Assert.Equal(0, loaded.HeadDownDelayMilliseconds);
         var preliminary = new BoltResult(true, 2)
         {

@@ -12,6 +12,7 @@ public sealed class BoltFasteningSettings : Setting
         PickupPosition = new();
         ShootingHead = new();
         PickupHead = new();
+        PickupFinalHeadCycleEnabled = true;
     }
 
     public MotionSettings Motion { get; set; }
@@ -55,6 +56,8 @@ public sealed class BoltFasteningSettings : Setting
             field = value;
         }
     } = 1;
+
+    public bool PickupFinalHeadCycleEnabled { get; set; }
 
     public int PickupVacuumDelayMilliseconds
     {

@@ -513,6 +513,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     var continuingFinal = stage == BoltFasteningStage.Final && _boltIndex > 0
                         && _runBolts[_boltIndex - 1] is { Stage: BoltFasteningStage.Preliminary, Bolt: var previousBolt }
                         && previousBolt.Id == bolt.Id;
+                    var keepHeadDown = continuingFinal && !_settings.PickupFinalHeadCycleEnabled;
                     var cycleStarted = Stopwatch.GetTimestamp();
                     _log?.LogInformation("Bolt timing {Job}/{Bolt}: begin, PCB={Pcb}, head={Head}, safe Z={SafeZ}.",
                         job.Id, bolt.Id, bolt.HeatSink, bolt.Head, _settings.GetSafeZ(bolt.Head));
@@ -589,7 +590,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         {
                             if (continuingFinal)
                             {
-                                // Reuse this bolt's XYZ position; raise the cylinder again before START.
+                                // Reuse this bolt's XYZ position for the final preset.
                                 // Check live position/clearance instead of assuming the last command still holds.
                                 const double PositionToleranceMillimeters = 0.05;
                                 var position = _settings.GetBoltPosition(bolt);
@@ -718,10 +719,13 @@ public sealed class BoltFasteningStation : AutoUnit
                         await head.SelectPresetAsync(preset, token);
                         _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
                             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                        started = Stopwatch.GetTimestamp();
-                        await RaiseCylindersAsync(token);
-                        _log?.LogInformation("Bolt timing {Bolt}: heads UP confirmed before START, elapsed={ElapsedMs:F1} ms.",
-                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                        if (!keepHeadDown)
+                        {
+                            started = Stopwatch.GetTimestamp();
+                            await RaiseCylindersAsync(token);
+                            _log?.LogInformation("Bolt timing {Bolt}: heads UP confirmed before START, elapsed={ElapsedMs:F1} ms.",
+                                bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                        }
                         Station.RequireCurrentJob(job);
 
                         using (var fastening = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -760,10 +764,11 @@ public sealed class BoltFasteningStation : AutoUnit
                                 started = Stopwatch.GetTimestamp();
                                 var completed = await head.TightenAsync(
                                     fastening.Token,
-                                    LowerHeadWhileFasteningAsync,
+                                    keepHeadDown ? null : LowerHeadWhileFasteningAsync,
                                     dryRunMilliseconds, received => result = received,
                                     torqueCompensations.TryGetValue((bolt.Head, preset), out var compensation) ? compensation : null,
-                                    feedDelayMilliseconds: continuingFinal ? _settings.HeadDownDelayMilliseconds : 0);
+                                    feedDelayMilliseconds: continuingFinal && !keepHeadDown
+                                        ? _settings.HeadDownDelayMilliseconds : 0);
                                 _log?.LogInformation("Bolt timing {Bolt}: controller START/result/STOP, elapsed={ElapsedMs:F1} ms, controller time={ControllerMs} ms.",
                                     bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds, completed.Controller?.FasteningTimeMilliseconds);
                                 completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };

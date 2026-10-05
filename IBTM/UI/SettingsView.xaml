@@ -394,7 +394,12 @@
                                         </Style.Triggers></Style></StackPanel.Style>
                                         <TextBlock Text="{ui:Text '2-stage turns = pre-tightening + final tightening'}" Style="{StaticResource SettingHelpText}"/>
                                         <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource SettingHelpText}"/>
-                                        <Grid Margin="0,8,0,8" MinHeight="34">
+                                        <CheckBox x:Name="PickupFinalHeadCycle" Margin="0,8,0,0"
+                                            IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Content="{ui:Text 'Cycle cylinder before same-bolt final tightening'}"
+                                            ToolTip="{ui:Text 'OFF: keep cylinder down and switch to the final preset.'}"
+                                            IsChecked="{Binding Settings.BoltFastening.PickupFinalHeadCycleEnabled, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <Grid Margin="0,8,0,8" MinHeight="34" IsEnabled="{Binding IsChecked, ElementName=PickupFinalHeadCycle}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>

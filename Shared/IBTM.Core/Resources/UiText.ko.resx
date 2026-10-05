@@ -3455,6 +3455,12 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="final tightening preset" xml:space="preserve">
     <value>본체결 프리셋</value>
   </data>
+  <data name="cycle cylinder before same-bolt final tightening" xml:space="preserve">
+    <value>동일 볼트 본체결 전 실린더 상승·하강</value>
+  </data>
+  <data name="off: keep cylinder down and switch to the final preset." xml:space="preserve">
+    <value>끄면 실린더 하강 상태에서 본체결 프리셋만 변경합니다.</value>
+  </data>
   <data name="final tightening pending" xml:space="preserve">
     <value>본체결 대기</value>
   </data>

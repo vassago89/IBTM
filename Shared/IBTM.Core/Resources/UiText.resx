@@ -3455,6 +3455,12 @@ COMPLETE: finish</value>
   <data name="final tightening preset" xml:space="preserve">
     <value>Final tightening preset</value>
   </data>
+  <data name="cycle cylinder before same-bolt final tightening" xml:space="preserve">
+    <value>Cycle cylinder before same-bolt final tightening</value>
+  </data>
+  <data name="off: keep cylinder down and switch to the final preset." xml:space="preserve">
+    <value>OFF: keep cylinder down and switch to the final preset.</value>
+  </data>
   <data name="final tightening pending" xml:space="preserve">
     <value>Final tightening pending</value>
   </data>
