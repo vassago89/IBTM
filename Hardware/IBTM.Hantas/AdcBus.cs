@@ -274,10 +274,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 }
                 lock (_stateGate)
                 {
-                    if (command != Command.GraphAd || response.Rejection is not null || _torqueCurveNextBlock == 0)
+                    if (command != Command.GraphAd || response.Rejection is not null)
                         break;
-                    if ((response.Values[0] & 0xFF) != graphBlock)
+                    if (response.Values.Length > 0 && (response.Values[0] & 0xFF) != graphBlock)
                         throw new InvalidDataException($"ADC graph restarted before block {graphBlock} was received.");
+                    if (_torqueCurveNextBlock == 0)
+                        break;
                     graphBlock++;
                     // ADC returns one block per GetGraph. Keep the bus for the entire curve,
                     // but complete each SDK request before asking for the next block.
@@ -344,7 +346,10 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     // HComm decodes words; C8's first word contains the block number and total.
                     var block = values[0] & 0xFF;
                     var count = (values[0] >> 8) & 0xFF;
-                    if (block == 1)
+                    // During a requested curve, validate a repeated first block before publishing it.
+                    // Unsolicited curves can start a new sequence outside that request.
+                    if (block == 1 && (_torqueCurveNextBlock == 0 || _command != Command.GraphAd
+                        || _pending is not { Task.IsCompleted: false }))
                     {
                         _torqueCurveWords.Clear();
                         _torqueCurveNextBlock = 1;

@@ -263,18 +263,27 @@ public sealed class AdcProtocolTests
         await next;
     }
 
-    [Fact]
-    public async Task AdcGraphRestartDoesNotKeepRequestingTheFirstBlock()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdcGraphRestartDoesNotPublishAnotherCurveOrKeepRequestingTheFirstBlock(bool completeRestart)
     {
         using var transport = new HCommTransportStub();
         using var bus = new AdcBus(transport.Communication);
+        bus.Monitor.BeginTorqueCurveCapture();
+        AdcTorqueCurve? curve = null;
+        bus.Monitor.TorqueCurveReceived += received => curve = received;
         var graph = bus.RequestTorqueCurveAsync(0);
         await transport.NextRequestAsync();
         var first = GraphBlock(2, 1, [1, 0, 1, 1, 2, 10, 100, 90]);
         transport.Receive(first);
         await transport.NextRequestAsync();
-        transport.Receive(first);
+        transport.Receive(completeRestart
+            ? GraphBlock(1, 1, [1, 0, 1, 1, 2, 10, 100, 90, 1000, 0, 0, 0, 0, 1, 0, 10, 90])
+            : first);
         await Assert.ThrowsAsync<InvalidDataException>(() => graph);
+        Assert.Null(curve);
+        Assert.NotNull(bus.Monitor.TorqueCurveError);
         var write = bus.WriteRegisterAsync(0, 4004, 1);
         var request = await transport.NextRequestAsync();
         Assert.Equal((byte)AdcFunctionCode.WriteSingleRegister, request[1]);
