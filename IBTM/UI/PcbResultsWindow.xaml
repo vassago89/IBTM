@@ -357,6 +357,13 @@
                                             <TextBlock Margin="8,8,0,0" Foreground="{StaticResource TextSecondaryBrush}">
                                                 <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedBolt.Result.IsComplete}" Value="False"><Setter Property="Text" Value="{ui:Text 'Final tightening pending'}"/></DataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding SelectedBolt.Result.IsComplete}" Value="False"/>
+                                                            <Condition Binding="{Binding SelectedBolt.Result.Stage}" Value="{x:Static core:BoltFasteningStage.FinalBeforeRetightening}"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Text" Value="{ui:Text 'Retightening pending'}"/>
+                                                    </MultiDataTrigger>
                                                     <MultiDataTrigger><MultiDataTrigger.Conditions>
                                                         <Condition Binding="{Binding SelectedBolt.Result.Stage}" Value="{x:Static core:BoltFasteningStage.Preliminary}"/>
                                                         <Condition Binding="{Binding SelectedBolt.Result.IsComplete}" Value="True"/>

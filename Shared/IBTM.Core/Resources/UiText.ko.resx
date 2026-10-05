@@ -3909,4 +3909,10 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="ready wait = base wait × read attempts + status poll interval." xml:space="preserve"><value>준비 확인 대기 = 기본 대기 × 읽기 시도 횟수 + 상태 조회 간격.</value></data>
   <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>SDK가 요청을 끝내지 못하면 연결을 종료합니다. HComm 내부 통신 응답 제한은 바뀌지 않습니다.</value></data>
   <data name="wait for a curve matching the completed bolt after the graph request finishes." xml:space="preserve"><value>그래프 조회가 끝난 뒤 해당 볼트의 체결 결과와 일치하는 곡선을 기다립니다.</value></data>
+  <data name="final tightening before retightening" xml:space="preserve"><value>본체결 · 추가 체결 전</value></data>
+  <data name="retightening" xml:space="preserve"><value>추가 체결</value></data>
+  <data name="retightening pending" xml:space="preserve"><value>추가 체결 대기</value></data>
+  <data name="retighten bolt 1 once with cylinder down" xml:space="preserve"><value>1번 볼트 본체결 1회 추가 (실린더 유지)</value></data>
+  <data name="same final preset; total turns include retightening. ng skips the extra pass." xml:space="preserve"><value>동일 본체결 프리셋 · 회전수 합산 · NG 시 추가 체결 생략</value></data>
+  <data name="pre 1 → pre 2 → final 2 → final 1 → retighten 1 · per pcb" xml:space="preserve"><value>PCB별 1 가체결 → 2 가체결 → 2 본체결 → 1 본체결 → 1 추가</value></data>
 </root>

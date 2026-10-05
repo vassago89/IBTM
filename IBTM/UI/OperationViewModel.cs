@@ -32,7 +32,8 @@ public sealed record PlacementResumeRow(HeatSinkSlot HeatSink, bool IsCompleted)
 public sealed record FasteningResumeRow(string Label, HeatSinkSlot HeatSink, BoltResult? Result)
 {
     public string Status => Result is null ? "Not recorded"
-        : !Result.IsComplete ? "Final tightening pending"
+        : !Result.IsComplete ? Result.Stage == BoltFasteningStage.FinalBeforeRetightening
+            ? "Retightening pending" : "Final tightening pending"
         : Result.Source == BoltResultSource.DryRun ? "Dry run · NG"
         : Result.Stage == BoltFasteningStage.Preliminary ? "Pre-tightening NG"
         : !Result.Success ? "NG"

@@ -268,6 +268,7 @@ Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동 동작에�
 Safe Z → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다. 픽업 중에는 양쪽 헤드를 UP으로 유지하며, 픽업·슈팅 모두 체결 START 후에만 해당 헤드를 내린다.
 슈팅은 프리셋 1번을 사용한다. 픽업은 설정에서 1단/2단 체결과 가체결·본체결 프리셋을 선택한다.
 2단 체결은 PCB별 가체결 순회 후 역순으로 본체결한다(1 가체결 → 2 가체결 → 2 본체결 → 1 본체결).
+`PickupFirstBoltRetighteningEnabled`(기본 OFF)를 켜면 각 PCB의 첫 픽업 볼트에 동일 본체결 프리셋으로 1회를 추가한다(1→2→2→1→1). 마지막 1→1은 XYZ와 실린더 하강 출력을 유지하고 모터만 다시 START한다. 이 구간에는 `PickupFinalHeadCycleEnabled` 및 하강 대기를 적용하지 않는다. 가체결 또는 첫 본체결 NG/DryRun이면 추가 체결은 생략한다. 첫 본체결 성공은 `FinalBeforeRetightening`으로 기록해 아직 미완료로 유지하고, 정지 후에는 기존 상승·이동 준비를 거쳐 해당 볼트의 추가 체결만 재개한다. 이전 본체결과 그 가체결·그래프는 `PreviousFinalResult`에 보존하며 결과/CSV/그래프에서 세 단계를 조회한다. 최종 회전수는 세 체결의 합이다.
 동일 볼트의 가체결 → 본체결 전환에서 `PickupFinalHeadCycleEnabled`가 켜져 있으면 실린더 상승 → 본체결 START/RUN → 설정 지연 → 하강한다(기본값).
 끄면 실린더를 내린 채 본체결 프리셋으로 변경하여 바로 체결한다. 다른 볼트로 이동하거나 정지 후 재개할 때는 기존 상승·이동 순서를 따른다.
 
