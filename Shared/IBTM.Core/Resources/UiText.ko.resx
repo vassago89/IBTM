@@ -3890,6 +3890,7 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="stored with pcb results" xml:space="preserve"><value>PCB 결과와 함께 저장</value></data>
   <data name="graph" xml:space="preserve"><value>그래프</value></data>
   <data name="no torque curve" xml:space="preserve"><value>그래프 데이터 없음</value></data>
+  <data name="torque compensation not recorded" xml:space="preserve"><value>체결 당시 보정률 기록 없음</value></data>
   <data name="torque curve not received" xml:space="preserve"><value>토크 그래프 미수신</value></data>
   <data name="invalid adc torque curve data" xml:space="preserve"><value>ADC 토크 그래프 데이터 오류</value></data>
   <data name="request adc graph" xml:space="preserve"><value>ADC 그래프 조회</value></data>
