@@ -3893,7 +3893,7 @@ COMPLETE: finish</value>
   <data name="latest carrier only · memory only · cleared when the application closes" xml:space="preserve"><value>Latest carrier only · Memory only · Cleared when the application closes</value></data>
   <data name="no torque curve" xml:space="preserve"><value>No torque curve</value></data>
   <data name="torque curve not received" xml:space="preserve"><value>Torque curve not received</value></data>
-  <data name="adc graph received; sample format verification required." xml:space="preserve"><value>ADC graph received; sample format verification required.</value></data>
+  <data name="invalid adc torque curve data" xml:space="preserve"><value>Invalid ADC torque curve data</value></data>
   <data name="request adc graph" xml:space="preserve"><value>Request ADC Graph</value></data>
   <data name="torque (controller unit)" xml:space="preserve"><value>Torque (controller unit)</value></data>
   <data name="curve covers only part of the fastening time" xml:space="preserve"><value>Curve covers only part of the fastening time</value></data>

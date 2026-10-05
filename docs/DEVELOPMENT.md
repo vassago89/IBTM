@@ -272,11 +272,11 @@ Safe Z → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다
 끄면 실린더를 내린 채 본체결 프리셋으로 변경하여 바로 체결한다. 다른 볼트로 이동하거나 정지 후 재개할 때는 기존 상승·이동 순서를 따른다.
 
 `BoltFasteningStation.cs`에 공급·I/O·모션·티칭과 캐리어별 볼트 순회·체결·결과 기록을 모은다.
-토크 그래프 수집을 켜면 캐리어 준비에서 ADC 4101=토크, 4102=OFF, 4103=5ms, 4104=정체결, 4100=ON을 설정한다.
-공유 상태 모니터가 5초마다 4100=ON을 갱신하며 캐리어 완료·정지 시 OFF한다. 시리얼 수신은 그래프(0x64/0xC8, 2바이트 길이)와 일반 응답을 분리한다.
+토크 그래프 수집을 켜면 캐리어 준비에서 ADC 4101=1(토크), 4102=0(채널 2 OFF), 4103=1(5ms), 4104=1(정체결)을 설정한다.
+ADC 조회는 HComm `GetGraph(4200, 1)`로 실행한다. 공유 모니터가 5초마다 갱신하고, 체결 완료 후 현재 결과에 맞는 곡선이 아직 없으면 다음 볼트를 시작하기 전에 다시 조회한다. 캐리어 완료·정지 시 조회를 중단하며 4100 ON/OFF 쓰기는 보내지 않는다. C8 프레임 길이는 1바이트이며 RTU 분할 수신·CRC 해석은 HComm이 담당한다.
 각 체결의 시작 이후 수신한 곡선 중 체결 시간·목표/결과 토크·스크류 카운트·오류 코드가 결과와 일치하는 것만 연결한다. 미수신은 별도로 표시하며 OK/NG 결과를 바꾸지 않는다.
 최근 캐리어의 볼트·가체결/본체결 곡선은 `TorqueCurves`에만 임시 보관한다. 운전 화면의 토크 그래프 버튼으로 조회하며 DB/파일에는 저장하지 않는다.
-공개 [MDC/ADC COM Protocol Rev.1.3, 11–12쪽](https://www.mountztorque.com/core/media/media.nl?c=456127&h=xjrm4kM4rm6a1zBowbMrJLeB3XsNtA-CuQGx33V2pl4g0Ptc&id=5743761)의 단일 채널·최대 400샘플 형식을 사용한다. 실제 ADC 펌웨어의 프레임 및 토크 스케일은 장비에서 대조해야 한다.
+변환 근거는 [DOGA 배포 ParaMon III 3.00.9 (2026-04-02)](https://www.doga.fr/en/assembly-technology/assembly-tools/torque-angle-control-screwdriver/torque-angle-dc-tools-controllers/mdc-controller/mdc-controllers)의 ADC 전용 `PageGraphAd.UpdateValue`, `GraphItem`, `UpdateChart`와 `FormMain.RequestMonitor`다. 프로그램을 설치하거나 실행하지 않고 배포 파일의 처리 코드를 확인했다. HComm의 첫 정수는 상위 바이트=전체 블록 수, 하위 바이트=1부터 시작하는 블록 번호다. 블록 헤더를 제외하고 합치면 앞 15개 정수가 결과 항목이고 이후 채널별 샘플이 이어진다. 샘플 간격 코드는 1/2/3/4 → 5/10/15/30ms, 토크는 부호 있는 샘플 / 100이다. 200샘플일 때 시작 시각은 체결 시간 − 200 × 샘플 간격으로 맞춘다. 누락 블록이나 불완전한 채널은 그래프로 표시하지 않는다. 이 형식의 재현 테스트를 사용하며 실제 장비 수신과 화면 대조는 별도다.
 자동 루프는 현재 `BoltPoint`의 헤드별 공급·이동을 수행한 뒤 공통 체결·복귀 순서를 실행한다.
 별도의 상태 실행 중계를 두지 않으며, `ActiveBolt`는 이번 Run의 볼트 목록과 현재 인덱스에서 읽는다. STOP 후 START는 다시 첫 볼트부터 시작한다.
 
@@ -869,7 +869,7 @@ Settings → Connections → ADC의 RUN Status Poll (ms), 기본 100ms는 상태
 
 HComm 연결 시 포트·속도·Slave를 함께 고정한다. RS422 Slave 범위는 SDK에 맞춰 0~15다. `SendReceiveMsg`의 원시 TX/RX와 `ReceivedMsg` 오류 코드, 요청 주소·개수/값을 기존 통신 로그에 함께 기록한다. `0x00`은 SDK 요청 타임아웃, `0xFF`는 SDK CRC 실패이고, 그 외 오류는 컨트롤러 거부 코드로 전달한다. 기존 설정 이름 `ResponseTimeoutMilliseconds`와 `ReadAttempts`는 저장 호환성을 유지하며 준비 확인 대기 시간 계산에만 사용한다. SDK 통신 타임아웃은 1초다.
 
-ADC 그래프는 `GetGraph(4200, 1)`을 사용한다. 4100~4104 설정은 전송하지 않는다. HComm은 ADC 데이터를 정수 배열까지 해석하지만 샘플별 토크 단위·시간 간격·블록 합치기 규격은 제공하지 않으므로, 실제 곡선 변환은 장비 응답 확인이 남아 있다. Virtual 곡선은 시뮬레이션용이다. 그래프 DB 저장은 추가하지 않았다.
+ADC 그래프의 통신 규격은 위 토크 그래프 절에 정리했다. `AdcBus`가 HComm의 C8 분할 블록을 조립하고, 기존 ADC 결과 모델과 같은 `FromRegisters` 방식으로 `AdcTorqueCurve`를 만든다. `AdcStatusMonitor`는 변환된 곡선과 체결 결과의 연결만 담당한다. 일반 요청 중 또는 요청이 없는 때에도 그래프 블록을 받는다. Virtual 곡선은 시뮬레이션용이다. 그래프 DB 저장은 추가하지 않았다.
 START 전 이벤트 번호(3200)는 한 번 읽어 이전 결과와 구분한다. START 직전에 모니터 이벤트를 구독하고 이번 START 이후의 RUN ON → OFF를 기다린다. START 직후 RUN OFF만으로 완료로 판단하지 않는다. 알람은 즉시 종료 처리하고, RUN OFF면 전체 결과(3200~3213)를 한 번 읽어 실제 OK/NG/Error를 기록한다. RUN 중 알람이면 START부터 끄고 해당 볼트를 NG로 기록한다.
 이벤트 번호는 시작 전과 다른지만 비교하며 +1이나 증가 방향을 가정하지 않는다. 이전 번호·중간 이벤트·방향/프리셋 불일치를 새 체결 성공으로 기록하지 않는다. `84 03`을 자발적 완료 통지로 가정하던 분기는 제거했다.
 RUN ON 또는 OFF를 확인하지 못하면 기존 체결 제한 시간에 따라 START OFF 후 NG를 기록한다. 결과 조회 거절은 재조회하지 않으며 토크를 임의로 만들지 않는다.

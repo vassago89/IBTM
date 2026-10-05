@@ -100,6 +100,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         {
             _lifetime?.Cancel();
             IsTorqueCurveMonitoringRequested = false;
+            TorqueCurveCaptureStartedAt = 0;
             Interlocked.Exchange(ref _torqueCurve, null);
             var now = Stopwatch.GetTimestamp();
             Publish(new(now, now, null,
@@ -159,38 +160,44 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     {
         await EnqueueAsync(async token =>
         {
-            Interlocked.Exchange(ref _torqueCurve, null);
-            IsTorqueCurveMonitoringRequested = enabled;
+            lock (_stateGate)
+            {
+                Interlocked.Exchange(ref _torqueCurve, null);
+                IsTorqueCurveMonitoringRequested = enabled;
+                TorqueCurveCaptureStartedAt = 0;
+                TorqueCurveError = null;
+            }
             _torqueCurveRequestedAt = 0;
             if (!enabled)
                 return true;
-            TorqueCurveError = null;
-            ReceiveTorqueCurveFrame(await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false));
+            // Torque / channel 2 off / 5 ms / fastening.
+            // ADC requests use GetGraph(4200, 1), not the MDC 4100 enable/disable write.
+            await _bus.WriteRegisterAsync(SlaveAddress, 4101, 1, token).ConfigureAwait(false);
+            await _bus.WriteRegisterAsync(SlaveAddress, 4102, 0, token).ConfigureAwait(false);
+            await _bus.WriteRegisterAsync(SlaveAddress, 4103, 1, token).ConfigureAwait(false);
+            await _bus.WriteRegisterAsync(SlaveAddress, 4104, 1, token).ConfigureAwait(false);
+            await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false);
             _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
             return true;
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    public void ReceiveTorqueCurve(AdcTorqueCurve curve)
+    public void ReceiveTorqueCurve(AdcTorqueCurve? curve, string? error = null)
     {
-        TorqueCurveError = null;
+        TorqueCurveError = error;
         Interlocked.Exchange(ref _torqueCurve, curve);
-        TorqueCurveReceived?.Invoke(curve);
-    }
-
-    public void ReceiveTorqueCurveFrame(byte[] frame)
-    {
-        // HComm confirms C8 framing, but does not define the ADC sample block header,
-        // torque scale or time interval. Do not decode it using the MDC metadata layout.
-        TorqueCurveError = UiText.Get("ADC graph received; sample format verification required.");
-        _logger.LogDebug("ADC {Port}/{Slave} graph frame: {Frame}",
-            _bus.PortName, SlaveAddress, Convert.ToHexString(frame));
+        if (curve is not null)
+            TorqueCurveReceived?.Invoke(curve);
     }
 
     public void BeginTorqueCurveCapture()
     {
-        Interlocked.Exchange(ref _torqueCurve, null);
-        TorqueCurveCaptureStartedAt = Stopwatch.GetTimestamp();
+        lock (_stateGate)
+        {
+            Interlocked.Exchange(ref _torqueCurve, null);
+            TorqueCurveError = null;
+            TorqueCurveCaptureStartedAt = Stopwatch.GetTimestamp();
+        }
     }
 
     public async Task<AdcTorqueCurve> WaitForTorqueCurveAsync(
@@ -207,6 +214,16 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         {
             if (Volatile.Read(ref _torqueCurve) is { } curve)
                 OnReceived(curve);
+            if (!received.Task.IsCompleted)
+            {
+                // Collect this bolt before the next fastening can replace the controller's graph.
+                await EnqueueAsync(async cancellationToken =>
+                {
+                    await _bus.RequestTorqueCurveAsync(SlaveAddress, cancellationToken).ConfigureAwait(false);
+                    _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
+                    return true;
+                }, token).ConfigureAwait(false);
+            }
             return await received.Task.WaitAsync(TimeSpan.FromSeconds(1), token).ConfigureAwait(false);
         }
         finally
@@ -254,7 +271,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                         && Stopwatch.GetElapsedTime(_torqueCurveRequestedAt).TotalSeconds >= 5)
                     {
                         // Hantas HComm's ADC example repeats GetGraph every five seconds.
-                        ReceiveTorqueCurveFrame(await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false));
+                        await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false);
                         _torqueCurveRequestedAt = Stopwatch.GetTimestamp();
                     }
                     var response = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);

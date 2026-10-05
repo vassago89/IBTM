@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -89,14 +90,107 @@ public sealed class AdcProtocolTests
     {
         using var transport = new HCommTransportStub();
         using var bus = new AdcBus(new(), transport.Communication);
+        bus.Monitor.BeginTorqueCurveCapture();
+        AdcTorqueCurve? curve = null;
+        bus.Monitor.TorqueCurveReceived += received => curve = received;
+        var status = bus.ReadControllerStatusAsync(0);
+        await transport.NextRequestAsync();
+        transport.Receive(GraphBlock(2, 1, [1, 0, 2, 1, 3, 250, 125, 120]));
+        Assert.False(status.IsCompleted);
+        Assert.Null(curve);
+        // The remaining block arrives with a status reply in the same serial read.
+        var last = GraphBlock(2, 2, [1000, 10, 20, 0, 0, 2, 0, -25, 50, 120]);
+        var statusFrame = AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters,
+            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        transport.Receive([.. last, .. statusFrame]);
+        Assert.False(status.IsCompleted);
+        transport.Receive([]);
+        Assert.True((await status).Status?.Ready);
+        Assert.NotNull(curve);
+        Assert.Equal(new double[] { -0.25, 0.5, 1.2 }, curve.Torques);
+        Assert.Equal(10, curve.SampleMilliseconds);
+        Assert.Equal(250, curve.FasteningMilliseconds);
+        Assert.Equal(1.25, curve.TargetTorque);
+        Assert.Equal(1.2, curve.FinalTorque);
+        Assert.Equal(2, curve.ScrewCount);
+        Assert.Null(bus.Monitor.TorqueCurveError);
+
+        // Also collect a complete unsolicited graph while no request is outstanding.
+        bus.Monitor.BeginTorqueCurveCapture();
+        curve = null;
+        transport.Receive(GraphBlock(1, 1, [1, 0, 1, 1, 2, 10, 100, 90, 1000, 0, 0, 0, 0, 1, 0, 10, 90]));
+        Assert.NotNull(curve);
+        Assert.Equal(new double[] { 0.1, 0.9 }, curve.Torques);
+    }
+
+    private static byte[] GraphBlock(byte total, byte block, int[] words)
+    {
+        var data = new byte[3 + words.Length * 2];
+        data[0] = checked((byte)(data.Length - 1));
+        data[1] = total;
+        data[2] = block;
+        for (var index = 0; index < words.Length; index++)
+            BinaryPrimitives.WriteInt16BigEndian(data.AsSpan(3 + index * 2), unchecked((short)words[index]));
+        return AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, data);
+    }
+
+    [Fact]
+    public void AdcGraphRejectsMissingBlocksAndDoesNotCombineDifferentBolts()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        bus.Monitor.BeginTorqueCurveCapture();
+        AdcTorqueCurve? curve = null;
+        bus.Monitor.TorqueCurveReceived += received => curve = received;
+        var first = GraphBlock(2, 1, [1, 0, 1, 1, 2, 10, 100, 90]);
+        var last = GraphBlock(2, 2, [1000, 0, 0, 0, 0, 1, 0, 10, 90]);
+        transport.Receive(first);
+        bus.Monitor.BeginTorqueCurveCapture();
+        transport.Receive(last);
+        Assert.Null(curve);
+        Assert.NotNull(bus.Monitor.TorqueCurveError);
+        transport.Receive(first);
+        transport.Receive(last);
+        Assert.NotNull(curve);
+        Assert.Null(bus.Monitor.TorqueCurveError);
+
+        bus.Monitor.BeginTorqueCurveCapture();
+        curve = null;
+        transport.Receive(GraphBlock(1, 1, [1, 0, 1, 1, 200, 1500, 100, 90, 1000, 0, 0, 0, 0, 1, 0, 10, 90]));
+        Assert.Null(curve);
+        Assert.NotNull(bus.Monitor.TorqueCurveError);
+    }
+
+    [Fact]
+    public void AdcGraphUsesChannelTwoTorqueAndFullBufferTimeOffset()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
+        bus.Monitor.BeginTorqueCurveCapture();
+        AdcTorqueCurve? curve = null;
+        bus.Monitor.TorqueCurveReceived += received => curve = received;
+        int[] words = [3, 1, 1, 1, 200, 1500, 100, 90, 1000, 0, 0, 0, 0, 1, 0,
+            .. Enumerable.Repeat(1000, 200), .. Enumerable.Repeat(90, 200)];
+        for (byte block = 0; block < 5; block++)
+            transport.Receive(GraphBlock(5, (byte)(block + 1), words.Skip(block * 100).Take(100).ToArray()));
+        Assert.NotNull(curve);
+        Assert.Equal(200, curve.Torques.Length);
+        Assert.All(curve.Torques, torque => Assert.Equal(0.9, torque));
+        Assert.Equal(500, curve.StartMilliseconds);
+    }
+
+    [Fact]
+    public async Task HCommStatusStillCompletesAfterIgnoredGraphOutsideCapture()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(new(), transport.Communication);
         var status = bus.ReadControllerStatusAsync(0);
         await transport.NextRequestAsync();
         transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [2, 0, 0]));
-        Assert.False(status.IsCompleted);
         transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters,
             [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
         Assert.True((await status).Status?.Ready);
-        Assert.NotNull(bus.Monitor.TorqueCurveError);
+        Assert.Null(bus.Monitor.TorqueCurveError);
     }
 
     [Fact]
@@ -202,9 +296,9 @@ public sealed class AdcProtocolTests
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
-        Assert.Empty(bus.RegisterWrites);
+        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, 1), (4104, 1) }, bus.RegisterWrites);
         Assert.Equal(1, bus.GraphRequests);
-        Assert.Equal(UiText.Get("ADC graph received; sample format verification required."), bus.Monitor.TorqueCurveError);
+        Assert.Null(bus.Monitor.TorqueCurveError);
         var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);
         var after = System.Diagnostics.Stopwatch.GetTimestamp();
         bus.Monitor.ReceiveTorqueCurve(new(after - 1, 5, [0, 1], 250, 1, 1, 2, 0));
@@ -220,8 +314,8 @@ public sealed class AdcProtocolTests
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
         Assert.Equal(requests, bus.GraphRequests);
         Assert.True(requests >= 2);
-        Assert.Empty(bus.RegisterWrites);
-        Assert.Equal(UiText.Get("ADC graph received; sample format verification required."), bus.Monitor.TorqueCurveError);
+        Assert.Equal(4, bus.RegisterWrites.Count);
+        Assert.Null(bus.Monitor.TorqueCurveError);
     }
 
     [Fact]
@@ -237,7 +331,7 @@ public sealed class AdcProtocolTests
             () => ReferenceEquals(bus.Monitor.Sample?.Error, failure), TimeSpan.FromSeconds(7)));
         Assert.Null(bus.Monitor.Sample!.Status);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
-        Assert.Empty(bus.RegisterWrites);
+        Assert.Equal(4, bus.RegisterWrites.Count);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var status = await bus.Monitor.WaitForSampleAsync(System.Diagnostics.Stopwatch.GetTimestamp(), timeout.Token);
         Assert.True(status.Ready);
@@ -261,7 +355,7 @@ public sealed class AdcProtocolTests
         Assert.Null(bus.Monitor.TorqueCurveError);
         Assert.True(bus.Monitor.IsTorqueCurveMonitoringRequested);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
-        Assert.Empty(bus.RegisterWrites);
+        Assert.Equal(4, bus.RegisterWrites.Count);
         Assert.Equal(1, bus.GraphRequests);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
     }

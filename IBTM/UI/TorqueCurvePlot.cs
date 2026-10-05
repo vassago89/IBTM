@@ -56,7 +56,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
             drawing.DrawLine(gridPen, new(plot.Left, y), new(plot.Right, y));
             DrawText((minimum + (maximum - minimum) * fraction).ToString("0.##"), 8, y - 8, muted);
             var x = plot.Left + plot.Width * fraction;
-            DrawText((duration * fraction).ToString("0"), x - 8, plot.Bottom + 8, muted);
+            DrawText((curve.StartMilliseconds + duration * fraction).ToString("0"), x - 8, plot.Bottom + 8, muted);
         }
         DrawText(UiText.Get("Torque (controller unit)"), 12, 10, textBrush);
         DrawText(UiText.Get("Time (ms)"), Math.Max(64, plot.Right - 75), plot.Bottom + 30, textBrush);
@@ -89,6 +89,6 @@ public sealed class TorqueCurvePlot : FrameworkElement
             return;
         var fraction = Math.Clamp((e.GetPosition(this).X - 64) / Math.Max(1, ActualWidth - 90), 0, 1);
         var index = (int)Math.Round(fraction * (curve.Torques.Length - 1));
-        ToolTip = $"{index * curve.SampleMilliseconds} ms · {curve.Torques[index]:0.##}";
+        ToolTip = $"{curve.StartMilliseconds + index * curve.SampleMilliseconds} ms · {curve.Torques[index]:0.##}";
     }
 }

@@ -25,7 +25,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class BoltFasteningTests
 {
     [Fact]
-    public async Task AdcTorqueMonitoringCompletesCarrierWithoutWritingMdcRegisters()
+    public async Task AdcTorqueMonitoringCompletesCarrierWithoutWritingMdcEnableRegister()
     {
         var settings = new BoltFasteningSettings
         {
@@ -60,7 +60,7 @@ public sealed class BoltFasteningTests
         await station.RunAsync(timeout.Token, selectedBolts: [bolt.Id]);
         Assert.True(work.Completed);
         Assert.Equal(1, bus.StartWrites);
-        Assert.Empty(bus.RegisterWrites);
+        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, 1), (4104, 1) }, bus.RegisterWrites);
         Assert.True(bus.GraphRequests > 0);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
         var row = Assert.Single(station.TorqueCurves);
