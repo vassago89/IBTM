@@ -3203,9 +3203,6 @@ See the application log for details.</value>
   <data name="material check" xml:space="preserve">
     <value>Material check</value>
   </data>
-  <data name="check again" xml:space="preserve">
-    <value>Check again</value>
-  </data>
   <data name="confirm and start" xml:space="preserve">
     <value>Confirm and START</value>
   </data>
@@ -3557,14 +3554,14 @@ COMPLETE: finish</value>
   <data name="wait for the current operation to finish." xml:space="preserve">
     <value>Wait for the current operation to finish.</value>
   </data>
-  <data name="review the current carrier and recipe targets, then select check again." xml:space="preserve">
-    <value>Review the current carrier and recipe targets, then select Check again.</value>
+  <data name="review the current carrier and recipe targets, then select reset." xml:space="preserve">
+    <value>Review the current carrier and recipe targets, then select RESET.</value>
   </data>
-  <data name="s2 carrier is not detected. check the actual carrier, then select check again." xml:space="preserve">
-    <value>S2 carrier is not detected. Check the actual carrier, then select Check again.</value>
+  <data name="s2 carrier is not detected. check the actual carrier, then select reset." xml:space="preserve">
+    <value>S2 carrier is not detected. Check the actual carrier, then select RESET.</value>
   </data>
-  <data name="after handling the material, select check again to update the start review." xml:space="preserve">
-    <value>After handling the material, select Check again to update the start review.</value>
+  <data name="after handling the material, select reset to update the start review." xml:space="preserve">
+    <value>After handling the material, select RESET to update the start review.</value>
   </data>
   <data name="review unfinished carriers before starting" xml:space="preserve">
     <value>Review unfinished carriers before starting</value>
@@ -3761,8 +3758,8 @@ COMPLETE: finish</value>
   <data name="stop the equipment and select manual mode. each button waits for its sequence to finish." xml:space="preserve">
     <value>Stop the equipment and select Manual mode. Each button waits for its sequence to finish.</value>
   </data>
-  <data name="support the material before releasing its grip. remove any remaining pcb or bolt, then select check again." xml:space="preserve">
-    <value>Support the material before releasing its grip. Remove any remaining PCB or bolt, then select Check again.</value>
+  <data name="support the material before releasing its grip. remove any remaining pcb or bolt, then select reset." xml:space="preserve">
+    <value>Support the material before releasing its grip. Remove any remaining PCB or bolt, then select RESET.</value>
   </data>
   <data name="raises the working cylinders in order without axis motion. material grip is retained." xml:space="preserve">
     <value>Raises the working cylinders in order without axis motion. Material grip is retained.</value>
@@ -3787,12 +3784,6 @@ COMPLETE: finish</value>
   </data>
   <data name="moves enabled stations in order. supply waits above pcb 1 at travel z. home is required; held material must be cleared first." xml:space="preserve">
     <value>Moves enabled stations in order. Supply waits above PCB 1 at travel Z. HOME is required; held material must be cleared first.</value>
-  </data>
-  <data name="moving all enabled stations to standby..." xml:space="preserve">
-    <value>Moving all enabled stations to standby...</value>
-  </data>
-  <data name="all enabled stations are at standby. select check again." xml:space="preserve">
-    <value>All enabled stations are at standby. Select Check again.</value>
   </data>
   <data name="stop the machine, select manual mode, and home all enabled axes before standby." xml:space="preserve">
     <value>Stop the machine, select manual mode, and HOME all enabled axes before standby.</value>
@@ -3830,9 +3821,6 @@ COMPLETE: finish</value>
   <data name="bolt fastening review" xml:space="preserve">
     <value>Bolt fastening review</value>
   </data>
-  <data name="select s1 for pcb placement or s2 for fastening review." xml:space="preserve">
-    <value>Select S1 for PCB placement or S2 for fastening review.</value>
-  </data>
   <data name="carrier work actions" xml:space="preserve">
     <value>Carrier work actions</value>
   </data>
@@ -3850,5 +3838,17 @@ COMPLETE: finish</value>
   </data>
   <data name="carrier not detected." xml:space="preserve">
     <value>Carrier not detected.</value>
+  </data>
+  <data name="recover hardware and refresh the start review; servos may turn on." xml:space="preserve">
+    <value>Recover hardware and refresh the start review; servos may turn ON.</value>
+  </data>
+  <data name="supply status" xml:space="preserve">
+    <value>Supply status</value>
+  </data>
+  <data name="start conditions" xml:space="preserve">
+    <value>Start conditions</value>
+  </data>
+  <data name="release fixer / gripper" xml:space="preserve">
+    <value>Release fixer / gripper</value>
   </data>
 </root>

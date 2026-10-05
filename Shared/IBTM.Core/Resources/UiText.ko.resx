@@ -3204,9 +3204,6 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="material check" xml:space="preserve">
     <value>소재 확인</value>
   </data>
-  <data name="check again" xml:space="preserve">
-    <value>다시 확인</value>
-  </data>
   <data name="confirm and start" xml:space="preserve">
     <value>확인 후 시작</value>
   </data>
@@ -3560,14 +3557,14 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="wait for the current operation to finish." xml:space="preserve">
     <value>동작 완료 대기</value>
   </data>
-  <data name="review the current carrier and recipe targets, then select check again." xml:space="preserve">
-    <value>캐리어·레시피 대상 확인 후 [다시 확인]</value>
+  <data name="review the current carrier and recipe targets, then select reset." xml:space="preserve">
+    <value>캐리어·레시피 대상 확인 후 [리셋]</value>
   </data>
-  <data name="s2 carrier is not detected. check the actual carrier, then select check again." xml:space="preserve">
-    <value>S2 캐리어 미감지 · 실물 확인 후 [다시 확인]</value>
+  <data name="s2 carrier is not detected. check the actual carrier, then select reset." xml:space="preserve">
+    <value>S2 캐리어 미감지 · 실물 확인 후 [리셋]</value>
   </data>
-  <data name="after handling the material, select check again to update the start review." xml:space="preserve">
-    <value>자재 조치 후 [다시 확인]</value>
+  <data name="after handling the material, select reset to update the start review." xml:space="preserve">
+    <value>자재 조치 후 [리셋]</value>
   </data>
   <data name="review unfinished carriers before starting" xml:space="preserve">
     <value>시작 전 미완료 캐리어 확인</value>
@@ -3764,8 +3761,8 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="stop the equipment and select manual mode. each button waits for its sequence to finish." xml:space="preserve">
     <value>장비를 정지하고 수동 모드로 전환하세요. 각 버튼은 동작 순서대로 완료를 확인합니다.</value>
   </data>
-  <data name="support the material before releasing its grip. remove any remaining pcb or bolt, then select check again." xml:space="preserve">
-    <value>소재를 받친 뒤 잡기를 해제하세요. 남은 PCB나 볼트를 제거한 후 ‘다시 확인’을 누르세요.</value>
+  <data name="support the material before releasing its grip. remove any remaining pcb or bolt, then select reset." xml:space="preserve">
+    <value>소재를 받친 뒤 잡기를 해제하세요. 남은 PCB나 볼트를 제거한 후 ‘리셋’을 누르세요.</value>
   </data>
   <data name="raises the working cylinders in order without axis motion. material grip is retained." xml:space="preserve">
     <value>축 이동 없이 작업부 실린더를 차례로 상승시킵니다. 소재 잡기는 유지합니다.</value>
@@ -3790,12 +3787,6 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   </data>
   <data name="moves enabled stations in order. supply waits above pcb 1 at travel z. home is required; held material must be cleared first." xml:space="preserve">
     <value>사용 중인 스테이션을 순서대로 이동합니다. Supply는 PCB 1번 위에서 이동 Z 높이로 대기합니다. 원점 복귀와 잡고 있는 소재 정리가 필요합니다.</value>
-  </data>
-  <data name="moving all enabled stations to standby..." xml:space="preserve">
-    <value>전체 대기 위치로 이동 중입니다...</value>
-  </data>
-  <data name="all enabled stations are at standby. select check again." xml:space="preserve">
-    <value>전체 대기 위치 이동을 완료했습니다. ‘다시 확인’을 누르세요.</value>
   </data>
   <data name="stop the machine, select manual mode, and home all enabled axes before standby." xml:space="preserve">
     <value>장비를 정지하고 수동 모드에서 사용 중인 모든 축을 원점 복귀한 뒤 대기 위치로 이동하세요.</value>
@@ -3833,9 +3824,6 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="bolt fastening review" xml:space="preserve">
     <value>볼트 체결 확인</value>
   </data>
-  <data name="select s1 for pcb placement or s2 for fastening review." xml:space="preserve">
-    <value>S1을 선택하면 PCB 안착 기록을, S2를 선택하면 볼트 체결 기록을 확인할 수 있습니다.</value>
-  </data>
   <data name="carrier work actions" xml:space="preserve">
     <value>작업 완료 처리 · 결과 삭제</value>
   </data>
@@ -3853,5 +3841,17 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   </data>
   <data name="carrier not detected." xml:space="preserve">
     <value>캐리어 미감지</value>
+  </data>
+  <data name="recover hardware and refresh the start review; servos may turn on." xml:space="preserve">
+    <value>장비 복구 후 소재·기록 재확인 (서보 켜질 수 있음)</value>
+  </data>
+  <data name="supply status" xml:space="preserve">
+    <value>공급 상태</value>
+  </data>
+  <data name="start conditions" xml:space="preserve">
+    <value>전체 시작 조건</value>
+  </data>
+  <data name="release fixer / gripper" xml:space="preserve">
+    <value>픽서·그리퍼 해제</value>
   </data>
 </root>
