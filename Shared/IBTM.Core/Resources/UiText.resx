@@ -3906,4 +3906,10 @@ COMPLETE: finish</value>
   <data name="ready wait = base wait × read attempts + status poll interval." xml:space="preserve"><value>READY wait = base wait × read attempts + status poll interval.</value></data>
   <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>Closes the connection if the SDK does not finish a request. Does not change the fixed HComm response timeout.</value></data>
   <data name="wait for a curve matching the completed bolt after the graph request finishes." xml:space="preserve"><value>Wait for a curve matching the completed bolt after the graph request finishes.</value></data>
+  <data name="final tightening before retightening" xml:space="preserve"><value>Final tightening before retightening</value></data>
+  <data name="retightening" xml:space="preserve"><value>Retightening</value></data>
+  <data name="retightening pending" xml:space="preserve"><value>Retightening pending</value></data>
+  <data name="retighten bolt 1 once with cylinder up/down" xml:space="preserve"><value>Retighten bolt 1 once with cylinder up/down</value></data>
+  <data name="same final preset; total turns include retightening. ng skips the extra pass." xml:space="preserve"><value>Same final preset; total turns include retightening. NG skips the extra pass.</value></data>
+  <data name="pre 1 → pre 2 → final 2 → final 1 → retighten 1 · per pcb" xml:space="preserve"><value>Pre 1 → Pre 2 → Final 2 → Final 1 → Retighten 1 · per PCB</value></data>
 </root>

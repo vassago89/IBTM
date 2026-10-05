@@ -32,6 +32,8 @@ public sealed record BoltResult(
     public BoltControllerData? Controller { get; init; }
     public BoltFasteningStage Stage { get; init; }
     public BoltResult? PreliminaryResult { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BoltResult? PreviousFinalResult { get; init; }
 
     // Persist each curve with the exact bolt/stage result that produced it.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -40,7 +42,7 @@ public sealed record BoltResult(
     public string? TorqueCurveError { get; init; }
 
     [JsonIgnore]
-    public bool IsComplete => Stage != BoltFasteningStage.Preliminary
+    public bool IsComplete => Stage is not (BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening)
         || !Success || Source == BoltResultSource.DryRun;
     // Keep the bolt's applied criterion with the measurement, independent of later recipe edits.
     public double? MinimumTurns { get; init; }
@@ -52,8 +54,12 @@ public sealed record BoltResult(
         ? data.Angle3 / 360.0 : null;
 
     [JsonIgnore]
-    public double? TotalTurns => Stage == BoltFasteningStage.Final
-        ? MeasuredTurns + PreliminaryResult?.MeasuredTurns : MeasuredTurns;
+    public double? TotalTurns => Stage switch
+    {
+        BoltFasteningStage.Final or BoltFasteningStage.FinalBeforeRetightening => MeasuredTurns + PreliminaryResult?.MeasuredTurns,
+        BoltFasteningStage.Retightening => MeasuredTurns + PreviousFinalResult?.TotalTurns,
+        _ => MeasuredTurns,
+    };
 
     [JsonIgnore]
     public AssemblyResult? TurnsResult

@@ -423,6 +423,13 @@
                                                     <DataTrigger Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.TwoStage}">
                                                         <Setter Property="Text" Value="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 · per PCB'}"/>
                                                     </DataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.TwoStage}"/>
+                                                            <Condition Binding="{Binding IsChecked, ElementName=PickupFirstBoltRetightening}" Value="True"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Text" Value="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 → Retighten 1 · per PCB'}"/>
+                                                    </MultiDataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
@@ -435,12 +442,26 @@
                                         </Style.Triggers></Style></StackPanel.Style>
                                         <TextBlock Text="{ui:Text '2-stage turns = pre-tightening + final tightening'}" Style="{StaticResource SettingHelpText}"/>
                                         <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource SettingHelpText}"/>
+                                        <CheckBox x:Name="PickupFirstBoltRetightening" Margin="0,8,0,0"
+                                            IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Content="{ui:Text 'Retighten bolt 1 once with cylinder up/down'}"
+                                            ToolTip="{ui:Text 'Same final preset; total turns include retightening. NG skips the extra pass.'}"
+                                            IsChecked="{Binding Settings.BoltFastening.PickupFirstBoltRetighteningEnabled, UpdateSourceTrigger=PropertyChanged}"/>
                                         <CheckBox x:Name="PickupFinalHeadCycle" Margin="0,8,0,0"
                                             IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Content="{ui:Text 'Cycle cylinder before same-bolt final tightening'}"
                                             ToolTip="{ui:Text 'OFF: keep cylinder down and switch to the final preset.'}"
                                             IsChecked="{Binding Settings.BoltFastening.PickupFinalHeadCycleEnabled, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <Grid Margin="0,8,0,8" MinHeight="34" IsEnabled="{Binding IsChecked, ElementName=PickupFinalHeadCycle}">
+                                        <Grid Margin="0,8,0,8" MinHeight="34">
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsChecked, ElementName=PickupFinalHeadCycle}" Value="True"><Setter Property="IsEnabled" Value="True"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsChecked, ElementName=PickupFirstBoltRetightening}" Value="True"><Setter Property="IsEnabled" Value="True"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>

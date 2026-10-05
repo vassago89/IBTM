@@ -181,6 +181,13 @@
                                                     <Setter Property="Text" Value="{ui:Text 'Final tightening pending'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                                 </DataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding RecentFastening.Result.IsComplete}" Value="False"/>
+                                                        <Condition Binding="{Binding RecentFastening.Result.Stage}" Value="{x:Static core:BoltFasteningStage.FinalBeforeRetightening}"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Text" Value="{ui:Text 'Retightening pending'}"/>
+                                                </MultiDataTrigger>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}">
                                                     <Setter Property="Text" Value="{ui:Text 'Dry run · NG'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
@@ -198,6 +205,12 @@
                                                     <Setter Property="Text" Value="{ui:Text 'Pre-tightening turns'}"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.Stage}" Value="{x:Static core:BoltFasteningStage.Final}">
+                                                    <Setter Property="Text" Value="{ui:Text 'Combined turns'}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RecentFastening.Result.Stage}" Value="{x:Static core:BoltFasteningStage.FinalBeforeRetightening}">
+                                                    <Setter Property="Text" Value="{ui:Text 'Combined turns'}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RecentFastening.Result.Stage}" Value="{x:Static core:BoltFasteningStage.Retightening}">
                                                     <Setter Property="Text" Value="{ui:Text 'Combined turns'}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>

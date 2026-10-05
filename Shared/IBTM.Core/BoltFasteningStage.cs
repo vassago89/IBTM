@@ -12,4 +12,10 @@ public enum BoltFasteningStage
 
     [Description("Final tightening")]
     Final,
+
+    [Description("Final tightening before retightening")]
+    FinalBeforeRetightening,
+
+    [Description("Retightening")]
+    Retightening,
 }

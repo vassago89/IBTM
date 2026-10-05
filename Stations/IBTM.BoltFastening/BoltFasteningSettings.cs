@@ -62,6 +62,7 @@ public sealed class BoltFasteningSettings : Setting
     } = 1;
 
     public bool PickupFinalHeadCycleEnabled { get; set; }
+    public bool PickupFirstBoltRetighteningEnabled { get; set; }
     public bool MonitorTorqueCurves { get; set; }
     public AdcTorqueCurveSampling TorqueCurveSampling
     {
