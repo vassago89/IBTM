@@ -152,6 +152,48 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
+    public async Task AdcGraphRequestsEachBlockAfterTheEquipmentFirstResponse()
+    {
+        using var transport = new HCommTransportStub(1);
+        using var bus = new AdcBus(transport.Communication, 1);
+        bus.Monitor.BeginTorqueCurveCapture();
+        AdcTorqueCurve? curve = null;
+        bus.Monitor.TorqueCurveReceived += received => curve = received;
+        var graph = bus.RequestTorqueCurveAsync(1);
+        var query = Convert.FromHexString("01C80077C0");
+        Assert.Equal(query, await transport.NextRequestAsync());
+        // Exact first response from COM9 on 2026-10-05 15:24:21.279: block 1 of 8.
+        var first = Convert.FromHexString(
+            "01C83E0801000100000001000100C8064C03200328035F0C01069F00000000000100010124011E012F0138012A0132014000DD00C5011C0156018A01A701AC019C1096");
+        transport.Receive(first);
+        var frames = new List<byte>(first);
+        for (byte block = 2; block <= 8; block++)
+        {
+            // The controller sends one block per C8 request, rather than streaming all eight.
+            Assert.Equal(query, await transport.NextRequestAsync());
+            Assert.False(graph.IsCompleted);
+            var words = Enumerable.Repeat(808, block == 8 ? 5 : 30).ToArray();
+            var data = new byte[3 + words.Length * 2];
+            data[0] = checked((byte)(data.Length - 1));
+            data[1] = 8;
+            data[2] = block;
+            for (var index = 0; index < words.Length; index++)
+                BinaryPrimitives.WriteInt16BigEndian(data.AsSpan(3 + index * 2), (short)words[index]);
+            var frame = AdcRtuFrame.Build(1, AdcFunctionCode.RequestTorqueCurve, data);
+            transport.Receive(frame);
+            frames.AddRange(frame);
+        }
+        Assert.Equal(frames.ToArray(), await graph);
+        Assert.True(bus.IsOpen);
+        Assert.NotNull(curve);
+        Assert.Equal(200, curve.Torques.Length);
+        Assert.Equal(2.92, curve.Torques[0]);
+        Assert.Equal(8.08, curve.Torques[^1]);
+        Assert.Equal(1612, curve.FasteningMilliseconds);
+        Assert.Equal(612, curve.StartMilliseconds);
+    }
+
+    [Fact]
     public async Task AdcGraphRequestDrainsEveryBlockBeforeTheNextCommand()
     {
         using var transport = new HCommTransportStub();
@@ -165,9 +207,11 @@ public sealed class AdcProtocolTests
         // Starting a new bolt during a refresh must still drain the old graph completely.
         bus.Monitor.BeginTorqueCurveCapture();
         var next = bus.WriteRegisterAsync(0, 4004, 1);
+        Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [0]), await transport.NextRequestAsync());
         transport.Receive(middle);
         Assert.False(graph.IsCompleted);
         Assert.False(next.IsCompleted);
+        Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [0]), await transport.NextRequestAsync());
         transport.Receive(last);
         Assert.Equal(first.Concat(middle).Concat(last).ToArray(), await graph);
         Assert.Null(bus.Monitor.TorqueCurveError);
