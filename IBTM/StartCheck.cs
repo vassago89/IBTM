@@ -60,4 +60,7 @@ public enum StartPreparationAction
     ToggleCarrierSupport,
     [Description("Raise/lower stopper")]
     ToggleStopper,
+
+    [Description("Move to rotation position")]
+    MoveToRotationPosition,
 }

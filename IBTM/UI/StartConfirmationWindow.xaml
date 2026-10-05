@@ -19,6 +19,32 @@
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin" Value="0,16,0,8"/>
         </Style>
+        <Style x:Key="CarrierCylinderButton" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource AttentionBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+            <Setter Property="ToolTip" Value="{ui:Text 'UNKNOWN'}"/>
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Up}">
+                    <Setter Property="Background" Value="{StaticResource PrimaryButtonBackgroundBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                    <Setter Property="ToolTip" Value="{ui:Text 'Up'}"/>
+                </Trigger>
+                <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Down}">
+                    <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
+                    <Setter Property="ToolTip" Value="{ui:Text 'Down'}"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
+                    <Setter Property="Background" Value="{StaticResource AttentionBackgroundBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                    <Setter Property="ToolTip" Value="{ui:Text 'UNKNOWN'}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="CarrierActions" TargetType="StackPanel">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding StartStation}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
@@ -232,10 +258,37 @@
                                     Height="40" Margin="0,0,0,8">
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                            <Setter Property="Content" Value="{ui:Text 'Release material grip'}"/>
+                                            <Setter Property="Content" Value="{ui:Text 'Release PCB vacuum'}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Supply}">
                                                     <Setter Property="Content" Value="{ui:Text 'Release fixer / gripper'}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.PickupHead}">
+                                                    <Setter Property="Content" Value="{ui:Text 'Release pickup vacuum'}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.ShootingHead}">
+                                                    <Setter Property="Content" Value="{ui:Text 'Stop shooting / release vacuum'}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}">
+                                                    <Setter Property="Content" Value="{ui:Text 'Stop shooting / release both head vacuums'}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station3}">
+                                                    <Setter Property="Content" Value="{ui:Text 'Open NG gripper'}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="{ui:Text 'Move to rotation position'}"
+                                    Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.MoveToRotationPosition}"
+                                    Height="40" Margin="0,0,0,8"
+                                    ToolTip="{ui:Text 'Move Z to travel height, then XY and Z to the rotation position. Rotation and grip remain unchanged.'}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Supply}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -249,10 +302,30 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <Button x:Name="RaiseToolingButton" Content="{ui:Text 'Raise tooling'}"
+                                    <Button x:Name="RaiseToolingButton"
                                         Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.RaiseTooling}"
                                         ToolTip="{ui:Text 'Raises the working cylinders in order without axis motion. Material grip is retained.'}"
-                                        Style="{StaticResource SecondaryButtonStyle}" Height="40" Margin="0,0,0,8"/>
+                                        Height="40" Margin="0,0,0,8">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="Content" Value="{ui:Text 'Raise handler / IPM'}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.PickupHead}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Raise pickup head / table'}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.ShootingHead}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Raise shooting head'}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Raise both heads / table'}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station3}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Raise NG pickup'}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                 </StackPanel>
                                 <StackPanel Style="{StaticResource CarrierActions}">
                                     <UniformGrid Columns="2">
@@ -265,13 +338,15 @@
                                             </StackPanel>
                                         </UniformGrid.ToolTip>
                                         <Button x:Name="ToggleCarrierSupportButton"
+                                            Tag="{Binding StartStation.BackupPlate}"
                                             Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ToggleCarrierSupport}"
-                                            Style="{StaticResource SecondaryButtonStyle}" MinHeight="40" Padding="8,7" Margin="0,0,4,6">
+                                            Style="{StaticResource CarrierCylinderButton}" MinHeight="40" Padding="8,7" Margin="0,0,4,6">
                                             <TextBlock Text="{ui:Text 'Raise/lower carrier support'}" TextWrapping="Wrap" TextAlignment="Center"/>
                                         </Button>
                                         <Button x:Name="ToggleStopperButton"
+                                            Tag="{Binding StartStation.Stopper}"
                                             Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ToggleStopper}"
-                                            Style="{StaticResource SecondaryButtonStyle}" MinHeight="40" Padding="8,7" Margin="4,0,0,6">
+                                            Style="{StaticResource CarrierCylinderButton}" MinHeight="40" Padding="8,7" Margin="4,0,0,6">
                                             <TextBlock Text="{ui:Text 'Raise/lower stopper'}" TextWrapping="Wrap" TextAlignment="Center"/>
                                         </Button>
                                     </UniformGrid>

@@ -2377,6 +2377,7 @@ public sealed class MachineController : INotifyPropertyChanged
     public async Task<bool> PrepareStartAreaAsync(
         StartArea area, StartPreparationAction action, CancellationToken cancellationToken)
     {
+        var movesSupply = action == StartPreparationAction.MoveToRotationPosition;
         var motion = area switch
         {
             StartArea.Supply => _pcbSupply.Motion.Feedback,
@@ -2390,16 +2391,25 @@ public sealed class MachineController : INotifyPropertyChanged
         {
             using var operation = BeginManualOperation(
                 () => _state.Available && _state.ManualMode && _state.SafetyReady
-                    && !_state.IsRunningFor(includeOperations: false)
-                    && motion.IsReady && motion.Axes.All(axis => !motion.GetAxisState(axis).InMotion),
+                    && (movesSupply
+                        ? area == StartArea.Supply && IsManualMotionReady(MotionGroup.PcbSupply)
+                            && !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
+                            && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
+                        : !_state.IsRunningFor(includeOperations: false)
+                            && motion.IsReady && motion.Axes.All(axis => !motion.GetAxisState(axis).InMotion)),
                 cancellationToken);
             if (operation is null)
                 return false;
             activeToken = operation.Token;
             activeToken.ThrowIfCancellationRequested();
+            if (movesSupply && _state.IsRunningFor(includeOperations: false))
+                return false;
             _log?.LogInformation("START preparation: {Area}, {Action} started.", area, action);
             switch (action)
             {
+                case StartPreparationAction.MoveToRotationPosition:
+                    await _pcbSupply.MoveToRotationPositionAsync(activeToken);
+                    break;
                 case StartPreparationAction.ReleaseMaterial:
                     switch (area)
                     {
@@ -2439,23 +2449,14 @@ public sealed class MachineController : INotifyPropertyChanged
                         StartArea.Station3 => (_inspectionStation.Station, OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp),
                         _ => throw new ArgumentOutOfRangeException(nameof(area)),
                     };
+                    await RaiseStartToolingAsync(area, activeToken);
                     var support = action == StartPreparationAction.ToggleCarrierSupport;
                     var position = support ? station.BackupPlate : station.Stopper;
                     if (position == StationCylinderState.Between)
                         throw new InvalidOperationException("Confirm the selected support or stopper Up/Down sensors before operating it.");
                     var up = position == StationCylinderState.Down;
-                    if (support && up && !station.CarrierPresent)
-                        throw new InvalidOperationException("No carrier is detected at this station.");
-                    // Clear the tooling, then move only the selected carrier cylinder.
-                    await RaiseStartToolingAsync(area, activeToken);
-                    if ((support ? station.BackupPlate : station.Stopper) != position)
-                        throw new InvalidOperationException("The selected support or stopper moved during preparation. Check its position and try again.");
                     if (support)
-                    {
                         await _io.SetOutputAndWaitAsync(plate, up, activeToken);
-                        if (up && !station.CarrierPresent)
-                            throw new MotionInterlockException("No carrier is detected at this station.");
-                    }
                     else
                         await _io.SetOutputAndWaitAsync(stopper, up, activeToken);
                     break;

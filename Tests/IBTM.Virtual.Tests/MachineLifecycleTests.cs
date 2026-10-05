@@ -27,6 +27,99 @@ namespace IBTM.Virtual.Tests;
 public sealed class MachineLifecycleTests
 {
     [Fact]
+    public async Task StartPreparationSupplyRotationPositionRequiresHomeAndMovesAtTravelHeightWithoutChangingIo()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.PcbSupply.TravelZ = 3;
+        settings.PcbSupply.HandoffPosition = new() { X = 80, Y = 30, Z = 7 };
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
+        var supply = services.GetRequiredService<PcbSupplier>();
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            Assert.False(await machine.PrepareStartAreaAsync(
+                StartArea.Supply, StartPreparationAction.MoveToRotationPosition, default));
+            Assert.Equal((0d, 0d, 0d), motion.Position);
+            await machine.HomeAsync(default);
+            await motion.MoveAxisAsync(MotionAxis.Z, 12, 10_000);
+            var rotation = supply.Rotation;
+            var positions = new ConcurrentQueue<(double X, double Y, double Z)>();
+            var outputs = new ConcurrentQueue<OutputIo>();
+            motion.PositionChanged += (x, y, z) => positions.Enqueue((x, y, z));
+            io.OutputChanged += (output, on) =>
+            {
+                if (output is OutputIo.PcbSupplyRotate or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward)
+                    outputs.Enqueue(output);
+            };
+
+            Assert.True(await machine.PrepareStartAreaAsync(
+                StartArea.Supply, StartPreparationAction.MoveToRotationPosition, default));
+
+            Assert.Equal((80d, 30d, 7d), motion.Position);
+            Assert.Equal(rotation, supply.Rotation);
+            Assert.True(supply.IsTeachingRotationAllowed);
+            Assert.Empty(outputs);
+            var previous = (X: 0d, Y: 0d, Z: 12d);
+            foreach (var position in positions)
+            {
+                if (position.X != previous.X || position.Y != previous.Y)
+                    Assert.Equal(settings.PcbSupply.TravelZ, position.Z);
+                previous = position;
+            }
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartPreparationSupplyRotationPositionStopsBeforeXyOnStopOrRotationLoss(bool loseRotation)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.PcbSupply.TravelZ = 3;
+        settings.PcbSupply.Motion.ZSpeed = 1;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            review.SelectStartAreaCommand.Execute(StartArea.Supply);
+            var moving = review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.MoveToRotationPosition);
+            Assert.True(await WaitUntilAsync(() => motion.IsMoving, TimeSpan.FromSeconds(2)));
+            if (loseRotation)
+                io.SetInputs((InputIo.PcbSupplyRotated, false), (InputIo.PcbSupplyUnrotated, false));
+            else
+                await review.StopCommand.ExecuteAsync(null);
+            await moving.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Equal(0, motion.Position.X);
+            Assert.Equal(0, motion.Position.Y);
+            Assert.False(motion.IsMoving);
+            Assert.False(string.IsNullOrWhiteSpace(review.StartActionMessage));
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task ScreenResetRefreshesStartReviewAndRequiresNewOperatorConfirmation()
     {
         var settings = FlowSettings();
@@ -4584,6 +4677,34 @@ public sealed class MachineLifecycleTests
             Assert.Equal(new[] { (OutputIo.PickupHeadDown, false), (OutputIo.ShootingHeadDown, false),
                 (OutputIo.PickupTableDown, false) }, writes.ToArray());
             Assert.True(io.GetInput(InputIo.PickupTableUp));
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartPreparationCarrierSupportCanRaiseAndLowerWithoutCarrier()
+    {
+        await using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var station = services.GetRequiredService<BoltFasteningStation>().Station;
+        await machine.InitializeAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            Assert.False(station.CarrierPresent);
+            Assert.True(await machine.PrepareStartAreaAsync(
+                StartArea.Station2, StartPreparationAction.ToggleCarrierSupport, default));
+            Assert.Equal(StationCylinderState.Up, station.BackupPlate);
+            Assert.Equal(StationCylinderState.Down, station.Stopper);
+            Assert.True(await machine.PrepareStartAreaAsync(
+                StartArea.Station2, StartPreparationAction.ToggleCarrierSupport, default));
+            Assert.Equal(StationCylinderState.Down, station.BackupPlate);
+            Assert.Empty(station.Assemblies);
             Assert.False(state.IsError, state.AlarmDetail);
         }
         finally

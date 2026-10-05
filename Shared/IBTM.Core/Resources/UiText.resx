@@ -3806,9 +3806,6 @@ COMPLETE: finish</value>
   <data name="confirm the selected support or stopper up/down sensors before operating it." xml:space="preserve">
     <value>Confirm the selected support or stopper Up/Down sensors before operating it.</value>
   </data>
-  <data name="the selected support or stopper moved during preparation. check its position and try again." xml:space="preserve">
-    <value>The selected support or stopper moved during preparation. Check its position and try again.</value>
-  </data>
   <data name="i/o controls" xml:space="preserve">
     <value>I/O controls</value>
   </data>
@@ -3850,5 +3847,38 @@ COMPLETE: finish</value>
   </data>
   <data name="release fixer / gripper" xml:space="preserve">
     <value>Release fixer / gripper</value>
+  </data>
+  <data name="move to rotation position" xml:space="preserve">
+    <value>Move to rotation position</value>
+  </data>
+  <data name="move z to travel height, then xy and z to the rotation position. rotation and grip remain unchanged." xml:space="preserve">
+    <value>Move Z to travel height, then XY and Z to the rotation position. Rotation and grip remain unchanged.</value>
+  </data>
+  <data name="release pcb vacuum" xml:space="preserve">
+    <value>Release PCB vacuum</value>
+  </data>
+  <data name="release pickup vacuum" xml:space="preserve">
+    <value>Release pickup vacuum</value>
+  </data>
+  <data name="stop shooting / release vacuum" xml:space="preserve">
+    <value>Stop shooting / release vacuum</value>
+  </data>
+  <data name="stop shooting / release both head vacuums" xml:space="preserve">
+    <value>Stop shooting / release both head vacuums</value>
+  </data>
+  <data name="open ng gripper" xml:space="preserve">
+    <value>Open NG gripper</value>
+  </data>
+  <data name="raise handler / ipm" xml:space="preserve">
+    <value>Raise handler / IPM</value>
+  </data>
+  <data name="raise pickup head / table" xml:space="preserve">
+    <value>Raise pickup head / table</value>
+  </data>
+  <data name="raise shooting head" xml:space="preserve">
+    <value>Raise shooting head</value>
+  </data>
+  <data name="raise both heads / table" xml:space="preserve">
+    <value>Raise both heads / table</value>
   </data>
 </root>
