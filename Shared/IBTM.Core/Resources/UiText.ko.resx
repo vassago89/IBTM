@@ -3887,7 +3887,7 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="torque curves" xml:space="preserve"><value>토크 그래프</value></data>
   <data name="collect torque curves" xml:space="preserve"><value>토크 그래프 수집</value></data>
   <data name="carrier work {0}" xml:space="preserve"><value>캐리어 작업 {0}</value></data>
-  <data name="memory only · cleared when the application closes" xml:space="preserve"><value>임시 보관 · 프로그램 종료 시 삭제</value></data>
+  <data name="stored with pcb results" xml:space="preserve"><value>PCB 결과와 함께 저장</value></data>
   <data name="graph" xml:space="preserve"><value>그래프</value></data>
   <data name="no torque curve" xml:space="preserve"><value>그래프 데이터 없음</value></data>
   <data name="torque curve not received" xml:space="preserve"><value>토크 그래프 미수신</value></data>

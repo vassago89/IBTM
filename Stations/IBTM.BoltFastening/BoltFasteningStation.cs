@@ -84,7 +84,7 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public ConveyorStation Station { get; }
 
-    // Only the most recent carrier is retained in memory. No graph data enters PCB persistence.
+    // The overview shows the latest carrier; PCB history owns each result and its curve.
     public long? TorqueCurveJobId { get; private set; }
     public IReadOnlyList<FasteningTorqueCurve> TorqueCurves { get; private set; }
 

@@ -33,10 +33,10 @@ public sealed record BoltResult(
     public BoltFasteningStage Stage { get; init; }
     public BoltResult? PreliminaryResult { get; init; }
 
-    // Curves follow their exact result in memory; graph persistence is deferred.
-    [JsonIgnore]
+    // Persist each curve with the exact bolt/stage result that produced it.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public AdcTorqueCurve? TorqueCurve { get; init; }
-    [JsonIgnore]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TorqueCurveError { get; init; }
 
     [JsonIgnore]
@@ -93,4 +93,7 @@ public sealed record BoltControllerData(
 {
     // Preset setting captured at operation start, separate from the ADC result registers.
     public ushort? TorqueCompensationPercent { get; init; }
+
+    [JsonIgnore]
+    public double? CompensatedTargetTorque => TargetTorque * TorqueCompensationPercent / 100.0;
 }

@@ -1,18 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json.Serialization;
 
 namespace IBTM.Core;
 
 // Decoded torque samples with the fastening result they belong to.
 public sealed record AdcTorqueCurve(
-    long ReceivedAt, int SampleMilliseconds, double[] Torques,
+    [property: JsonIgnore] long ReceivedAt, int SampleMilliseconds, double[] Torques,
     ushort FasteningMilliseconds, double TargetTorque, double FinalTorque,
     ushort ScrewCount, ushort ErrorCode)
 {
     private const int MetadataRegisterCount = 15;
 
     // A full ADC buffer contains the last 200 points of the fastening.
+    [JsonIgnore]
     public int StartMilliseconds => Torques.Length == 200
         ? Math.Max(0, FasteningMilliseconds - Torques.Length * SampleMilliseconds) : 0;
 

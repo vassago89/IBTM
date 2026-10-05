@@ -12,10 +12,13 @@ namespace IBTM.UI;
 public sealed class TorqueCurvePlot : FrameworkElement
 {
     public static readonly DependencyProperty CurveProperty;
+    public static readonly DependencyProperty TargetTorqueProperty;
 
     static TorqueCurvePlot()
     {
         CurveProperty = DependencyProperty.Register(nameof(Curve), typeof(AdcTorqueCurve), typeof(TorqueCurvePlot),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+        TargetTorqueProperty = DependencyProperty.Register(nameof(TargetTorque), typeof(double?), typeof(TorqueCurvePlot),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
     }
 
@@ -23,6 +26,12 @@ public sealed class TorqueCurvePlot : FrameworkElement
     {
         get => (AdcTorqueCurve?)GetValue(CurveProperty);
         set => SetValue(CurveProperty, value);
+    }
+
+    public double? TargetTorque
+    {
+        get => (double?)GetValue(TargetTorqueProperty);
+        set => SetValue(TargetTorqueProperty, value);
     }
 
     protected override void OnRender(DrawingContext drawing)
@@ -45,7 +54,7 @@ public sealed class TorqueCurvePlot : FrameworkElement
             return;
         }
         var plot = new Rect(64, 38, Math.Max(1, ActualWidth - 90), Math.Max(1, ActualHeight - 100));
-        var maximum = Math.Max(0.01, Math.Max(curve.Torques.Max(), curve.TargetTorque) * 1.1);
+        var maximum = Math.Max(0.01, Math.Max(curve.Torques.Max(), TargetTorque ?? 0) * 1.1);
         var minimum = Math.Min(0, curve.Torques.Min());
         var duration = Math.Max(curve.SampleMilliseconds,
             Math.Max(curve.FasteningMilliseconds, curve.StartMilliseconds + (curve.Torques.Length - 1) * curve.SampleMilliseconds));
@@ -61,9 +70,12 @@ public sealed class TorqueCurvePlot : FrameworkElement
         }
         DrawText(UiText.Get("Torque (controller unit)"), 12, 10, textBrush);
         DrawText(UiText.Get("Time (ms)"), Math.Max(64, plot.Right - 75), plot.Bottom + 30, textBrush);
-        var targetY = plot.Bottom - (curve.TargetTorque - minimum) / (maximum - minimum) * plot.Height;
-        drawing.DrawLine(new Pen(muted, 1) { DashStyle = DashStyles.Dash }, new(plot.Left, targetY), new(plot.Right, targetY));
-        DrawText(UiText.Get("Target torque") + $" {curve.TargetTorque:0.##}", plot.Left + 8, targetY - 19, muted);
+        if (TargetTorque is { } targetTorque)
+        {
+            var targetY = plot.Bottom - (targetTorque - minimum) / (maximum - minimum) * plot.Height;
+            drawing.DrawLine(new Pen(muted, 1) { DashStyle = DashStyles.Dash }, new(plot.Left, targetY), new(plot.Right, targetY));
+            DrawText(UiText.Get("Target torque") + $" {targetTorque:0.##}", plot.Left + 8, targetY - 19, muted);
+        }
         var geometry = new StreamGeometry();
         using (var context = geometry.Open())
         {

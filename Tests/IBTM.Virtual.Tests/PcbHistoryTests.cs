@@ -22,7 +22,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbHistoryTests
 {
     [Fact]
-    public async Task LiveResultKeepsEachStageCurveWhileStorageOmitsTemporaryGraphs()
+    public async Task ResultHistoryPersistsEachStageCurveAndReloadsItForDetails()
     {
         await using var services = MachineTestSupport.CreateDiagnosticServices();
         var history = services.GetRequiredService<PcbHistoryWriter>();
@@ -54,10 +54,15 @@ public sealed class PcbHistoryTests
         var stages = Assert.Single(details.BoltResults).StageResults.ToArray();
         Assert.Same(preliminaryCurve, stages[0].Result.TorqueCurve);
         Assert.Same(finalCurve, stages[1].Result.TorqueCurve);
-        var stored = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).PickupBoltResults[boltId];
-        Assert.Null(stored.TorqueCurve);
-        Assert.Null(stored.PreliminaryResult!.TorqueCurve);
-        Assert.Same(finalCurve, stages[1].Result.TorqueCurve);
+        var reopened = VirtualTestSupport.OpenMachineStore(store.DatabaseFile);
+        details.Record = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        var restored = Assert.Single(details.BoltResults).StageResults.ToArray();
+        Assert.Equal(preliminaryCurve.Torques, restored[0].Result.TorqueCurve!.Torques);
+        Assert.Equal(finalCurve.Torques, restored[1].Result.TorqueCurve!.Torques);
+        Assert.Equal(30, restored[1].Result.TorqueCurve!.SampleMilliseconds);
+        Assert.Equal(60, restored[1].Result.TorqueCurve!.FasteningMilliseconds);
+        Assert.Equal(0, restored[1].Result.TorqueCurve!.ReceivedAt);
+        Assert.NotSame(finalCurve, restored[1].Result.TorqueCurve);
     }
 
     [Fact]

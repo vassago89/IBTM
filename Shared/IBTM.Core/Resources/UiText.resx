@@ -3884,7 +3884,7 @@ COMPLETE: finish</value>
   <data name="torque curves" xml:space="preserve"><value>Torque curves</value></data>
   <data name="collect torque curves" xml:space="preserve"><value>Collect torque curves</value></data>
   <data name="carrier work {0}" xml:space="preserve"><value>Carrier work {0}</value></data>
-  <data name="memory only · cleared when the application closes" xml:space="preserve"><value>Memory only · Cleared when the application closes</value></data>
+  <data name="stored with pcb results" xml:space="preserve"><value>Stored with PCB results</value></data>
   <data name="graph" xml:space="preserve"><value>Graph</value></data>
   <data name="no torque curve" xml:space="preserve"><value>No torque curve</value></data>
   <data name="torque curve not received" xml:space="preserve"><value>Torque curve not received</value></data>

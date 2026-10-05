@@ -324,10 +324,10 @@
                                                     <DataGridTemplateColumn Header="{ui:Text 'Torque curves'}" Width="100">
                                                         <DataGridTemplateColumn.CellTemplate>
                                                             <DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                                                <Button Content="{ui:Text 'Graph'}" CommandParameter="{Binding}" Click="OnTorqueCurveClick" Padding="8,2" Margin="4,2"
+                                                                <Button Content="{ui:Text 'Graph'}" CommandParameter="{Binding}" Click="OnTorqueCurveClick" Padding="8,2" FontSize="12"
                                                                     ToolTipService.ShowOnDisabled="True">
                                                                     <Button.Style>
-                                                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding Result.TorqueCurve}" Value="{x:Null}">
                                                                                     <Setter Property="IsEnabled" Value="False"/>
@@ -370,7 +370,7 @@
                                 <TabItem Header="{ui:Text 'Measurements'}" Padding="10,4">
                                     <UniformGrid Columns="4" Margin="0,8,0,0" VerticalAlignment="Top">
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Result torque'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
-                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Target torque'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.TargetTorque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
+                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Target torque'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.CompensatedTargetTorque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Target speed (rpm)'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.TargetSpeedRpm, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Fastening time (ms)'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.FasteningTimeMilliseconds, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Angle A1 (°)'}" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.Angle1, StringFormat=0.##, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>

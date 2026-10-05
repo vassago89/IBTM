@@ -47,11 +47,12 @@
                     <TextBlock Text="{Binding SelectedCurve.BoltName}" FontSize="18" FontWeight="SemiBold" Margin="0,0,12,0"/>
                     <TextBlock Text="{Binding SelectedCurve.Result.Stage, Converter={StaticResource UiTextConverter}}" VerticalAlignment="Center"/>
                 </WrapPanel>
-                <ui:TorqueCurvePlot Grid.Row="1" Curve="{Binding SelectedCurve.Result.TorqueCurve}"/>
+                <ui:TorqueCurvePlot Grid.Row="1" Curve="{Binding SelectedCurve.Result.TorqueCurve}"
+                    TargetTorque="{Binding SelectedCurve.Result.Controller.CompensatedTargetTorque}"/>
                 <TextBlock Grid.Row="2" Text="{Binding SelectedCurve.Result.TorqueCurveError}" Foreground="{StaticResource AccentAmberBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
             </Grid>
         </Grid>
-        <TextBlock Grid.Row="2" Text="{ui:Text 'Memory only · Cleared when the application closes'}"
+        <TextBlock Grid.Row="2" Text="{ui:Text 'Stored with PCB results'}"
             Foreground="{StaticResource TextMutedBrush}" Margin="0,14,0,0"/>
     </Grid>
 </Window>
