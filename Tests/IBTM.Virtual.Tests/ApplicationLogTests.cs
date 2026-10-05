@@ -80,7 +80,7 @@ public sealed class ApplicationLogTests
     }
 
     [Fact]
-    public async Task CommunicationFilesKeepFramesOutOfMachineHistoryButRetainErrorsInBoth()
+    public async Task RoutineCommunicationDetailsAreDisabledButErrorsRetainFramesInBothFiles()
     {
         var directory = Path.Combine(Path.GetTempPath(), "IBTM-log-test-" + Guid.NewGuid().ToString("N"));
         var path = Path.Combine(directory, "session.log");
@@ -92,11 +92,15 @@ public sealed class ApplicationLogTests
             using (var factory = log.CreateLoggerFactory())
             {
                 var communication = factory.CreateLogger<AdcBus>();
-                Parallel.For(0, 64, index => communication.LogInformation(
+                Assert.False(communication.IsEnabled(LogLevel.Debug));
+                Assert.False(factory.CreateLogger<AdcStatusMonitor>().IsEnabled(LogLevel.Debug));
+                Parallel.For(0, 64, index => communication.LogDebug(
                     "ADC [{Port}] RX RAW {Frame}", "COM9", $"FRAME-{index}"));
                 communication.LogDebug("RTU response decoded");
                 factory.CreateLogger<AdcStatusMonitor>().LogDebug("ADC status timing: query/publish/pause");
-                communication.LogWarning("ADC request rejected");
+                communication.LogInformation("ADC connection=true");
+                communication.LogWarning(
+                    "ADC request rejected; address=3300, data=14; TX=01040CE4000E32A9; RX=0184030301.");
                 communication.LogError(new IOException("Response timed out"), "ADC exchange failed");
                 factory.CreateLogger<ApplicationLogTests>().LogInformation("Machine cycle completed");
 
@@ -112,12 +116,14 @@ public sealed class ApplicationLogTests
             Assert.DoesNotContain("RTU response decoded", machine);
             Assert.DoesNotContain("ADC status timing", machine);
             Assert.DoesNotContain("Machine cycle completed", communicationText);
-            Assert.Equal(64, File.ReadAllLines(communicationPath).Count(line => line.Contains("RX RAW")));
-            Assert.Contains("RTU response decoded", communicationText);
-            Assert.Contains("[IBTM.Device.AdcStatusMonitor] ADC status timing", communicationText);
+            Assert.DoesNotContain("RX RAW", communicationText);
+            Assert.DoesNotContain("RTU response decoded", communicationText);
+            Assert.DoesNotContain("ADC status timing", communicationText);
+            Assert.Contains("ADC connection=true", communicationText);
             foreach (var text in new[] { machine, communicationText })
             {
                 Assert.Contains("[IBTM.Hantas.AdcBus] ADC request rejected", text);
+                Assert.Contains("address=3300, data=14; TX=01040CE4000E32A9; RX=0184030301.", text);
                 Assert.Contains("ADC exchange failed", text);
                 Assert.Contains("Response timed out", text);
             }

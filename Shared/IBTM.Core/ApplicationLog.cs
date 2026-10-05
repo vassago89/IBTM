@@ -83,6 +83,8 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
     public ILoggerFactory CreateLoggerFactory()
     {
         var configuration = new LoggerConfiguration().MinimumLevel.Verbose()
+            .MinimumLevel.Override("IBTM.Hantas.AdcBus", LogEventLevel.Information)
+            .MinimumLevel.Override("IBTM.Device.AdcStatusMonitor", LogEventLevel.Information)
             .WriteTo.Logger(screen => screen
                 .Filter.ByExcluding(IsCommunicationDetail)
                 .WriteTo.Sink(this));

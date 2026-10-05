@@ -288,16 +288,18 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 _received.AddRange(packet);
         }
         FrameTransferred?.Invoke(send ? AdcFrameDirection.Transmit : AdcFrameDirection.Receive, packet);
-        _logger.LogInformation("ADC [{Port}] HComm {Direction} {Frame}",
-            PortName, send ? "TX" : "RX RAW", Convert.ToHexString(packet));
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("ADC [{Port}] HComm {Direction} {Frame}",
+                PortName, send ? "TX" : "RX RAW", Convert.ToHexString(packet));
     }
 
     private void OnReceived(Command command, int address, int[]? values)
     {
         lock (_stateGate)
         {
-            _logger.LogDebug("ADC [{Port}] HComm decoded {Command}, address={Address}, values={Values}.",
-                PortName, command, address, values is null ? "null" : string.Join(",", values));
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug("ADC [{Port}] HComm decoded {Command}, address={Address}, values={Values}.",
+                    PortName, command, address, values is null ? "null" : string.Join(",", values));
             if (command == Command.GraphAd)
             {
                 // ADC returns C8 / length 1 / 00 when no curve is available. HComm validates

@@ -203,7 +203,7 @@ Operation의 카메라 위치와 검사 마커는 검사 기준 핀 좌표계로
 COM 포트·Baud Rate·Slave ID는 헤드별로 설정하며, 서로 다른 포트에서는 Slave ID가 같아도 된다.
 기존 `HantasSettings`의 JSON `PortName`·`BaudRate`는 픽업 설정으로 유지한다. 슈팅 COM 포트는 별도로 입력한다.
 ADC 진단창의 헤드 선택은 해당 포트에만 연결·해제·명령을 적용한다. 실행 중에는 선택을 바꿀 수 없고,
-ADC 프레임 로그는 실제 COM 포트와 함께 `Logs/Communication/IBTM-*.log`에 기록한다.
+ADC 진단창의 Frame Log에서 실제 COM 포트별 원시 송수신을 확인한다. 정상 프레임은 상시 파일에 기록하지 않고, 통신 오류 시 해당 요청의 TX/RX를 기록한다.
 `BeginAdcProtocol`은 `BeginManualOperation`으로 실행권과 안전 상태 감시를 확보한다.
 실행 중 I/O 읽기 오류도 이 경로에서 작업 취소·설비 정지·알람으로 처리하며, 진단창은 별도 감시를 두지 않는다.
 ViewModel의 명령 본문은 통신과 헤드 동작을 직접 호출한다.
@@ -786,7 +786,7 @@ NG 셔틀·검사 작업처럼 연결된 객체를 통해 같은 변경 알림�
 Settings → Operation & Timing → Logs에서 저장 폴더와 보관 일수(기본 30일)를 지정하며 `Machine.db`의 `LogSettings`에 저장한다. 저장 후 재시작 시 적용한다.
 일반 설비 로그는 `<지정 폴더>/IBTM-yyyyMMdd.log`, ADC 통신 로그는 `<지정 폴더>/Communication/IBTM-yyyyMMdd.log`로 분리한다. 기본 폴더는 실행 폴더의 `Logs`다.
 Serilog File sink의 `rollingInterval: Day`, `retainedFileTimeLimit`, `retainedFileCountLimit: null`을 사용한다. 100 MB 도달 시에도 다음 파일로 분할하며 자체 저장·삭제 루프는 없다. 오래된 파일 정리는 라이브러리가 파일을 열거나 분할할 때 수행한다. 이전 세션 형식(`IBTM-날짜-시간-PID.log`)의 파일은 새 일별 파일 정책 대상이 아니므로 그대로 남는다.
-`AdcBus`의 TX·RX RAW·프레임 해석은 통신 파일에만 기록하고 일반 화면 이력에서도 제외한다. 통신 Warning/Error는 양쪽 파일과 일반 화면 이력에 남긴다.
+`AdcBus`와 `AdcStatusMonitor`는 Information 이상만 기록한다. 정상 TX·RX RAW·프레임 해석·매 조회 소요 시간은 Debug로 두어 상시 기록하지 않는다. ADC 진단창의 Frame Log는 기존 `FrameTransferred` 이벤트로 원시 송수신을 계속 표시한다. 연결 정보는 통신 파일에, RUN 변화·체결 결과는 기존 설비 로그에 남긴다. 통신 Warning/Error와 오류 요청의 주소·TX/RX는 양쪽 파일과 일반 화면 이력에 남긴다.
 파일은 Serilog의 File/Async sink가 기록하고, `ApplicationLog`는 화면에 표시할 최근 2,000건과 파일 오류만 보관한다. File sink의 실패 리스너로 오류를 화면에 전달한다.
 별도의 파일 쓰기 큐나 로그 호출 래퍼를 만들지 않는다. 기존 `Trace` 메시지는 `ApplicationTraceListener`에서 표준 로거로 연결한다.
 파일 저장 실패는 화면 로그와 `FileError`에 남기며, 파일 저장 실패가 장비 호출로 전파되지 않는다.
@@ -871,7 +871,7 @@ ADC 상태 조회는 연결별 `AdcStatusMonitor`가 소유한다. 최초 연결
 Settings → Connections → ADC의 RUN Status Poll (ms), 기본 100ms는 상태 응답 후 다음 요청까지의 간격이다. 체결 명령은 별도 상태 조회 루프를 만들지 않는다. 준비·리셋·STOP 확인도 기존 모니터에서 명령 후 시작된 새 샘플을 기다린다.
 `AdcStatusMonitor`의 요청 큐가 상태/결과/진단 요청을 한 경로로 실행한다. `AdcBus`는 HComm NuGet 1.2.9.18의 `GetParam`, `GetState`, `SetParam`, `GetInfo`, `GetGraph`를 호출하고 완료 콜백을 기다린다. 포트·패킷·CRC·분할 수신·요청 타임아웃은 HComm이 소유한다. 자체 RTU 수신 파서와 통신 재시도는 제거했다. 상태는 HComm 기본 블록 3300~3313을 읽고 그중 기존 READY/RUN/ALARM 필드를 사용한다. SDK에 수락된 요청은 응답 또는 SDK 타임아웃까지 마친 뒤 취소를 반환해 다음 요청에 이전 응답이 연결되지 않게 한다. SDK 콜백 자체가 3초 동안 끝나지 않으면 연결을 닫아 대기 요청을 해제한다. 동일 포트의 생산/진단 헤드는 모니터를 공유한다.
 
-HComm 연결 시 포트·속도·Slave를 함께 고정한다. RS422 Slave 범위는 SDK에 맞춰 0~15다. `SendReceiveMsg`의 원시 TX/RX와 `ReceivedMsg` 오류 코드, 요청 주소·개수/값을 기존 통신 로그에 함께 기록한다. `0x00`은 SDK 요청 타임아웃, `0xFF`는 SDK CRC 실패이고, 그 외 오류는 컨트롤러 거부 코드로 전달한다. 기존 설정 이름 `ResponseTimeoutMilliseconds`와 `ReadAttempts`는 저장 호환성을 유지하며 준비 확인 대기 시간 계산에만 사용한다. SDK 통신 타임아웃은 1초다.
+HComm 연결 시 포트·속도·Slave를 함께 고정한다. RS422 Slave 범위는 SDK에 맞춰 0~15다. 오류가 발생하면 `SendReceiveMsg`로 수집한 해당 요청의 원시 TX/RX와 `ReceivedMsg` 오류 코드, 요청 주소·개수/값을 함께 기록한다. 정상 반복 송수신은 Debug로 두어 상시 파일에는 기록하지 않는다. `0x00`은 SDK 요청 타임아웃, `0xFF`는 SDK CRC 실패이고, 그 외 오류는 컨트롤러 거부 코드로 전달한다. 기존 설정 이름 `ResponseTimeoutMilliseconds`와 `ReadAttempts`는 저장 호환성을 유지하며 준비 확인 대기 시간 계산에만 사용한다. SDK 통신 타임아웃은 1초다.
 
 ADC 그래프의 통신 규격은 위 토크 그래프 절에 정리했다. `AdcBus`가 HComm의 C8 분할 블록을 조립하고, 기존 ADC 결과 모델과 같은 `FromRegisters` 방식으로 `AdcTorqueCurve`를 만든다. `AdcStatusMonitor`는 변환된 곡선과 체결 결과의 연결만 담당한다. 일반 요청 중 또는 요청이 없는 때에도 그래프 블록을 받는다. Virtual 곡선은 시뮬레이션용이다. 그래프 DB 저장은 추가하지 않았다.
 START 전 이벤트 번호(3200)는 한 번 읽어 이전 결과와 구분한다. START 직전에 모니터 이벤트를 구독하고 이번 START 이후의 RUN ON → OFF를 기다린다. START 직후 RUN OFF만으로 완료로 판단하지 않는다. 알람은 즉시 종료 처리하고, RUN OFF면 전체 결과(3200~3213)를 한 번 읽어 실제 OK/NG/Error를 기록한다. RUN 중 알람이면 START부터 끄고 해당 볼트를 NG로 기록한다.
