@@ -187,17 +187,22 @@ public sealed class AdcProtocolTests
         Assert.Equal(612, curve.StartMilliseconds);
     }
 
-    [Fact]
-    public async Task AdcGraphRequestDrainsEveryBlockBeforeTheNextCommand()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdcGraphRequestDrainsEveryBlockBeforeTheNextCommand(bool cancelAfterFirst)
     {
         using var transport = new HCommTransportStub();
         using var bus = new AdcBus(transport.Communication);
-        var graph = bus.RequestTorqueCurveAsync(0);
+        using var cancellation = new CancellationTokenSource();
+        var graph = bus.RequestTorqueCurveAsync(0, cancellation.Token);
         await transport.NextRequestAsync();
         var first = GraphBlock(3, 1, [1, 0, 1, 1, 2, 10, 100, 90]);
         var middle = GraphBlock(3, 2, [1000, 0, 0, 0, 0, 1, 0, 10]);
         var last = GraphBlock(3, 3, [90]);
         transport.Receive(first);
+        if (cancelAfterFirst)
+            cancellation.Cancel();
         // Starting a new bolt during a refresh must still drain the old graph completely.
         bus.Monitor.BeginTorqueCurveCapture();
         var next = bus.WriteRegisterAsync(0, 4004, 1);
@@ -207,12 +212,35 @@ public sealed class AdcProtocolTests
         Assert.False(next.IsCompleted);
         Assert.Equal(AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [0]), await transport.NextRequestAsync());
         transport.Receive(last);
-        Assert.Equal(first.Concat(middle).Concat(last).ToArray(), await graph);
+        if (cancelAfterFirst)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => graph);
+        else
+            Assert.Equal(first.Concat(middle).Concat(last).ToArray(), await graph);
         Assert.Null(bus.Monitor.TorqueCurveError);
         var write = await transport.NextRequestAsync();
         Assert.Equal((byte)AdcFunctionCode.WriteSingleRegister, write[1]);
         transport.Receive(write);
         await next;
+    }
+
+    [Fact]
+    public async Task AdcGraphRestartDoesNotKeepRequestingTheFirstBlock()
+    {
+        using var transport = new HCommTransportStub();
+        using var bus = new AdcBus(transport.Communication);
+        var graph = bus.RequestTorqueCurveAsync(0);
+        await transport.NextRequestAsync();
+        var first = GraphBlock(2, 1, [1, 0, 1, 1, 2, 10, 100, 90]);
+        transport.Receive(first);
+        await transport.NextRequestAsync();
+        transport.Receive(first);
+        await Assert.ThrowsAsync<InvalidDataException>(() => graph);
+        var write = bus.WriteRegisterAsync(0, 4004, 1);
+        var request = await transport.NextRequestAsync();
+        Assert.Equal((byte)AdcFunctionCode.WriteSingleRegister, request[1]);
+        transport.Receive(request);
+        await write;
+        Assert.True(bus.IsOpen);
     }
 
     [Fact]
