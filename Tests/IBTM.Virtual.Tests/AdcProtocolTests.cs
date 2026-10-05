@@ -352,19 +352,24 @@ public sealed class AdcProtocolTests
         Assert.Equal(500, curve.StartMilliseconds);
     }
 
-    [Fact]
-    public async Task VirtualGraphUsesTheConfiguredThirtyMillisecondSampling()
+    [Theory]
+    [InlineData(AdcTorqueCurveSampling.Milliseconds5, 5, 50)]
+    [InlineData(AdcTorqueCurveSampling.Milliseconds10, 10, 25)]
+    [InlineData(AdcTorqueCurveSampling.Milliseconds15, 15, 17)]
+    [InlineData(AdcTorqueCurveSampling.Milliseconds30, 30, 9)]
+    public async Task VirtualGraphUsesTheConfiguredSampling(
+        AdcTorqueCurveSampling sampling, int sampleMilliseconds, int sampleCount)
     {
         using var bus = new VirtualAdcBus();
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
         AdcTorqueCurve? curve = null;
         bus.Monitor.TorqueCurveReceived += received => curve = received;
-        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None, sampling);
 
         Assert.NotNull(curve);
-        Assert.Equal(30, curve.SampleMilliseconds);
-        Assert.Equal(9, curve.Torques.Length);
+        Assert.Equal(sampleMilliseconds, curve.SampleMilliseconds);
+        Assert.Equal(sampleCount, curve.Torques.Length);
         Assert.Equal(0, curve.StartMilliseconds);
     }
 

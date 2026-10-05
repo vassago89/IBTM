@@ -35,6 +35,7 @@ public sealed class BoltFasteningTests
             SafeZ = 0, PickupPosition = new() { X = 100, Y = 100, Z = 5 },
             PickupHead = new() { FasteningZ = 10 },
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            TorqueCurveSampling = earlierGraphError ? AdcTorqueCurveSampling.Milliseconds10 : AdcTorqueCurveSampling.Milliseconds30,
         };
         var units = new UnitSettings { ShootingBoltFeeder = false };
         var io = new VirtualIoService(Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
@@ -64,7 +65,7 @@ public sealed class BoltFasteningTests
         await station.RunAsync(timeout.Token, selectedBolts: [bolt.Id]);
         Assert.True(work.Completed);
         Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, 4), (4104, 1) }, bus.RegisterWrites);
+        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, (ushort)settings.TorqueCurveSampling), (4104, 1) }, bus.RegisterWrites);
         Assert.True(bus.GraphRequests >= 2);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
         var row = Assert.Single(station.TorqueCurves);
@@ -683,6 +684,7 @@ public sealed class BoltFasteningTests
         Assert.Equal((ushort)1, settings.PickupFinalPreset);
         Assert.True(settings.PickupFinalHeadCycleEnabled);
         Assert.True(settings.MonitorTorqueCurves);
+        Assert.Equal(AdcTorqueCurveSampling.Milliseconds30, settings.TorqueCurveSampling);
         Assert.Equal(1_000, settings.TorqueCurveTimeoutMilliseconds);
         Assert.Equal(3_000, settings.TorqueCurveStopTimeoutMilliseconds);
         Assert.Equal(100, settings.HeadDownDelayMilliseconds);
@@ -695,6 +697,7 @@ public sealed class BoltFasteningTests
         settings.PickupFinalPreset = 3;
         settings.PickupFinalHeadCycleEnabled = false;
         settings.MonitorTorqueCurves = false;
+        settings.TorqueCurveSampling = AdcTorqueCurveSampling.Milliseconds15;
         settings.TorqueCurveTimeoutMilliseconds = 2_000;
         settings.TorqueCurveStopTimeoutMilliseconds = 5_000;
         var store = OpenMachineStore();
@@ -706,6 +709,7 @@ public sealed class BoltFasteningTests
         Assert.Equal(settings.PickupFinalPreset, loaded.PickupFinalPreset);
         Assert.False(loaded.PickupFinalHeadCycleEnabled);
         Assert.False(loaded.MonitorTorqueCurves);
+        Assert.Equal(AdcTorqueCurveSampling.Milliseconds15, loaded.TorqueCurveSampling);
         Assert.Equal(2_000, loaded.TorqueCurveTimeoutMilliseconds);
         Assert.Equal(5_000, loaded.TorqueCurveStopTimeoutMilliseconds);
         Assert.Equal(250, loaded.HeadDownDelayMilliseconds);
