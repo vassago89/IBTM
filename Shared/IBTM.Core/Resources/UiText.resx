@@ -3892,6 +3892,12 @@ COMPLETE: finish</value>
   <data name="request adc graph" xml:space="preserve"><value>Request ADC Graph</value></data>
   <data name="torque (controller unit)" xml:space="preserve"><value>Torque (controller unit)</value></data>
   <data name="curve covers only part of the fastening time" xml:space="preserve"><value>Curve covers only part of the fastening time</value></data>
+  <data name="{0} ms · {1} samples" xml:space="preserve"><value>{0} ms · {1} samples</value></data>
+  <data name="torque curve sampling" xml:space="preserve"><value>Torque curve sampling</value></data>
+  <data name="5 ms · up to 1 s" xml:space="preserve"><value>5 ms · up to 1 s</value></data>
+  <data name="10 ms · up to 2 s" xml:space="preserve"><value>10 ms · up to 2 s</value></data>
+  <data name="15 ms · up to 3 s" xml:space="preserve"><value>15 ms · up to 3 s</value></data>
+  <data name="30 ms · up to 6 s" xml:space="preserve"><value>30 ms · up to 6 s</value></data>
   <data name="sdk completion wait (s)" xml:space="preserve"><value>SDK completion wait (s)</value></data>
   <data name="torque curve result wait (s)" xml:space="preserve"><value>Torque curve result wait (s)</value></data>
   <data name="torque curve stop wait (s)" xml:space="preserve"><value>Torque curve stop wait (s)</value></data>

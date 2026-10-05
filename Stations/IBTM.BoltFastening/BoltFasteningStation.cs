@@ -460,10 +460,12 @@ public sealed class BoltFasteningStation : AutoUnit
                     {
                         if (_units.PickupBoltFeeder && work.Any(item => item.Bolt.Head == FasteningHead.Pickup)
                             && PickupHead.Monitor is { } pickupMonitor)
-                            await pickupMonitor.SetTorqueCurveMonitoringAsync(true, _carrierOperation.Token);
+                            await pickupMonitor.SetTorqueCurveMonitoringAsync(
+                                true, _carrierOperation.Token, _settings.TorqueCurveSampling);
                         if (_units.ShootingBoltFeeder && work.Any(item => item.Bolt.Head == FasteningHead.Shooting)
                             && ShootingHead.Monitor is { } shootingMonitor)
-                            await shootingMonitor.SetTorqueCurveMonitoringAsync(true, _carrierOperation.Token);
+                            await shootingMonitor.SetTorqueCurveMonitoringAsync(
+                                true, _carrierOperation.Token, _settings.TorqueCurveSampling);
                     }
                     NotifyChanged();
                     return true;

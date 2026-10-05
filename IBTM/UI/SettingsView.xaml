@@ -26,6 +26,12 @@
             <sys:UInt16>2</sys:UInt16>
             <sys:UInt16>3</sys:UInt16>
         </x:Array>
+        <x:Array x:Key="TorqueCurveSamplingOptions" Type="{x:Type core:AdcTorqueCurveSampling}">
+            <x:Static Member="core:AdcTorqueCurveSampling.Milliseconds5"/>
+            <x:Static Member="core:AdcTorqueCurveSampling.Milliseconds10"/>
+            <x:Static Member="core:AdcTorqueCurveSampling.Milliseconds15"/>
+            <x:Static Member="core:AdcTorqueCurveSampling.Milliseconds30"/>
+        </x:Array>
         <ui:MillisecondsToSecondsConverter x:Key="MillisecondsToSecondsConverter"/>
         <Style x:Key="SettingFieldLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
@@ -306,6 +312,17 @@
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Margin="0,0,0,8"
                                         Content="{ui:Text 'Collect torque curves'}"
                                         IsChecked="{Binding Settings.BoltFastening.MonitorTorqueCurves, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="180"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Torque curve sampling'}" Style="{StaticResource SettingFieldLabel}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <ComboBox IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Column="1"
+                                            ItemsSource="{StaticResource TorqueCurveSamplingOptions}"
+                                            SelectedItem="{Binding Settings.BoltFastening.TorqueCurveSampling, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

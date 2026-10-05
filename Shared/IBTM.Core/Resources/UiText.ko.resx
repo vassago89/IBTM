@@ -3895,6 +3895,12 @@ Alarm=0·Ready=ON·RUN=OFF이면 진행, 복구 실패 시 설비 정지.</value
   <data name="request adc graph" xml:space="preserve"><value>ADC 그래프 조회</value></data>
   <data name="torque (controller unit)" xml:space="preserve"><value>토크 (컨트롤러 단위)</value></data>
   <data name="curve covers only part of the fastening time" xml:space="preserve"><value>체결 시간 중 일부 구간만 수집됨</value></data>
+  <data name="{0} ms · {1} samples" xml:space="preserve"><value>{0} ms · {1}점</value></data>
+  <data name="torque curve sampling" xml:space="preserve"><value>그래프 수집 간격</value></data>
+  <data name="5 ms · up to 1 s" xml:space="preserve"><value>5 ms · 최대 1초</value></data>
+  <data name="10 ms · up to 2 s" xml:space="preserve"><value>10 ms · 최대 2초</value></data>
+  <data name="15 ms · up to 3 s" xml:space="preserve"><value>15 ms · 최대 3초</value></data>
+  <data name="30 ms · up to 6 s" xml:space="preserve"><value>30 ms · 최대 6초</value></data>
   <data name="sdk completion wait (s)" xml:space="preserve"><value>SDK 완료 대기 (s)</value></data>
   <data name="torque curve result wait (s)" xml:space="preserve"><value>그래프 결과 대기 (s)</value></data>
   <data name="torque curve stop wait (s)" xml:space="preserve"><value>그래프 종료 대기 (s)</value></data>

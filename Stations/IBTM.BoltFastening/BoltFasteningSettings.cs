@@ -14,6 +14,7 @@ public sealed class BoltFasteningSettings : Setting
         PickupHead = new();
         PickupFinalHeadCycleEnabled = true;
         MonitorTorqueCurves = true;
+        TorqueCurveSampling = AdcTorqueCurveSampling.Milliseconds30;
         TorqueCurveTimeoutMilliseconds = 1_000;
         TorqueCurveStopTimeoutMilliseconds = 3_000;
     }
@@ -62,6 +63,16 @@ public sealed class BoltFasteningSettings : Setting
 
     public bool PickupFinalHeadCycleEnabled { get; set; }
     public bool MonitorTorqueCurves { get; set; }
+    public AdcTorqueCurveSampling TorqueCurveSampling
+    {
+        get;
+        set
+        {
+            if (!Enum.IsDefined(value))
+                throw new ArgumentOutOfRangeException(nameof(value));
+            field = value;
+        }
+    }
     public int TorqueCurveTimeoutMilliseconds
     {
         get;

@@ -1,9 +1,23 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Text.Json.Serialization;
 
 namespace IBTM.Core;
+
+[JsonConverter(typeof(JsonStringEnumConverter<AdcTorqueCurveSampling>))]
+public enum AdcTorqueCurveSampling
+{
+    [Description("5 ms · up to 1 s")]
+    Milliseconds5 = 1,
+    [Description("10 ms · up to 2 s")]
+    Milliseconds10 = 2,
+    [Description("15 ms · up to 3 s")]
+    Milliseconds15 = 3,
+    [Description("30 ms · up to 6 s")]
+    Milliseconds30 = 4,
+}
 
 // Decoded torque samples with the fastening result they belong to.
 public sealed record AdcTorqueCurve(

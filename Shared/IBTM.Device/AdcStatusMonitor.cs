@@ -153,8 +153,12 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         return completion.Task;
     }
 
-    public async Task SetTorqueCurveMonitoringAsync(bool enabled, CancellationToken cancellationToken)
+    public async Task SetTorqueCurveMonitoringAsync(
+        bool enabled, CancellationToken cancellationToken,
+        AdcTorqueCurveSampling sampling = AdcTorqueCurveSampling.Milliseconds30)
     {
+        if (!Enum.IsDefined(sampling))
+            throw new ArgumentOutOfRangeException(nameof(sampling));
         await EnqueueAsync(async token =>
         {
             lock (_stateGate)
@@ -165,12 +169,12 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             }
             if (!enabled)
                 return true;
-            // Torque / channel 2 off / 30 ms / fastening.
-            // ADC retains 200 samples: 30 ms covers up to 6 s instead of the last 1 s.
+            // Torque / channel 2 off / selected sampling / fastening.
+            // ADC retains 200 samples: the sampling interval also determines the time window.
             // ADC requests use GetGraph(4200, 1), not the MDC 4100 enable/disable write.
             await _bus.WriteRegisterAsync(SlaveAddress, 4101, 1, token).ConfigureAwait(false);
             await _bus.WriteRegisterAsync(SlaveAddress, 4102, 0, token).ConfigureAwait(false);
-            await _bus.WriteRegisterAsync(SlaveAddress, 4103, 4, token).ConfigureAwait(false);
+            await _bus.WriteRegisterAsync(SlaveAddress, 4103, (ushort)sampling, token).ConfigureAwait(false);
             await _bus.WriteRegisterAsync(SlaveAddress, 4104, 1, token).ConfigureAwait(false);
             await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false);
             return true;
