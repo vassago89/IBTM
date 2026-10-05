@@ -46,5 +46,4 @@ public sealed record AdcTorqueCurve(
             unchecked((ushort)values[5]), values[6] / 100.0, values[7] / 100.0,
             unchecked((ushort)values[13]), unchecked((ushort)values[12]));
     }
-
 }

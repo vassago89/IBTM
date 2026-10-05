@@ -323,6 +323,8 @@ public sealed class AdcProtocolTests
         await transport.NextRequestAsync();
         bus.Close();
         await Assert.ThrowsAsync<IOException>(() => read);
+        await Assert.ThrowsAsync<IOException>(() => bus.ReadRegistersAsync(
+            0, AdcFunctionCode.ReadInputRegisters, (ushort)AdcStatusRegister.Preset, 7));
         Assert.False(bus.IsOpen);
         Assert.Null(bus.Monitor.Sample?.Status);
     }
