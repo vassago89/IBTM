@@ -107,46 +107,46 @@ public partial class OperationViewModel : ObservableObject
         State = state;
         Signals = signals;
         TeachingOutputRow[] placementOutputs = [
-            new(signals.Outputs[OutputIo.PcbPlacementHandlerDown], machine, allowAutoMode: true),
-            new(signals.Outputs[OutputIo.PcbPlacementIpmDown], machine, allowAutoMode: true),
-            new(signals.Outputs[OutputIo.PcbPlacementVacuumEjector], machine, allowAutoMode: true),
+            new(signals.Outputs[OutputIo.PcbPlacementHandlerDown], machine),
+            new(signals.Outputs[OutputIo.PcbPlacementIpmDown], machine),
+            new(signals.Outputs[OutputIo.PcbPlacementVacuumEjector], machine),
         ];
         TeachingOutputRow[] pickupOutputs = [
-            new(signals.Outputs[OutputIo.PickupHeadDown], machine, allowAutoMode: true),
-            new(signals.Outputs[OutputIo.PickupTableDown], machine, allowAutoMode: true),
-            new(signals.Outputs[OutputIo.PickupHeadVacuumPump], machine, allowAutoMode: true),
+            new(signals.Outputs[OutputIo.PickupHeadDown], machine),
+            new(signals.Outputs[OutputIo.PickupTableDown], machine),
+            new(signals.Outputs[OutputIo.PickupHeadVacuumPump], machine),
         ];
         TeachingOutputRow[] shootingOutputs = [
-            new(signals.Outputs[OutputIo.ShootingHeadDown], machine, allowAutoMode: true),
-            new(signals.Outputs[OutputIo.ShootingHeadVacuumPump], machine, allowAutoMode: true),
-            new(signals.Outputs[OutputIo.ShootBolt], machine, allowAutoMode: true),
+            new(signals.Outputs[OutputIo.ShootingHeadDown], machine),
+            new(signals.Outputs[OutputIo.ShootingHeadVacuumPump], machine),
+            new(signals.Outputs[OutputIo.ShootBolt], machine),
         ];
         StartOutputGroups = new Dictionary<StartArea, TeachingOutputRow[]>
         {
             [StartArea.Supply] = [
-                new(signals.Outputs[OutputIo.PcbSupplyGripperClosed], machine, allowAutoMode: true),
-                new(signals.Outputs[OutputIo.PcbSupplyIpmFixerForward], machine, allowAutoMode: true),
-                new(signals.Outputs[OutputIo.PcbSupplyRotate], machine, allowAutoMode: true),
+                new(signals.Outputs[OutputIo.PcbSupplyGripperClosed], machine),
+                new(signals.Outputs[OutputIo.PcbSupplyIpmFixerForward], machine),
+                new(signals.Outputs[OutputIo.PcbSupplyRotate], machine),
             ],
             [StartArea.Placement] = placementOutputs,
             [StartArea.PickupHead] = pickupOutputs,
             [StartArea.ShootingHead] = shootingOutputs,
             [StartArea.Station1] = [
-                new(signals.Outputs[OutputIo.PcbPlacementBackupPlateUp], machine, allowAutoMode: true),
-                new(signals.Outputs[OutputIo.PcbPlacementStopperUp], machine, allowAutoMode: true),
+                new(signals.Outputs[OutputIo.PcbPlacementBackupPlateUp], machine),
+                new(signals.Outputs[OutputIo.PcbPlacementStopperUp], machine),
                 .. placementOutputs,
             ],
             [StartArea.Station2] = [
-                new(signals.Outputs[OutputIo.BoltFasteningBackupPlateUp], machine, allowAutoMode: true),
-                new(signals.Outputs[OutputIo.BoltFasteningStopperUp], machine, allowAutoMode: true),
+                new(signals.Outputs[OutputIo.BoltFasteningBackupPlateUp], machine),
+                new(signals.Outputs[OutputIo.BoltFasteningStopperUp], machine),
                 .. pickupOutputs, .. shootingOutputs,
             ],
             [StartArea.Station3] = [
-                new(signals.Outputs[OutputIo.InspectionBackupPlateUp], machine, allowAutoMode: true),
-                new(signals.Outputs[OutputIo.InspectionStopperUp], machine, allowAutoMode: true),
-                new(signals.Outputs[OutputIo.NgCarrierPickupDown], machine, allowAutoMode: true),
-                new(signals.Outputs[OutputIo.NgCarrierGripperClose], machine, allowAutoMode: true),
-                new(signals.Outputs[OutputIo.NgShuttleDown], machine, allowAutoMode: true),
+                new(signals.Outputs[OutputIo.InspectionBackupPlateUp], machine),
+                new(signals.Outputs[OutputIo.InspectionStopperUp], machine),
+                new(signals.Outputs[OutputIo.NgCarrierPickupDown], machine),
+                new(signals.Outputs[OutputIo.NgCarrierGripperClose], machine),
+                new(signals.Outputs[OutputIo.NgShuttleDown], machine),
             ],
         };
         DoorSensors = [
@@ -877,6 +877,7 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
+            OnPropertyChanged(nameof(Supply));
             OnPropertyChanged(nameof(SupplyPositionKnown));
             OnPropertyChanged(nameof(PcbSupplyMapPosition));
         }
@@ -934,7 +935,7 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is null or nameof(MachineState.StartPreparationEnabled) or nameof(MachineState.FeedbackReadiness))
+        if (e.PropertyName is null or nameof(MachineState.SetupEnabled) or nameof(MachineState.FeedbackReadiness))
             foreach (var row in StartOutputs)
                 row.Refresh();
         if (e.PropertyName is nameof(MachineState.IsRunning) or nameof(MachineState.Available))

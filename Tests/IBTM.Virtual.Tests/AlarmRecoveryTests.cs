@@ -619,7 +619,7 @@ public sealed class AlarmRecoveryTests
             Assert.True(state.AutoMode);
             Assert.False(state.ManualMode);
             Assert.False(view.IsSettingsEditAllowed);
-            Assert.False(state.ManualSetupEnabled);
+            Assert.True(state.SetupEnabled);
             Assert.False(state.AutomaticRunning);
             Assert.True(
                 await VirtualTestSupport.WaitUntilAsync(() => state.AutoMode, TimeSpan.FromSeconds(2)));
@@ -636,7 +636,7 @@ public sealed class AlarmRecoveryTests
             Assert.Null(input.IsOn);
             Assert.False(state.AutoMode);
             Assert.False(state.ManualMode);
-            Assert.False(state.ManualSetupEnabled);
+            Assert.False(state.SetupEnabled);
             Assert.True(view.IsSettingsEditAllowed);
             Assert.False(view.IsTestLightAllowed);
             // Even when safety checks are bypassed, missing selector feedback is not MANUAL.
@@ -682,7 +682,7 @@ public sealed class AlarmRecoveryTests
             io.SetInput(InputIo.AutoMode, true);
             Assert.True(view.IsSettingsEditAllowed);
             Assert.True(view.IsSettingsEditAllowed);
-            Assert.True(state.ManualSetupEnabled);
+            Assert.True(state.SetupEnabled);
             Assert.False(machine.IsStartAllowed);
             Assert.False(machine.IsHomeAllowed);
 
@@ -954,7 +954,7 @@ public sealed class AlarmRecoveryTests
             Assert.False(machine.IsResetAllowed);
             await machine.ResetAsync();
             Assert.Equal(alarm, state.Alarm);
-            Assert.False(state.ManualSetupEnabled);
+            Assert.False(state.SetupEnabled);
 
             if (isDoor)
             {

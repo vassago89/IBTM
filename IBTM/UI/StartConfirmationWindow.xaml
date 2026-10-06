@@ -250,7 +250,7 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                            <StackPanel IsEnabled="{Binding State.StartPreparationEnabled}">
+                            <StackPanel IsEnabled="{Binding State.SetupEnabled}">
                                 <Button x:Name="ReleaseMaterialButton"
                                     Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ReleaseMaterial}"
                                     ToolTip="{ui:Text 'Support the material before releasing its grip. Remove any remaining PCB or bolt, then select RESET.'}"
@@ -273,6 +273,20 @@
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station3}">
                                                     <Setter Property="Content" Value="{ui:Text 'Open NG gripper'}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button x:Name="RotateAndReleaseGripperButton" Content="{ui:Text 'Rotate and release gripper'}"
+                                    Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.RotateAndReleaseGripper}"
+                                    IsEnabled="{Binding Supply.IsRotateAndReleaseAllowed}" Height="40" Margin="0,0,0,8">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Supply}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -813,7 +827,7 @@
                         </Button.Style>
                     </Button>
                     <Button Content="{ui:Text 'All stations to standby'}" Command="{Binding MoveAllToStandbyCommand}"
-                        IsEnabled="{Binding State.StartPreparationEnabled}" Width="180" Height="44" Margin="0,0,8,0"
+                        IsEnabled="{Binding State.SetupEnabled}" Width="180" Height="44" Margin="0,0,8,0"
                         Style="{StaticResource SecondaryButtonStyle}"
                         ToolTip="{ui:Text 'Moves enabled stations in order. Supply waits above PCB 1 at travel Z. HOME is required; held material must be cleared first.'}"
                         ToolTipService.ShowOnDisabled="True"/>

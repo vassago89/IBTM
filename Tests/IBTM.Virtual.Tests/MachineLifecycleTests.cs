@@ -43,7 +43,7 @@ public sealed class MachineLifecycleTests
         try
         {
             io.SetInput(InputIo.AutoMode, false);
-            await WaitUntilAsync(() => state.StartPreparationEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             Assert.False(await machine.PrepareStartAreaAsync(
                 StartArea.Supply, StartPreparationAction.MoveToRotationPosition, default));
             Assert.Equal((0d, 0d, 0d), motion.Position);
@@ -200,7 +200,7 @@ public sealed class MachineLifecycleTests
         {
             io.SetInput(InputIo.AutoMode, false);
             await machine.HomeAsync(default);
-            await WaitUntilAsync(() => state.StartPreparationEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
             var order = new ConcurrentQueue<MotionGroup>();
             foreach (var (group, motion) in motions)
@@ -255,11 +255,11 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             var error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.MoveAllToStandbyAsync(default));
             Assert.Contains("HOME", error.Message);
             await machine.HomeAsync(default);
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             io.SetInput(InputIo.PcbSupplyPcbDetected, true);
             var outputs = new ConcurrentQueue<OutputIo>();
@@ -293,7 +293,7 @@ public sealed class MachineLifecycleTests
         try
         {
             await machine.HomeAsync(default);
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
             io.AutoResponseEnabled = false;
@@ -336,7 +336,7 @@ public sealed class MachineLifecycleTests
         try
         {
             await machine.HomeAsync(default);
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
             io.AutoResponseEnabled = false;
@@ -1376,7 +1376,7 @@ public sealed class MachineLifecycleTests
         await WaitUntilAsync(() => shoot.IsToggleOutputAllowed);
         await shoot.ToggleOutputCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
         Assert.True(io.GetOutput(OutputIo.ShootBolt));
-        Assert.True(state.ManualSetupEnabled);
+        Assert.True(state.SetupEnabled);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
@@ -1400,7 +1400,8 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.AutoMode, false);
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        await WaitUntilAsync(() => !shoot.IsToggleOutputAllowed);
+        await WaitUntilAsync(() => shoot.IsToggleOutputAllowed);
+        Assert.False(teaching.IsJogXAllowed);
     }
 
     [Fact]
@@ -1712,7 +1713,7 @@ public sealed class MachineLifecycleTests
         };
         await diagnostics.StartCommand.ExecuteAsync(null);
         Assert.StartsWith("OK", diagnostics.ResultMessage);
-        Assert.True(services.GetRequiredService<MachineState>().ManualSetupEnabled);
+        Assert.True(services.GetRequiredService<MachineState>().SetupEnabled);
         Assert.True(machine.IsUseAdcProtocolAllowed);
         Assert.False(state.IsRunning);
         Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -1722,7 +1723,7 @@ public sealed class MachineLifecycleTests
         await machine.ResetAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.Equal(StartBlockReason.None, machine.StartBlock);
-        Assert.True(services.GetRequiredService<MachineState>().ManualSetupEnabled);
+        Assert.True(services.GetRequiredService<MachineState>().SetupEnabled);
         Assert.Equal(interruptedEvent + 1, (await bus.ReadFasteningResultAsync(slave)).EventCount);
     }
 
@@ -4232,7 +4233,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             foreach (var cylinder in cylinders)
                 await ((IIoService)io).SetOutputAndWaitAsync(cylinder.Output, false);
             foreach (var (area, output) in cylinders)
@@ -4292,7 +4293,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(output, false);
             io.AutoResponseEnabled = false;
             review.SelectStartAreaCommand.Execute(StartArea.Station3);
@@ -4522,7 +4523,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             io.AutoResponseEnabled = false;
@@ -4568,7 +4569,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             io.AutoResponseEnabled = false;
@@ -4604,7 +4605,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
             var job = placement.Station.CurrentJob;
             var assembly = placement.Station.GetAssembly(HeatSinkSlot.HeatSink1);
@@ -4676,7 +4677,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupHeadDown, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, true);
@@ -4714,7 +4715,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             Assert.False(station.CarrierPresent);
             Assert.True(await machine.PrepareStartAreaAsync(
                 StartArea.Station2, StartPreparationAction.ToggleCarrierSupport, default));
@@ -4748,7 +4749,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             io.AutoResponseEnabled = false;
             io.SetOutput(output, false);
             io.SetInputs((up, conflictingSensors), (down, conflictingSensors));
@@ -4777,7 +4778,7 @@ public sealed class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task StartReviewOutputsAllowAutoWhileTeachingAndRunningOperationsStayBlocked()
+    public async Task StartReviewOutputsAllowAutoWhileRunningOperationsStayBlocked()
     {
         await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
@@ -4786,22 +4787,17 @@ public sealed class MachineLifecycleTests
         var review = services.GetRequiredService<OperationViewModel>();
         var gripper = review.StartOutputGroups[StartArea.Supply]
             .Single(row => row.Io.Signal == OutputIo.PcbSupplyGripperClosed);
-        var teaching = new TeachingOutputRow(gripper.Io, machine);
         await machine.InitializeAsync();
         try
         {
             io.SetInput(InputIo.AutoMode, false);
-            await WaitUntilAsync(() => state.StartPreparationEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             Assert.True(gripper.IsToggleOutputAllowed);
-            Assert.False(teaching.IsToggleOutputAllowed);
-            await teaching.ToggleOutputCommand.ExecuteAsync(null);
-            Assert.False(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
-
             await gripper.ToggleOutputCommand.ExecuteAsync(null);
             Assert.True(io.GetInput(InputIo.PcbSupplyGripperClosed));
 
             state.AutomaticRunning = true;
-            Assert.False(state.StartPreparationEnabled);
+            Assert.False(state.SetupEnabled);
             Assert.False(gripper.IsToggleOutputAllowed);
             await gripper.ToggleOutputCommand.ExecuteAsync(null);
             Assert.False(await machine.PrepareStartAreaAsync(
@@ -4813,7 +4809,7 @@ public sealed class MachineLifecycleTests
             using (var operation = services.GetRequiredService<OperationCancellation>().TryBegin())
             {
                 Assert.NotNull(operation);
-                Assert.False(state.StartPreparationEnabled);
+                Assert.False(state.SetupEnabled);
                 Assert.False(gripper.IsToggleOutputAllowed);
                 await gripper.ToggleOutputCommand.ExecuteAsync(null);
                 Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
@@ -4839,16 +4835,15 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             io.AutoResponseEnabled = false;
             io.SetInput(InputIo.AutoMode, false);
-            Assert.True(state.StartPreparationEnabled);
-            Assert.False(state.ManualSetupEnabled);
+            Assert.True(state.SetupEnabled);
             var releasing = machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.ReleaseMaterial, CancellationToken.None);
             await WaitForOutputAsync(io, OutputIo.PcbSupplyIpmFixerForward, false);
-            Assert.False(state.StartPreparationEnabled);
+            Assert.False(state.SetupEnabled);
             io.SetInput(InputIo.Door1Open, false);
             Assert.False(await releasing.WaitAsync(TimeSpan.FromSeconds(2)));
             Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
@@ -4930,7 +4925,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.SetupEnabled);
             io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
             await placement.Station.SeatAsync(CancellationToken.None);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);

@@ -483,7 +483,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         ReverseCommand.Cancel();
     }
 
-    public bool IsTestBoltHeadAllowed => ProtocolEnabled && _state.ManualSetupEnabled;
+    public bool IsTestBoltHeadAllowed => ProtocolEnabled && _state.SetupEnabled;
 
     public IAsyncRelayCommand ResetAlarmCommand { get; }
 

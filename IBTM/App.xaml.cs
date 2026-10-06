@@ -18,6 +18,7 @@ public partial class App : System.Windows.Application
 {
     private Mutex? _instanceMutex;
     private ServiceProvider? _serviceProvider;
+    private MachineController? _machine;
     private ILogger<App>? _log;
     private ILoggerFactory? _loggerFactory;
     private IDisposable? _camera;
@@ -103,10 +104,11 @@ public partial class App : System.Windows.Application
             new ServiceProviderOptions { ValidateOnBuild = true, });
         _serviceProvider = serviceProvider;
         _camera = serviceProvider.GetRequiredService<ICamera>() as IDisposable;
+        _machine = serviceProvider.GetRequiredService<MachineController>();
 
         try
         {
-            await serviceProvider.GetRequiredService<MachineController>().InitializeAsync();
+            await _machine.InitializeAsync();
         }
         catch (OperationCanceledException)
         {
@@ -142,8 +144,8 @@ public partial class App : System.Windows.Application
         {
             try
             {
-                if (_serviceProvider is { } services)
-                    await services.GetRequiredService<MachineController>().StopAsync();
+                if (_machine is { } machine)
+                    await machine.StopAsync();
             }
             catch (Exception exception)
             {
@@ -171,6 +173,7 @@ public partial class App : System.Windows.Application
             }
 
             _serviceProvider = null;
+            _machine = null;
             _log?.LogInformation("{Message}", _exitCode == 0
                 ? "Application stopped."
                 : "Application exited with shutdown errors. See preceding errors for unconfirmed device cleanup.");
@@ -190,7 +193,7 @@ public partial class App : System.Windows.Application
         try
         {
             // Unexpected application exit still attempts a synchronous hardware STOP.
-            _serviceProvider?.GetService<MachineController>()?.Stop();
+            _machine?.Stop();
         }
         catch (Exception exception)
         {
@@ -238,8 +241,8 @@ public partial class App : System.Windows.Application
         _exitCode = 1;
         try
         {
-            if (_serviceProvider is { } services)
-                await services.GetRequiredService<MachineController>().StopAsync();
+            if (_machine is { } machine)
+                await machine.StopAsync();
         }
         catch (Exception exception)
         {
@@ -258,7 +261,7 @@ public partial class App : System.Windows.Application
             _exitCode = 1;
             try
             {
-                _serviceProvider?.GetService<MachineController>()?.Stop();
+                _machine?.Stop();
             }
             catch (Exception exception)
             {

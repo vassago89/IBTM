@@ -260,9 +260,7 @@ public sealed class MachineState : INotifyPropertyChanged
 
     // Teaching hardware commands and coordinated cylinder preparation. OUTPUTS uses
     // MachineController.ToggleDiagnosticOutput and does not require teaching readiness.
-    public bool ManualSetupEnabled => StartPreparationEnabled && ManualMode;
-
-    public bool StartPreparationEnabled
+    public bool SetupEnabled
     {
         get
         {
@@ -319,8 +317,7 @@ public sealed class MachineState : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new(nameof(Available)));
         PropertyChanged?.Invoke(this, new(nameof(Ready)));
-        PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
-        PropertyChanged?.Invoke(this, new(nameof(StartPreparationEnabled)));
+        PropertyChanged?.Invoke(this, new(nameof(SetupEnabled)));
     }
 
     private void OnFeedbackPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -350,8 +347,7 @@ public sealed class MachineState : INotifyPropertyChanged
         if (e.PropertyName == nameof(MotionStatus.IsMoving))
         {
             PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
-            PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
-            PropertyChanged?.Invoke(this, new(nameof(StartPreparationEnabled)));
+            PropertyChanged?.Invoke(this, new(nameof(SetupEnabled)));
         }
     }
 
@@ -401,8 +397,7 @@ public sealed class MachineState : INotifyPropertyChanged
     {
         Changed?.Invoke();
         PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
-        PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
-        PropertyChanged?.Invoke(this, new(nameof(StartPreparationEnabled)));
+        PropertyChanged?.Invoke(this, new(nameof(SetupEnabled)));
         PropertyChanged?.Invoke(this, new(nameof(SetupEditingEnabled)));
     }
 
@@ -452,8 +447,7 @@ public sealed class MachineState : INotifyPropertyChanged
                     break;
             }
         }
-        PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
-        PropertyChanged?.Invoke(this, new(nameof(StartPreparationEnabled)));
+        PropertyChanged?.Invoke(this, new(nameof(SetupEnabled)));
     }
 
     private void OnOutputChanged(OutputIo output, bool value)

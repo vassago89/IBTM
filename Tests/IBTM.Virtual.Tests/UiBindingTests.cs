@@ -993,7 +993,7 @@ public sealed class UiBindingTests
             Assert.True(navigation.IsNavigateAllowed(AppPage.ManualHardware));
             Assert.True(navigation.IsNavigateAllowed(AppPage.Teaching));
             Assert.True(navigation.IsNavigateAllowed(AppPage.Settings));
-            Assert.False(machineState.ManualSetupEnabled);
+            Assert.False(machineState.SetupEnabled);
             Assert.False(machineState.SetupEditingEnabled);
         }
         finally

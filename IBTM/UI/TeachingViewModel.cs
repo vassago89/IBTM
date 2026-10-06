@@ -112,7 +112,7 @@ public partial class TeachingViewModel : ObservableObject
         RecipeManager recipes,
         MachineStore store,
         InspectionImageLoader images,
-        IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]> teachingIoGroups,
+        IoSignals io,
         ILogger<TeachingViewModel> logger)
     {
         _liveImageUpdate = Task.CompletedTask;
@@ -122,7 +122,40 @@ public partial class TeachingViewModel : ObservableObject
         _settings = settings;
         _liveImageGate = new();
         _viewCancellation = new();
-        _teachingIoGroups = teachingIoGroups;
+        _teachingIoGroups = new Dictionary<HardwareArea, TeachingIoGroup[]>
+        {
+            [HardwareArea.PcbSupply] = [
+                new(settings.PcbSupplyHardware, settings.PcbSupplyHardware.Outputs.Keys,
+                    io, machine),
+            ],
+            [HardwareArea.PcbPlacementHandler] = [
+                new(settings.PcbPlacementStationHardware,
+                    [OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp],
+                    io, machine),
+                new(settings.PcbPlacementHandlerHardware, settings.PcbPlacementHandlerHardware.Outputs.Keys,
+                    io, machine),
+            ],
+            [HardwareArea.BoltFastening] = [
+                new(settings.BoltFasteningStationHardware,
+                    [OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp],
+                    io, machine),
+                new(settings.BoltFasteningHardware, settings.BoltFasteningHardware.Outputs.Keys,
+                    io, machine),
+                new(settings.IoBoltHardware, settings.IoBoltHardware.Outputs.Keys,
+                    io, machine),
+                new(settings.BoltFeederHardware, settings.BoltFeederHardware.Outputs.Keys,
+                    io, machine),
+            ],
+            [HardwareArea.InspectionGantry] = [
+                new(settings.InspectionStationHardware,
+                    [OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp],
+                    io, machine),
+                new(settings.NgCarrierTransferHardware, settings.NgCarrierTransferHardware.Outputs.Keys,
+                    io, machine),
+                new(settings.NgShuttleHardware, settings.NgShuttleHardware.Outputs.Keys,
+                    io, machine),
+            ],
+        };
         foreach (var unit in _teachingIoGroups)
         {
             foreach (var row in unit.Value.SelectMany(group => group.Outputs))

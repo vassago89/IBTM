@@ -445,13 +445,13 @@ public sealed class MachineHomeTests
         await machine.InitializeAsync();
         Assert.True(machine.IsHomeAllowed);
         Assert.False(state.Ready);
-        Assert.True(state.ManualSetupEnabled);
+        Assert.True(state.SetupEnabled);
         io.SetInput(InputIo.AutoMode, false);
-        Assert.False(state.ManualSetupEnabled);
+        Assert.False(state.SetupEnabled);
         io.SetInput(InputIo.AutoMode, true);
         using (services.GetRequiredService<OperationCancellation>().Link())
-            Assert.False(state.ManualSetupEnabled);
-        Assert.True(state.ManualSetupEnabled);
+            Assert.False(state.SetupEnabled);
+        Assert.True(state.SetupEnabled);
         var outputsChanged = 0;
         io.OutputChanged += (_, _) => outputsChanged++;
 
@@ -640,7 +640,7 @@ public sealed class MachineHomeTests
         Assert.True(state.IsRunning);
         Assert.True(state.IsHoming);
         Assert.Equal(MachineDisplayState.Homing, services.GetRequiredService<OperationViewModel>().MachineDisplayState);
-        Assert.False(state.ManualSetupEnabled);
+        Assert.False(state.SetupEnabled);
         Assert.False(machine.IsHomeAllowed);
         await homing;
         await WaitUntilAsync(() => machine.IsHomeAllowed && state.FeedbackReadiness.Homed);
@@ -893,7 +893,7 @@ public sealed class MachineHomeTests
             : machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => placement.Motion.Feedback.IsMoving);
         Assert.False(fastening.Motion.Feedback.IsMoving);
-        Assert.False(state.ManualSetupEnabled);
+        Assert.False(state.SetupEnabled);
         io.SetInput(input, value);
         await homing.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(state.IsHoming);

@@ -2177,7 +2177,7 @@ public sealed class IoStartupTests
         Assert.True(machine.IsResetAllowed);
         Assert.False(machine.IsStartAllowed);
         Assert.False(machine.IsHomeAllowed);
-        Assert.False(state.ManualSetupEnabled);
+        Assert.False(state.SetupEnabled);
         Assert.All(
             services.GetRequiredService<IoSignals>().Outputs.Values,
             output => Assert.Null(output.IsOn));
@@ -2380,7 +2380,7 @@ public sealed class IoStartupTests
         Assert.Null(state.ReadError);
         Assert.False(machine.IsStartAllowed);
         Assert.False(machine.IsHomeAllowed);
-        Assert.False(state.ManualSetupEnabled);
+        Assert.False(state.SetupEnabled);
     }
 
     private static ServiceProvider CreateServices(MachineSettings? settings = null)

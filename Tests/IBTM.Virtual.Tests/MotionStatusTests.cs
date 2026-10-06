@@ -391,7 +391,7 @@ public sealed class MotionStatusTests
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => state.IsRunning && state.SetupEditingEnabled,
                 TimeSpan.FromSeconds(2)));
-            Assert.False(state.ManualSetupEnabled);
+            Assert.False(state.SetupEnabled);
 
             await view.StopCommand.ExecuteAsync(null);
             Assert.Equal(1, diagnostics.Stops);
