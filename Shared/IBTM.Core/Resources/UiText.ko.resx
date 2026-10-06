@@ -3540,9 +3540,6 @@
   <data name="s2 carrier is not detected. check the actual carrier, then select reset." xml:space="preserve">
     <value>S2 캐리어 미감지 · 실물 확인 후 [리셋]</value>
   </data>
-  <data name="after handling the material, select reset to update the start review." xml:space="preserve">
-    <value>남은 소재를 정리한 뒤 [리셋]</value>
-  </data>
   <data name="review unfinished carriers before starting" xml:space="preserve">
     <value>시작 전 미완료 캐리어 확인</value>
   </data>
@@ -3723,8 +3720,8 @@
   <data name="restart preparation" xml:space="preserve">
     <value>재시작 준비</value>
   </data>
-  <data name="support the material before releasing its grip. remove any remaining pcb or bolt, then select reset." xml:space="preserve">
-    <value>소재를 받친 뒤 해제하세요. 남은 PCB·볼트를 제거한 후 리셋하세요.</value>
+  <data name="support the material before releasing its grip." xml:space="preserve">
+    <value>소재를 받친 뒤 해제하세요.</value>
   </data>
   <data name="raises the working cylinders in order without axis motion. material grip is retained." xml:space="preserve">
     <value>실린더만 상승 · 흡착·그리퍼 유지</value>
@@ -3747,8 +3744,8 @@
   <data name="all stations to standby" xml:space="preserve">
     <value>전체 대기 위치 이동</value>
   </data>
-  <data name="moves enabled stations in order. supply waits above pcb 1 at travel z. home is required; held material must be cleared first." xml:space="preserve">
-    <value>원점 복귀·소재 정리 후 순차 이동. 공급기는 PCB 1번 위 이동 Z에서 대기.</value>
+  <data name="home first. fastening vacuum releases automatically. supply waits above pcb 1 at travel height." xml:space="preserve">
+    <value>원점 복귀 후 이동. 체결부 진공은 자동 해제. 공급기는 PCB 1번 위 이동 높이에서 대기.</value>
   </data>
   <data name="stop the machine and home all enabled axes before standby." xml:space="preserve">
     <value>장비 정지·전체 원점 복귀 후 이동하세요.</value>
@@ -3878,4 +3875,6 @@
   <data name="excluded from ng" xml:space="preserve"><value>NG 판정 제외</value></data>
   <data name="recognized" xml:space="preserve"><value>인식</value></data>
   <data name="total turns = sum of all fastening stages" xml:space="preserve"><value>가체결·본체결·추가 체결 회전수 합계</value></data>
+  <data name="release placement vacuum before moving to standby." xml:space="preserve"><value>안착부 진공을 해제한 후 대기 위치로 이동하세요.</value></data>
+  <data name="release placement vacuum before raising the ipm support." xml:space="preserve"><value>안착부 진공을 해제한 후 IPM을 올리세요.</value></data>
 </root>

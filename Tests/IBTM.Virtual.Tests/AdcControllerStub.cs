@@ -4,8 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Device;
 using IBTM.Core;
+using IBTM.Device;
 using IBTM.Virtual;
 
 namespace IBTM.Virtual.Tests;

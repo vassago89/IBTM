@@ -105,15 +105,6 @@ public sealed class MachineStore
         db.Database.ExecuteSql($"DELETE FROM ProductionCounts WHERE RecipeName = {recipeName}");
     }
 
-    public bool HasData
-    {
-        get
-        {
-            using var db = new MachineDbContext(_options);
-            return db.Settings.Any() || db.Recipes.Any();
-        }
-    }
-
     public SavedSettings LoadSettings()
     {
         using var db = new MachineDbContext(_options);

@@ -184,34 +184,6 @@ public sealed class ConveyorStation : INotifyPropertyChanged
         await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
     }
 
-    public async Task WaitForCarrierAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (CarrierPresent)
-            return;
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(_io.TimeoutMilliseconds);
-        var arrived = new AsyncAutoResetEvent();
-        Changed += arrived.Set;
-        try
-        {
-            while (!CarrierPresent)
-                await arrived.WaitAsync(timeout.Token);
-            cancellationToken.ThrowIfCancellationRequested();
-        }
-        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new TimeoutException(
-                $"Carrier arrival requires {_heatSink1} or {HeatSink2Input}=ON "
-                    + $"within {_io.TimeoutMilliseconds} ms.",
-                exception);
-        }
-        finally
-        {
-            Changed -= arrived.Set;
-        }
-    }
-
     private void OnInputChanged(InputIo input, bool value)
     {
         if (input == _backupPlateUp

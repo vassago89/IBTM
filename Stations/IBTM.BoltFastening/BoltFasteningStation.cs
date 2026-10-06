@@ -218,6 +218,9 @@ public sealed class BoltFasteningStation : AutoUnit
         cancellationToken.ThrowIfCancellationRequested();
         var position = StandbyPosition
             ?? throw new InvalidOperationException("Teach the first shooting bolt before moving Fastening to standby.");
+        await SetVacuumAsync(FasteningHead.Pickup, false, cancellationToken);
+        await SetVacuumAsync(FasteningHead.Shooting, false, cancellationToken);
+        await Io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected, false, cancellationToken, requireCurrent: true);
         await RaiseCylindersAsync(cancellationToken);
         await MoveZAsync(0, cancellationToken);
         await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);

@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.Device;
+using IBTM.Tests;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
@@ -59,9 +60,7 @@ public sealed class AjinHomeTests
         public TestCompletion(MachineOptions options)
             : base(
                 new AjinController(new AjinSettings()),
-                new AxisHardware(),
-                null,
-                null,
+                new TestMotionHardware(new(), null, null),
                 new MotionSettings(),
                 options,
                 new OperationCancellation(),

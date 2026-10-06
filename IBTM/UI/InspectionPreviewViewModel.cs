@@ -13,7 +13,7 @@ namespace IBTM.UI;
 // One captured frame, shared by ROI edits and reinspection. Never moves hardware.
 public partial class InspectionPreviewViewModel : ObservableObject
 {
-    [ObservableProperty] public partial Recipe Recipe { get; internal set; }
+    public Recipe Recipe { get; }
     private ImageFrame? _frame;
     private double? _brightRatio;
     private HeatSinkSlot? _dataMatrixHeatSink;

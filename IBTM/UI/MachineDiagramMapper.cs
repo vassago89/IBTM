@@ -16,7 +16,6 @@ public sealed class MachineDiagramMapper
     private readonly PcbSupplySettings _supply;
     private readonly PcbPlacementHandlerSettings _placement;
     private readonly BoltFasteningSettings _fastening;
-    private readonly CarrierReferenceSettings _carrier;
     private readonly NgCarrierTransferSettings _transfer;
     private static readonly Point s_supplyPcb1;
     private static readonly Point s_supplyPcb2;
@@ -59,11 +58,13 @@ public sealed class MachineDiagramMapper
         _supply = supply;
         _placement = placement;
         _fastening = fastening;
-        _carrier = carrier;
+        Carrier = carrier;
         _transfer = transfer;
     }
 
-    public bool SupplyDefined
+    public CarrierReferenceSettings Carrier { get; }
+
+    public bool IsSupplyDefined
     {
         get
         {
@@ -81,7 +82,7 @@ public sealed class MachineDiagramMapper
         }
     }
 
-    public bool PlacementDefined
+    public bool IsPlacementDefined
     {
         get
         {
@@ -98,19 +99,17 @@ public sealed class MachineDiagramMapper
         }
     }
 
-    public bool FasteningDefined
+    public bool IsFasteningDefined
     {
         get
         {
-            return _carrier.IsDefined
+            return Carrier.IsDefined
                 && (CarrierCoordinates.IsDefined(
                         _fastening.ShootingHead.UpperLeftLocatingPin, _fastening.ShootingHead.LowerRightLocatingPin)
                     || CarrierCoordinates.IsDefined(
                         _fastening.PickupHead.UpperLeftLocatingPin, _fastening.PickupHead.LowerRightLocatingPin));
         }
     }
-
-    public bool InspectionDefined => _carrier.IsDefined;
 
     public Point? GetSupplyPosition(MotionPosition current)
     {
@@ -175,7 +174,7 @@ public sealed class MachineDiagramMapper
     public Point? GetInspectionCameraPosition(MotionPosition current)
     {
         // Camera feedback and taught bolt positions must use the same carrier projection.
-        return InspectionDefined && current is { X: { } x, Y: { } y }
+        return Carrier.IsDefined && current is { X: { } x, Y: { } y }
             ? MachineDiagramLayout.Offset(
                 MapCarrier(x, y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight),
                 MachineDiagramLayout.CameraCenter)
@@ -184,7 +183,7 @@ public sealed class MachineDiagramMapper
 
     public Point? GetNgPickupPosition(MotionPosition current)
     {
-        if (!InspectionDefined || current is not { X: { } x, Y: { } y })
+        if (!Carrier.IsDefined || current is not { X: { } x, Y: { } y })
             return null;
         var waiting = _transfer.WaitingPosition;
         var shuttle = _transfer.ShuttlePlacePosition;
@@ -209,7 +208,7 @@ public sealed class MachineDiagramMapper
 
     public Point? GetInspectionTargetPosition(BoltPoint bolt)
     {
-        if (!InspectionDefined || _recipes.Current.FindInspectionImage(bolt.HeatSink, bolt.Id) is null
+        if (!Carrier.IsDefined || _recipes.Current.FindInspectionImage(bolt.HeatSink, bolt.Id) is null
             || bolt.InspectionPosition is not { } center)
             return null;
         var mapped = MapCarrier(center.X, center.Y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight);
@@ -220,13 +219,13 @@ public sealed class MachineDiagramMapper
         double x, double y, FasteningHead head, Point origin)
     {
         var settings = _fastening.GetHead(head);
-        if (!_carrier.IsDefined
+        if (!Carrier.IsDefined
             || !CarrierCoordinates.IsDefined(settings.UpperLeftLocatingPin, settings.LowerRightLocatingPin))
             return null;
         // Project this head's stored or live machine XY back onto the carrier drawing.
         var carrier = CarrierCoordinates.ToMachine(new() { X = x, Y = y },
             settings.UpperLeftLocatingPin!, settings.LowerRightLocatingPin!,
-            _carrier.UpperLeftLocatingPin!, _carrier.LowerRightLocatingPin!);
+            Carrier.UpperLeftLocatingPin!, Carrier.LowerRightLocatingPin!);
         var mapped = MapCarrier(carrier.X, carrier.Y, MachineDiagramLayout.FasteningUpperLeft, MachineDiagramLayout.FasteningLowerRight);
         return MachineDiagramLayout.Offset(mapped, origin);
     }
@@ -234,8 +233,8 @@ public sealed class MachineDiagramMapper
     private Point MapCarrier(double x, double y,
         Point upperLeft, Point lowerRight)
     {
-        var first = _carrier.UpperLeftLocatingPin!;
-        var second = _carrier.LowerRightLocatingPin!;
+        var first = Carrier.UpperLeftLocatingPin!;
+        var second = Carrier.LowerRightLocatingPin!;
         // Locating pins are reference positions, not the outside edges of the carrier.
         // Fit the whole taught carrier, independently of live position, active head and presence sensors.
         var minX = Math.Min(first.X, second.X);
@@ -270,24 +269,13 @@ public sealed class MachineDiagramMapper
             centerY + (first.Y <= second.Y ? -halfHeight : halfHeight));
         var sourceSecond = new Point(centerX + (first.X <= second.X ? halfWidth : -halfWidth),
             centerY + (first.Y <= second.Y ? halfHeight : -halfHeight));
-        return FromTwoPoints(x, y, sourceFirst, sourceSecond, upperLeft, lowerRight);
-    }
-
-    private static Point FromTwoPoints(
-        double x,
-        double y,
-        Point first,
-        Point second,
-        Point targetFirst,
-        Point targetSecond)
-    {
-        var dx = second.X - first.X;
-        var dy = second.Y - first.Y;
-        var tx = targetSecond.X - targetFirst.X;
-        var ty = targetSecond.Y - targetFirst.Y;
+        var dx = sourceSecond.X - sourceFirst.X;
+        var dy = sourceSecond.Y - sourceFirst.Y;
+        var tx = lowerRight.X - upperLeft.X;
+        var ty = lowerRight.Y - upperLeft.Y;
         // Diagonal pins define separate X/Y scales. An axis-aligned pair uses a similarity transform.
         if (dx != 0 && dy != 0)
-            return new Point(targetFirst.X + (x - first.X) * tx / dx, targetFirst.Y + (y - first.Y) * ty / dy);
+            return new Point(upperLeft.X + (x - sourceFirst.X) * tx / dx, upperLeft.Y + (y - sourceFirst.Y) * ty / dy);
 
         var lengthSquared = dx * dx + dy * dy;
         if (lengthSquared == 0)
@@ -295,8 +283,8 @@ public sealed class MachineDiagramMapper
         var a = (tx * dx + ty * dy) / lengthSquared;
         var b = (ty * dx - tx * dy) / lengthSquared;
         return new Point(
-            targetFirst.X + a * (x - first.X) - b * (y - first.Y),
-            targetFirst.Y + b * (x - first.X) + a * (y - first.Y));
+            upperLeft.X + a * (x - sourceFirst.X) - b * (y - sourceFirst.Y),
+            upperLeft.Y + b * (x - sourceFirst.X) + a * (y - sourceFirst.Y));
     }
 
     private static Point FromThreePoints(

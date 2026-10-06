@@ -43,10 +43,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Points = [];
         HistoryImages = [];
         Records = [];
-        RecipeNames = [];
-        SelectedRecipeName = recipes.Current.Name;
-        RefreshRecipesCommand = new AsyncRelayCommand(RefreshRecipesAsync);
-        LoadRecipeCommand = new AsyncRelayCommand(LoadRecipeAsync);
         RefreshImagesCommand = new AsyncRelayCommand(RefreshImagesAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         InspectCommand = new AsyncRelayCommand(InspectAsync);
@@ -56,7 +52,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         DrawRegionCommand = new RelayCommand<Rect>(DrawRegion);
         ClearHistoryFilterCommand = new RelayCommand(ClearHistoryFilter);
         ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
-        _commands = [RefreshRecipesCommand, LoadRecipeCommand, RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
+        _commands = [RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
         HistoryDirectory = history.Directory;
@@ -66,8 +62,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public InspectionPreviewViewModel Preview { get; }
     public ObservableCollection<PcbRecord> Records { get; }
     public IReadOnlyList<PcbRecord> FilteredRecords => Records.Where(MatchesHistoryRecord).ToArray();
-    public IAsyncRelayCommand LoadRecipeCommand { get; }
-    public IAsyncRelayCommand RefreshRecipesCommand { get; }
     public IAsyncRelayCommand RefreshImagesCommand { get; }
     public IAsyncRelayCommand SaveCommand { get; }
     public IAsyncRelayCommand InspectCommand { get; }
@@ -78,12 +72,10 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public IRelayCommand ClearHistoryFilterCommand { get; }
     public IRelayCommand ShowRecipeImageCommand { get; }
 
-    [ObservableProperty] public partial IReadOnlyList<string> RecipeNames { get; private set; }
     [ObservableProperty] public partial InspectionTeachingTab SelectedTab { get; set; }
     [ObservableProperty] public partial DateTime? HistoryDate { get; set; }
     [ObservableProperty] public partial string? HistorySearch { get; set; }
     [ObservableProperty] public partial AssemblyResult? HistoryResult { get; set; }
-    [ObservableProperty] public partial string? SelectedRecipeName { get; set; }
     [ObservableProperty] public partial IReadOnlyList<InspectionPoint> Points { get; private set; }
     [ObservableProperty] public partial InspectionPoint? SelectedPoint { get; set; }
     [ObservableProperty] public partial string? Error { get; private set; }
@@ -107,10 +99,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public bool IsIdle => !_shuttingDown && !IsBusy;
     public bool IsDataMatrixSelected => SelectedPoint?.IsDataMatrix == true;
 
-    public string? OriginalResult
-    {
-        get => OriginalImage is { } saved ? UiText.Format($"Recorded {saved.Verdict} · {saved.Details}") : null;
-    }
+    public string? OriginalResult => OriginalImage is { } saved ? UiText.Format($"Recorded {saved.Verdict} · {saved.Details}") : null;
 
     public DataMatrixInspectionRecipe? DataMatrix
     {
@@ -123,63 +112,18 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private void OnRecipeChanged()
     {
-        if (_shuttingDown)
+        if (_shuttingDown || !IsLoaded && !RefreshImagesCommand.IsRunning)
             return;
-        if (!ReferenceEquals(Preview.Recipe, _recipes.Current)
-            && !MachineStore.IsSameRecipeName(Preview.Recipe.Name, _recipes.Current.Name))
-            return;
-        SelectedRecipeName = _recipes.Current.Name;
-        if (!IsLoaded && !LoadRecipeCommand.IsRunning
-            && !RefreshRecipesCommand.IsRunning && !RefreshImagesCommand.IsRunning)
-            return;
-        // Current keeps its identity when a recipe changes. Even the first image load
-        // must be replaced before its old pixels can be paired with the new metadata.
-        var refreshList = RefreshRecipesCommand.IsRunning;
-        LoadRecipeCommand.Cancel();
+        // Drain the old image load before shutdown; cancelled pixels cannot be published.
         RefreshImagesCommand.Cancel();
         InspectCommand.Cancel();
-        if (refreshList)
-            _ = RefreshRecipesCommand.ExecuteAsync(null);
-        else
-            _ = RefreshImagesCommand.ExecuteAsync(null);
+        _ = RefreshImagesCommand.ExecuteAsync(null);
     }
 
     public void Activate()
     {
         if (IsIdle)
-            _ = RefreshRecipesCommand.ExecuteAsync(null);
-    }
-
-    private async Task RefreshRecipesAsync(CancellationToken token)
-    {
-        var previous = RefreshRecipesCommand.ExecutionTask;
-        try
-        {
-            var names = await Task.Run(() => _store.RecipeNames, token);
-            if (_shuttingDown || token.IsCancellationRequested)
-                return;
-            var selectedName = SelectedRecipeName;
-            RecipeNames = names;
-            // ComboBox item matching is case-sensitive even though recipe identity is not.
-            SelectedRecipeName = RecipeNames.FirstOrDefault(name => MachineStore.IsSameRecipeName(name, selectedName))
-                ?? selectedName;
-            if (IsLoaded)
-                await LoadRecipeImagesAsync(Preview.Recipe.Name, preserveSelection: true, token);
-            else if (RecipeNames.Any(name => MachineStore.IsSameRecipeName(name, SelectedRecipeName)))
-                await LoadRecipeImagesAsync(SelectedRecipeName, preserveSelection: false, token);
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception exception)
-        {
-            if (!token.IsCancellationRequested)
-                Error = exception.Message;
-            _log.LogError(exception, "Inspection teaching recipe list failed.");
-        }
-        finally
-        {
-            if (previous is { IsCompleted: false })
-                await previous;
-        }
+            _ = RefreshImagesCommand.ExecuteAsync(null);
     }
 
     public Task ShutdownAsync()
@@ -202,48 +146,25 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
     }
 
-    private Task LoadRecipeAsync(CancellationToken token)
-    {
-        return LoadRecipeImagesAsync(SelectedRecipeName, preserveSelection: false, token);
-    }
-
     private async Task RefreshImagesAsync(CancellationToken token)
     {
         var previous = RefreshImagesCommand.ExecutionTask;
-        try
-        {
-            await LoadRecipeImagesAsync(Preview.Recipe.Name, preserveSelection: true, token);
-        }
-        finally
-        {
-            if (previous is { IsCompleted: false })
-                await previous;
-        }
-    }
-
-    private async Task LoadRecipeImagesAsync(string? name, bool preserveSelection, CancellationToken token)
-    {
+        var recipe = _recipes.Current;
         Error = null;
         Message = null;
-        if (_shuttingDown || string.IsNullOrWhiteSpace(name))
-            return;
         try
         {
-            var recipe = MachineStore.IsSameRecipeName(_recipes.Current.Name, name)
-                ? _recipes.Current
-                : preserveSelection && IsLoaded && MachineStore.IsSameRecipeName(Preview.Recipe.Name, name)
-                    ? Preview.Recipe
-                    : await Task.Run(() => _store.LoadRecipe(name), token);
+            if (_shuttingDown)
+                return;
             var images = await _images.LoadRecipeAsync(recipe, token);
             if (_shuttingDown || token.IsCancellationRequested)
                 return;
             var selected = SelectedPoint;
             SelectedPoint = null;
-            Preview.Recipe = recipe;
             _carrierImages = images;
             Points = Enum.GetValues<HeatSinkSlot>().SelectMany(pcb => InspectionPoint.ForPcb(Preview.Recipe, pcb)).ToArray();
             IsLoaded = true;
-            SelectedPoint = (preserveSelection && selected is not null
+            SelectedPoint = (selected is not null
                 ? Points.FirstOrDefault(point => point.HeatSink == selected.HeatSink
                     && point.IsDataMatrix == selected.IsDataMatrix && point.Bolt?.Id == selected.Bolt?.Id)
                 : null) ?? Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
@@ -261,7 +182,12 @@ public partial class InspectionTeachingViewModel : ObservableObject
         {
             if (!token.IsCancellationRequested)
                 Error = exception.Message;
-            _log.LogError(exception, "Inspection teaching load failed for {Recipe}.", name);
+            _log.LogError(exception, "Inspection teaching load failed for {Recipe}.", recipe.Name);
+        }
+        finally
+        {
+            if (previous is { IsCompleted: false })
+                await previous;
         }
     }
 
@@ -338,8 +264,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             return;
         var region = PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight, (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
         metadata.Region = region;
-        if (ReferenceEquals(Preview.Recipe, _recipes.Current))
-            _recipes.NotifyInspectionChanged();
+        _recipes.NotifyInspectionChanged();
         Preview.SetSavedImage(image, region);
         Message = UiText.Get("ROI changed · not saved");
     }

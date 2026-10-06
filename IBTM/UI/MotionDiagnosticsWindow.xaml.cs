@@ -1,7 +1,7 @@
-using IBTM.Core;
 using System;
 using System.ComponentModel;
 using System.Windows;
+using IBTM.Core;
 
 namespace IBTM.UI;
 

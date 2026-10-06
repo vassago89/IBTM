@@ -12,6 +12,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.Virtual;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
@@ -1756,11 +1757,23 @@ public sealed class AdcBoltHeadTests
     [Fact]
     public async Task SeparatePortsWithSameSlaveNeverMixHeads()
     {
-        var io = new VirtualIoService(VirtualTestSupport.Outputs(), new());
-        using var pickupBus = new VirtualAdcBus(io, FasteningHead.Pickup, 1);
-        using var shootingBus = new VirtualAdcBus(io, FasteningHead.Shooting, 1);
-        var pickup = new AdcBoltHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Pickup", 115200);
-        var shooting = new AdcBoltHead(shootingBus, io, FasteningHead.Shooting, new(), 1, "Shooting", 115200);
+        var settings = new MachineSettings();
+        settings.Hantas.PickupPortName = "Pickup";
+        settings.Hantas.ShootingPortName = "Shooting";
+        settings.Hantas.PickupSlaveAddress = 1;
+        settings.Hantas.ShootingSlaveAddress = 1;
+        settings.Hantas.ShootingBaudRate = 57600;
+        await using var services = MachineTestSupport.CreateServices(settings);
+        var pickupBus = (VirtualAdcBus)services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup);
+        var shootingBus = (VirtualAdcBus)services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting);
+        var pickup = services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup);
+        var shooting = services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting);
+        Assert.Same(pickupBus.Monitor, pickup.Monitor);
+        Assert.Same(shootingBus.Monitor, shooting.Monitor);
+        // Editing the settings cannot change an existing head's port or slave.
+        settings.Hantas.PickupPortName = "NextPickup";
+        settings.Hantas.PickupSlaveAddress = 2;
+        settings.Hantas.ShootingBaudRate = 19200;
         pickupBus.SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
         await pickup.SelectPresetAsync(1);
         await shooting.SelectPresetAsync(1);
@@ -1769,5 +1782,7 @@ public sealed class AdcBoltHeadTests
         Assert.Equal("Pickup", results[0].Controller!.Port);
         Assert.True(results[1].Success);
         Assert.Equal("Shooting", results[1].Controller!.Port);
+        Assert.Equal(115200, pickupBus.BaudRate);
+        Assert.Equal(57600, shootingBus.BaudRate);
     }
 }

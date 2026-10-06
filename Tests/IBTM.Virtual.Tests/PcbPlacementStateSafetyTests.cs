@@ -99,13 +99,15 @@ public sealed class PcbPlacementStateSafetyTests
     }
 
     [Fact]
-    public async Task StartReachesStandbyAtHeatSinkYWithoutWaitingForSupply()
+    public async Task StartReachesStandbyWithPcbDetectedWithoutVacuumOrSupply()
     {
         using var rig = new PlacementRig();
         await rig.InitializeAsync();
         await rig.Placer.MoveAxisAsync(MotionAxis.Y, rig.Settings.HandoffPosition.Y);
         await rig.Placer.MoveAxisAsync(MotionAxis.Z, rig.Settings.ReceiveZ!.Value);
         rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+        rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        Assert.False(rig.Io.GetInput(InputIo.PcbPlacementVacuumDetected));
         var horizontalBeforeStandbyZ = false;
         rig.Motion.PositionChanged += (x, y, z) =>
             horizontalBeforeStandbyZ |= (x != 0 || y != rig.Settings.HandoffPosition.Y)
@@ -130,6 +132,7 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.Equal(rig.Position.Y, rig.Motion.Position.Y);
         Assert.Equal(StationCylinderState.Up, rig.Placer.Lift);
         Assert.Equal(StationCylinderState.Up, rig.Placer.IpmLift);
+        Assert.Equal(PlacementPcbState.Detected, rig.Placer.Pcb);
         Assert.False(rig.Work.Completed);
         Assert.Empty(rig.Work.Assemblies);
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);

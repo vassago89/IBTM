@@ -10,6 +10,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbSupply;
+using IBTM.Tests;
 using IBTM.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -481,9 +482,7 @@ public sealed class MotionStatusTests
         public StatusMotion()
             : base(
                 new AjinController(new AjinSettings()),
-                new AxisHardware(),
-                null,
-                null,
+                new TestMotionHardware(new(), null, null),
                 new MotionSettings(),
                 new MachineOptions(),
                 new OperationCancellation(),

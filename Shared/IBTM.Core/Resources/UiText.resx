@@ -3542,9 +3542,6 @@ COMPLETE: finish</value>
   <data name="s2 carrier is not detected. check the actual carrier, then select reset." xml:space="preserve">
     <value>S2 carrier is not detected. Check the actual carrier, then select RESET.</value>
   </data>
-  <data name="after handling the material, select reset to update the start review." xml:space="preserve">
-    <value>After handling the material, select RESET to update the start review.</value>
-  </data>
   <data name="review unfinished carriers before starting" xml:space="preserve">
     <value>Review unfinished carriers before starting</value>
   </data>
@@ -3725,8 +3722,8 @@ COMPLETE: finish</value>
   <data name="restart preparation" xml:space="preserve">
     <value>Restart preparation</value>
   </data>
-  <data name="support the material before releasing its grip. remove any remaining pcb or bolt, then select reset." xml:space="preserve">
-    <value>Support the material before release. Clear remaining PCB or bolts, then RESET.</value>
+  <data name="support the material before releasing its grip." xml:space="preserve">
+    <value>Support the material before releasing its grip.</value>
   </data>
   <data name="raises the working cylinders in order without axis motion. material grip is retained." xml:space="preserve">
     <value>Raise cylinders only; keep vacuum and grip.</value>
@@ -3749,8 +3746,8 @@ COMPLETE: finish</value>
   <data name="all stations to standby" xml:space="preserve">
     <value>All stations to standby</value>
   </data>
-  <data name="moves enabled stations in order. supply waits above pcb 1 at travel z. home is required; held material must be cleared first." xml:space="preserve">
-    <value>HOME and clear held material before moving. Supply waits above PCB 1 at travel Z.</value>
+  <data name="home first. fastening vacuum releases automatically. supply waits above pcb 1 at travel height." xml:space="preserve">
+    <value>HOME first. Fastening vacuum releases automatically. Supply waits above PCB 1 at travel height.</value>
   </data>
   <data name="stop the machine and home all enabled axes before standby." xml:space="preserve">
     <value>Stop and HOME all enabled axes before standby.</value>
@@ -3880,4 +3877,6 @@ COMPLETE: finish</value>
   <data name="excluded from ng" xml:space="preserve"><value>Excluded from NG</value></data>
   <data name="recognized" xml:space="preserve"><value>Recognized</value></data>
   <data name="total turns = sum of all fastening stages" xml:space="preserve"><value>Sum of turns across preliminary, final and retightening passes</value></data>
+  <data name="release placement vacuum before moving to standby." xml:space="preserve"><value>Release Placement vacuum before moving to standby.</value></data>
+  <data name="release placement vacuum before raising the ipm support." xml:space="preserve"><value>Release Placement vacuum before raising the IPM support.</value></data>
 </root>

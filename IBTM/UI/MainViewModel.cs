@@ -132,10 +132,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     // Menu access follows the mode selector; device commands keep their own run interlocks.
-    public bool IsMaintenanceAccessAllowed
-    {
-        get => !_shuttingDown && !IsClosing && !_state.AutoMode;
-    }
+    public bool IsMaintenanceAccessAllowed => !_shuttingDown && !IsClosing && !_state.AutoMode;
 
     public bool CurrentPageEnabled
     {

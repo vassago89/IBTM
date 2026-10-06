@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Test the production controller without compiling or loading any native SDK declarations. -->
+    <Compile Include="../TestMotionHardware.cs" Link="TestMotionHardware.cs" />
     <Compile Include="../../Hardware/IBTM.Ajin/AjinController.cs" Link="Driver/AjinController.cs" />
     <Compile Include="../../Hardware/IBTM.Ajin/AjinMotionService.cs" Link="Driver/AjinMotionService.cs" />
     <Compile Include="../../Hardware/IBTM.Ajin/AjinSettings.cs" Link="Driver/AjinSettings.cs" />

@@ -14,11 +14,11 @@ using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
 using IBTM.UI;
-using static IBTM.Virtual.Tests.MachineTestSupport;
-using static IBTM.Virtual.Tests.VirtualTestSupport;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using static IBTM.Virtual.Tests.MachineTestSupport;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -770,7 +770,7 @@ public sealed class TeachingTests
             MotionGroup.PcbPlacementHandler => HardwareArea.PcbPlacementHandler,
             _ => HardwareArea.InspectionGantry,
         };
-        IMotionFeedback feedback = group switch
+        var feedback = group switch
         {
             MotionGroup.PcbSupply => services.GetRequiredService<PcbSupplier>().Motion.Feedback,
             MotionGroup.PcbPlacementHandler => services.GetRequiredService<PcbPlacer>().Motion.Feedback,
@@ -972,8 +972,7 @@ public sealed class TeachingTests
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         var original = RecordedImage(teaching)!;
         var editor = services.GetRequiredService<InspectionTeachingViewModel>();
-        editor.SelectedRecipeName = teaching.RecipeEditor.ActiveName;
-        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        await editor.RefreshImagesCommand.ExecuteAsync(null);
         editor.SelectedPoint = editor.Points.Single(point => point.HeatSink == teaching.SelectedPcb
             && point.Bolt?.Id == teaching.SelectedPoint!.Position.Bolt?.Id);
         var previousEditorImage = editor.Preview.Image;
@@ -1003,7 +1002,7 @@ public sealed class TeachingTests
         Assert.Same(captured.Image, teaching.CameraImage);
 
         editor.Activate();
-        await editor.RefreshRecipesCommand.ExecutionTask!;
+        await editor.RefreshImagesCommand.ExecutionTask!;
         Assert.Null(editor.Error);
         Assert.NotSame(previousEditorImage, editor.Preview.Image);
         var loaded = Assert.Single(editor.Points, point => point.Metadata is not null);
@@ -2336,7 +2335,7 @@ public sealed class TeachingTests
 
         await gantry.RaiseCylindersAsync();
         await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
-        MotionCommand positioning = MotionCommand.None;
+        var positioning = MotionCommand.None;
         gantry.Motion.Feedback.MovingChanged += moving =>
         {
             if (moving)

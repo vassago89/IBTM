@@ -676,11 +676,9 @@ public sealed class AlarmRecoveryTests
             Assert.False(state.IsRunning);
             Assert.True(state.AutoMode);
             Assert.False(view.IsSettingsEditAllowed);
-            Assert.False(view.IsSettingsEditAllowed);
-            Assert.False(services.GetRequiredService<MachineStore>().HasData);
+            VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
 
             io.SetInput(InputIo.AutoMode, true);
-            Assert.True(view.IsSettingsEditAllowed);
             Assert.True(view.IsSettingsEditAllowed);
             Assert.True(state.SetupEnabled);
             Assert.False(machine.IsStartAllowed);
@@ -712,11 +710,11 @@ public sealed class AlarmRecoveryTests
             motion.HorizontalSpeed = 0;
             await view.SaveSettingsCommand.ExecuteAsync(null);
             Assert.Contains(nameof(motion.HorizontalSpeed), view.DatabaseMessage);
-            Assert.False(services.GetRequiredService<MachineStore>().HasData);
+            VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
             motion.HorizontalSpeed = double.NaN;
             await view.SaveSettingsCommand.ExecuteAsync(null);
             Assert.StartsWith("Settings not saved:", view.DatabaseMessage);
-            Assert.False(services.GetRequiredService<MachineStore>().HasData);
+            VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
             Assert.True(view.IsSettingsEditAllowed);
 
             motion.HorizontalSpeed = speed;
@@ -724,16 +722,16 @@ public sealed class AlarmRecoveryTests
             view.Settings.Hantas.FasteningTimeoutMilliseconds = -1;
             await view.SaveSettingsCommand.ExecuteAsync(null);
             Assert.Contains("Fastening timeout", view.DatabaseMessage);
-            Assert.False(services.GetRequiredService<MachineStore>().HasData);
+            VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
             view.Settings.Hantas.FasteningTimeoutMilliseconds = fasteningTimeout;
             var responseTimeout = view.Settings.Hantas.ResponseTimeoutMilliseconds;
             view.Settings.Hantas.ResponseTimeoutMilliseconds = -1;
             await view.SaveSettingsCommand.ExecuteAsync(null);
-            Assert.Contains("ADC response timeout", view.DatabaseMessage);
-            Assert.False(services.GetRequiredService<MachineStore>().HasData);
+            Assert.Contains("ADC readiness base wait", view.DatabaseMessage);
+            VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
             view.Settings.Hantas.ResponseTimeoutMilliseconds = responseTimeout;
             await view.SaveSettingsCommand.ExecuteAsync(null);
-            Assert.StartsWith("Settings saved.", view.DatabaseMessage);
+            Assert.Equal(UiText.Get("Settings saved."), view.DatabaseMessage);
             Assert.Equal(
                 3,
                 services.GetRequiredService<MachineStore>()
@@ -801,7 +799,7 @@ public sealed class AlarmRecoveryTests
             }
 
             await saving.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.StartsWith("Settings saved.", view.DatabaseMessage);
+            Assert.Equal(UiText.Get("Settings saved."), view.DatabaseMessage);
             Assert.True(view.IsSettingsEditAllowed);
             var loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
             Assert.Equal(57, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
@@ -831,10 +829,8 @@ public sealed class AlarmRecoveryTests
             using (services.GetRequiredService<OperationCancellation>().Link())
             {
                 Assert.False(view.IsSettingsEditAllowed);
-                Assert.False(view.IsSettingsEditAllowed);
             }
 
-            Assert.True(view.IsSettingsEditAllowed);
             Assert.True(view.IsSettingsEditAllowed);
         }
         finally
@@ -842,7 +838,6 @@ public sealed class AlarmRecoveryTests
             await machine.ShutdownAsync();
         }
 
-        Assert.False(view.IsSettingsEditAllowed);
         Assert.False(view.IsSettingsEditAllowed);
     }
 

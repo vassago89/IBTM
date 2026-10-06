@@ -91,7 +91,6 @@ public sealed class MachineController : INotifyPropertyChanged
         _resetGate = new();
         _resetTask = Task.CompletedTask;
         _indicatorNotifications = new();
-        StartChecks = Enum.GetValues<StartArea>().ToDictionary(area => area, area => StartCheckState.NotChecked);
 
         _state = state;
         _feedback = feedback;
@@ -265,8 +264,8 @@ public sealed class MachineController : INotifyPropertyChanged
         var readinessChanged = e.PropertyName is null or nameof(MachineState.Ready)
             or nameof(MachineState.SafetyReady) or nameof(MachineState.DoorInterlockReady)
             or nameof(MachineState.Alarm);
-        if (readinessChanged)
-            PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
+        if (readinessChanged || e.PropertyName == nameof(MachineState.SetupEnabled))
+            CheckStartMaterials();
         if (readinessChanged || e.PropertyName == nameof(MachineState.IsRunning))
         {
             PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
@@ -613,7 +612,6 @@ public sealed class MachineController : INotifyPropertyChanged
         }
     }
 
-    // Keep START available to recheck material after the operator removes it.
     public bool IsStartAllowed => _state.Available
         && IsStartAllowedFor(GetStartBlock(_state.FeedbackReadiness), _state.IsRunning);
 
@@ -624,19 +622,11 @@ public sealed class MachineController : INotifyPropertyChanged
             var block = GetStartBlock(_state.FeedbackReadiness);
             if (block != StartBlockReason.None)
                 return block;
-            if (StartChecks.Values.Contains(StartCheckState.Unknown))
-                return StartBlockReason.IoUnavailable;
-            if (StartChecks.Values.Contains(StartCheckState.MaterialRemaining))
-                return StartBlockReason.MaterialRemaining;
-            return StartChecks.Values.Contains(StartCheckState.UnfinishedCarrier)
-                ? StartBlockReason.UnfinishedCarrier : StartBlockReason.None;
+            return GetStartMaterialBlock();
         }
     }
 
-    // Last explicit check only. Sensor edges do not clear blocked work.
-    public IReadOnlyDictionary<StartArea, StartCheckState> StartChecks { get; private set; }
-
-    private IReadOnlyDictionary<StartArea, StartCheckState> CurrentStartMaterials
+    public IReadOnlyDictionary<StartArea, StartCheckState> StartChecks
     {
         get
         {
@@ -661,14 +651,11 @@ public sealed class MachineController : INotifyPropertyChanged
                             ? StartCheckState.Empty
                             : _pcbSupply.IsHandoffRestartAllowed
                                 ? StartCheckState.HandoffReady : StartCheckState.MaterialRemaining,
-                        StartArea.Placement => _io.GetInput(InputIo.PcbPlacementPcbDetected)
-                            || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
-                                ? StartCheckState.MaterialRemaining : StartCheckState.Empty,
-                        StartArea.PickupHead => _io.GetInput(InputIo.PickupHeadVacuumDetected)
+                        StartArea.Placement => _io.GetInput(InputIo.PcbPlacementVacuumDetected)
                             ? StartCheckState.MaterialRemaining : StartCheckState.Empty,
+                        StartArea.PickupHead => StartCheckState.Ready,
                         StartArea.ShootingHead => _io.GetInput(InputIo.ShootingHeadVacuumDetected)
-                            || _io.GetInput(InputIo.ShootingTubeBoltDetected)
-                                ? StartCheckState.MaterialRemaining : StartCheckState.Empty,
+                            ? StartCheckState.MaterialRemaining : StartCheckState.Empty,
                         StartArea.Station1 => !_pcbPlacement.Station.CarrierPresent ? StartCheckState.Empty
                             : _pcbPlacement.Station.Completed ? StartCheckState.Completed
                             : _pcbPlacement.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier,
@@ -687,9 +674,25 @@ public sealed class MachineController : INotifyPropertyChanged
 
     public void CheckStartMaterials()
     {
-        StartChecks = CurrentStartMaterials;
         PropertyChanged?.Invoke(this, new(nameof(StartChecks)));
         PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
+    }
+
+    public StartBlockReason GetStartMaterialBlock(
+        ConveyorStation.Job? resumeFastening = null, ConveyorStation.Job? resumePlacement = null)
+    {
+        var checks = StartChecks;
+        if (checks.Values.Contains(StartCheckState.Unknown))
+            return StartBlockReason.IoUnavailable;
+        if (checks.Values.Contains(StartCheckState.MaterialRemaining))
+            return StartBlockReason.MaterialRemaining;
+        if (resumeFastening is not null && !IsFasteningResumeAllowed(resumeFastening)
+            || resumePlacement is not null && !IsPlacementResumeAllowed(resumePlacement)
+            || checks.Any(check => check.Value == StartCheckState.UnfinishedCarrier
+                && !(check.Key == StartArea.Station2 && resumeFastening is not null)
+                && !(check.Key == StartArea.Station1 && resumePlacement is not null)))
+            return StartBlockReason.UnfinishedCarrier;
+        return StartBlockReason.None;
     }
 
     public bool IsPlacementResumeAllowed(ConveyorStation.Job job)
@@ -810,17 +813,10 @@ public sealed class MachineController : INotifyPropertyChanged
                 operation.Token.ThrowIfCancellationRequested();
 
                 CheckStartMaterials();
-                if (resumeFastening is not null && !IsFasteningResumeAllowed(resumeFastening))
-                    return;
-                if (resumePlacement is not null && !IsPlacementResumeAllowed(resumePlacement))
+                if (GetStartMaterialBlock(resumeFastening, resumePlacement) != StartBlockReason.None)
                     return;
                 var placementTargets = resumePlacement is null ? null
                     : Enum.GetValues<HeatSinkSlot>().Where(_pcbPlacement.Station.IsHeatSinkPresent).ToArray();
-                if (StartChecks.Any(check => check.Value is StartCheckState.Unknown or StartCheckState.MaterialRemaining
-                    || check.Value == StartCheckState.UnfinishedCarrier
-                        && !(check.Key == StartArea.Station2 && resumeFastening is not null)
-                        && !(check.Key == StartArea.Station1 && resumePlacement is not null)))
-                    return;
 
                 if (resumePlacement is not null)
                     _log?.LogInformation("Operator confirmed placement resume: job={Job}, completed={Targets}.",
@@ -1146,8 +1142,7 @@ public sealed class MachineController : INotifyPropertyChanged
                     or NgConveyorState.WaitingForShuttleDown or NgConveyorState.WaitingForShuttleUp
                     or NgConveyorState.WaitingForEjectConfirmation or NgConveyorState.ReadyToEject or NgConveyorState.Full))
                 {
-                    // Use START's material rules without updating its explicit operator check.
-                    var ready = CurrentStartMaterials.All(check => check.Value switch
+                    var ready = StartChecks.All(check => check.Value switch
                     {
                         StartCheckState.Unknown => false,
                         StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier => check.Key switch
@@ -2165,7 +2160,7 @@ public sealed class MachineController : INotifyPropertyChanged
 
             _state.Changed += StopWhenUnavailable;
             _io.OutputChanged += OnOutputChanged;
-            Task motorRun = Task.CompletedTask;
+            var motorRun = Task.CompletedTask;
             try
             {
                 StopWhenUnavailable();
@@ -2340,13 +2335,8 @@ public sealed class MachineController : INotifyPropertyChanged
             if (_units.PcbSupply && _pcbSupply.Pcb != PcbSupplyPcbState.None
                 && _pcbSupply.Gripper != PcbSupplyCylinderState.Backward)
                 return "Supply is holding a PCB. Support and release it before moving all stations to standby.";
-            if (_units.PcbPlacement && (_io.GetInput(InputIo.PcbPlacementPcbDetected)
-                || _io.GetInput(InputIo.PcbPlacementVacuumDetected)))
-                return "Clear the Placement PCB and vacuum before starting a new run.";
-            if (_units.BoltFastening && (_io.GetInput(InputIo.PickupHeadVacuumDetected)
-                || _io.GetInput(InputIo.ShootingHeadVacuumDetected)
-                || _io.GetInput(InputIo.ShootingTubeBoltDetected)))
-                return "Remove the head bolts and release vacuum before moving all stations to standby.";
+            if (_units.PcbPlacement && _io.GetInput(InputIo.PcbPlacementVacuumDetected))
+                return "Release Placement vacuum before moving to standby.";
             if (_units.Inspection && (_inspectionStation.IsTransferPending
                 || _inspectionStation.Gripper != NgTransferGripperState.Open))
                 return "Finish or release the NG carrier transfer and confirm the gripper is open before standby.";
@@ -2478,10 +2468,10 @@ public sealed class MachineController : INotifyPropertyChanged
         switch (area)
         {
             case StartArea.Placement or StartArea.Station1:
-                var pcbDetected = _io.GetInput(InputIo.PcbPlacementPcbDetected);
+                var vacuumDetected = _io.GetInput(InputIo.PcbPlacementVacuumDetected);
                 await _pcbPlacement.SetLiftDownAsync(false, cancellationToken);
-                if (pcbDetected || _io.GetInput(InputIo.PcbPlacementPcbDetected))
-                    throw new InvalidOperationException("Placement PCB detected. IPM support is retained. Support or remove the PCB, then raise the tooling again.");
+                if (vacuumDetected || _io.GetInput(InputIo.PcbPlacementVacuumDetected))
+                    throw new InvalidOperationException("Release Placement vacuum before raising the IPM support.");
                 await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false, cancellationToken);
                 break;
             case StartArea.PickupHead:

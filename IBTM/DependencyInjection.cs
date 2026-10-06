@@ -37,8 +37,8 @@ public static class DependencyInjection
 
         services
             .AddSingleton(settings)
-            .AddSingleton(
-                provider => new IoSignals(hardware, provider.GetRequiredService<IIoService>()))
+            .AddSingleton<IEnumerable<HardwareSettings>>(hardware)
+            .AddSingleton<IoSignals>()
             .AddSingleton<IReadOnlyDictionary<InputIo, int>>(
                 hardware.OfType<InputHardwareSettings>()
                     .SelectMany(section => section.Inputs)
@@ -76,26 +76,8 @@ public static class DependencyInjection
             .AddSingleton<OperationCancellation>();
 
         services
-            .AddKeyedSingleton<IBoltHead>(
-                FasteningHead.Shooting,
-                (provider, _) => new AdcBoltHead(
-                    provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting),
-                    provider.GetRequiredService<IIoService>(), FasteningHead.Shooting,
-                    settings.Hantas,
-                    settings.Hantas.ShootingSlaveAddress,
-                    settings.Hantas.ShootingPortName,
-                    settings.Hantas.ShootingBaudRate,
-                    provider.GetRequiredService<ILogger<AdcBoltHead>>()))
-            .AddKeyedSingleton<IBoltHead>(
-                FasteningHead.Pickup,
-                (provider, _) => new AdcBoltHead(
-                    provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup),
-                    provider.GetRequiredService<IIoService>(), FasteningHead.Pickup,
-                    settings.Hantas,
-                    settings.Hantas.PickupSlaveAddress,
-                    settings.Hantas.PickupPortName,
-                    settings.Hantas.PickupBaudRate,
-                    provider.GetRequiredService<ILogger<AdcBoltHead>>()));
+            .AddKeyedSingleton<IBoltHead, AdcBoltHead>(FasteningHead.Shooting)
+            .AddKeyedSingleton<IBoltHead, AdcBoltHead>(FasteningHead.Pickup);
 
         services
             .AddKeyedSingleton<ConveyorStation>(MotionGroup.PcbPlacementHandler,
@@ -166,17 +148,10 @@ public static class DependencyInjection
 
         foreach (var (motionSettings, motionHardware) in settings.MotionSections)
         {
-            services.AddKeyedSingleton<IXyMotion>(
-                motionHardware.Group,
-                (provider, _) => new AjinMotionService(
-                    provider.GetRequiredService<AjinController>(),
-                    motionHardware.GetAxis(MotionAxis.X)!,
-                    motionHardware.GetAxis(MotionAxis.Y),
-                    motionHardware.GetAxis(MotionAxis.Z),
-                    motionSettings,
-                    provider.GetRequiredService<MachineOptions>(),
-                    provider.GetRequiredService<OperationCancellation>(),
-                    provider.GetRequiredService<ILogger<AjinMotionService>>()));
+            services
+                .AddKeyedSingleton(motionHardware.Group, motionHardware)
+                .AddKeyedSingleton(motionHardware.Group, motionSettings)
+                .AddKeyedSingleton<IXyMotion, AjinMotionService>(motionHardware.Group);
         }
 
         return services;

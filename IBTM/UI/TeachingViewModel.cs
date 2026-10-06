@@ -1763,11 +1763,6 @@ public partial class TeachingViewModel : ObservableObject
     {
         if (!PositionUpdatesActive)
             return;
-        RefreshLiveView();
-    }
-
-    private void RefreshLiveView()
-    {
         OnPropertyChanged(nameof(Inspection));
         OnPropertyChanged(nameof(CameraError));
         if (!Inspection.IsLiveView)
@@ -1784,18 +1779,6 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(IsGrabAllowed));
         OnPropertyChanged(nameof(IsApplyLightAllowed));
         OnPropertyChanged(nameof(CameraImage));
-    }
-
-    private async Task HandlePreviewFailureAsync(Exception exception)
-    {
-        _logger.LogError(exception, "Camera preview conversion failed.");
-        await RequestCameraStopAsync();
-        CameraError = exception.Message;
-        lock (_liveImageGate)
-        {
-            _pendingLiveFrame = null;
-            _liveImageUpdateQueued = false;
-        }
     }
 
     private void UpdateLiveImage(ImageFrame frame)
@@ -1848,7 +1831,14 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            await HandlePreviewFailureAsync(exception);
+            _logger.LogError(exception, "Camera preview conversion failed.");
+            await RequestCameraStopAsync();
+            CameraError = exception.Message;
+            lock (_liveImageGate)
+            {
+                _pendingLiveFrame = null;
+                _liveImageUpdateQueued = false;
+            }
         }
     }
 }

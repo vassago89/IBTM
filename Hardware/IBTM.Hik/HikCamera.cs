@@ -6,8 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
-using MvCameraControl;
 using Microsoft.Extensions.Logging;
+using MvCameraControl;
 
 namespace IBTM.Hik;
 
@@ -63,7 +63,7 @@ public sealed class HikCamera : ICamera, IDisposable
             Check(
                 DeviceEnumerator.EnumDevices(
                     DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice,
-                    out List<IDeviceInfo> devices),
+                    out var devices),
                 "Enumerate Hik cameras");
             var deviceInfo = devices
                 .SingleOrDefault(

@@ -187,8 +187,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         if (cancellationToken.IsCancellationRequested)
             return;
-        if (_units.PcbPlacement && (Pcb != PlacementPcbState.None || Io.GetInput(InputIo.PcbPlacementVacuumDetected)))
-            throw new InvalidOperationException("Clear the Placement PCB and vacuum before starting a new run.");
+        if (_units.PcbPlacement && Io.GetInput(InputIo.PcbPlacementVacuumDetected))
+            throw new InvalidOperationException("Release Placement vacuum before starting.");
         _runTargets = null;
         Phase = _units.PcbPlacement ? PcbPlacementState.Retracting
             : PcbPlacementState.WaitingForCarrier;
@@ -404,8 +404,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     public async Task MoveToStandbyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (Pcb != PlacementPcbState.None || Io.GetInput(InputIo.PcbPlacementVacuumDetected))
-            throw new InvalidOperationException("Clear the Placement PCB and vacuum before starting a new run.");
+        if (Io.GetInput(InputIo.PcbPlacementVacuumDetected))
+            throw new InvalidOperationException("Release Placement vacuum before moving to standby.");
         await MoveToStandbyAsync(TargetHeatSink ?? HeatSinkSlot.HeatSink1, cancellationToken);
     }
 

@@ -1,9 +1,10 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -28,13 +29,13 @@ public sealed class AdcBoltHead : IBoltHead
     private ushort? _requestedPreset;
 
     public AdcBoltHead(
-        IAdcBus bus,
+        [FromKeyedServices] IAdcBus bus,
         IIoService io,
-        FasteningHead head,
+        [ServiceKey] FasteningHead head,
         HantasSettings connection,
-        byte slaveAddress,
-        string portName,
-        int baudRate,
+        byte? slaveAddress = null,
+        string? portName = null,
+        int? baudRate = null,
         ILogger<AdcBoltHead>? logger = null)
     {
         _bus = bus;
@@ -49,9 +50,12 @@ public sealed class AdcBoltHead : IBoltHead
             ? [OutputIo.PickupBoltPreset1, OutputIo.PickupBoltPreset2, OutputIo.PickupBoltPreset3]
             : [OutputIo.ShootingBoltPreset1, OutputIo.ShootingBoltPreset2, OutputIo.ShootingBoltPreset3];
         _connection = connection;
-        _slaveAddress = slaveAddress;
-        _portName = portName;
-        _baudRate = baudRate;
+        _slaveAddress = slaveAddress ?? (head == FasteningHead.Pickup
+            ? connection.PickupSlaveAddress : connection.ShootingSlaveAddress);
+        _portName = portName ?? (head == FasteningHead.Pickup
+            ? connection.PickupPortName : connection.ShootingPortName);
+        _baudRate = baudRate ?? (head == FasteningHead.Pickup
+            ? connection.PickupBaudRate : connection.ShootingBaudRate);
         _logger = logger ?? NullLogger<AdcBoltHead>.Instance;
     }
 

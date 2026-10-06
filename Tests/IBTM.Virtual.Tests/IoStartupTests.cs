@@ -6,25 +6,70 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
-using IBTM.Core;
-using IBTM.Hantas;
 using IBTM.BoltFastening;
+using IBTM.Core;
 using IBTM.Device;
-using IBTM.Storage;
-using IBTM.PcbSupply;
+using IBTM.Hantas;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
+using IBTM.PcbSupply;
+using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-
 using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
 public sealed class IoStartupTests
 {
+    [Fact]
+    public async Task StartRequiresRunOutputFeedbackOnlyForEnabledConveyors()
+    {
+        var settings = new MachineSettings
+        {
+            Units = MachineTestSupport.EnableOnly(MachineTestSupport.MachineUnit.PickupBoltFeeder),
+        };
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var signals = services.GetRequiredService<IoSignals>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        try
+        {
+            io.SetInput(InputIo.ServoMainContactorOn, true);
+            signals.InvalidateOutputs();
+            Assert.Null(signals.Outputs[OutputIo.MainConveyorRun].IsOn);
+            Assert.Null(signals.Outputs[OutputIo.NgConveyorRun].IsOn);
+            Assert.True(state.Available);
+            Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
+
+            settings.Units.MainConveyor = true;
+            Assert.False(state.Available);
+            Assert.False(machine.IsStartAllowed);
+            settings.Units.MainConveyor = false;
+            settings.Units.NgConveyor = true;
+            Assert.False(state.Available);
+            Assert.False(machine.IsStartAllowed);
+            settings.Units.NgConveyor = false;
+
+            // Disabled equipment that is actually running still prevents START.
+            io.SetOutput(OutputIo.MainConveyorRun, true);
+            signals.RefreshOutputs();
+            Assert.False(machine.IsStartAllowed);
+            io.SetOutput(OutputIo.MainConveyorRun, false);
+            signals.RefreshOutputs();
+            Assert.True(machine.IsStartAllowed);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task NgButtonLampsSkipUnchangedWritesAndCorrectChangedOutputFeedback()
     {
@@ -704,7 +749,7 @@ public sealed class IoStartupTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
-        IAsyncRelayCommand stop = motionWindow
+        var stop = motionWindow
             ? services.GetRequiredService<MotionDiagnosticsViewModel>().StopCommand
             : services.GetRequiredService<OperationViewModel>().StopCommand;
         io.SetOutput(OutputIo.MainConveyorRun, true);
@@ -2464,28 +2509,14 @@ public sealed class IoStartupTests
 
         public event Action<InputIo, bool>? InputChanged
         {
-            add
-            {
-                _inner.InputChanged += value;
-            }
-
-            remove
-            {
-                _inner.InputChanged -= value;
-            }
+            add => _inner.InputChanged += value;
+            remove => _inner.InputChanged -= value;
         }
 
         public event Action<OutputIo, bool>? OutputChanged
         {
-            add
-            {
-                _inner.OutputChanged += value;
-            }
-
-            remove
-            {
-                _inner.OutputChanged -= value;
-            }
+            add => _inner.OutputChanged += value;
+            remove => _inner.OutputChanged -= value;
         }
 
         public bool IsReady { get; private set; }

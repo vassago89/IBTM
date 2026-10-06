@@ -1,6 +1,6 @@
 using System;
-using IBTM.Core;
 using System.Text.Json.Serialization;
+using IBTM.Core;
 
 namespace IBTM.Inspection;
 

@@ -4,9 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using IBTM.AlphaMotion;
 using IBTM.Core;
+using Microsoft.Extensions.Logging;
 using Shared;
 using Xunit;
-using Microsoft.Extensions.Logging;
 
 namespace IBTM.AlphaMotion.Tests;
 

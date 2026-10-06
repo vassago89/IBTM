@@ -6,8 +6,8 @@ using System.Windows;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 

@@ -343,7 +343,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            if (!Units.BoltFastening || !_map.FasteningDefined)
+            if (!Units.BoltFastening || !_map.IsFasteningDefined)
                 return [];
 
             var active = BoltFasteningActiveBolt;
@@ -378,7 +378,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            if (!Units.Inspection || !_map.InspectionDefined)
+            if (!Units.Inspection || !_map.Carrier.IsDefined)
                 return [];
 
             var active = InspectionActiveBolt;
@@ -511,7 +511,7 @@ public partial class OperationViewModel : ObservableObject
         if (!_pcbHistoryLoaded && (directoryChanged || LoadOlderPcbsCommand.CanExecute(null)))
             LoadOlderPcbsCommand.Execute(null);
         OnMachineStateChanged(this, new(null));
-        OnRecipeChanged();
+        RefreshRecipeDisplay();
         OnPropertyChanged(nameof(Units));
         OnPropertyChanged(nameof(SafetyBypass));
     }
@@ -543,7 +543,7 @@ public partial class OperationViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsStartReviewAllowed))]
     public partial bool IsPlacementResumeConfirmed { get; set; }
 
-    public bool IsPlacementResumeAvailable => State.Available && !State.IsRunning
+    public bool IsPlacementResumeAvailable => State.Available
         && _reviewedPlacementJob is { } job && Machine.IsPlacementResumeAllowed(job)
         && Enum.GetValues<HeatSinkSlot>().All(target => Placement.Station.IsHeatSinkPresent(target)
             == PlacementResumeTargets.Any(row => row.HeatSink == target))
@@ -556,7 +556,8 @@ public partial class OperationViewModel : ObservableObject
         IsPlacementResumeConfirmed = false;
         _reviewedPlacementJob = Placement.Station.CurrentJob;
         PlacementResumeTargets.Clear();
-        foreach (var target in Enum.GetValues<HeatSinkSlot>().Where(Placement.Station.IsHeatSinkPresent))
+        foreach (var target in Enum.GetValues<HeatSinkSlot>()
+            .Where(target => State.Available && Placement.Station.IsHeatSinkPresent(target)))
             PlacementResumeTargets.Add(new(target,
                 Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == target && assembly.IsPlacementCompleted)));
         OnPropertyChanged(nameof(IsPlacementResumeAvailable));
@@ -569,7 +570,7 @@ public partial class OperationViewModel : ObservableObject
 
     public int RemainingFasteningCount => FasteningResumeBolts.Count(row => row.Result is not { IsComplete: true });
 
-    public bool IsFasteningResumeAvailable => State.Available && !State.IsRunning
+    public bool IsFasteningResumeAvailable => State.Available
         && _reviewedFasteningJob is { } job && Machine.IsFasteningResumeAllowed(job)
         && Enum.GetValues<HeatSinkSlot>().All(pcb => Fastening.Station.IsHeatSinkPresent(pcb)
             == FasteningResumeBolts.Any(row => row.HeatSink == pcb));
@@ -581,7 +582,7 @@ public partial class OperationViewModel : ObservableObject
         _reviewedFasteningJob = Fastening.Station.CurrentJob;
         FasteningResumeBolts.Clear();
         foreach (var bolt in Recipes.Current.Pcb.GetFasteningPoints(_fasteningSettings.FirstFasteningHead)
-            .Where(bolt => Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)))
+            .Where(bolt => State.Available && Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)))
         {
             var assembly = Fastening.Station.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
             var result = assembly?.ShootingBoltResults.GetValueOrDefault(bolt.Id)
@@ -624,8 +625,6 @@ public partial class OperationViewModel : ObservableObject
 
     private async Task MoveAllToStandbyAsync(CancellationToken cancellationToken)
     {
-        IsPlacementResumeConfirmed = false;
-        IsFasteningResumeConfirmed = false;
         StartActionMessage = null;
         try
         {
@@ -644,16 +643,16 @@ public partial class OperationViewModel : ObservableObject
         }
         finally
         {
-            RefreshPlacementResume();
-            RefreshFasteningResume();
+            if (!IsPlacementResumeConfirmed)
+                RefreshPlacementResume();
+            if (!IsFasteningResumeConfirmed)
+                RefreshFasteningResume();
         }
     }
 
     private async Task PrepareStartAreaAsync(StartPreparationAction action, CancellationToken cancellationToken)
     {
         var area = SelectedStartArea;
-        IsPlacementResumeConfirmed = false;
-        IsFasteningResumeConfirmed = false;
         StartActionMessage = null;
         try
         {
@@ -672,10 +671,11 @@ public partial class OperationViewModel : ObservableObject
         }
         finally
         {
-            RefreshPlacementResume();
-            RefreshFasteningResume();
+            if (!IsPlacementResumeConfirmed)
+                RefreshPlacementResume();
+            if (!IsFasteningResumeConfirmed)
+                RefreshFasteningResume();
             OnPropertyChanged(nameof(StartStation));
-            // Leave material admission to the RESET / START review.
         }
     }
 
@@ -695,8 +695,10 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             await Task.Run(() => Machine.ChangeCarrierWork(area, job, action, cancellationToken), cancellationToken);
-            RefreshFasteningResume();
-            RefreshPlacementResume();
+            if (area == StartArea.Station1)
+                RefreshPlacementResume();
+            else if (area == StartArea.Station2)
+                RefreshFasteningResume();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)
@@ -711,20 +713,17 @@ public partial class OperationViewModel : ObservableObject
     }
 
     public bool IsStartReviewAllowed => Machine.IsStartAllowed
-        && Machine.StartBlock is StartBlockReason.None or StartBlockReason.UnfinishedCarrier
-        && Machine.StartChecks.All(check => check.Value is not (StartCheckState.NotChecked or StartCheckState.Unknown
-            or StartCheckState.MaterialRemaining or StartCheckState.UnfinishedCarrier)
-            || check.Key == StartArea.Station2 && check.Value == StartCheckState.UnfinishedCarrier
-                && IsFasteningResumeConfirmed && IsFasteningResumeAvailable
-            || check.Key == StartArea.Station1 && check.Value == StartCheckState.UnfinishedCarrier
-                && IsPlacementResumeConfirmed && IsPlacementResumeAvailable);
+        && Machine.GetStartMaterialBlock(
+            IsFasteningResumeConfirmed && IsFasteningResumeAvailable ? _reviewedFasteningJob : null,
+            IsPlacementResumeConfirmed && IsPlacementResumeAvailable ? _reviewedPlacementJob : null)
+                == StartBlockReason.None;
 
     private async Task ConfirmStartAsync(CancellationToken cancellationToken)
     {
         if (!IsStartReviewAllowed)
             return;
-        var resume = IsFasteningResumeConfirmed ? _reviewedFasteningJob : null;
-        var resumePlacement = IsPlacementResumeConfirmed ? _reviewedPlacementJob : null;
+        var resume = IsFasteningResumeConfirmed && IsFasteningResumeAvailable ? _reviewedFasteningJob : null;
+        var resumePlacement = IsPlacementResumeConfirmed && IsPlacementResumeAvailable ? _reviewedPlacementJob : null;
         IsFasteningResumeConfirmed = false;
         IsPlacementResumeConfirmed = false;
         await Machine.StartAsync(cancellationToken, resume, resumePlacement);
@@ -774,7 +773,7 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             OnMachineStateChanged(this, new(null));
-            OnRecipeChanged();
+            RefreshRecipeDisplay();
             // A ready machine still requires the operator to confirm this START.
             _windows.ShowStartConfirmation(this, cancellationToken);
         }
@@ -1013,6 +1012,13 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnRecipeChanged()
     {
+        RefreshPlacementResume();
+        RefreshFasteningResume();
+        RefreshRecipeDisplay();
+    }
+
+    private void RefreshRecipeDisplay()
+    {
         OnPropertyChanged(nameof(PcbSupplyMapPosition));
         OnPropertyChanged(nameof(PcbPlacementMapPosition));
         OnPropertyChanged(nameof(ShootingHeadMapPosition));
@@ -1208,7 +1214,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Supply.Motion.XyHomed && _map.SupplyDefined
+            return Supply.Motion.XyHomed && _map.IsSupplyDefined
                 && Supply.Motion.Position is { X: not null, Y: not null, Z: not null };
         }
     }
@@ -1217,7 +1223,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Placement.Motion.XyHomed && _map.PlacementDefined
+            return Placement.Motion.XyHomed && _map.IsPlacementDefined
                 && Placement.Motion.Position is { X: not null, Y: not null, Z: not null };
         }
     }
@@ -1226,7 +1232,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Fastening.Motion.XyHomed && _map.FasteningDefined
+            return Fastening.Motion.XyHomed && _map.IsFasteningDefined
                 && Fastening.Motion.Position is { X: not null, Y: not null, Z: not null };
         }
     }
@@ -1235,7 +1241,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Inspection.Motion.XyHomed && _map.InspectionDefined
+            return Inspection.Motion.XyHomed && _map.Carrier.IsDefined
                 && Inspection.Motion.Position is { X: not null, Y: not null };
         }
     }

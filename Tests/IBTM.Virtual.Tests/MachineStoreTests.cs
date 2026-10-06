@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 using IBTM.BoltFastening;
 using IBTM.BoltFeeder;
 using IBTM.Conveyor;
-using IBTM.Device;
 using IBTM.Core;
+using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
@@ -301,7 +301,7 @@ public sealed class MachineStoreTests
     public async Task SavedSettingsAndRecipesSurviveRestartUnchanged()
     {
         var store = new MachineStore(Path.Combine(CreateDirectory(), "Machine.db"));
-        Assert.False(store.HasData);
+        VirtualTestSupport.AssertNoSavedConfiguration(store);
         var settings = new MachineSettings();
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyPcbDetected] = 28;
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyGripperClosed] = 22;

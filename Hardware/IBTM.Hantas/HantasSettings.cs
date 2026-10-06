@@ -1,6 +1,6 @@
-using IBTM.Core;
 using System;
 using System.Text.Json.Serialization;
+using IBTM.Core;
 
 namespace IBTM.Hantas;
 

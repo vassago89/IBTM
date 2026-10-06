@@ -253,7 +253,7 @@
                             <StackPanel IsEnabled="{Binding State.SetupEnabled}">
                                 <Button x:Name="ReleaseMaterialButton"
                                     Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ReleaseMaterial}"
-                                    ToolTip="{ui:Text 'Support the material before releasing its grip. Remove any remaining PCB or bolt, then select RESET.'}"
+                                    ToolTip="{ui:Text 'Support the material before releasing its grip.'}"
                                     Height="40" Margin="0,0,0,8">
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -526,20 +526,6 @@
                         </TextBlock>
                         <TextBlock x:Name="SelectedMaterialState" Text="{Binding StartMaterialState, Converter={StaticResource UiTextConverter}}" Margin="0,5,0,0"
                             Foreground="{StaticResource TextSecondaryBrush}"/>
-                        <TextBlock Text="{ui:Text 'After handling the material, select RESET to update the start review.'}"
-                            TextWrapping="Wrap" Margin="0,5,0,0" Foreground="{StaticResource AccentAmberBrush}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.MaterialRemaining}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-                                        <DataTrigger Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.UnfinishedCarrier}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station1}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
                     </StackPanel>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
                         <StackPanel>
@@ -829,7 +815,7 @@
                     <Button Content="{ui:Text 'All stations to standby'}" Command="{Binding MoveAllToStandbyCommand}"
                         IsEnabled="{Binding State.SetupEnabled}" Width="180" Height="44" Margin="0,0,8,0"
                         Style="{StaticResource SecondaryButtonStyle}"
-                        ToolTip="{ui:Text 'Moves enabled stations in order. Supply waits above PCB 1 at travel Z. HOME is required; held material must be cleared first.'}"
+                        ToolTip="{ui:Text 'HOME first. Fastening vacuum releases automatically. Supply waits above PCB 1 at travel height.'}"
                         ToolTipService.ShowOnDisabled="True"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">

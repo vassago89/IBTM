@@ -1,6 +1,6 @@
+using System;
 using System.ComponentModel;
 using System.Linq;
-using System;
 using IBTM.Core;
 using IBTM.Device;
 using Microsoft.Extensions.Logging;
@@ -68,18 +68,21 @@ public sealed class MachineState : INotifyPropertyChanged
 {
     private readonly MachineFeedbackMonitor _feedback;
     private readonly MachineOptions _options;
+    private readonly UnitSettings _units;
     private readonly OperationCancellation _operations;
     private readonly IIoService _io;
     private readonly ILogger<MachineState>? _log;
 
     public MachineState(
         MachineOptions options,
+        UnitSettings units,
         OperationCancellation operations,
         IIoService io,
         MachineFeedbackMonitor feedback,
         ILogger<MachineState>? log = null)
     {
         _options = options;
+        _units = units;
         _operations = operations;
         _io = io;
         _feedback = feedback;
@@ -107,8 +110,8 @@ public sealed class MachineState : INotifyPropertyChanged
         get
         {
             return _io.IsReady && ReadError is null
-                && _feedback.Io.Outputs[OutputIo.MainConveyorRun].IsOn is not null
-                && _feedback.Io.Outputs[OutputIo.NgConveyorRun].IsOn is not null;
+                && (!_units.MainConveyor || _feedback.Io.Outputs[OutputIo.MainConveyorRun].IsOn is not null)
+                && (!_units.NgConveyor || _feedback.Io.Outputs[OutputIo.NgConveyorRun].IsOn is not null);
         }
     }
 

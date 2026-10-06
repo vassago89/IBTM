@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Device;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.Ajin;
@@ -36,19 +37,20 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
 
     public AjinMotionService(
         AjinController controller,
-        AxisHardware axisX,
-        AxisHardware? axisY,
-        AxisHardware? axisZ,
-        MotionSettings settings,
+        [FromKeyedServices] MotionHardwareSettings hardware,
+        [FromKeyedServices] MotionSettings settings,
         MachineOptions options,
         OperationCancellation operationCancellation,
         ILogger<AjinMotionService>? log = null)
         : base(
             settings,
             operationCancellation,
-            hasY: axisY is not null,
-            hasZ: axisZ is not null)
+            hasY: hardware.GetAxis(MotionAxis.Y) is not null,
+            hasZ: hardware.GetAxis(MotionAxis.Z) is not null)
     {
+        var axisX = hardware.GetAxis(MotionAxis.X)!;
+        var axisY = hardware.GetAxis(MotionAxis.Y);
+        var axisZ = hardware.GetAxis(MotionAxis.Z);
         _controller = controller;
         _log = log;
         _options = options;

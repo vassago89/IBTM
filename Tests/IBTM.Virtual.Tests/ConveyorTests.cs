@@ -12,9 +12,9 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.Virtual;
-using static IBTM.Virtual.Tests.VirtualTestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -856,34 +856,6 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task CarrierWaitRequiresPresenceAfterAShortArrivalPulse()
-    {
-        var io = CreateIo(timeoutMilliseconds: 100);
-        var station = ConveyorStation.CreateInspection(io);
-        var scheduler = new ConcurrentExclusiveSchedulerPair();
-        try
-        {
-            await Task.Factory.StartNew(async () =>
-            {
-                var arrival = station.WaitForCarrierAsync(default);
-                io.SetInput(InputIo.InspectionHeatSink1Present, true);
-                io.SetInput(InputIo.InspectionHeatSink1Present, false);
-                await Assert.ThrowsAsync<TimeoutException>(() => arrival);
-
-                io.SetInput(InputIo.InspectionHeatSink2Present, true);
-                await station.WaitForCarrierAsync(default);
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                    () => station.WaitForCarrierAsync(new CancellationToken(canceled: true)));
-            }, CancellationToken.None, TaskCreationOptions.None, scheduler.ExclusiveScheduler).Unwrap();
-        }
-        finally
-        {
-            scheduler.Complete();
-            await scheduler.Completion;
-        }
-    }
-
-    [Fact]
     public void FirstPresenceNotificationAfterIoStartupKeepsTheExistingCarrierResults()
     {
         var io = CreateIo();
@@ -938,7 +910,7 @@ public sealed class ConveyorTests
     [InlineData(InputIo.PcbPlacementHeatSink1Present, InputIo.PcbPlacementHeatSink2Present)]
     [InlineData(InputIo.BoltFasteningHeatSink1Present, InputIo.BoltFasteningHeatSink2Present)]
     [InlineData(InputIo.InspectionHeatSink1Present, InputIo.InspectionHeatSink2Present)]
-    public async Task CarrierPresenceChangesPreserveJobUntilExplicitClear(InputIo heatSink1, InputIo heatSink2)
+    public void CarrierPresenceChangesPreserveJobUntilExplicitClear(InputIo heatSink1, InputIo heatSink2)
     {
         var io = CreateIo();
         var station = heatSink1 switch
@@ -948,9 +920,8 @@ public sealed class ConveyorTests
             _ => ConveyorStation.CreateInspection(io),
         };
         Assert.False(station.CarrierPresent);
-        var arrival = station.WaitForCarrierAsync(default);
         io.SetInputs((heatSink1, true), (heatSink2, true));
-        await arrival.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.True(station.CarrierPresent);
         var job = station.CurrentJob;
         station.Complete(job);
 
@@ -965,9 +936,8 @@ public sealed class ConveyorTests
 
         io.SetInput(heatSink1, false);
         Assert.False(station.CarrierPresent);
-        arrival = station.WaitForCarrierAsync(default);
         io.SetInput(heatSink2, true);
-        await arrival.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.True(station.CarrierPresent);
         Assert.Same(job, station.CurrentJob);
         Assert.True(station.Completed);
         Assert.Throws<InvalidOperationException>(station.ClearJob);

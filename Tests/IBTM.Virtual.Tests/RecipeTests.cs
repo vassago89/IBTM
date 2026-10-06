@@ -39,30 +39,18 @@ public sealed class RecipeTests
         command.CommandText = "PRAGMA journal_mode=DELETE; BEGIN EXCLUSIVE";
         command.ExecuteNonQuery();
         var editor = new RecipeEditorViewModel(recipes, store, new());
-        var inspection = new InspectionTeachingViewModel(store, recipes,
-            new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(),
-            NullLogger<InspectionTeachingViewModel>.Instance);
         var refresh = editor.RefreshCommand.ExecuteAsync(null);
-        inspection.Activate();
         Assert.False(refresh.IsCompleted);
-        Assert.False(inspection.RefreshRecipesCommand.ExecutionTask!.IsCompleted);
         Assert.Empty(editor.Recipes);
-        Assert.Empty(inspection.RecipeNames);
         editor.RefreshCommand.Cancel();
-        inspection.RefreshRecipesCommand.Cancel();
         command.CommandText = "COMMIT";
         command.ExecuteNonQuery();
-        await Task.WhenAll(refresh, inspection.RefreshRecipesCommand.ExecutionTask!).WaitAsync(TimeSpan.FromSeconds(5));
+        await refresh.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Empty(editor.Recipes);
-        Assert.Empty(inspection.RecipeNames);
         Assert.Null(editor.Error);
-        Assert.Null(inspection.Error);
 
         await editor.RefreshCommand.ExecuteAsync(null);
-        inspection.Activate();
-        await inspection.RefreshRecipesCommand.ExecutionTask!;
         Assert.Equal(new[] { "Stored recipe" }, editor.Recipes);
-        Assert.Equal(editor.Recipes, inspection.RecipeNames);
 
         var paused = new VirtualTestSupport.PausedSynchronizationContext();
         var context = SynchronizationContext.Current;
@@ -96,7 +84,6 @@ public sealed class RecipeTests
             paused.Release();
         }
         await editor.ShutdownAsync();
-        await inspection.ShutdownAsync();
     }
 
     [Fact]

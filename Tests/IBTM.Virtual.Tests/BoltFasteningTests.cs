@@ -15,10 +15,10 @@ using IBTM.Hantas;
 using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
-using static IBTM.Virtual.Tests.VirtualTestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Xunit;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -3825,14 +3825,14 @@ public sealed class BoltFasteningTests
 
         public event Action<InputIo, bool>? InputChanged
         {
-            add { _inner.InputChanged += value; }
-            remove { _inner.InputChanged -= value; }
+            add => _inner.InputChanged += value;
+            remove => _inner.InputChanged -= value;
         }
 
         public event Action<Exception>? Faulted
         {
-            add { _inner.Faulted += value; }
-            remove { _inner.Faulted -= value; }
+            add => _inner.Faulted += value;
+            remove => _inner.Faulted -= value;
         }
 
         public event Action<OutputIo, bool>? OutputChanged;

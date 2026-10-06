@@ -7,8 +7,8 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Device;
 using IBTM.Core;
+using IBTM.Device;
 
 namespace IBTM.Virtual;
 
@@ -263,12 +263,32 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             for (var index = 0; index < count; index++)
             {
                 var register = (ushort)(address + index);
-                values[index] = function == AdcFunctionCode.ReadInputRegisters
-                    ? register >= (ushort)AdcStatusRegister.Preset
-                        && register <= (ushort)AdcStatusRegister.Direction
-                        ? ReadStatusRegister(controller, register)
-                        : ReadResultRegister(controller, register)
-                    : controller.Registers.TryGetValue(register, out var value) ? value : (ushort)0;
+                if (function != AdcFunctionCode.ReadInputRegisters)
+                {
+                    values[index] = controller.Registers.GetValueOrDefault(register);
+                    continue;
+                }
+                switch ((AdcStatusRegister)register)
+                {
+                    case AdcStatusRegister.Preset:
+                        values[index] = controller.Preset;
+                        break;
+                    case AdcStatusRegister.Ready:
+                        values[index] = (ushort)(!controller.Running && controller.Status != AdcEventStatus.Error ? 1 : 0);
+                        break;
+                    case AdcStatusRegister.MotorRun:
+                        values[index] = (ushort)(controller.Running ? 1 : 0);
+                        break;
+                    case AdcStatusRegister.Alarm:
+                        values[index] = (ushort)(controller.Status == AdcEventStatus.Error ? 1 : 0);
+                        break;
+                    case AdcStatusRegister.Direction:
+                        values[index] = (ushort)controller.Direction;
+                        break;
+                    default:
+                        values[index] = ReadResultRegister(controller, register);
+                        break;
+                }
             }
         }
 
@@ -305,25 +325,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             controller.ScrewCount++;
             controller.Running = false;
             controller.Status = status;
-        }
-    }
-
-    private static ushort ReadStatusRegister(Controller controller, ushort address)
-    {
-        switch ((AdcStatusRegister)address)
-        {
-            case AdcStatusRegister.Preset:
-                return controller.Preset;
-            case AdcStatusRegister.Ready:
-                return (ushort)(!controller.Running && controller.Status != AdcEventStatus.Error ? 1 : 0);
-            case AdcStatusRegister.MotorRun:
-                return (ushort)(controller.Running ? 1 : 0);
-            case AdcStatusRegister.Alarm:
-                return (ushort)(controller.Status == AdcEventStatus.Error ? 1 : 0);
-            case AdcStatusRegister.Direction:
-                return (ushort)controller.Direction;
-            default:
-                return 0;
         }
     }
 

@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.Core;
 using IBTM.Device;
-using Xunit;
+using IBTM.Tests;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Xunit;
 
 namespace IBTM.Ajin.Tests;
 
@@ -78,7 +80,7 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, null, null,
+            controller, new TestMotionHardware(new() { Number = 9 }, null, null),
             new(), new(), new());
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => home
@@ -315,7 +317,7 @@ public sealed class AjinControllerTests
         AjinSdk.MotionAxes[9] = new(
             Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1, Position: 1200, InMotion: 1);
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, null, null, new(), new(), new());
+            controller, new TestMotionHardware(new() { Number = 9 }, null, null), new(), new(), new());
         var feedback = new MotionStatus(motion);
 
         Assert.True(motion.IsReady);
@@ -394,7 +396,7 @@ public sealed class AjinControllerTests
         AjinSdk.MotionAxes[9] = new(Unit: 0.1, InMotion: 1);
         AjinSdk.MotionAxes[10] = new(Unit: 2, AccelerationUnit: 1);
         var motion = new AjinMotionService(
-            controller, new() { Number = 9, MoveUnit = 0.1 }, new() { Number = 10 }, null,
+            controller, new TestMotionHardware(new() { Number = 9, MoveUnit = 0.1 }, new() { Number = 10 }, null),
             new(), new(), new(), loggerFactory.CreateLogger<AjinMotionService>());
 
         motion.Initialize();
@@ -423,7 +425,7 @@ public sealed class AjinControllerTests
         AjinSdk.HomeMethods[11] = new(0, 4, 0, 0, 0);
         var z = new AxisHardware { Number = 11, MoveUnit = 10, MovePulse = 100 };
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, z,
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, z),
             new(), new(), new());
         motion.Initialize();
         Assert.Equal(10, AjinSdk.MotionAxes[11].Unit);
@@ -486,7 +488,7 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         AjinSdk.MotionAxes[6] = new();
         var motion = new AjinMotionService(
-            controller, new() { Number = 6, MoveUnit = 10, MovePulse = 100 }, null, null,
+            controller, new TestMotionHardware(new() { Number = 6, MoveUnit = 10, MovePulse = 100 }, null, null),
             new(), new(), new());
         AjinSdk.BeforeCall = call =>
         {
@@ -509,7 +511,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
             new(), new(), new());
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 4, ServoOn: 1, InMotion: 1);
         AjinSdk.MotionAxes[10] = new(InMotion: 1);
@@ -535,7 +537,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
             new(), new(), new());
         AjinSdk.MotionAxes[9] = new();
         AjinSdk.MotionAxes[10] = new();
@@ -584,7 +586,7 @@ public sealed class AjinControllerTests
         selected.HomeDirection = direction;
         selected.HomeSignal = signal;
         var motion = new AjinMotionService(
-            controller, x, y, z, settings, new(), new());
+            controller, new TestMotionHardware(x, y, z), settings, new(), new());
         // Edits after construction apply only to the next driver instance.
         selected.HomeDirection = direction == HomeDirection.Positive ? HomeDirection.Negative : HomeDirection.Positive;
         selected.HomeSignal = signal == HomeSignal.HomeSensor ? HomeSignal.PositiveLimit : HomeSignal.HomeSensor;
@@ -632,7 +634,7 @@ public sealed class AjinControllerTests
             ZHome = new() { SearchSpeed = double.NaN },
         };
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, null, new() { Number = 11 },
+            controller, new TestMotionHardware(new() { Number = 9 }, null, new() { Number = 11 }),
             settings, new(), new());
         foreach (var axis in new[] { 9, 11 })
         {
@@ -665,7 +667,7 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, null, null, new(), new(), operations);
+            controller, new TestMotionHardware(new() { Number = 9 }, null, null), new(), new(), operations);
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 0xFF, ServoOn: 1);
         AjinSdk.HomeMethods[9] = new(0, 4, 0, 1000, 0);
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: 9)] = 0;
@@ -691,7 +693,7 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
             new(), new(), operations);
         foreach (var axis in new[] { 9, 10 })
         {
@@ -723,7 +725,7 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, null, null, new(), new(), operations);
+            controller, new TestMotionHardware(new() { Number = 9 }, null, null), new(), new(), operations);
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.Results[new(nameof(CAXM.AxmMoveVel), Axis: 9)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = 0;
@@ -750,7 +752,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, null, new() { Number = 11 },
+            controller, new TestMotionHardware(new() { Number = 9 }, null, new() { Number = 11 }),
             new(), new(), new());
         foreach (var number in new[] { 9, 11 })
         {
@@ -789,9 +791,9 @@ public sealed class AjinControllerTests
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
             controller,
-            new() { Number = 9 },
+            new TestMotionHardware(new() { Number = 9 },
             new() { Number = 10 },
-            null,
+            null),
             new(),
             new(),
             operations);
@@ -837,9 +839,9 @@ public sealed class AjinControllerTests
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
             controller,
-            new() { Number = 9 },
+            new TestMotionHardware(new() { Number = 9 },
             new() { Number = 10 },
-            null,
+            null),
             new(),
             new(),
             operations);
@@ -884,7 +886,7 @@ public sealed class AjinControllerTests
         controller.Initialize();
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
             new(), new(), operations);
         foreach (var axis in new[] { 9, 10 })
         {
@@ -953,7 +955,7 @@ public sealed class AjinControllerTests
         AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1, Position: 10000);
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
             new(), new(), operations);
         var status = new MotionStatus(motion);
 
@@ -976,7 +978,7 @@ public sealed class AjinControllerTests
         controller.Initialize();
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
-            controller, new() { Number = 3 }, null, null,
+            controller, new TestMotionHardware(new() { Number = 3 }, null, null),
             new(), new(), operations);
         AjinSdk.MotionAxes[3] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 3)] = 0;
@@ -1006,7 +1008,7 @@ public sealed class AjinControllerTests
         controller.Initialize();
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
-            controller, new() { Number = 3 }, null, null, new(), new(), operations);
+            controller, new TestMotionHardware(new() { Number = 3 }, null, null), new(), new(), operations);
         AjinSdk.MotionAxes[3] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 3)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 3)] = 0;
@@ -1041,7 +1043,7 @@ public sealed class AjinControllerTests
         controller.Initialize();
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
             new() { AccelerationSeconds = 0.25, DecelerationSeconds = 0.75,
                 ZAccelerationSeconds = 0.1, ZDecelerationSeconds = 0.2 }, new(), operations);
         foreach (var axis in new[] { 9, 10 })
@@ -1083,9 +1085,9 @@ public sealed class AjinControllerTests
         AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 5, HomeResult: 1, Position: -5670);
         var motion = new AjinMotionService(
             controller,
-            new() { Number = 9 },
+            new TestMotionHardware(new() { Number = 9 },
             new() { Number = 10 },
-            null,
+            null),
             new(),
             new(),
             new());
@@ -1183,9 +1185,9 @@ public sealed class AjinControllerTests
         AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 5, HomeResult: 1, Position: -5670);
         var motion = new AjinMotionService(
             controller,
-            new() { Number = 9 },
+            new TestMotionHardware(new() { Number = 9 },
             new() { Number = 10 },
-            null,
+            null),
             new(),
             new(),
             new());
@@ -1660,7 +1662,7 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         var settings = new MotionSettings { AccelerationSeconds = 0.2, DecelerationSeconds = 0.75 };
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, null, new() { Number = 11 }, settings, new(), new());
+            controller, new TestMotionHardware(new() { Number = 9 }, null, new() { Number = 11 }), settings, new(), new());
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.MotionAxes[11] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 11)] = 0;
@@ -1705,7 +1707,7 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         var settings = new MotionSettings { ZAccelerationSeconds = value };
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, null, new() { Number = 11 }, settings, new(), new());
+            controller, new TestMotionHardware(new() { Number = 9 }, null, new() { Number = 11 }), settings, new(), new());
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.MotionAxes[11] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
 
@@ -1913,8 +1915,8 @@ public sealed class AjinControllerTests
             AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: axis)] = 0;
         }
         return new AjinMotionService(
-            controller, new() { Number = 9 }, hasY ? new() { Number = 10 } : null,
-            null, settings ?? new(), new(), new());
+            controller, new TestMotionHardware(new() { Number = 9 }, hasY ? new() { Number = 10 } : null, null),
+            settings ?? new(), new(), new());
     }
 
     [Fact]
@@ -1922,7 +1924,15 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         var axis = new AxisHardware { Number = 9, MoveUnit = 10, MovePulse = 100 };
-        var motion = new AjinMotionService(controller, axis, null, null, new(), new(), new());
+        using var services = new ServiceCollection()
+            .AddSingleton(controller)
+            .AddSingleton<MachineOptions>()
+            .AddSingleton<OperationCancellation>()
+            .AddKeyedSingleton<MotionHardwareSettings>(MotionGroup.PcbSupply, new TestMotionHardware(axis, null, null))
+            .AddKeyedSingleton(MotionGroup.PcbSupply, new MotionSettings())
+            .AddKeyedSingleton<IXyMotion, AjinMotionService>(MotionGroup.PcbSupply)
+            .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         motion.Initialize();
         var unit = AjinSdk.MotionAxes[9];
@@ -1938,7 +1948,7 @@ public sealed class AjinControllerTests
         Assert.Equal(unit, AjinSdk.MotionAxes[9]);
 
         AjinSdk.MotionAxes[10] = new();
-        var restarted = new AjinMotionService(controller, axis, null, null, new(), new(), new());
+        var restarted = new AjinMotionService(controller, new TestMotionHardware(axis, null, null), new(), new(), new());
         restarted.Initialize();
         Assert.Equal(2, AjinSdk.MotionAxes[10].Unit);
         Assert.Equal(200, AjinSdk.MotionAxes[10].Pulse);
@@ -1949,7 +1959,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         var axis = new AxisHardware { Number = 9, MoveUnit = 10, MovePulse = 100 };
-        var motion = new AjinMotionService(controller, axis, null, null, new(), new(), new());
+        var motion = new AjinMotionService(controller, new TestMotionHardware(axis, null, null), new(), new(), new());
         AjinSdk.MotionAxes[9] = new(Position: 12340, Unit: 10, Pulse: 100);
         Assert.Equal(12.34, motion.Position.X);
 
@@ -1970,7 +1980,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, new() { Number = 11 },
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, new() { Number = 11 }),
             new(), new(), new());
         foreach (var axis in new[] { 9, 10, 11 })
         {
@@ -2023,7 +2033,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
             new(), new(), new());
         foreach (var axis in new[] { 9, 10 })
         {
@@ -2049,7 +2059,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, null, null,
+            controller, new TestMotionHardware(new() { Number = 9 }, null, null),
             new(), new() { TimeoutMilliseconds = 20 }, new());
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 9)] = 0;
@@ -2078,7 +2088,7 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, new() { Number = 11 },
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, new() { Number = 11 }),
             new(), new(), operations);
         var axes = xy ? new[] { 9, 10 } : new[] { 11 };
         foreach (var axis in new[] { 9, 10, 11 })
@@ -2146,8 +2156,9 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 4, HomeResult: 1, Position: 12340);
         AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 4, HomeResult: 0, Position: -5670);
-        var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
-            null, new(), new(), new());
+        var motion = new AjinMotionService(
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
+            new(), new(), new());
 
 
         await motion.ResetAsync();
@@ -2171,8 +2182,9 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         AjinSdk.MotionAxes[9] = new();
         AjinSdk.MotionAxes[10] = new();
-        var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
-            null, new(), new(), new());
+        var motion = new AjinMotionService(
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
+            new(), new(), new());
         using var stop = new CancellationTokenSource();
         AjinSdk.BeforeCall = call =>
         {
@@ -2194,8 +2206,9 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         AjinSdk.MotionAxes[9] = new();
         AjinSdk.MotionAxes[10] = new();
-        var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
-            null, new(), new(), new());
+        var motion = new AjinMotionService(
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
+            new(), new(), new());
         if (failOnCommand)
             AjinSdk.Results[new(nameof(CAXM.AxmSignalServoAlarmReset), Value: 1, Axis: 9)] = 1;
         AjinSdk.Results[new(nameof(CAXM.AxmSignalServoAlarmReset), Value: 0, Axis: 9)] = 1;

@@ -14,6 +14,8 @@ using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
+using Microsoft.Data.Sqlite;
+using Xunit;
 
 namespace IBTM.Virtual.Tests;
 
@@ -113,6 +115,16 @@ internal static class VirtualTestSupport
     {
         return new MachineStore(
             file ?? Path.Combine(Path.GetTempPath(), $"IBTM-test-{Guid.NewGuid():N}.db"));
+    }
+
+    public static void AssertNoSavedConfiguration(MachineStore store)
+    {
+        using var connection = new SqliteConnection(
+            new SqliteConnectionStringBuilder { DataSource = store.DatabaseFile }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT (SELECT COUNT(*) FROM Settings) + (SELECT COUNT(*) FROM Recipes)";
+        Assert.Equal(0L, command.ExecuteScalar());
     }
 
     public static LogEntry[] Snapshot(this ApplicationLog log)

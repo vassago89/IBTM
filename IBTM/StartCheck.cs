@@ -22,8 +22,6 @@ public enum StartArea
 
 public enum StartCheckState
 {
-    [Description("Not checked")]
-    NotChecked,
     [Description("Unknown")]
     Unknown,
     [Description("Empty")]
@@ -40,6 +38,8 @@ public enum StartCheckState
     HandoffReady,
     [Description("Disabled")]
     Disabled,
+    [Description("Ready")]
+    Ready,
 }
 
 public enum CarrierWorkAction

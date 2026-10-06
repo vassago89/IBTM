@@ -62,13 +62,56 @@ public sealed class AjinController : IDisposable
                 }
             }
             // Match the manufacturer DIO sample: open AXL, then query the modules.
-            _log?.LogInformation("{Message}", $"AJIN opening with AxlOpen(interrupt={_interruptNumber}).");
+            _log?.LogInformation("AJIN opening with AxlOpen(interrupt={Interrupt}).", _interruptNumber);
             var openResult = CAXL.AxlOpen(_interruptNumber);
-            _log?.LogInformation("{Message}", $"AJIN AxlOpen(interrupt={_interruptNumber}) returned {(AXT_FUNC_RESULT)openResult} (0x{openResult:X8}).");
+            _log?.LogInformation("AJIN AxlOpen(interrupt={Interrupt}) returned {Result} (0x{Code:X8}).",
+                _interruptNumber, (AXT_FUNC_RESULT)openResult, openResult);
             Check(openResult, nameof(CAXL.AxlOpen));
             try
             {
-                ValidateModules();
+                uint status = 0;
+                Check(CAXD.AxdInfoIsDIOModule(ref status), nameof(CAXD.AxdInfoIsDIOModule));
+                if (status != (uint)AXT_EXISTENCE.STATUS_EXIST)
+                    throw new IOException("AJIN DIO modules were not detected.");
+
+                var moduleCount = 0;
+                Check(CAXD.AxdInfoGetModuleCount(ref moduleCount), nameof(CAXD.AxdInfoGetModuleCount));
+                _log?.LogInformation(
+                    "AJIN DIO module count={ModuleCount}; input modules=[{InputModules}], output modules=[{OutputModules}].",
+                    moduleCount, string.Join(",", _inputModules), string.Join(",", _outputModules));
+                if (moduleCount <= 0)
+                    throw new IOException($"AJIN reported an invalid DIO module count: {moduleCount}.");
+
+                var counts = new Dictionary<int, (int Inputs, int Outputs)>();
+                foreach (var module in _inputModules.Concat(_outputModules).Distinct().Order())
+                {
+                    if (module >= moduleCount)
+                        throw new IOException(
+                            $"AJIN configured DIO module={module} is unavailable; detected {moduleCount} modules (0..{moduleCount - 1}).");
+
+                    int board = 0, position = 0, inputs = 0, outputs = 0;
+                    uint type = 0;
+                    Check(
+                        CAXD.AxdInfoGetModule(module, ref board, ref position, ref type),
+                        nameof(CAXD.AxdInfoGetModule),
+                        module);
+                    Check(
+                        CAXD.AxdInfoGetInputCount(module, ref inputs),
+                        nameof(CAXD.AxdInfoGetInputCount),
+                        module);
+                    Check(
+                        CAXD.AxdInfoGetOutputCount(module, ref outputs),
+                        nameof(CAXD.AxdInfoGetOutputCount),
+                        module);
+                    counts.Add(module, (inputs, outputs));
+                    _log?.LogInformation(
+                        "AJIN DIO module={Module}, board={Board}, position={Position}, type={Type} (0x{Code:X}), DI={Inputs}, DO={Outputs}.",
+                        module, board, position, (AXT_MODULE)type, type, inputs, outputs);
+                }
+
+                _inputCounts = GetChannelCounts(_inputModules, counts, input: true);
+                _outputCounts = GetChannelCounts(_outputModules, counts, input: false);
+                _log?.LogInformation("AJIN DIO mapping validated. Input scan uses WORD offset 0 for 16 DI and offsets 0/1 for 32 DI.");
                 _initialized = true;
                 _log?.LogInformation("AJIN initialized with AxlOpen; DIO mapping validated and no .mot file loaded.");
             }
@@ -167,55 +210,6 @@ public sealed class AjinController : IDisposable
                 module,
                 offset);
         }
-    }
-
-    private void ValidateModules()
-    {
-        uint status = 0;
-        Check(CAXD.AxdInfoIsDIOModule(ref status), nameof(CAXD.AxdInfoIsDIOModule));
-        if (status != (uint)AXT_EXISTENCE.STATUS_EXIST)
-            throw new IOException("AJIN DIO modules were not detected.");
-
-        var moduleCount = 0;
-        Check(CAXD.AxdInfoGetModuleCount(ref moduleCount), nameof(CAXD.AxdInfoGetModuleCount));
-        _log?.LogInformation(
-            "{Message}",
-            $"AJIN DIO module count={moduleCount}; input modules=[{string.Join(",", _inputModules)}], output modules=[{string.Join(
-                    ",",
-                    _outputModules)}].");
-        if (moduleCount <= 0)
-            throw new IOException($"AJIN reported an invalid DIO module count: {moduleCount}.");
-
-        var counts = new Dictionary<int, (int Inputs, int Outputs)>();
-        foreach (var module in _inputModules.Concat(_outputModules).Distinct().Order())
-        {
-            if (module >= moduleCount)
-                throw new IOException(
-                    $"AJIN configured DIO module={module} is unavailable; detected {moduleCount} modules (0..{moduleCount - 1}).");
-
-            int board = 0, position = 0, inputs = 0, outputs = 0;
-            uint type = 0;
-            Check(
-                CAXD.AxdInfoGetModule(module, ref board, ref position, ref type),
-                nameof(CAXD.AxdInfoGetModule),
-                module);
-            Check(
-                CAXD.AxdInfoGetInputCount(module, ref inputs),
-                nameof(CAXD.AxdInfoGetInputCount),
-                module);
-            Check(
-                CAXD.AxdInfoGetOutputCount(module, ref outputs),
-                nameof(CAXD.AxdInfoGetOutputCount),
-                module);
-            counts.Add(module, (inputs, outputs));
-            _log?.LogInformation(
-                "{Message}",
-                $"AJIN DIO module={module}, board={board}, position={position}, type={(AXT_MODULE)type} (0x{type:X}), DI={inputs}, DO={outputs}.");
-        }
-
-        _inputCounts = GetChannelCounts(_inputModules, counts, input: true);
-        _outputCounts = GetChannelCounts(_outputModules, counts, input: false);
-        _log?.LogInformation("AJIN DIO mapping validated. Input scan uses WORD offset 0 for 16 DI and offsets 0/1 for 32 DI.");
     }
 
     private static int[] GetChannelCounts(

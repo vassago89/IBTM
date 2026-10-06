@@ -16,9 +16,9 @@ using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.UI;
 using IBTM.Virtual;
-using static IBTM.Virtual.Tests.VirtualTestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
