@@ -12,7 +12,6 @@ public sealed class BoltFasteningSettings : Setting
         PickupPosition = new();
         ShootingHead = new();
         PickupHead = new();
-        PickupFinalHeadCycleEnabled = true;
         MonitorTorqueCurves = true;
         TorqueCurveSampling = AdcTorqueCurveSampling.Milliseconds30;
         TorqueCurveTimeoutMilliseconds = 1_000;
@@ -21,16 +20,6 @@ public sealed class BoltFasteningSettings : Setting
 
     public MotionSettings Motion { get; set; }
     public FasteningHead FirstFasteningHead
-    {
-        get;
-        set
-        {
-            if (!Enum.IsDefined(value))
-                throw new ArgumentOutOfRangeException(nameof(value));
-            field = value;
-        }
-    }
-    public PickupFasteningMode PickupFasteningMode
     {
         get;
         set
@@ -61,8 +50,6 @@ public sealed class BoltFasteningSettings : Setting
         }
     } = 1;
 
-    public bool PickupFinalHeadCycleEnabled { get; set; }
-    public bool PickupFirstBoltRetighteningEnabled { get; set; }
     public bool MonitorTorqueCurves { get; set; }
     public AdcTorqueCurveSampling TorqueCurveSampling
     {
@@ -113,16 +100,6 @@ public sealed class BoltFasteningSettings : Setting
             field = value;
         }
     } = 3;
-    // Extra RUN delay when the same bolt immediately continues from preliminary to final.
-    public int HeadDownDelayMilliseconds
-    {
-        get;
-        set
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
-            field = value;
-        }
-    } = 100;
     public int DryRunMilliseconds
     {
         get;

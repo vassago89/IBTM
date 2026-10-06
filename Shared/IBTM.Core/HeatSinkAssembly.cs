@@ -55,6 +55,8 @@ public sealed class HeatSinkAssembly
     public AssemblyResult? TurnsResult { get; private set; }
     // Pending is untested; assigning a null barcode records a failed read.
     public AssemblyResult PcbBarcodeResult { get; private set; }
+    // Inspection policy applied to this read; later setting changes do not rewrite its verdict.
+    public bool IsDataMatrixNgExcluded { get; set; }
     public string? PcbBarcode
     {
         get => _pcbBarcode;
@@ -62,7 +64,7 @@ public sealed class HeatSinkAssembly
         {
             _pcbBarcode = value;
             PcbBarcodeResult = string.IsNullOrEmpty(value) ? AssemblyResult.Ng : AssemblyResult.Ok;
-            if (PcbBarcodeResult == AssemblyResult.Ng)
+            if (PcbBarcodeResult == AssemblyResult.Ng && !IsDataMatrixNgExcluded)
                 InspectionResult = AssemblyResult.Ng;
             ResultsChanged?.Invoke(this);
         }
@@ -155,6 +157,7 @@ public sealed class HeatSinkAssembly
         _boltPresenceResults.Clear();
         _pcbBarcode = null;
         PcbBarcodeResult = AssemblyResult.Pending;
+        IsDataMatrixNgExcluded = false;
         InspectionResult = AssemblyResult.Pending;
         ResultsChanged?.Invoke(this);
         InspectionCleared?.Invoke(this);

@@ -68,7 +68,7 @@ public sealed record BoltResult(
         {
             if (MinimumTurns is null && MaximumTurns is null)
                 return null;
-            if (TotalTurns is not { } turns)
+            if (!IsComplete || TotalTurns is not { } turns)
                 return AssemblyResult.Pending;
             if ((MinimumTurns is { } minimum && turns < minimum)
                 || (MaximumTurns is { } maximum && turns > maximum))

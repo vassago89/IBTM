@@ -1644,11 +1644,11 @@ public sealed class MachineController : INotifyPropertyChanged
 
     public bool AdcProtocolAvailable => !_operations.IsShuttingDown && _state.ManualMode && _state.SafetyReady;
 
-    internal bool IsManualMotionReady(MotionGroup group, bool live = true)
+    internal bool IsManualMotionReady(MotionGroup group, bool live = true, bool allowAutoMode = false)
     {
         if (_operations.IsShuttingDown
             || !_io.IsReady
-            || !_state.ManualMode
+            || !(allowAutoMode ? _state.DoorInterlockReady : _state.ManualMode)
             || !_state.SafetyReady
             || !_units.IsMotionEnabled(group))
             return false;
@@ -2270,10 +2270,10 @@ public sealed class MachineController : INotifyPropertyChanged
         try
         {
             using var operation = BeginManualOperation(
-                () => _state.Available && _state.ManualMode && _state.SafetyReady
+                () => _state.Available && _state.DoorInterlockReady && _state.SafetyReady
                     && !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
                     && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
-                    && groups.All(group => IsManualMotionReady(group)),
+                    && groups.All(group => IsManualMotionReady(group, allowAutoMode: true)),
                 cancellationToken);
             if (operation is null)
                 return false;
@@ -2281,7 +2281,7 @@ public sealed class MachineController : INotifyPropertyChanged
             if (activeToken.IsCancellationRequested || groups.Length == 0
                 || _state.IsRunningFor(includeOperations: false)
                 || groups.Any(group => _motions[group].Axes.Any(axis => _motions[group].GetAxisState(axis).InMotion)))
-                throw new InvalidOperationException("Stop the machine, select manual mode, and HOME all enabled axes before standby.");
+                throw new InvalidOperationException("Stop the machine and HOME all enabled axes before standby.");
             materialBlock = StandbyMaterialBlock;
             if (materialBlock is not null)
                 throw new InvalidOperationException(materialBlock);
@@ -2390,9 +2390,9 @@ public sealed class MachineController : INotifyPropertyChanged
         try
         {
             using var operation = BeginManualOperation(
-                () => _state.Available && _state.ManualMode && _state.SafetyReady
+                () => _state.Available && _state.DoorInterlockReady && _state.SafetyReady
                     && (movesSupply
-                        ? area == StartArea.Supply && IsManualMotionReady(MotionGroup.PcbSupply)
+                        ? area == StartArea.Supply && IsManualMotionReady(MotionGroup.PcbSupply, allowAutoMode: true)
                             && !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
                             && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
                         : !_state.IsRunningFor(includeOperations: false)
@@ -2531,18 +2531,19 @@ public sealed class MachineController : INotifyPropertyChanged
             or OutputIo.InspectionStopperUp or OutputIo.InspectionBackupPlateUp;
     }
 
-    internal bool IsSetTeachingOutputAllowed(IoOutputStatus output)
+    internal bool IsSetTeachingOutputAllowed(IoOutputStatus output, bool allowAutoMode = false)
     {
         return IsTeachingOutputSupported(output.Signal)
-            && _state.ManualSetupEnabled
+            && (allowAutoMode ? _state.StartPreparationEnabled : _state.ManualSetupEnabled)
             && (output.Signal != OutputIo.PcbSupplyRotate
-                || IsManualMotionReady(MotionGroup.PcbSupply, live: false) && _pcbSupply.IsTeachingRotationAllowed);
+                || IsManualMotionReady(MotionGroup.PcbSupply, live: false, allowAutoMode) && _pcbSupply.IsTeachingRotationAllowed);
     }
 
     internal async Task SetTeachingOutputAsync(
         IoOutputStatus output,
         CancellationToken cancellationToken,
-        CancellationToken viewCancellation = default)
+        CancellationToken viewCancellation = default,
+        bool allowAutoMode = false)
     {
         var activeToken = cancellationToken;
         try
@@ -2550,9 +2551,9 @@ public sealed class MachineController : INotifyPropertyChanged
             if (!IsTeachingOutputSupported(output.Signal))
                 return;
             using var operation = BeginManualOperation(
-                () => _state.Available && _state.ManualMode && _state.SafetyReady
+                () => _state.Available && (allowAutoMode ? _state.DoorInterlockReady : _state.ManualMode) && _state.SafetyReady
                     && (output.Signal != OutputIo.PcbSupplyRotate
-                        || IsManualMotionReady(MotionGroup.PcbSupply) && _pcbSupply.IsTeachingRotationAllowed),
+                        || IsManualMotionReady(MotionGroup.PcbSupply, allowAutoMode: allowAutoMode) && _pcbSupply.IsTeachingRotationAllowed),
                 cancellationToken,
                 viewCancellation);
             if (operation is null)

@@ -266,8 +266,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     var finalPreset = _settings.PickupFinalPreset;
                     torqueCompensations[(FasteningHead.Pickup, finalPreset)] =
                         await PickupHead.ReadTorqueCompensationAsync(finalPreset, cancellationToken);
-                    if (_settings.PickupFasteningMode == PickupFasteningMode.TwoStage
-                        && _settings.PickupPreliminaryPreset != finalPreset)
+                    if (_settings.PickupPreliminaryPreset != finalPreset)
                         torqueCompensations[(FasteningHead.Pickup, _settings.PickupPreliminaryPreset)] =
                             await PickupHead.ReadTorqueCompensationAsync(_settings.PickupPreliminaryPreset, cancellationToken);
                 }
@@ -435,47 +434,33 @@ public sealed class BoltFasteningStation : AutoUnit
                     var work = new List<(BoltPoint Bolt, BoltFasteningStage Stage)>();
                     foreach (var group in selected.GroupBy(bolt => (bolt.Head, bolt.HeatSink)))
                     {
+                        if (group.Key.Head == FasteningHead.Shooting)
+                        {
+                            work.AddRange(group.Select(point => (point, BoltFasteningStage.Single)));
+                            continue;
+                        }
                         var pickupResults = Station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == group.Key.HeatSink)?.PickupBoltResults;
-                        var twoStage = group.Key.Head == FasteningHead.Pickup
-                            && _settings.PickupFasteningMode == PickupFasteningMode.TwoStage;
-                        var retighteningBolt = twoStage && _settings.PickupFirstBoltRetighteningEnabled
-                            ? recipeBolts.First(point => point.Head == group.Key.Head && point.HeatSink == group.Key.HeatSink).Id
-                            : (Guid?)null;
+                        var retighteningBolt = recipeBolts.First(point => point.Head == group.Key.Head
+                            && point.HeatSink == group.Key.HeatSink).Id;
                         foreach (var point in group)
                         {
-                            if (selectedBolts is not null && point.Head == FasteningHead.Pickup
+                            if (selectedBolts is not null && pickupResults?.GetValueOrDefault(point.Id) is
+                                { Stage: BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening })
+                                continue;
+                            work.Add((point, BoltFasteningStage.Preliminary));
+                        }
+                        foreach (var point in group.Reverse())
+                        {
+                            if (selectedBolts is not null
                                 && pickupResults?.GetValueOrDefault(point.Id) is { Stage: BoltFasteningStage.FinalBeforeRetightening })
                             {
-                                // An interrupted additional pass remains due even if the mode was edited while stopped.
-                                if (!twoStage)
-                                    work.Add((point, BoltFasteningStage.Retightening));
+                                work.Add((point, BoltFasteningStage.Retightening));
                                 continue;
                             }
-                            var resumePreliminary = selectedBolts is not null && point.Head == FasteningHead.Pickup
-                                && pickupResults?.GetValueOrDefault(point.Id) is { Stage: BoltFasteningStage.Preliminary };
-                            if (twoStage)
-                            {
-                                if (!resumePreliminary)
-                                    work.Add((point, BoltFasteningStage.Preliminary));
-                            }
-                            else
-                                work.Add((point, resumePreliminary ? BoltFasteningStage.Final : BoltFasteningStage.Single));
-                        }
-                        if (twoStage)
-                        {
-                            foreach (var point in group.Reverse())
-                            {
-                                if (selectedBolts is not null
-                                    && pickupResults?.GetValueOrDefault(point.Id) is { Stage: BoltFasteningStage.FinalBeforeRetightening })
-                                {
-                                    work.Add((point, BoltFasteningStage.Retightening));
-                                    continue;
-                                }
-                                work.Add((point, point.Id == retighteningBolt
-                                    ? BoltFasteningStage.FinalBeforeRetightening : BoltFasteningStage.Final));
-                                if (point.Id == retighteningBolt)
-                                    work.Add((point, BoltFasteningStage.Retightening));
-                            }
+                            work.Add((point, point.Id == retighteningBolt
+                                ? BoltFasteningStage.FinalBeforeRetightening : BoltFasteningStage.Final));
+                            if (point.Id == retighteningBolt)
+                                work.Add((point, BoltFasteningStage.Retightening));
                         }
                     }
                     _runBolts = work.ToArray();
@@ -575,8 +560,6 @@ public sealed class BoltFasteningStation : AutoUnit
                     var continuingFinal = isFinal && _boltIndex > 0
                         && _runBolts[_boltIndex - 1] is { Stage: BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening, Bolt: var previousBolt }
                         && previousBolt.Id == bolt.Id;
-                    var keepHeadDown = continuingFinal
-                        && (stage == BoltFasteningStage.Retightening || !_settings.PickupFinalHeadCycleEnabled);
                     var cycleStarted = Stopwatch.GetTimestamp();
                     _log?.LogInformation("Bolt timing {Job}/{Bolt}: begin, PCB={Pcb}, head={Head}, safe Z={SafeZ}.",
                         job.Id, bolt.Id, bolt.HeatSink, bolt.Head, _settings.GetSafeZ(bolt.Head));
@@ -784,7 +767,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         await head.SelectPresetAsync(preset, token);
                         _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
                             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                        if (!keepHeadDown)
+                        if (!continuingFinal)
                         {
                             started = Stopwatch.GetTimestamp();
                             await RaiseCylindersAsync(token);
@@ -829,11 +812,9 @@ public sealed class BoltFasteningStation : AutoUnit
                                 started = Stopwatch.GetTimestamp();
                                 var completed = await head.TightenAsync(
                                     fastening.Token,
-                                    keepHeadDown ? null : LowerHeadWhileFasteningAsync,
+                                    continuingFinal ? null : LowerHeadWhileFasteningAsync,
                                     dryRunMilliseconds, received => result = received,
-                                    torqueCompensations.TryGetValue((bolt.Head, preset), out var compensation) ? compensation : null,
-                                    feedDelayMilliseconds: continuingFinal && !keepHeadDown
-                                        ? _settings.HeadDownDelayMilliseconds : 0);
+                                    torqueCompensations.TryGetValue((bolt.Head, preset), out var compensation) ? compensation : null);
                                 _log?.LogInformation("Bolt timing {Bolt}: controller START/result/STOP, elapsed={ElapsedMs:F1} ms, controller time={ControllerMs} ms.",
                                     bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds, completed.Controller?.FasteningTimeMilliseconds);
                                 completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };

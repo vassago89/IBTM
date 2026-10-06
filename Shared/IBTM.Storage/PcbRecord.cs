@@ -21,6 +21,7 @@ public sealed record PcbRecord(
     IReadOnlyList<Guid> BoltIds)
 {
     public AssemblyResult? TurnsResult { get; init; }
+    public bool IsDataMatrixNgExcluded { get; init; }
 
     // The order belongs to this recorded PCB, independent of later recipe edits.
     public int? GetBoltOrdinal(Guid boltId)

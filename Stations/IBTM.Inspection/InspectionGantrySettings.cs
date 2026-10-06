@@ -11,5 +11,5 @@ public sealed class InspectionGantrySettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
-
+    public bool ExcludeDataMatrixFromNg { get; set; }
 }

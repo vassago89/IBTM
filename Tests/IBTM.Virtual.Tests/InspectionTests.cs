@@ -19,6 +19,69 @@ namespace IBTM.Virtual.Tests;
 public sealed class InspectionTests
 {
     [Theory]
+    [InlineData(false, true, false, true)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, true, true, true)]
+    public async Task DataMatrixNgExclusionKeepsReadResultsAndOtherNgRouting(
+        bool excludeDataMatrix, bool boltPresent, bool fasteningNg, bool routeToNg)
+    {
+        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        io.Initialize();
+        var settings = new InspectionGantrySettings { ExcludeDataMatrixFromNg = excludeDataMatrix };
+        using var motion = new VirtualMotionService(settings.Motion, new(), hasZ: false);
+        motion.Initialize();
+        var bolt = new BoltPoint { X = 0, Y = 0, BrightnessThreshold = 128, MinimumBrightRatio = 0.5 };
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.Pcb.BoltPoints = [bolt];
+        recipes.Current.CarrierImages = [
+            new() { IsBarcode = true, Center = new(), Region = new(0, 0, 20, 20) },
+            new() { BoltId = bolt.Id, Center = new(), Region = new(0, 0, 20, 20) },
+        ];
+        var camera = new VirtualCamera(() => motion.Position, () => [])
+        {
+            SourceImage = new(20, 20, 60, Enumerable.Repeat(boltPresent ? (byte)255 : (byte)0, 1200).ToArray()),
+        };
+        var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
+        var work = ConveyorStation.CreateInspection(io);
+        var station = new InspectionStation(work, motion, new(motion), new NgCarrierConveyor(io, new(), units),
+            settings, new() { WaitingPosition = new(), CarrierPickupPosition = new() }, io, units,
+            camera, new VirtualLightController(), new() { StabilizationDelayMilliseconds = 0 }, recipes);
+        Assert.True(await station.HomeHorizontalAsync());
+        io.SetInputs(
+            (InputIo.InspectionHeatSink1Present, true),
+            (InputIo.InspectionBackupPlateUp, false), (InputIo.InspectionBackupPlateDown, true),
+            (InputIo.InspectionStopperDown, false), (InputIo.InspectionStopperUp, true));
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordBolt(FasteningHead.Pickup, bolt.Id, new(!fasteningNg, 8));
+        assembly.CompleteFastening();
+        var captures = new List<InspectionCapture>();
+        assembly.InspectionCaptured += captures.Add;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        work.Changed += () =>
+        {
+            if (work.Completed)
+                stop.Cancel();
+        };
+
+        await station.RunAsync(stop.Token);
+
+        Assert.True(work.Completed);
+        Assert.Null(assembly.PcbBarcode);
+        Assert.Equal(AssemblyResult.Ng, assembly.PcbBarcodeResult);
+        Assert.Equal(excludeDataMatrix, assembly.IsDataMatrixNgExcluded);
+        Assert.False(Assert.Single(captures, capture => capture.BoltId is null).Success);
+        Assert.Equal(boltPresent, assembly.BoltPresenceResults[bolt.Id]);
+        Assert.Equal(routeToNg ? AssemblyResult.Ng : AssemblyResult.Ok, assembly.Result);
+        Assert.Equal(routeToNg, station.RouteToNg);
+        Assert.Equal(routeToNg ? new ProductionCounts(0, 1) : new ProductionCounts(1, 0), recipes.Counts);
+
+        assembly.ClearInspectionResults();
+        Assert.False(assembly.IsDataMatrixNgExcluded);
+        Assert.Equal(AssemblyResult.Pending, assembly.PcbBarcodeResult);
+    }
+
+    [Theory]
     [InlineData(null, null, false, false)]
     [InlineData(10.0, null, false, true)]
     [InlineData(null, 10.0, false, true)]

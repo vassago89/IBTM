@@ -9,14 +9,17 @@ namespace IBTM.UI;
 public sealed class TeachingOutputRow : ObservableObject
 {
     private readonly MachineController _machine;
+    private readonly bool _allowAutoMode;
 
     public TeachingOutputRow(
         IoOutputStatus io,
-        MachineController machine)
+        MachineController machine,
+        bool allowAutoMode = false)
     {
         ToggleOutputCommand = new AsyncRelayCommand(ToggleOutputAsync);
 
         _machine = machine;
+        _allowAutoMode = allowAutoMode;
         Io = io;
     }
 
@@ -29,7 +32,7 @@ public sealed class TeachingOutputRow : ObservableObject
         get
         {
             return !ViewCancellation.IsCancellationRequested
-                && _machine.IsSetTeachingOutputAllowed(Io);
+                && _machine.IsSetTeachingOutputAllowed(Io, _allowAutoMode);
         }
     }
 
@@ -42,6 +45,6 @@ public sealed class TeachingOutputRow : ObservableObject
 
     private Task ToggleOutputAsync(CancellationToken cancellationToken)
     {
-        return _machine.SetTeachingOutputAsync(Io, cancellationToken, ViewCancellation);
+        return _machine.SetTeachingOutputAsync(Io, cancellationToken, ViewCancellation, _allowAutoMode);
     }
 }

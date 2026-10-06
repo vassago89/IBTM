@@ -127,7 +127,7 @@ Operation failed. Check controller status.</value>
     <value>An unhandled error occurred. The application will close.</value>
   </data>
   <data name="an unhandled ui error occurred. the application will remain open." xml:space="preserve">
-    <value>An unhandled UI error occurred. The application will remain open.</value>
+    <value>A screen error occurred.</value>
   </data>
   <data name="angle 1" xml:space="preserve">
     <value>Angle 1</value>
@@ -358,7 +358,7 @@ Operation failed. Check controller status.</value>
     <value>Carrier Placement (Shuttle)</value>
   </data>
   <data name="carrier presence sensor · not grip feedback" xml:space="preserve">
-    <value>Carrier presence sensor · not grip feedback</value>
+    <value>Carrier sensor; check gripper status separately.</value>
   </data>
   <data name="carrier stays at s2" xml:space="preserve">
     <value>No carrier transfer</value>
@@ -405,7 +405,7 @@ Operation failed. Check controller status.</value>
     <value>Clear Messages</value>
   </data>
   <data name="clear selection" xml:space="preserve">
-    <value>Clear selection</value>
+    <value>Deselect</value>
   </data>
   <data name="clear the cause, then press reset" xml:space="preserve">
     <value>Clear the cause, then press RESET</value>
@@ -564,7 +564,7 @@ Operation failed. Check controller status.</value>
     <value>Device STOP failed during application exit.</value>
   </data>
   <data name="diagnostic window could not be opened or closed." xml:space="preserve">
-    <value>Diagnostic window could not be opened or closed.</value>
+    <value>Could not switch diagnostic windows.</value>
   </data>
   <data name="diagnostics" xml:space="preserve">
     <value>Diagnostics</value>
@@ -1531,7 +1531,7 @@ Operation failed. Check controller status.</value>
     <value>PCB 2 Pickup</value>
   </data>
   <data name="pcb details could not be opened or closed." xml:space="preserve">
-    <value>PCB details could not be opened or closed.</value>
+    <value>Could not switch PCB detail windows.</value>
   </data>
   <data name="pcb detected" xml:space="preserve">
     <value>PCB Detected</value>
@@ -1931,7 +1931,7 @@ Operation failed. Check controller status.</value>
     <value>Record current position?</value>
   </data>
   <data name="record image positions with the camera capture command." xml:space="preserve">
-    <value>Record image positions with the camera capture command.</value>
+    <value>Use camera capture to record image positions.</value>
   </data>
   <data name="record position" xml:space="preserve">
     <value>Record Position</value>
@@ -1952,7 +1952,7 @@ Operation failed. Check controller status.</value>
     <value>Recorded {0} · {1}</value>
   </data>
   <data name="recording cancelled; point not saved. record again." xml:space="preserve">
-    <value>Recording cancelled; point not saved. Record again.</value>
+    <value>Recording cancelled; position not saved.</value>
   </data>
   <data name="recording was not started because another operation is active. try again after it finishes." xml:space="preserve">
     <value>Recording was not started because another operation is active. Try again after it finishes.</value>
@@ -1985,7 +1985,7 @@ Operation failed. Check controller status.</value>
     <value>Release E-stop, then press RESET</value>
   </data>
   <data name="release held pcb before home (ipm lift down)" xml:space="preserve">
-    <value>Release held PCB before HOME (IPM lift down)</value>
+    <value>IPM down; release the held PCB before HOME.</value>
   </data>
   <data name="release or stop to stop rotation." xml:space="preserve">
     <value>Release or STOP to stop rotation.</value>
@@ -2108,7 +2108,7 @@ Operation failed. Check controller status.</value>
     <value>Save</value>
   </data>
   <data name="save cancelled. retry save." xml:space="preserve">
-    <value>Save cancelled. Retry Save.</value>
+    <value>Save cancelled</value>
   </data>
   <data name="save cancelled; teaching not saved." xml:space="preserve">
     <value>Save cancelled; teaching not saved.</value>
@@ -2213,7 +2213,7 @@ Operation failed. Check controller status.</value>
     <value>Settings not saved: {0}</value>
   </data>
   <data name="settings saved." xml:space="preserve">
-    <value>Settings saved.</value>
+    <value>Settings saved</value>
   </data>
   <data name="settings saved; recipe was not saved. " xml:space="preserve">
     <value>Settings saved; recipe was not saved. </value>
@@ -2417,7 +2417,7 @@ Operation failed. Check controller status.</value>
     <value>STOP</value>
   </data>
   <data name="stop failed — check equipment" xml:space="preserve">
-    <value>Stop Failed — Check Equipment</value>
+    <value>STOP failed; check equipment.</value>
   </data>
   <data name="stop live" xml:space="preserve">
     <value>Stop Live</value>
@@ -2426,7 +2426,7 @@ Operation failed. Check controller status.</value>
     <value>Stop the current operation before changing the recipe.</value>
   </data>
   <data name="stop the machine and clear alarms / safety blocks." xml:space="preserve">
-    <value>Stop the machine and clear alarms / safety blocks.</value>
+    <value>Stop the machine and check alarm causes and safety conditions.</value>
   </data>
   <data name="stopped" xml:space="preserve">
     <value>Stopped</value>
@@ -2723,7 +2723,7 @@ Speed   Configured axis speed</value>
     <value>Waiting for S2 fastening to finish</value>
   </data>
   <data name="waiting for s3 / ng pickup to clear" xml:space="preserve">
-    <value>Waiting for S3 / NG pickup to clear</value>
+    <value>Waiting for S3 and NG pickup to clear</value>
   </data>
   <data name="waiting for s3 inspection" xml:space="preserve">
     <value>Waiting for S3 inspection to finish</value>
@@ -2783,7 +2783,7 @@ Speed   Configured axis speed</value>
     <value>Y−</value>
   </data>
   <data name="z accel / decel: blank = x / y" xml:space="preserve">
-    <value>Z accel / decel: blank = X / Y</value>
+    <value>Z accel / decel: blank uses X/Y values</value>
   </data>
   <data name="z offset (mm)" xml:space="preserve">
     <value>Z offset (mm)</value>
@@ -2835,7 +2835,7 @@ See the application log for details.</value>
     <value>{0} results</value>
   </data>
   <data name="{0} unlinked image(s) excluded." xml:space="preserve">
-    <value>{0} unlinked image(s) excluded.</value>
+    <value>Skipped {0} images with no inspection point.</value>
   </data>
   <data name="{0} · bright {1:0.###}%" xml:space="preserve">
     <value>{0} · Bright area {1:0.###}%</value>
@@ -3079,9 +3079,6 @@ See the application log for details.</value>
   </data>
   <data name="체결 시간 초과" xml:space="preserve">
     <value>Fastening timeout</value>
-  </data>
-  <data name="체결 오류는 stop 후 ng로 기록합니다. 다음 볼트 전에 알람이 남아 있으면 reset을 1회 실행합니다. alarm=0, ready=on, run=off 확인 시 진행하며, 실패하면 설비 알람으로 정지합니다." xml:space="preserve">
-    <value>Fastening errors are stopped and recorded as NG. A remaining alarm gets one RESET before the next bolt. Continue only with Alarm=0, Ready=ON and RUN=OFF; otherwise stop with a machine alarm.</value>
   </data>
   <data name="체결·각도 조건 확인" xml:space="preserve">
     <value>Check fastening and angle limits</value>
@@ -3437,29 +3434,17 @@ COMPLETE: finish</value>
   <data name="1-stage fastening" xml:space="preserve">
     <value>1-stage fastening</value>
   </data>
-  <data name="2-stage fastening" xml:space="preserve">
-    <value>2-stage fastening</value>
-  </data>
   <data name="pre-tightening" xml:space="preserve">
     <value>Pre-tightening</value>
   </data>
   <data name="final tightening" xml:space="preserve">
     <value>Final tightening</value>
   </data>
-  <data name="pickup fastening mode" xml:space="preserve">
-    <value>Pickup fastening mode</value>
-  </data>
   <data name="pre-tightening preset" xml:space="preserve">
     <value>Pre-tightening preset</value>
   </data>
   <data name="final tightening preset" xml:space="preserve">
     <value>Final tightening preset</value>
-  </data>
-  <data name="cycle cylinder before same-bolt final tightening" xml:space="preserve">
-    <value>Cycle cylinder before same-bolt final tightening</value>
-  </data>
-  <data name="off: keep cylinder down and switch to the final preset." xml:space="preserve">
-    <value>OFF: keep cylinder down and switch to the final preset.</value>
   </data>
   <data name="final tightening pending" xml:space="preserve">
     <value>Final tightening pending</value>
@@ -3469,15 +3454,6 @@ COMPLETE: finish</value>
   </data>
   <data name="pickup fastening" xml:space="preserve">
     <value>Pickup fastening</value>
-  </data>
-  <data name="1-stage: final preset only." xml:space="preserve">
-    <value>1-stage: final preset only.</value>
-  </data>
-  <data name="pre 1 → pre 2 → final 2 → final 1 · per pcb" xml:space="preserve">
-    <value>Pre 1 → Pre 2 → Final 2 → Final 1 · per PCB</value>
-  </data>
-  <data name="2-stage turns = pre-tightening + final tightening" xml:space="preserve">
-    <value>2-stage turns = pre-tightening + final tightening</value>
   </data>
   <data name="pre-tightening ng: skip final tightening" xml:space="preserve">
     <value>Pre-tightening NG: skip final tightening</value>
@@ -3546,13 +3522,13 @@ COMPLETE: finish</value>
     <value>Turns unavailable</value>
   </data>
   <data name="completed bolts are not fastened again, including ng and dry runs. with zero remaining, the head returns and the carrier work is completed." xml:space="preserve">
-    <value>Completed bolts are not fastened again, including NG and dry runs. With zero remaining, the head returns and the carrier work is completed.</value>
+    <value>Completed bolts, including NG and dry runs, are not repeated.</value>
   </data>
-  <data name="s2 backup plate is down. in manual mode, check the carrier and head clearance, then select raise/lower carrier support. after up feedback, check resume again." xml:space="preserve">
-    <value>S2 backup plate is DOWN. In Manual mode, check the carrier and head clearance, then select Raise/lower carrier support. After UP feedback, check resume again.</value>
+  <data name="s2 backup plate is down. check the carrier and head clearance, then select raise/lower carrier support. after up feedback, check resume again." xml:space="preserve">
+    <value>Check carrier and head clearance, then raise the S2 backup.</value>
   </data>
   <data name="cannot confirm s2 backup plate position. check the actual position and the up/down sensors. resume requires up on and down off." xml:space="preserve">
-    <value>Cannot confirm S2 backup plate position. Check the actual position and the UP/DOWN sensors. Resume requires UP ON and DOWN OFF.</value>
+    <value>S2 backup position unknown. Check UP/DOWN sensors.</value>
   </data>
   <data name="close doors before starting." xml:space="preserve">
     <value>Close doors before starting.</value>
@@ -3624,7 +3600,7 @@ COMPLETE: finish</value>
     <value>SDK Pulse must be a positive integer.</value>
   </data>
   <data name="active recipe edits apply immediately. save to keep changes after restart." xml:space="preserve">
-    <value>Active recipe edits apply immediately. Save to keep changes after restart.</value>
+    <value>Edits apply immediately. Save to keep them after restart.</value>
   </data>
   <data name="history reinspection" xml:space="preserve">
     <value>History reinspection</value>
@@ -3719,12 +3695,6 @@ COMPLETE: finish</value>
   <data name="preset delay must be 0 ms or greater." xml:space="preserve">
     <value>Preset delay must be 0 ms or greater.</value>
   </data>
-  <data name="final cylinder down delay (ms)" xml:space="preserve">
-    <value>Final cylinder down delay (ms)</value>
-  </data>
-  <data name="same bolt only · after run, before down · 0 = no delay" xml:space="preserve">
-    <value>Same bolt only · after RUN, before DOWN · 0 = no delay</value>
-  </data>
   <data name="i checked the carrier and placed pcbs. resume unfinished placement." xml:space="preserve">
     <value>Carrier / PCBs checked · Resume placement</value>
   </data>
@@ -3735,13 +3705,13 @@ COMPLETE: finish</value>
     <value>Placement complete</value>
   </data>
   <data name="completed placements are not repeated. if all are recorded, the handler returns and the carrier work is completed." xml:space="preserve">
-    <value>Completed placements are not repeated. If all are recorded, the handler returns and the carrier work is completed.</value>
+    <value>Completed placements are skipped; only pending placements resume.</value>
   </data>
   <data name="no completion record means placement is unconfirmed. check the actual pcb before rework." xml:space="preserve">
-    <value>No completion record means placement is unconfirmed. Check the actual PCB before rework.</value>
+    <value>Check the actual PCB where no completion is recorded.</value>
   </data>
   <data name="release material grip" xml:space="preserve">
-    <value>Release material grip</value>
+    <value>Release material</value>
   </data>
   <data name="raise tooling" xml:space="preserve">
     <value>Raise tooling</value>
@@ -3755,56 +3725,53 @@ COMPLETE: finish</value>
   <data name="restart preparation" xml:space="preserve">
     <value>Restart preparation</value>
   </data>
-  <data name="stop the equipment and select manual mode. each button waits for its sequence to finish." xml:space="preserve">
-    <value>Stop the equipment and select Manual mode. Each button waits for its sequence to finish.</value>
-  </data>
   <data name="support the material before releasing its grip. remove any remaining pcb or bolt, then select reset." xml:space="preserve">
-    <value>Support the material before releasing its grip. Remove any remaining PCB or bolt, then select RESET.</value>
+    <value>Support the material before release. Clear remaining PCB or bolts, then RESET.</value>
   </data>
   <data name="raises the working cylinders in order without axis motion. material grip is retained." xml:space="preserve">
-    <value>Raises the working cylinders in order without axis motion. Material grip is retained.</value>
+    <value>Raise cylinders only; keep vacuum and grip.</value>
   </data>
   <data name="raises the tooling first, then operates only the selected support or stopper and waits for feedback. work records are retained." xml:space="preserve">
-    <value>Raises the tooling first, then operates only the selected support or stopper and waits for feedback. Work records are retained.</value>
+    <value>Raise tooling, then operate the selected backup or stopper.</value>
   </data>
   <data name="advanced · individual i/o" xml:space="preserve">
-    <value>Advanced · Individual I/O</value>
+    <value>Individual I/O</value>
   </data>
   <data name="preparation stopped. check machine status." xml:space="preserve">
-    <value>Preparation stopped. Check machine status.</value>
+    <value>Preparation stopped; check machine status.</value>
   </data>
   <data name="in progress" xml:space="preserve">
     <value>In progress</value>
   </data>
   <data name="placement pcb detected. ipm support is retained. support or remove the pcb, then raise the tooling again." xml:space="preserve">
-    <value>Placement PCB detected. IPM support is retained. Support or remove the PCB, then raise the tooling again.</value>
+    <value>PCB detected; IPM raise stopped. Support or remove the PCB before retrying.</value>
   </data>
   <data name="all stations to standby" xml:space="preserve">
     <value>All stations to standby</value>
   </data>
   <data name="moves enabled stations in order. supply waits above pcb 1 at travel z. home is required; held material must be cleared first." xml:space="preserve">
-    <value>Moves enabled stations in order. Supply waits above PCB 1 at travel Z. HOME is required; held material must be cleared first.</value>
+    <value>HOME and clear held material before moving. Supply waits above PCB 1 at travel Z.</value>
   </data>
-  <data name="stop the machine, select manual mode, and home all enabled axes before standby." xml:space="preserve">
-    <value>Stop the machine, select manual mode, and HOME all enabled axes before standby.</value>
+  <data name="stop the machine and home all enabled axes before standby." xml:space="preserve">
+    <value>Stop and HOME all enabled axes before standby.</value>
   </data>
   <data name="supply is holding a pcb. support and release it before moving all stations to standby." xml:space="preserve">
-    <value>Supply is holding a PCB. Support and release it before moving all stations to standby.</value>
+    <value>Supply is holding a PCB. Support and release it before moving.</value>
   </data>
   <data name="remove the head bolts and release vacuum before moving all stations to standby." xml:space="preserve">
-    <value>Remove the head bolts and release vacuum before moving all stations to standby.</value>
+    <value>Remove head bolts and release vacuum before moving.</value>
   </data>
   <data name="finish or release the ng carrier transfer and confirm the gripper is open before standby." xml:space="preserve">
-    <value>Finish or release the NG carrier transfer and confirm the gripper is open before standby.</value>
+    <value>Finish NG transfer or support and release the carrier. Confirm the gripper is open.</value>
   </data>
   <data name="teach the first shooting bolt before moving fastening to standby." xml:space="preserve">
-    <value>Teach the first shooting bolt before moving Fastening to standby.</value>
+    <value>Teach the first shooting bolt position before standby.</value>
   </data>
   <data name="each button lowers an up cylinder and raises a down cylinder. unknown position blocks operation." xml:space="preserve">
-    <value>Each button lowers an UP cylinder and raises a DOWN cylinder. Unknown position blocks operation.</value>
+    <value>Toggle UP/DOWN; unknown position blocks operation.</value>
   </data>
   <data name="confirm the selected support or stopper up/down sensors before operating it." xml:space="preserve">
-    <value>Confirm the selected support or stopper Up/Down sensors before operating it.</value>
+    <value>Check backup and stopper UP/DOWN sensors.</value>
   </data>
   <data name="i/o controls" xml:space="preserve">
     <value>I/O controls</value>
@@ -3822,7 +3789,7 @@ COMPLETE: finish</value>
     <value>Carrier work actions</value>
   </data>
   <data name="check the seated s1 carrier and the placement records above. resume requires matching records and the backup plate up." xml:space="preserve">
-    <value>Check the seated S1 carrier and the placement records above. Resume requires matching records and the backup plate UP.</value>
+    <value>Match S1 carrier placement to its records and raise the backup before resuming.</value>
   </data>
   <data name="review carrier and records." xml:space="preserve">
     <value>Review carrier and records.</value>
@@ -3837,7 +3804,7 @@ COMPLETE: finish</value>
     <value>Carrier not detected.</value>
   </data>
   <data name="recover hardware and refresh the start review; servos may turn on." xml:space="preserve">
-    <value>Recover hardware and refresh the start review; servos may turn ON.</value>
+    <value>Recover and recheck start conditions; servos may turn ON.</value>
   </data>
   <data name="supply status" xml:space="preserve">
     <value>Supply status</value>
@@ -3852,7 +3819,7 @@ COMPLETE: finish</value>
     <value>Move to rotation position</value>
   </data>
   <data name="move z to travel height, then xy and z to the rotation position. rotation and grip remain unchanged." xml:space="preserve">
-    <value>Move Z to travel height, then XY and Z to the rotation position. Rotation and grip remain unchanged.</value>
+    <value>Travel Z → rotation XY → rotation Z. Keep rotation and grip.</value>
   </data>
   <data name="release pcb vacuum" xml:space="preserve">
     <value>Release PCB vacuum</value>
@@ -3884,7 +3851,6 @@ COMPLETE: finish</value>
   <data name="torque curves" xml:space="preserve"><value>Torque curves</value></data>
   <data name="collect torque curves" xml:space="preserve"><value>Collect torque curves</value></data>
   <data name="carrier work {0}" xml:space="preserve"><value>Carrier work {0}</value></data>
-  <data name="stored with pcb results" xml:space="preserve"><value>Stored with PCB results</value></data>
   <data name="graph" xml:space="preserve"><value>Graph</value></data>
   <data name="no torque curve" xml:space="preserve"><value>No torque curve</value></data>
   <data name="torque compensation not recorded" xml:space="preserve"><value>Torque compensation not recorded</value></data>
@@ -3892,24 +3858,26 @@ COMPLETE: finish</value>
   <data name="invalid adc torque curve data" xml:space="preserve"><value>Invalid ADC torque curve data</value></data>
   <data name="request adc graph" xml:space="preserve"><value>Request ADC Graph</value></data>
   <data name="torque (controller unit)" xml:space="preserve"><value>Torque (controller unit)</value></data>
-  <data name="curve covers only part of the fastening time" xml:space="preserve"><value>Curve covers only part of the fastening time</value></data>
+  <data name="curve covers only part of the fastening time" xml:space="preserve"><value>Partial curve data</value></data>
   <data name="{0} ms · {1} samples" xml:space="preserve"><value>{0} ms · {1} samples</value></data>
   <data name="torque curve sampling" xml:space="preserve"><value>Torque curve sampling</value></data>
   <data name="5 ms · up to 1 s" xml:space="preserve"><value>5 ms · up to 1 s</value></data>
   <data name="10 ms · up to 2 s" xml:space="preserve"><value>10 ms · up to 2 s</value></data>
   <data name="15 ms · up to 3 s" xml:space="preserve"><value>15 ms · up to 3 s</value></data>
   <data name="30 ms · up to 6 s" xml:space="preserve"><value>30 ms · up to 6 s</value></data>
-  <data name="sdk completion wait (s)" xml:space="preserve"><value>SDK completion wait (s)</value></data>
+  <data name="sdk completion wait (s)" xml:space="preserve"><value>Communication request timeout (s)</value></data>
   <data name="torque curve result wait (s)" xml:space="preserve"><value>Torque curve result wait (s)</value></data>
   <data name="torque curve stop wait (s)" xml:space="preserve"><value>Torque curve stop wait (s)</value></data>
-  <data name="hcomm response timeout: 1 s (fixed)" xml:space="preserve"><value>HComm response timeout: 1 s (fixed)</value></data>
   <data name="ready wait = base wait × read attempts + status poll interval." xml:space="preserve"><value>READY wait = base wait × read attempts + status poll interval.</value></data>
-  <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>Closes the connection if the SDK does not finish a request. Does not change the fixed HComm response timeout.</value></data>
-  <data name="wait for a curve matching the completed bolt after the graph request finishes." xml:space="preserve"><value>Wait for a curve matching the completed bolt after the graph request finishes.</value></data>
+  <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>Disconnect on timeout. The 1 s response timeout stays fixed.</value></data>
+  <data name="wait for a curve matching the completed bolt after the graph request finishes." xml:space="preserve"><value>After querying, wait for the curve matching this bolt.</value></data>
   <data name="final tightening before retightening" xml:space="preserve"><value>Final tightening before retightening</value></data>
   <data name="retightening" xml:space="preserve"><value>Retightening</value></data>
   <data name="retightening pending" xml:space="preserve"><value>Retightening pending</value></data>
-  <data name="retighten bolt 1 once with cylinder down" xml:space="preserve"><value>Retighten bolt 1 once with cylinder down</value></data>
-  <data name="same final preset; total turns include retightening. ng skips the extra pass." xml:space="preserve"><value>Same final preset; total turns include retightening. NG skips the extra pass.</value></data>
-  <data name="pre 1 → pre 2 → final 2 → final 1 → retighten 1 · per pcb" xml:space="preserve"><value>Pre 1 → Pre 2 → Final 2 → Final 1 → Retighten 1 · per PCB</value></data>
+  <data name="pre 1 → pre 2 → final 2 → final 1 → retighten 1 · per pcb" xml:space="preserve"><value>Per PCB: Pre 1→2 · Final 2→1 · Retighten 1</value></data>
+  <data name="exclude data matrix from ng" xml:space="preserve"><value>Exclude Data Matrix from NG</value></data>
+  <data name="record recognition only; unread codes do not trigger ng transfer." xml:space="preserve"><value>Record recognition only; unread codes do not trigger NG transfer.</value></data>
+  <data name="excluded from ng" xml:space="preserve"><value>Excluded from NG</value></data>
+  <data name="recognized" xml:space="preserve"><value>Recognized</value></data>
+  <data name="total turns = sum of all fastening stages" xml:space="preserve"><value>Sum of turns across preliminary, final and retightening passes</value></data>
 </root>

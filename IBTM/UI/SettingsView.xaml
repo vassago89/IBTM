@@ -2,7 +2,6 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
-    xmlns:bolt="clr-namespace:IBTM.BoltFastening;assembly=IBTM.BoltFastening"
     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -16,10 +15,6 @@
         <x:Array x:Key="FirstFasteningHeads" Type="{x:Type core:FasteningHead}">
             <x:Static Member="core:FasteningHead.Shooting"/>
             <x:Static Member="core:FasteningHead.Pickup"/>
-        </x:Array>
-        <x:Array x:Key="PickupFasteningModes" Type="{x:Type bolt:PickupFasteningMode}">
-            <x:Static Member="bolt:PickupFasteningMode.SingleStage"/>
-            <x:Static Member="bolt:PickupFasteningMode.TwoStage"/>
         </x:Array>
         <x:Array x:Key="PickupPresets" Type="{x:Type sys:UInt16}">
             <sys:UInt16>1</sys:UInt16>
@@ -165,6 +160,16 @@
                                         IsChecked="{Binding Settings.Units.Inspection, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'NG shuttle + conveyor'}"
                                         IsChecked="{Binding Settings.Units.NgConveyor, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SettingCard}">
+                                <StackPanel>
+                                    <TextBlock Text="{ui:Text 'Inspection / NG'}" Style="{StaticResource SettingSectionTitle}"/>
+                                    <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                        Content="{ui:Text 'Exclude Data Matrix from NG'}"
+                                        IsChecked="{Binding Settings.InspectionGantry.ExcludeDataMatrixFromNg, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Text="{ui:Text 'Record recognition only; unread codes do not trigger NG transfer.'}"
+                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -377,27 +382,6 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Pickup fastening mode'}" Style="{StaticResource SettingFieldLabel}"
-                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
-                                        <ComboBox x:Name="PickupMode" Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            ItemsSource="{StaticResource PickupFasteningModes}"
-                                            SelectedItem="{Binding Settings.BoltFastening.PickupFasteningMode, UpdateSourceTrigger=PropertyChanged}"/>
-                                    </Grid>
-                                    <Grid Margin="0,0,0,8" MinHeight="34">
-                                        <Grid.Style>
-                                            <Style TargetType="Grid">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.SingleStage}">
-                                                        <Setter Property="IsEnabled" Value="False"/>
-                                                        <Setter Property="Opacity" Value="0.45"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Grid.Style>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="140"/>
-                                        </Grid.ColumnDefinitions>
                                         <TextBlock Text="{ui:Text 'Pre-tightening preset'}" Style="{StaticResource SettingFieldLabel}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
@@ -415,56 +399,9 @@
                                             ItemsSource="{StaticResource PickupPresets}"
                                             SelectedItem="{Binding Settings.BoltFastening.PickupFinalPreset, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
-                                    <TextBlock Margin="0,4,0,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource SettingHelpText}">
-                                                <Setter Property="Text" Value="{ui:Text '1-stage: final preset only.'}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.TwoStage}">
-                                                        <Setter Property="Text" Value="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 · per PCB'}"/>
-                                                    </DataTrigger>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.TwoStage}"/>
-                                                            <Condition Binding="{Binding IsChecked, ElementName=PickupFirstBoltRetightening}" Value="True"/>
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Text" Value="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 → Retighten 1 · per PCB'}"/>
-                                                    </MultiDataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <StackPanel>
-                                        <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedItem, ElementName=PickupMode}" Value="{x:Static bolt:PickupFasteningMode.SingleStage}">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers></Style></StackPanel.Style>
-                                        <TextBlock Text="{ui:Text '2-stage turns = pre-tightening + final tightening'}" Style="{StaticResource SettingHelpText}"/>
-                                        <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource SettingHelpText}"/>
-                                        <CheckBox x:Name="PickupFirstBoltRetightening" Margin="0,8,0,0"
-                                            IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Content="{ui:Text 'Retighten bolt 1 once with cylinder down'}"
-                                            ToolTip="{ui:Text 'Same final preset; total turns include retightening. NG skips the extra pass.'}"
-                                            IsChecked="{Binding Settings.BoltFastening.PickupFirstBoltRetighteningEnabled, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <CheckBox x:Name="PickupFinalHeadCycle" Margin="0,8,0,0"
-                                            IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Content="{ui:Text 'Cycle cylinder before same-bolt final tightening'}"
-                                            ToolTip="{ui:Text 'OFF: keep cylinder down and switch to the final preset.'}"
-                                            IsChecked="{Binding Settings.BoltFastening.PickupFinalHeadCycleEnabled, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <Grid Margin="0,8,0,8" MinHeight="34" IsEnabled="{Binding IsChecked, ElementName=PickupFinalHeadCycle}">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="140"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Final cylinder down delay (ms)'}" Style="{StaticResource SettingFieldLabel}"
-                                                Margin="0,0,12,0" VerticalAlignment="Center"/>
-                                            <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                Text="{Binding Settings.BoltFastening.HeadDownDelayMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                                VerticalAlignment="Center" Grid.Column="1"/>
-                                        </Grid>
-                                        <TextBlock Text="{ui:Text 'Same bolt only · after RUN, before DOWN · 0 = no delay'}" Style="{StaticResource SettingHelpText}"/>
-                                    </StackPanel>
+                                    <TextBlock Text="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 → Retighten 1 · per PCB'}"
+                                        Style="{StaticResource SettingHelpText}" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource SettingCard}">
@@ -933,7 +870,6 @@
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Column="1" VerticalAlignment="Center"
                                                 Text="{Binding Settings.Hantas.SdkCompletionTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                         </Grid>
-                                        <TextBlock Text="{ui:Text 'HComm response timeout: 1 s (fixed)'}" Margin="0,0,0,8"/>
                                         <Grid Margin="0,0,0,8" MinHeight="34">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>

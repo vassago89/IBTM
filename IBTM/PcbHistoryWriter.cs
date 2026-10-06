@@ -72,6 +72,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
             recipe.Pcb.BoltPoints.Where(point => point.HeatSink == assembly.HeatSink).Select(bolt => bolt.Id).ToArray())
         {
             TurnsResult = assembly.TurnsResult,
+            IsDataMatrixNgExcluded = assembly.IsDataMatrixNgExcluded,
         };
 
         // The station records results after this creation callback returns.
@@ -87,6 +88,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                 UpdatedAt = DateTimeOffset.Now,
                 PcbBarcode = source.PcbBarcode,
                 PcbBarcodeResult = source.PcbBarcodeResult,
+                IsDataMatrixNgExcluded = source.IsDataMatrixNgExcluded,
                 FasteningResult = source.FasteningResult,
                 InspectionResult = source.InspectionResult,
                 TurnsResult = source.TurnsResult,

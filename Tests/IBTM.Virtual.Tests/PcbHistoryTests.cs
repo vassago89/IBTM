@@ -22,6 +22,42 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbHistoryTests
 {
     [Fact]
+    public async Task DataMatrixNgExclusionPersistsWithFailedReadAndPassingInspection()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        var settings = new MachineSettings();
+        Assert.False(settings.InspectionGantry.ExcludeDataMatrixFromNg);
+        settings.InspectionGantry.ExcludeDataMatrixFromNg = true;
+        settings.PcbHistory.Directory = store.DatabaseFile + ".results";
+        await store.SaveSettingsAsync(settings.Sections);
+        Assert.True(new MachineStore(store.DatabaseFile).LoadSettings()
+            .Get<InspectionGantrySettings>().ExcludeDataMatrixFromNg);
+        await using var services = new ServiceCollection().AddSingleton(store)
+            .AddVirtualApplication(settings).BuildServiceProvider();
+        var history = services.GetRequiredService<PcbHistoryWriter>();
+        var assembly = services.GetRequiredService<InspectionStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.IsDataMatrixNgExcluded = true;
+        assembly.PcbBarcode = null;
+        assembly.RecordBoltPresence(Guid.NewGuid(), true);
+        assembly.CompleteInspection();
+        assembly.RecordInspectionCapture(new(null, DateTimeOffset.Now,
+            new ImageFrame(1, 1, 3, [20, 20, 20]), new(0, 0, 1, 1), false));
+        await history.FlushAsync();
+
+        settings.InspectionGantry.ExcludeDataMatrixFromNg = false;
+        var reopened = new MachineStore(store.DatabaseFile);
+        var record = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.True(record.IsDataMatrixNgExcluded);
+        Assert.Null(record.PcbBarcode);
+        Assert.Equal(AssemblyResult.Ng, record.PcbBarcodeResult);
+        Assert.Equal(AssemblyResult.Ok, record.InspectionResult);
+        Assert.Equal(AssemblyResult.Ok, record.Result);
+        var image = Assert.Single(reopened.LoadPcbImages(record));
+        Assert.False(image.Success);
+        Assert.Equal(UiText.Get("Not read"), new PcbInspectionImageItem(image, null, new Recipe()).Verdict);
+    }
+
+    [Fact]
     public async Task ResultHistoryPersistsEachStageCurveAndReloadsItForDetails()
     {
         await using var services = MachineTestSupport.CreateDiagnosticServices();
@@ -33,6 +69,7 @@ public sealed class PcbHistoryTests
         var boltId = VirtualTestSupport.BoltId(1);
         var preliminaryCurve = new AdcTorqueCurve(1, 30, [0, 0.5], 60, 0.5, 0.5, 1, 0);
         var finalCurve = new AdcTorqueCurve(2, 30, [0.5, 1], 60, 1, 1, 2, 0);
+        var retighteningCurve = new AdcTorqueCurve(3, 30, [0.75, 1], 60, 1, 1, 3, 0);
         var preliminary = new BoltResult(true, 0.5)
         {
             Stage = BoltFasteningStage.Preliminary,
@@ -40,11 +77,18 @@ public sealed class PcbHistoryTests
         };
         PcbRecord? published = null;
         history.Saved += record => published = record;
-        assembly.RecordBolt(FasteningHead.Pickup, boltId, new(true, 1)
+        var firstFinal = new BoltResult(true, 1)
         {
-            Stage = BoltFasteningStage.Final,
+            Stage = BoltFasteningStage.FinalBeforeRetightening,
             PreliminaryResult = preliminary,
             TorqueCurve = finalCurve,
+        };
+        assembly.RecordBolt(FasteningHead.Pickup, boltId, firstFinal);
+        assembly.RecordBolt(FasteningHead.Pickup, boltId, new(true, 1)
+        {
+            Stage = BoltFasteningStage.Retightening,
+            PreviousFinalResult = firstFinal,
+            TorqueCurve = retighteningCurve,
         });
         await history.FlushAsync();
 
@@ -52,17 +96,24 @@ public sealed class PcbHistoryTests
         var details = services.GetRequiredService<PcbResultsViewModel>();
         details.Record = published;
         var stages = Assert.Single(details.BoltResults).StageResults.ToArray();
+        Assert.Equal(3, stages.Length);
         Assert.Same(preliminaryCurve, stages[0].Result.TorqueCurve);
         Assert.Same(finalCurve, stages[1].Result.TorqueCurve);
+        Assert.Same(retighteningCurve, stages[2].Result.TorqueCurve);
         var reopened = VirtualTestSupport.OpenMachineStore(store.DatabaseFile);
         details.Record = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
         var restored = Assert.Single(details.BoltResults).StageResults.ToArray();
+        Assert.Equal(new[] { BoltFasteningStage.Preliminary, BoltFasteningStage.FinalBeforeRetightening,
+            BoltFasteningStage.Retightening }, restored.Select(row => row.Result.Stage));
         Assert.Equal(preliminaryCurve.Torques, restored[0].Result.TorqueCurve!.Torques);
         Assert.Equal(finalCurve.Torques, restored[1].Result.TorqueCurve!.Torques);
+        Assert.Equal(retighteningCurve.Torques, restored[2].Result.TorqueCurve!.Torques);
         Assert.Equal(30, restored[1].Result.TorqueCurve!.SampleMilliseconds);
         Assert.Equal(60, restored[1].Result.TorqueCurve!.FasteningMilliseconds);
         Assert.Equal(0, restored[1].Result.TorqueCurve!.ReceivedAt);
         Assert.NotSame(finalCurve, restored[1].Result.TorqueCurve);
+        Assert.Same(details.SelectedBolt, details.SelectedBoltStage);
+        Assert.Equal(BoltFasteningStage.Retightening, details.SelectedBoltStage!.Result.Stage);
     }
 
     [Fact]

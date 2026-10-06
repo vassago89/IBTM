@@ -10,7 +10,7 @@
     Background="{StaticResource AppBgBrush}" Foreground="{StaticResource TextPrimaryBrush}"
     WindowStartupLocation="CenterOwner">
     <Grid Margin="20">
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,16">
             <TextBlock DockPanel.Dock="Right" Text="{Binding JobId, StringFormat={ui:Text 'Carrier work {0}'}, TargetNullValue='—'}"
                 VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}">
@@ -53,7 +53,5 @@
                 <TextBlock Grid.Row="2" Text="{Binding SelectedCurve.Result.TorqueCurveError}" Foreground="{StaticResource AccentAmberBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
             </Grid>
         </Grid>
-        <TextBlock Grid.Row="2" Text="{ui:Text 'Stored with PCB results'}"
-            Foreground="{StaticResource TextMutedBrush}" Margin="0,14,0,0"/>
     </Grid>
 </Window>

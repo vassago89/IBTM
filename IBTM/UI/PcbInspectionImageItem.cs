@@ -17,7 +17,9 @@ public sealed record PcbInspectionImageItem(
             return Recipe?.Pcb.GetBoltName(id, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
         }
     }
-    public string Verdict => Error is not null ? "—" : Record.Success ? "OK" : "NG";
+    public string Verdict => Error is not null ? "—"
+        : Record.BoltId is null ? UiText.Get(Record.Success ? "Recognized" : "Not read")
+        : Record.Success ? "OK" : "NG";
     public Rect Region => new(Record.Region.X, Record.Region.Y, Record.Region.Width, Record.Region.Height);
 
     public string Details

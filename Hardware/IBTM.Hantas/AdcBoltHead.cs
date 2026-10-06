@@ -261,12 +261,10 @@ public sealed class AdcBoltHead : IBoltHead
         Func<CancellationToken, Task>? feedAsync = null,
         int dryRunMilliseconds = 0,
         Action<BoltResult>? resultReceived = null,
-        ushort? torqueCompensationPercent = null,
-        int feedDelayMilliseconds = 0)
+        ushort? torqueCompensationPercent = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegative(dryRunMilliseconds);
-        ArgumentOutOfRangeException.ThrowIfNegative(feedDelayMilliseconds);
         var fasteningTimeoutMilliseconds = _connection.FasteningTimeoutMilliseconds;
         if (dryRunMilliseconds == 0 || feedAsync is not null)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fasteningTimeoutMilliseconds);
@@ -370,15 +368,6 @@ public sealed class AdcBoltHead : IBoltHead
                     && (!feedStatus.Running || Monitor.Sample?.Status is not { Running: true, Alarm: 0 }))
                 {
                     feedStatus = await Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), timeout.Token);
-                }
-                if (!stopped.Task.IsCompleted && feedStatus.Alarm == 0 && feedDelayMilliseconds > 0)
-                {
-                    _logger.LogInformation("ADC {Port}/{Slave}: RUN ON confirmed; waiting {DelayMs} ms before head DOWN.",
-                        _portName, _slaveAddress, feedDelayMilliseconds);
-                    await Task.WhenAny(stopped.Task, Task.Delay(feedDelayMilliseconds, timeout.Token)).WaitAsync(timeout.Token);
-                    // Rejected/unknown feedback cannot authorize DOWN after the delay.
-                    while (!stopped.Task.IsCompleted && Monitor.Sample?.Status is not { Running: true, Alarm: 0 })
-                        feedStatus = await Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), timeout.Token);
                 }
                 timeout.Token.ThrowIfCancellationRequested();
                 if (!stopped.Task.IsCompleted && feedStatus.Alarm == 0)

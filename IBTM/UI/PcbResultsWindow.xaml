@@ -140,8 +140,20 @@
                         <DockPanel Margin="0,4,0,0">
                             <TextBlock DockPanel.Dock="Left" Text="{ui:Text 'Data Matrix · '}" Style="{StaticResource MetricLabel}"/>
                             <TextBlock Text="{Binding Record.PcbBarcode, TargetNullValue={ui:Text 'Not read'}, FallbackValue={ui:Text 'Not read'}}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Record.PcbBarcode}"
-                                Tag="{Binding Record.PcbBarcodeResult}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
+                                Tag="{Binding Record.PcbBarcodeResult}" FontSize="13">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Record.IsDataMatrixNgExcluded}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </DockPanel>
+                        <TextBlock Text="{ui:Text 'Excluded from NG'}" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                            Visibility="{Binding Record.IsDataMatrixNgExcluded, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
                     <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}" CornerRadius="4" MinHeight="160">
                         <Grid>

@@ -42,7 +42,8 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            io.SetInput(InputIo.AutoMode, false);
+            await WaitUntilAsync(() => state.StartPreparationEnabled);
             Assert.False(await machine.PrepareStartAreaAsync(
                 StartArea.Supply, StartPreparationAction.MoveToRotationPosition, default));
             Assert.Equal((0d, 0d, 0d), motion.Position);
@@ -65,6 +66,13 @@ public sealed class MachineLifecycleTests
             Assert.Equal(rotation, supply.Rotation);
             Assert.True(supply.IsTeachingRotationAllowed);
             Assert.Empty(outputs);
+            var review = services.GetRequiredService<OperationViewModel>();
+            var rotate = review.StartOutputGroups[StartArea.Supply].Single(row => row.Io.Signal == OutputIo.PcbSupplyRotate);
+            Assert.True(rotate.IsToggleOutputAllowed);
+            await rotate.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.NotEqual(rotation, supply.Rotation);
+            await rotate.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.Equal(rotation, supply.Rotation);
             var previous = (X: 0d, Y: 0d, Z: 12d);
             foreach (var position in positions)
             {
@@ -190,8 +198,9 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
+            io.SetInput(InputIo.AutoMode, false);
             await machine.HomeAsync(default);
-            await WaitUntilAsync(() => state.ManualSetupEnabled);
+            await WaitUntilAsync(() => state.StartPreparationEnabled);
             var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
             var order = new ConcurrentQueue<MotionGroup>();
             foreach (var (group, motion) in motions)
@@ -313,7 +322,7 @@ public sealed class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AllStandbyCancelsOnTransientMaterialDetectionOrManualModeLoss(bool changeMode)
+    public async Task AllStandbyCancelsOnTransientMaterialDetectionOrModeChange(bool changeMode)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -680,16 +689,15 @@ public sealed class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(FasteningHead.Shooting, PickupFasteningMode.SingleStage)]
-    [InlineData(FasteningHead.Pickup, PickupFasteningMode.TwoStage)]
+    [InlineData(FasteningHead.Shooting)]
+    [InlineData(FasteningHead.Pickup)]
     public async Task MaintenanceFinishesMeasuredBoltAndKeepsCompletedCarrier(
-        FasteningHead emptyFeeder, PickupFasteningMode pickupMode)
+        FasteningHead emptyFeeder)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = true;
         settings.Units.ShootingBoltFeeder = true;
-        settings.BoltFastening.PickupFasteningMode = pickupMode;
         if (emptyFeeder == FasteningHead.Pickup)
             settings.BoltFeeder.PickupTimeoutMilliseconds = 30;
         else
@@ -729,8 +737,7 @@ public sealed class MachineLifecycleTests
             Assert.True(station.Station.Completed, state.AlarmDetail);
             var result = Assert.Single(Assert.Single(station.Station.Assemblies).PickupBoltResults).Value;
             Assert.True(result.IsComplete);
-            Assert.Equal(pickupMode == PickupFasteningMode.TwoStage
-                ? BoltFasteningStage.Final : BoltFasteningStage.Single, result.Stage);
+            Assert.Equal(BoltFasteningStage.Retightening, result.Stage);
             Assert.Equal(settings.BoltFastening.SafeZ, station.Motion.Feedback.Position.Z);
             Assert.True(station.IsHorizontalMoveAllowed);
             machine.CheckStartMaterials();
@@ -4770,7 +4777,59 @@ public sealed class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task StartPreparationRejectsAutomaticModeAndCancelsWhenManualModeIsLost()
+    public async Task StartReviewOutputsAllowAutoWhileTeachingAndRunningOperationsStayBlocked()
+    {
+        await using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        var gripper = review.StartOutputGroups[StartArea.Supply]
+            .Single(row => row.Io.Signal == OutputIo.PcbSupplyGripperClosed);
+        var teaching = new TeachingOutputRow(gripper.Io, machine);
+        await machine.InitializeAsync();
+        try
+        {
+            io.SetInput(InputIo.AutoMode, false);
+            await WaitUntilAsync(() => state.StartPreparationEnabled);
+            Assert.True(gripper.IsToggleOutputAllowed);
+            Assert.False(teaching.IsToggleOutputAllowed);
+            await teaching.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.False(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+
+            await gripper.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.True(io.GetInput(InputIo.PcbSupplyGripperClosed));
+
+            state.AutomaticRunning = true;
+            Assert.False(state.StartPreparationEnabled);
+            Assert.False(gripper.IsToggleOutputAllowed);
+            await gripper.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.False(await machine.PrepareStartAreaAsync(
+                StartArea.Supply, StartPreparationAction.ReleaseMaterial, default));
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+
+            state.AutomaticRunning = false;
+            await WaitUntilAsync(() => gripper.IsToggleOutputAllowed);
+            using (var operation = services.GetRequiredService<OperationCancellation>().TryBegin())
+            {
+                Assert.NotNull(operation);
+                Assert.False(state.StartPreparationEnabled);
+                Assert.False(gripper.IsToggleOutputAllowed);
+                await gripper.ToggleOutputCommand.ExecuteAsync(null);
+                Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            }
+            await gripper.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.True(io.GetInput(InputIo.PcbSupplyGripperOpen));
+        }
+        finally
+        {
+            state.AutomaticRunning = false;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartPreparationAllowsAutoAndCancelsWhenDoorOpens()
     {
         var settings = FlowSettings();
         await using var services = CreateServices(settings);
@@ -4785,12 +4844,12 @@ public sealed class MachineLifecycleTests
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             io.AutoResponseEnabled = false;
             io.SetInput(InputIo.AutoMode, false);
-            Assert.False(await machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.ReleaseMaterial, CancellationToken.None));
-            Assert.True(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
-            io.SetInput(InputIo.AutoMode, true);
+            Assert.True(state.StartPreparationEnabled);
+            Assert.False(state.ManualSetupEnabled);
             var releasing = machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.ReleaseMaterial, CancellationToken.None);
             await WaitForOutputAsync(io, OutputIo.PcbSupplyIpmFixerForward, false);
-            io.SetInput(InputIo.AutoMode, false);
+            Assert.False(state.StartPreparationEnabled);
+            io.SetInput(InputIo.Door1Open, false);
             Assert.False(await releasing.WaitAsync(TimeSpan.FromSeconds(2)));
             Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
             Assert.False(state.IsError, state.AlarmDetail);
@@ -7376,8 +7435,7 @@ public sealed class MachineLifecycleTests
             Func<CancellationToken, Task>? feedAsync = null,
             int dryRunMilliseconds = 0,
             Action<BoltResult>? resultReceived = null,
-            ushort? torqueCompensationPercent = null,
-            int feedDelayMilliseconds = 0)
+            ushort? torqueCompensationPercent = null)
         {
             Started.SetResult();
             try
@@ -7445,8 +7503,7 @@ public sealed class MachineLifecycleTests
             Func<CancellationToken, Task>? feedAsync = null,
             int dryRunMilliseconds = 0,
             Action<BoltResult>? resultReceived = null,
-            ushort? torqueCompensationPercent = null,
-            int feedDelayMilliseconds = 0)
+            ushort? torqueCompensationPercent = null)
         {
             throw new NotSupportedException();
         }

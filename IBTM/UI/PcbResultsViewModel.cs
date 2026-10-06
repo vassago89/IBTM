@@ -179,6 +179,8 @@ public partial class PcbResultsViewModel : ObservableObject
             AppendRow(UiText.Get("Updated at"), record.UpdatedAt);
             AppendRow(UiText.Get("Result"), UiText.Get(record.Result));
             AppendRow(UiText.Get("Data Matrix"), record.PcbBarcode ?? UiText.Get("Not read"), UiText.Get(record.PcbBarcodeResult));
+            if (record.IsDataMatrixNgExcluded)
+                AppendRow(UiText.Get("Data Matrix"), UiText.Get("Excluded from NG"));
             AppendRow(UiText.Get("Bolt fastening"), UiText.Get(record.FasteningResult));
             AppendRow(UiText.Get("Vision inspection"), UiText.Get(record.InspectionResult));
             AppendRow(UiText.Get("Turns result"), record.TurnsResult is { } turns ? UiText.Get(turns) : UiText.Get("Not set"));
@@ -360,7 +362,7 @@ public sealed record PcbBoltResultView(
                 case AssemblyResult.Ng:
                     return "NG";
                 case AssemblyResult.Pending:
-                    return UiText.Get("No data");
+                    return UiText.Get(Result.IsComplete ? "No data" : "Pending");
                 default:
                     return UiText.Get("Not set");
             }

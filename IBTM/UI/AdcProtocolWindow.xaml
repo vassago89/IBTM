@@ -238,15 +238,12 @@
         <TabItem Header="{ui:Text '오류 코드 / 조치'}">
             <Grid Margin="12,8">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="2" Text="{Binding Source={x:Static hantas:AdcControllerError.ReferenceNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
+                <TextBlock Grid.Row="1" Text="{Binding Source={x:Static hantas:AdcControllerError.ReferenceNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
                     Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,8,0,0"/>
-                <TextBlock Text="{Binding Source={x:Static hantas:AdcControllerError.OperationNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
-                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="13" Margin="0,0,0,8"/>
-                <DataGrid Grid.Row="1" ItemsSource="{x:Static hantas:AdcControllerError.All}" IsReadOnly="True"
+                <DataGrid ItemsSource="{x:Static hantas:AdcControllerError.All}" IsReadOnly="True"
                     AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                     HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0"
                     Background="{StaticResource ControlBgBrush}" Foreground="{StaticResource TextPrimaryBrush}">

@@ -334,13 +334,13 @@
                                 </WrapPanel.Style>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,24,6">
                                     <TextBlock Text="{ui:Text 'Min. turns (0 = no check)'}" VerticalAlignment="Center" Margin="0,0,8,0"
-                                        ToolTip="{ui:Text '2-stage turns = pre-tightening + final tightening'}"/>
+                                        ToolTip="{ui:Text 'Total turns = sum of all fastening stages'}"/>
                                     <TextBox Width="70" Text="{Binding SelectedPoint.Bolt.MinimumTurns, Mode=TwoWay, BindingGroupName=InspectionInputs, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
                                         SourceUpdated="OnInspectionSettingChanged"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
                                     <TextBlock Text="{ui:Text 'Max. turns (0 = no check)'}" VerticalAlignment="Center" Margin="0,0,8,0"
-                                        ToolTip="{ui:Text '2-stage turns = pre-tightening + final tightening'}"/>
+                                        ToolTip="{ui:Text 'Total turns = sum of all fastening stages'}"/>
                                     <TextBox Width="70" Text="{Binding SelectedPoint.Bolt.MaximumTurns, Mode=TwoWay, BindingGroupName=InspectionInputs, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
                                         SourceUpdated="OnInspectionSettingChanged"/>
                                 </StackPanel>

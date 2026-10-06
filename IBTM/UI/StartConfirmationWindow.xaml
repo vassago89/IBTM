@@ -233,8 +233,7 @@
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,16">
-                        <TextBlock Text="{ui:Text 'I/O controls'}" FontSize="20" FontWeight="SemiBold"
-                            ToolTip="{ui:Text 'Stop the equipment and select Manual mode. Each button waits for its sequence to finish.'}"/>
+                        <TextBlock Text="{ui:Text 'I/O controls'}" FontSize="20" FontWeight="SemiBold"/>
                         <TextBlock x:Name="SelectedAreaTitle" Text="{Binding SelectedStartArea, Converter={StaticResource UiTextConverter}}" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0"/>
                     </StackPanel>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
@@ -251,7 +250,7 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                            <StackPanel IsEnabled="{Binding State.ManualSetupEnabled}">
+                            <StackPanel IsEnabled="{Binding State.StartPreparationEnabled}">
                                 <Button x:Name="ReleaseMaterialButton"
                                     Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ReleaseMaterial}"
                                     ToolTip="{ui:Text 'Support the material before releasing its grip. Remove any remaining PCB or bolt, then select RESET.'}"
@@ -747,7 +746,7 @@
                                                         </MultiDataTrigger.Conditions>
                                                         <Setter Property="Visibility" Value="Visible"/>
                                                         <Setter Property="Text" Value="{ui:Text 'Raise carrier support.'}"/>
-                                                        <Setter Property="ToolTip" Value="{ui:Text 'S2 backup plate is DOWN. In Manual mode, check the carrier and head clearance, then select Raise/lower carrier support. After UP feedback, check resume again.'}"/>
+                                                        <Setter Property="ToolTip" Value="{ui:Text 'S2 backup plate is DOWN. Check the carrier and head clearance, then select Raise/lower carrier support. After UP feedback, check resume again.'}"/>
                                                     </MultiDataTrigger>
                                                     <MultiDataTrigger>
                                                         <MultiDataTrigger.Conditions>
@@ -814,7 +813,7 @@
                         </Button.Style>
                     </Button>
                     <Button Content="{ui:Text 'All stations to standby'}" Command="{Binding MoveAllToStandbyCommand}"
-                        IsEnabled="{Binding State.ManualSetupEnabled}" Width="180" Height="44" Margin="0,0,8,0"
+                        IsEnabled="{Binding State.StartPreparationEnabled}" Width="180" Height="44" Margin="0,0,8,0"
                         Style="{StaticResource SecondaryButtonStyle}"
                         ToolTip="{ui:Text 'Moves enabled stations in order. Supply waits above PCB 1 at travel Z. HOME is required; held material must be cleared first.'}"
                         ToolTipService.ShowOnDisabled="True"/>

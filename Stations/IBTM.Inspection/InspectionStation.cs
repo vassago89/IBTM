@@ -19,7 +19,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
 {
     private readonly ILogger<InspectionStation>? _log;
     private readonly IXyMotion _motion;
-    private readonly MotionSettings _motionSettings;
+    private readonly InspectionGantrySettings _gantrySettings;
     private readonly NgCarrierTransferSettings _settings;
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly UnitSettings _units;
@@ -66,7 +66,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         Station = station;
         Motion = motionStatus;
         _motion = motion;
-        _motionSettings = motionSettings.Motion;
+        _gantrySettings = motionSettings;
         _settings = settings;
         _ngConveyor = ngConveyor;
         _units = units;
@@ -449,7 +449,10 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     if (bolt is null)
+                    {
+                        assembly.IsDataMatrixNgExcluded = _gantrySettings.ExcludeDataMatrixFromNg;
                         assembly.PcbBarcode = capture.Barcode;
+                    }
                     else
                         assembly.RecordBoltPresence(bolt.Id, capture.Success);
                     assembly.RecordInspectionCapture(capture);
@@ -649,13 +652,13 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
         EnsureCanMove(cancellationToken);
-        return await _motion.HomeAsync(axis, _motionSettings.Home(axis).SearchSpeed, cancellationToken);
+        return await _motion.HomeAsync(axis, _gantrySettings.Motion.Home(axis).SearchSpeed, cancellationToken);
     }
 
     public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
     {
         EnsureCanMove(cancellationToken);
-        return await _motion.HomeHorizontalAsync(_motionSettings.HorizontalHome.SearchSpeed, cancellationToken);
+        return await _motion.HomeHorizontalAsync(_gantrySettings.Motion.HorizontalHome.SearchSpeed, cancellationToken);
     }
 
     public async Task MoveToCarrierAsync(
@@ -676,7 +679,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     {
         EnsureCanMove(cancellationToken);
         return _motion.MoveToXYAsync(
-            position.X, position.Y, velocity ?? _motionSettings.HorizontalSpeed, cancellationToken);
+            position.X, position.Y, velocity ?? _gantrySettings.Motion.HorizontalSpeed, cancellationToken);
     }
 
     public Task MoveAxisAsync(
