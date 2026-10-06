@@ -120,7 +120,6 @@ public sealed class MachineController : INotifyPropertyChanged
                 unit.Trace += message => log.LogInformation("{Message}", message);
         }
         state.PropertyChanged += OnMachinePropertyChanged;
-        recipes.Changed += OnRecipeChanged;
         conveyor.Changed += state.Refresh;
         ngConveyor.Changed += OnNgConveyorChanged;
         io.InputChanged += OnInputChanged;
@@ -134,12 +133,6 @@ public sealed class MachineController : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public PcbHistoryWriter PcbHistory { get; }
-
-    private void OnRecipeChanged()
-    {
-        PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
-        PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
-    }
 
     private bool PcbHandlersEnabled => _units.PcbSupply || _units.PcbPlacement;
 
@@ -758,22 +751,6 @@ public sealed class MachineController : INotifyPropertyChanged
         CheckStartMaterials();
     }
 
-    public bool TeachingReady
-    {
-        get
-        {
-            if ((_units.BoltFastening || _units.Inspection)
-                && _recipes.Current.Pcb.BoltPoints.Count == 0)
-                return false;
-            if (_units.BoltFastening
-                && _recipes.Current.Pcb.BoltPoints.Any(bolt => !bolt.IsFasteningPositionDefined))
-                return false;
-            return !_units.Inspection
-                || _recipes.Current.Pcb.BoltPoints.All(_inspectionStation.HasRegion)
-                    && Enum.GetValues<HeatSinkSlot>().All(_inspectionStation.HasBarcodeRegion);
-        }
-    }
-
     private bool IsStartAllowedFor(StartBlockReason block, bool running)
     {
         return !_operations.IsShuttingDown
@@ -803,8 +780,6 @@ public sealed class MachineController : INotifyPropertyChanged
             return StartBlockReason.DoorOpen;
         if (!motion.Homed)
             return StartBlockReason.HomeRequired;
-        if (!TeachingReady)
-            return StartBlockReason.TeachingIncomplete;
         return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
     }
 

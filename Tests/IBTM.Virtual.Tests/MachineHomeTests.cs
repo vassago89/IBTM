@@ -245,7 +245,7 @@ public sealed class MachineHomeTests
         {
             var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
             var result = (HomeResultMotion)motion;
-            result.Motion = provider.GetRequiredKeyedService<IXyMotion>(group);
+            result.Motion = provider.GetRequiredKeyedService<VirtualMotionService>(group);
             result.AwaitCleanupAfterCancellation = true;
             if (group == MotionGroup.BoltFastening)
                 result.StartFailure = failure;
@@ -255,10 +255,10 @@ public sealed class MachineHomeTests
 
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
             .AddVirtualApplication(settings)
-            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
-                Enum.GetValues<MotionGroup>().ToDictionary(group => group,
-                    group => group is MotionGroup.PcbSupply or MotionGroup.BoltFastening
-                        ? Wrap(provider, group) : provider.GetRequiredKeyedService<IXyMotion>(group)))
+            .AddKeyedSingleton<IXyMotion>(MotionGroup.PcbSupply,
+                (provider, _) => Wrap(provider, MotionGroup.PcbSupply))
+            .AddKeyedSingleton<IXyMotion>(MotionGroup.BoltFastening,
+                (provider, _) => Wrap(provider, MotionGroup.BoltFastening))
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -965,7 +965,7 @@ public sealed class MachineHomeTests
         {
             var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
             var result = (HomeResultMotion)motion;
-            result.Motion = provider.GetRequiredKeyedService<IXyMotion>(group);
+            result.Motion = provider.GetRequiredKeyedService<VirtualMotionService>(group);
             result.AwaitCleanupAfterCancellation = true;
             results.Add(group, result);
             return motion;
@@ -973,10 +973,10 @@ public sealed class MachineHomeTests
 
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
             .AddVirtualApplication(settings)
-            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
-                Enum.GetValues<MotionGroup>().ToDictionary(group => group,
-                    group => group is MotionGroup.PcbSupply or MotionGroup.BoltFastening
-                        ? Wrap(provider, group) : provider.GetRequiredKeyedService<IXyMotion>(group)))
+            .AddKeyedSingleton<IXyMotion>(MotionGroup.PcbSupply,
+                (provider, _) => Wrap(provider, MotionGroup.PcbSupply))
+            .AddKeyedSingleton<IXyMotion>(MotionGroup.BoltFastening,
+                (provider, _) => Wrap(provider, MotionGroup.BoltFastening))
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -1032,16 +1032,13 @@ public sealed class MachineHomeTests
         HomeResultMotion? homeResult = null;
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
             .AddVirtualApplication(settings)
-            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+            .AddKeyedSingleton<IXyMotion>(MotionGroup.BoltFastening, (provider, _) =>
             {
-                var motions = Enum.GetValues<MotionGroup>().ToDictionary(
-                    group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group));
                 var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
                 homeResult = (HomeResultMotion)motion;
                 homeResult.AwaitCleanupAfterCancellation = safetyStop;
-                homeResult.Motion = motions[MotionGroup.BoltFastening];
-                motions[MotionGroup.BoltFastening] = motion;
-                return motions;
+                homeResult.Motion = provider.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.BoltFastening);
+                return motion;
             })
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();

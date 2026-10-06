@@ -645,8 +645,18 @@ public sealed class UiBindingTests
             Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
             Assert.False(((Button)review.FindName("ConfirmButton")).IsEnabled);
 
+            operation.SelectStartAreaCommand.Execute(StartArea.Supply);
+            await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+            var rotateAndRelease = (Button)review.FindName("RotateAndReleaseGripperButton");
+            Assert.Equal(Visibility.Visible, rotateAndRelease.Visibility);
+            Assert.Same(operation.PrepareStartAreaCommand, rotateAndRelease.Command);
+            Assert.Equal(StartPreparationAction.RotateAndReleaseGripper, rotateAndRelease.CommandParameter);
+            Assert.True(BindingOperations.IsDataBound(rotateAndRelease, UIElement.IsEnabledProperty));
+            Assert.False(rotateAndRelease.IsEnabled);
+
             operation.SelectStartAreaCommand.Execute(StartArea.Station2);
             await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+            Assert.Equal(Visibility.Collapsed, rotateAndRelease.Visibility);
             Assert.Same(services.GetRequiredService<BoltFasteningStation>().Station, operation.StartStation);
             Assert.Equal(UiText.Get(StartArea.Station2), ((TextBlock)review.FindName("SelectedAreaTitle")).Text);
             var resumeConfirmation = (CheckBox)review.FindName("ConfirmFasteningResume");

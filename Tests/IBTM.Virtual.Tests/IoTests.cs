@@ -7,8 +7,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
 using IBTM.BoltFeeder;
+using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
@@ -124,6 +126,47 @@ public sealed class IoTests
         {
             scheduler.Complete();
             await scheduler.Completion;
+        }
+    }
+
+    [Fact]
+    public async Task StationsShareKeyedDevicesAndConveyorJobs()
+    {
+        await using var services = MachineTestSupport.CreateServices(new());
+        var conveyor = services.GetRequiredService<MainConveyor>();
+        var supply = services.GetRequiredService<PcbSupplier>();
+        var placement = services.GetRequiredService<PcbPlacer>();
+        var fastening = services.GetRequiredService<BoltFasteningStation>();
+        var inspection = services.GetRequiredService<InspectionStation>();
+        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+        var statuses = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>();
+        foreach (var group in Enum.GetValues<MotionGroup>())
+        {
+            Assert.Same(services.GetRequiredKeyedService<IXyMotion>(group), motions[group]);
+            Assert.Same(services.GetRequiredKeyedService<MotionStatus>(group), statuses[group]);
+            Assert.Same(motions[group], statuses[group].Feedback);
+        }
+        Assert.Same(statuses[MotionGroup.PcbSupply], supply.Motion);
+        Assert.Same(statuses[MotionGroup.PcbPlacementHandler], placement.Motion);
+        Assert.Same(statuses[MotionGroup.BoltFastening], fastening.Motion);
+        Assert.Same(statuses[MotionGroup.InspectionGantry], inspection.Motion);
+        Assert.Same(supply, services.GetRequiredService<IPcbSupplyHandoff>());
+        Assert.Same(services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup), fastening.PickupHead);
+        Assert.Same(services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting), fastening.ShootingHead);
+
+        var conveyorChanged = false;
+        conveyor.Changed += () => conveyorChanged = true;
+        foreach (var (group, station) in new[]
+        {
+            (MotionGroup.PcbPlacementHandler, placement.Station),
+            (MotionGroup.BoltFastening, fastening.Station),
+            (MotionGroup.InspectionGantry, inspection.Station),
+        })
+        {
+            Assert.Same(services.GetRequiredKeyedService<ConveyorStation>(group), station);
+            conveyorChanged = false;
+            station.ClearJob();
+            Assert.True(conveyorChanged);
         }
     }
 

@@ -9,6 +9,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.NgConveyor;
 using IBTM.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.Inspection;
@@ -42,9 +43,9 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     private int? _lightChannel;
 
     public InspectionStation(
-        ConveyorStation station,
-        IXyMotion motion,
-        MotionStatus motionStatus,
+        [FromKeyedServices(MotionGroup.InspectionGantry)] ConveyorStation station,
+        [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion motion,
+        [FromKeyedServices(MotionGroup.InspectionGantry)] MotionStatus motionStatus,
         NgCarrierConveyor ngConveyor,
         InspectionGantrySettings motionSettings,
         NgCarrierTransferSettings settings,

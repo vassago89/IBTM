@@ -29,7 +29,7 @@ public static class MachineTestSupport
                 var io = provider.GetRequiredService<VirtualIoService>();
                 var motions = settings.MotionSections.ToDictionary(
                     section => section.Hardware.Group,
-                    section => (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(section.Hardware.Group));
+                    section => provider.GetRequiredKeyedService<VirtualMotionService>(section.Hardware.Group));
                 var machine = new VirtualMachine(io, motions.Values.ToArray());
                 var recipes = provider.GetRequiredService<RecipeManager>();
                 motions[MotionGroup.PcbSupply].PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
@@ -81,7 +81,7 @@ public static class MachineTestSupport
 
         foreach (var (motionSettings, motionHardware) in settings.MotionSections)
         {
-            services.AddKeyedSingleton<IXyMotion>(motionHardware.Group, (provider, _) =>
+            services.AddKeyedSingleton<VirtualMotionService>(motionHardware.Group, (provider, _) =>
             {
                 var x = motionHardware.GetAxis(MotionAxis.X)!;
                 var y = motionHardware.GetAxis(MotionAxis.Y);
@@ -97,7 +97,9 @@ public static class MachineTestSupport
                         x.MoveUnit / x.MovePulse / 1000,
                         (y?.MoveUnit ?? 1) / (y?.MovePulse ?? 1) / 1000,
                         (z?.MoveUnit ?? 1) / (z?.MovePulse ?? 1) / 1000));
-            });
+            })
+            .AddKeyedSingleton<IXyMotion>(motionHardware.Group,
+                (provider, _) => provider.GetRequiredKeyedService<VirtualMotionService>(motionHardware.Group));
         }
 
         return services;
@@ -112,13 +114,10 @@ public static class MachineTestSupport
         feedback = probe;
         return new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
             .AddVirtualApplication(settings ?? FlowSettings())
-            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+            .AddKeyedSingleton<IXyMotion>(MotionGroup.InspectionGantry, (provider, _) =>
             {
-                var motions = Enum.GetValues<MotionGroup>().ToDictionary(
-                    group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group));
-                probe.Motion = motions[MotionGroup.InspectionGantry];
-                motions[MotionGroup.InspectionGantry] = motion;
-                return motions;
+                probe.Motion = provider.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.InspectionGantry);
+                return motion;
             })
             .BuildServiceProvider();
     }
@@ -168,17 +167,18 @@ public static class MachineTestSupport
         var captured = new Dictionary<MotionGroup, ScopedMotionProbe>();
         probes = captured;
         var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddVirtualApplication(settings)
-            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
-                Enum.GetValues<MotionGroup>().ToDictionary(group => group,
-                    group =>
-                    {
-                        var motion = DispatchProxy.Create<IXyMotion, ScopedMotionProbe>();
-                        var probe = (ScopedMotionProbe)motion;
-                        probe.Motion = provider.GetRequiredKeyedService<IXyMotion>(group);
-                        captured.Add(group, probe);
-                        return motion;
-                    }));
+            .AddVirtualApplication(settings);
+        foreach (var group in Enum.GetValues<MotionGroup>())
+        {
+            services.AddKeyedSingleton<IXyMotion>(group, (provider, _) =>
+            {
+                var motion = DispatchProxy.Create<IXyMotion, ScopedMotionProbe>();
+                var probe = (ScopedMotionProbe)motion;
+                probe.Motion = provider.GetRequiredKeyedService<VirtualMotionService>(group);
+                captured.Add(group, probe);
+                return motion;
+            });
+        }
         configure?.Invoke(services);
         var provider = services.BuildServiceProvider();
         // These tests replace the handler factories that normally initialize virtual feedback.

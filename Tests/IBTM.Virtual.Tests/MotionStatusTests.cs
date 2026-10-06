@@ -342,11 +342,7 @@ public sealed class MotionStatusTests
         var diagnostics = (DiagnosticMotionProbe)probe;
         await using var services = MachineTestSupport.CreateDiagnosticServices(
             configure: collection =>
-                collection
-                    .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
-                        Enum.GetValues<MotionGroup>().ToDictionary(group => group,
-                            group => group == MotionGroup.InspectionGantry
-                                ? probe : provider.GetRequiredKeyedService<IXyMotion>(group))));
+                collection.AddKeyedSingleton<IXyMotion>(MotionGroup.InspectionGantry, probe));
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var settings = services.GetRequiredService<MachineSettings>();

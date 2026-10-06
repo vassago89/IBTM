@@ -8,6 +8,7 @@ using IBTM.BoltFeeder;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.BoltFastening;
@@ -36,14 +37,14 @@ public sealed class BoltFasteningStation : AutoUnit
     private (Guid BoltId, CancellationTokenSource Cancellation, Task Completion)? _shootingFeed;
 
     public BoltFasteningStation(
-        IBoltHead shootingHead,
-        IBoltHead pickupHead,
+        [FromKeyedServices(FasteningHead.Shooting)] IBoltHead shootingHead,
+        [FromKeyedServices(FasteningHead.Pickup)] IBoltHead pickupHead,
         IIoService io,
-        IXyMotion motion,
-        MotionStatus motionStatus,
+        [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion motion,
+        [FromKeyedServices(MotionGroup.BoltFastening)] MotionStatus motionStatus,
         BoltFasteningSettings settings,
         CarrierReferenceSettings carrierReference,
-        ConveyorStation station,
+        [FromKeyedServices(MotionGroup.BoltFastening)] ConveyorStation station,
         RecipeManager recipes,
         UnitSettings units,
         BoltFeederUnit feeder,

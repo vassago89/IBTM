@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.PcbSupply;
 
@@ -22,8 +23,8 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     private volatile bool _testUpstreamCarrierAvailable;
 
     public PcbSupplier(
-        IXyMotion motion,
-        MotionStatus motionStatus,
+        [FromKeyedServices(MotionGroup.PcbSupply)] IXyMotion motion,
+        [FromKeyedServices(MotionGroup.PcbSupply)] MotionStatus motionStatus,
         IIoService io,
         PcbSupplySettings settings,
         RecipeManager recipes,
@@ -690,6 +691,10 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     }
 
     public bool IsTeachingRotationAllowed => RotationBlockReason is null;
+
+    public bool IsRotateAndReleaseAllowed => _units.PcbSupply && Io.IsReady
+        && PcbSecured && Rotation == PcbSupplyRotationState.Unrotated
+        && RotationBlockReason is null;
 
     private string? RotationBlockReason
     {

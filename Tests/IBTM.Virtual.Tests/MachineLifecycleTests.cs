@@ -27,6 +27,78 @@ namespace IBTM.Virtual.Tests;
 public sealed class MachineLifecycleTests
 {
     [Fact]
+    public async Task StartPreparationSupplyRotateAndReleaseRequiresHandoffAndWaitsForEachCylinder()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.PcbSupply.HandoffPosition = new() { X = 80, Y = 30, Z = 7 };
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var supply = services.GetRequiredService<PcbSupplier>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.SetInput(InputIo.AutoMode, false);
+            await machine.HomeAsync(default);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, false);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+            io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            var writes = new ConcurrentQueue<(OutputIo Output, bool On)>();
+            io.OutputChanged += (output, on) =>
+            {
+                if (output is OutputIo.PcbSupplyRotate or OutputIo.PcbSupplyIpmFixerForward or OutputIo.PcbSupplyGripperClosed)
+                    writes.Enqueue((output, on));
+            };
+            Assert.False(supply.IsRotateAndReleaseAllowed);
+            Assert.False(await machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.RotateAndReleaseGripper, default));
+            Assert.Empty(writes);
+
+            await supply.MoveToRotationPositionAsync();
+            io.SetInput(InputIo.PcbSupplyPcbDetected, false);
+            Assert.False(supply.IsRotateAndReleaseAllowed);
+            Assert.False(await machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.RotateAndReleaseGripper, default));
+            io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            io.SetInput(InputIo.PcbSupplyRotated, true); // Conflicting rotation feedback.
+            Assert.False(supply.IsRotateAndReleaseAllowed);
+            Assert.False(await machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.RotateAndReleaseGripper, default));
+            io.SetInput(InputIo.PcbSupplyRotated, false);
+            state.AutomaticRunning = true;
+            Assert.False(await machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.RotateAndReleaseGripper, default));
+            state.AutomaticRunning = false;
+            Assert.Empty(writes);
+
+            Assert.True(supply.IsRotateAndReleaseAllowed);
+            Assert.Equal(PcbSupplyState.MovingToPickup, supply.Phase); // No previous handoff run is required.
+            io.AutoResponseEnabled = false;
+            var releasing = machine.PrepareStartAreaAsync(StartArea.Supply, StartPreparationAction.RotateAndReleaseGripper, default);
+            await WaitForOutputAsync(io, OutputIo.PcbSupplyRotate, true);
+            Assert.Equal(new[] { (OutputIo.PcbSupplyRotate, true) }, writes.ToArray());
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            io.SetInputs((InputIo.PcbSupplyUnrotated, false), (InputIo.PcbSupplyRotated, true));
+            await WaitForOutputAsync(io, OutputIo.PcbSupplyIpmFixerForward, false);
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            io.SetInput(InputIo.PcbSupplyIpmFixerForward, false);
+            await WaitForOutputAsync(io, OutputIo.PcbSupplyGripperClosed, false);
+            Assert.False(releasing.IsCompleted);
+            io.SetInputs((InputIo.PcbSupplyGripperClosed, false), (InputIo.PcbSupplyGripperOpen, true));
+            Assert.True(await releasing.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(new[] { (OutputIo.PcbSupplyRotate, true), (OutputIo.PcbSupplyIpmFixerForward, false),
+                (OutputIo.PcbSupplyGripperClosed, false) }, writes.ToArray());
+            Assert.Equal((80d, 30d, 7d), supply.Motion.Feedback.Position);
+            Assert.False(supply.IsRotateAndReleaseAllowed);
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            state.AutomaticRunning = false;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task StartPreparationSupplyRotationPositionRequiresHomeAndMovesAtTravelHeightWithoutChangingIo()
     {
         var settings = FlowSettings();
@@ -1069,23 +1141,51 @@ public sealed class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task InspectionRequiresBoltsAsWellAsDataMatrixTeaching()
+    [Theory]
+    [InlineData(MachineUnit.BoltFastening)]
+    [InlineData(MachineUnit.Inspection)]
+    public async Task StartAllowsEmptyOrIncompleteBoltTeaching(MachineUnit unit)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.Units = EnableOnly(unit);
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        TeachInspectionFovs(recipe);
-        var machine = services.GetRequiredService<MachineController>();
-        Assert.False(machine.TeachingReady);
-
-        recipe.Pcb.BoltPoints.Add(new() { Id = VirtualTestSupport.BoltId(1), X = 10, Y = 10 });
-        TeachInspectionFovs(recipe);
-        Assert.True(machine.TeachingReady);
-        settings.Units.Inspection = false;
         recipe.Pcb.BoltPoints.Clear();
-        Assert.True(machine.TeachingReady);
+        recipe.CarrierImages.Clear();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.True(review.IsStartReviewAllowed);
+
+            recipe.Pcb.BoltPoints.Add(new() { Id = VirtualTestSupport.BoltId(1) });
+            services.GetRequiredService<RecipeManager>().NotifyInspectionChanged();
+            await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.True(review.IsStartReviewAllowed);
+
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            var run = machine.StartAsync(stop.Token);
+            try
+            {
+                await WaitUntilAsync(() => state.AutomaticRunning);
+                Assert.False(state.IsError, state.AlarmDetail);
+            }
+            finally
+            {
+                stop.Cancel();
+                await run;
+            }
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Theory]
@@ -1255,18 +1355,6 @@ public sealed class MachineLifecycleTests
             bolt.FasteningX = null;
             bolt.FasteningY = null;
         }
-        Assert.True(machine.TeachingReady);
-        settings.Units.BoltFastening = true;
-        settings.Units.ShootingBoltFeeder = true;
-        Assert.False(machine.TeachingReady);
-        settings.Units.BoltFastening = false;
-        settings.Units.ShootingBoltFeeder = false;
-        var boltFov = recipe.CarrierImages.First(fov => fov.BoltId is not null);
-        var boltRegion = boltFov.Region;
-        boltFov.Region = null;
-        Assert.False(machine.TeachingReady);
-        boltFov.Region = boltRegion;
-        Assert.True(machine.TeachingReady);
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
 
@@ -2579,7 +2667,6 @@ public sealed class MachineLifecycleTests
                 io.SetInput(station.HeatSink, true);
             }
 
-            Assert.True(machine.TeachingReady);
             Assert.True(services.GetRequiredService<BoltFasteningStation>().Station.CarrierSeated);
             Assert.True(services.GetRequiredService<InspectionStation>().Station.CarrierSeated);
             state.AutomaticRunning = true;
@@ -3126,8 +3213,6 @@ public sealed class MachineLifecycleTests
             Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
             Assert.True(io.GetInput(InputIo.PickupHeadUp));
             Assert.True(io.GetInput(InputIo.ShootingHeadUp));
-            recipe.Pcb.BoltPoints[0].FasteningX = null;
-            Assert.False(machine.TeachingReady); // Feeder OFF still requires taught fastening coordinates.
         }
         finally
         {
@@ -4556,9 +4641,11 @@ public sealed class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task StartPreparationStopsBeforeNextOutputOnCancelOrMissingFeedback(bool timeout)
+    [InlineData(false, StartPreparationAction.ReleaseMaterial)]
+    [InlineData(true, StartPreparationAction.ReleaseMaterial)]
+    [InlineData(false, StartPreparationAction.RotateAndReleaseGripper)]
+    [InlineData(true, StartPreparationAction.RotateAndReleaseGripper)]
+    public async Task StartPreparationStopsBeforeNextOutputOnCancelOrMissingFeedback(bool timeout, StartPreparationAction action)
     {
         var settings = FlowSettings();
         await using var services = CreateServices(settings);
@@ -4570,19 +4657,27 @@ public sealed class MachineLifecycleTests
         try
         {
             await WaitUntilAsync(() => state.SetupEnabled);
+            var rotate = action == StartPreparationAction.RotateAndReleaseGripper;
+            if (rotate)
+            {
+                await machine.HomeAsync(default);
+                await review.Supply.MoveToRotationPositionAsync();
+                await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, false);
+            }
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+            io.SetInput(InputIo.PcbSupplyPcbDetected, true);
             io.AutoResponseEnabled = false;
             if (timeout)
                 settings.Options.TimeoutMilliseconds = 100;
             review.SelectStartAreaCommand.Execute(StartArea.Supply);
-            var releasing = review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.ReleaseMaterial);
-            await WaitForOutputAsync(io, OutputIo.PcbSupplyIpmFixerForward, false);
+            var releasing = review.PrepareStartAreaCommand.ExecuteAsync(action);
+            await WaitForOutputAsync(io, rotate ? OutputIo.PcbSupplyRotate : OutputIo.PcbSupplyIpmFixerForward, rotate);
             if (!timeout)
                 await review.StopCommand.ExecuteAsync(null);
             await releasing.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
-            Assert.False(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward)); // Cancellation never reverses the cylinder.
+            Assert.Equal(rotate, io.GetOutput(OutputIo.PcbSupplyIpmFixerForward)); // No next output or reversal after cancellation.
             Assert.Equal(timeout ? MachineAlarm.PcbSupply : MachineAlarm.None, state.Alarm);
             Assert.False(string.IsNullOrWhiteSpace(review.StartActionMessage));
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);

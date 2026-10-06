@@ -40,7 +40,4 @@ public enum StartBlockReason
     [Description("Review unfinished carriers before starting")]
     UnfinishedCarrier,
 
-    [Description("Complete bolt teaching")]
-    TeachingIncomplete,
-
 }

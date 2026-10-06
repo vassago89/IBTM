@@ -63,4 +63,7 @@ public enum StartPreparationAction
 
     [Description("Move to rotation position")]
     MoveToRotationPosition,
+
+    [Description("Rotate and release gripper")]
+    RotateAndReleaseGripper,
 }

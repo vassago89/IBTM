@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.Conveyor;
 
@@ -26,8 +27,8 @@ public sealed class MainConveyor : AutoUnit
         IIoService io,
         ConveyorSettings settings,
         OperationCancellation operations,
-        ConveyorStation placement,
-        ConveyorStation fastening,
+        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] ConveyorStation placement,
+        [FromKeyedServices(MotionGroup.BoltFastening)] ConveyorStation fastening,
         InspectionStation inspection,
         UnitSettings units)
         : base(io, [

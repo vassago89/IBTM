@@ -446,9 +446,6 @@ Operation failed. Check controller status.</value>
   <data name="compacting ng carriers" xml:space="preserve">
     <value>Compacting NG Carriers</value>
   </data>
-  <data name="complete bolt teaching" xml:space="preserve">
-    <value>Complete bolt teaching</value>
-  </data>
   <data name="completing carrier" xml:space="preserve">
     <value>Completing carrier</value>
   </data>
@@ -2067,6 +2064,9 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="roi changed · not saved" xml:space="preserve">
     <value>ROI changed · not saved</value>
+  </data>
+  <data name="rotate and release gripper" xml:space="preserve">
+    <value>Rotate and release gripper</value>
   </data>
   <data name="rotated" xml:space="preserve">
     <value>Rotated</value>

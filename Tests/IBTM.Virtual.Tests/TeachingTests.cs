@@ -1308,7 +1308,7 @@ public sealed class TeachingTests
                 await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
                 Assert.Equal((recipe.GetInspectionPosition(fov).X, recipe.GetInspectionPosition(fov).Y), (teaching.SelectedPoint.Coordinates!.X, teaching.SelectedPoint.Coordinates!.Y));
                 Assert.DoesNotContain("Not taught", teaching.SelectedPoint.PositionLabel);
-                Assert.False(machine.TeachingReady);
+                Assert.False(barcode ? gantry.HasBarcodeRegion(HeatSinkSlot.HeatSink1) : gantry.HasRegion(bolt));
 
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
 
@@ -1317,7 +1317,7 @@ public sealed class TeachingTests
             }
 
             fov.Region = new(0, 0, 20, 20);
-            Assert.True(machine.TeachingReady);
+            Assert.True(barcode ? gantry.HasBarcodeRegion(HeatSinkSlot.HeatSink1) : gantry.HasRegion(bolt));
 
             await gantry.SetLiftUpAsync(false);
             Assert.False(teaching.IsMoveToPointAllowed);
@@ -1327,7 +1327,7 @@ public sealed class TeachingTests
             await gantry.SetLiftUpAsync(true);
 
             recipe.CarrierImages.Remove(fov);
-            Assert.False(machine.TeachingReady);
+            Assert.False(barcode ? gantry.HasBarcodeRegion(HeatSinkSlot.HeatSink1) : gantry.HasRegion(bolt));
             Assert.False(teaching.IsGrabAllowed);
             if (barcode)
             {

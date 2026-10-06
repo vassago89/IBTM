@@ -75,15 +75,6 @@ public static class DependencyInjection
             .AddSingleton(settings.Hantas)
             .AddSingleton<OperationCancellation>();
 
-        services.AddSingleton(provider => new MainConveyor(
-            provider.GetRequiredService<IIoService>(),
-            provider.GetRequiredService<ConveyorSettings>(),
-            provider.GetRequiredService<OperationCancellation>(),
-            provider.GetRequiredService<PcbPlacer>().Station,
-            provider.GetRequiredService<BoltFasteningStation>().Station,
-            provider.GetRequiredService<InspectionStation>(),
-            provider.GetRequiredService<UnitSettings>()));
-
         services
             .AddKeyedSingleton<IBoltHead>(
                 FasteningHead.Shooting,
@@ -107,35 +98,26 @@ public static class DependencyInjection
                     provider.GetRequiredService<ILogger<AdcBoltHead>>()));
 
         services
-            .AddSingleton(provider => new PcbSupplier(
-                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.PcbSupply],
-                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.PcbSupply],
-                provider.GetRequiredService<IIoService>(),
-                settings.PcbSupply,
-                provider.GetRequiredService<RecipeManager>(),
-                provider.GetRequiredService<UnitSettings>()))
-            .AddSingleton(provider => new PcbPlacer(
-                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.PcbPlacementHandler],
-                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.PcbPlacementHandler],
-                provider.GetRequiredService<IIoService>(),
-                settings.PcbPlacementHandler,
-                provider.GetRequiredService<IPcbSupplyHandoff>(),
-                ConveyorStation.CreatePcbPlacement(provider.GetRequiredService<IIoService>()),
-                provider.GetRequiredService<RecipeManager>(),
-                provider.GetRequiredService<UnitSettings>()))
-            .AddSingleton(provider => new BoltFasteningStation(
-                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
-                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
-                provider.GetRequiredService<IIoService>(),
-                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.BoltFastening],
-                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.BoltFastening],
-                settings.BoltFastening,
-                settings.CarrierReference,
-                ConveyorStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()),
-                provider.GetRequiredService<RecipeManager>(),
-                provider.GetRequiredService<UnitSettings>(),
-                provider.GetRequiredService<BoltFeederUnit>(),
-                provider.GetRequiredService<ILogger<BoltFasteningStation>>()));
+            .AddKeyedSingleton<ConveyorStation>(MotionGroup.PcbPlacementHandler,
+                (provider, _) => ConveyorStation.CreatePcbPlacement(provider.GetRequiredService<IIoService>()))
+            .AddKeyedSingleton<ConveyorStation>(MotionGroup.BoltFastening,
+                (provider, _) => ConveyorStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()))
+            .AddKeyedSingleton<ConveyorStation>(MotionGroup.InspectionGantry,
+                (provider, _) => ConveyorStation.CreateInspection(provider.GetRequiredService<IIoService>()))
+            .AddSingleton<PcbSupplier>()
+            .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
+            .AddSingleton<PcbPlacer>()
+            .AddSingleton<BoltFasteningStation>()
+            .AddSingleton<BoltFeederUnit>()
+            .AddSingleton<InspectionStation>()
+            .AddSingleton<NgCarrierConveyor>()
+            .AddSingleton<MainConveyor>();
+
+        foreach (var group in Enum.GetValues<MotionGroup>())
+        {
+            services.AddKeyedSingleton<MotionStatus>(group,
+                (provider, _) => new MotionStatus(provider.GetRequiredKeyedService<IXyMotion>(group)));
+        }
 
         services
             .AddSingleton<MachineFeedbackMonitor>()
@@ -147,26 +129,9 @@ public static class DependencyInjection
                 Enum.GetValues<MotionGroup>().ToDictionary(
                     group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group)))
             .AddSingleton<IReadOnlyDictionary<MotionGroup, MotionStatus>>(provider =>
-                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>().ToDictionary(
-                    pair => pair.Key, pair => new MotionStatus(pair.Value)))
-            .AddSingleton<MachineController>()
-            .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
-            .AddSingleton<BoltFeederUnit>()
-            .AddSingleton<NgCarrierConveyor>()
-            .AddSingleton(provider => new InspectionStation(
-                ConveyorStation.CreateInspection(provider.GetRequiredService<IIoService>()),
-                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.InspectionGantry],
-                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.InspectionGantry],
-                provider.GetRequiredService<NgCarrierConveyor>(),
-                provider.GetRequiredService<InspectionGantrySettings>(),
-                provider.GetRequiredService<NgCarrierTransferSettings>(),
-                provider.GetRequiredService<IIoService>(),
-                provider.GetRequiredService<UnitSettings>(),
-                provider.GetRequiredService<ICamera>(),
-                provider.GetRequiredService<ILightController>(),
-                provider.GetRequiredService<LightingSettings>(),
-                provider.GetRequiredService<RecipeManager>(),
-                provider.GetRequiredService<ILogger<InspectionStation>>()));
+                Enum.GetValues<MotionGroup>().ToDictionary(
+                    group => group, group => provider.GetRequiredKeyedService<MotionStatus>(group)))
+            .AddSingleton<MachineController>();
 
         services
             .AddSingleton<RecipeEditorViewModel>()

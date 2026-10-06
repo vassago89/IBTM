@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.PcbPlacement;
 
@@ -20,12 +21,12 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private long _cycleStartedAt;
 
     public PcbPlacer(
-        IXyMotion motion,
-        MotionStatus motionStatus,
+        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion motion,
+        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] MotionStatus motionStatus,
         IIoService io,
         PcbPlacementHandlerSettings settings,
         IPcbSupplyHandoff supply,
-        ConveyorStation station,
+        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] ConveyorStation station,
         RecipeManager recipes,
         UnitSettings units)
         : base(io, [
