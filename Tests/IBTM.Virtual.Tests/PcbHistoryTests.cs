@@ -760,6 +760,85 @@ public sealed class PcbHistoryTests
     }
 
     [Fact]
+    public void CounterRechecksChangedFoldersAndRetriesFailedReconciliation()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        var directory = store.DatabaseFile + ".results";
+        var otherDirectory = directory + ".other";
+        var timestamp = DateTimeOffset.Now;
+        var record = new PcbRecord(207, timestamp, timestamp, "Default", HeatSinkSlot.HeatSink1,
+            null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), []);
+        store.SavePcb(Path.Combine(directory, "PCB-2026-09.db"), record);
+        Assert.Equal(208, store.NextPcbNumber(directory));
+
+        // An incomplete archive must not be opened again for every PCB in this session.
+        var incomplete = Path.Combine(directory, "PCB-2026-08.db");
+        File.WriteAllBytes(incomplete, []);
+        Assert.Equal(209, store.NextPcbNumber(directory + Path.DirectorySeparatorChar));
+
+        store.SavePcb(Path.Combine(otherDirectory, "PCB-2026-10.db"), record with { Number = 400 });
+        Assert.Equal(401, store.NextPcbNumber(otherDirectory));
+        Assert.Throws<SqliteException>(() => store.NextPcbNumber(directory));
+        Assert.Throws<SqliteException>(() => store.NextPcbNumber(directory));
+        store.SavePcb(incomplete, record with { Number = 500 });
+        Assert.Equal(501, store.NextPcbNumber(directory));
+    }
+
+    [Fact]
+    public async Task RecentFasteningFollowsResultsWhileInactiveAndHistorySavingFails()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.PcbHistory.Directory = store.DatabaseFile + ".results";
+        File.WriteAllText(settings.PcbHistory.Directory, "A file blocks creation of the results folder.");
+        await using var services = new ServiceCollection().AddSingleton(store)
+            .AddVirtualApplication(settings).BuildServiceProvider();
+        var history = services.GetRequiredService<PcbHistoryWriter>();
+        var fastening = services.GetRequiredService<BoltFasteningStation>().Station;
+        var inspection = services.GetRequiredService<InspectionStation>().Station;
+        var existing = fastening.GetAssembly(HeatSinkSlot.HeatSink1);
+        var timestamp = DateTimeOffset.Now;
+        var measured = new BoltResult(true, 8) { RecordedAt = timestamp };
+        existing.RecordBolt(FasteningHead.Pickup, VirtualTestSupport.BoltId(1), measured);
+        var view = services.GetRequiredService<OperationViewModel>();
+        try
+        {
+            Assert.Same(measured, view.RecentFastening?.Result);
+            await Assert.ThrowsAsync<IOException>(history.FlushAsync);
+            view.Deactivate();
+            var manual = new BoltResult(true, null, BoltResultSource.Manual)
+            {
+                RecordedAt = timestamp.AddSeconds(1),
+            };
+            existing.ChangeBoltResult(FasteningHead.Pickup, VirtualTestSupport.BoltId(1), manual);
+            Assert.Same(manual, view.RecentFastening?.Result);
+            fastening.TransferAssembliesTo(inspection, fastening.CurrentJob, inspection.CurrentJob);
+            existing.PcbBarcode = "Inspected";
+            Assert.Same(manual, view.RecentFastening?.Result);
+
+            var placement = services.GetRequiredService<PcbPlacer>().Station;
+            var next = placement.GetAssembly(HeatSinkSlot.HeatSink2);
+            placement.TransferAssembliesTo(fastening, placement.CurrentJob, fastening.CurrentJob);
+            var interrupted = new BoltResult(false, null, BoltResultSource.Interrupted)
+            {
+                RecordedAt = timestamp.AddSeconds(2),
+            };
+            next.RecordBolt(FasteningHead.Shooting, VirtualTestSupport.BoltId(2), interrupted);
+            Assert.Same(interrupted, view.RecentFastening?.Result);
+            Assert.Equal(HeatSinkSlot.HeatSink2, view.RecentFastening?.HeatSink);
+            Assert.Equal(FasteningHead.Shooting, view.RecentFastening?.Head);
+            Assert.NotNull(history.SaveError);
+        }
+        finally
+        {
+            File.Delete(settings.PcbHistory.Directory);
+            await history.FlushAsync();
+            await view.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task PcbIdentityAndLiveDetailsFollowResultsAcrossStations()
     {
         var store = VirtualTestSupport.OpenMachineStore();

@@ -39,9 +39,12 @@ public sealed class MachineStore
     public const int PcbHistoryPageSize = 100;
 
     private readonly DbContextOptions<MachineDbContext> _options;
+    private readonly Lock _pcbCounterGate;
+    private string? _pcbCounterDirectory;
 
     public MachineStore(string? databaseFile = null)
     {
+        _pcbCounterGate = new();
         DatabaseFile = Path.GetFullPath(
             databaseFile ?? Path.Combine(AppContext.BaseDirectory, "Data", "Machine.db"));
         Directory.CreateDirectory(Path.GetDirectoryName(DatabaseFile)!);
@@ -344,30 +347,37 @@ public sealed class MachineStore
 
     public long NextPcbNumber(string directory)
     {
-        // Machine.db may have been restored while the monthly result files were retained.
-        long lastSavedNumber = 0;
-        if (Directory.Exists(directory))
+        directory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        lock (_pcbCounterGate)
         {
-            foreach (var file in Directory.EnumerateFiles(directory, "PCB-????-??.db"))
+            // Reconcile restored counters on first use and when the results folder changes.
+            long lastSavedNumber = 0;
+            if (!string.Equals(_pcbCounterDirectory, directory, StringComparison.OrdinalIgnoreCase)
+                && Directory.Exists(directory))
             {
-                using var results = new SqliteConnection(new SqliteConnectionStringBuilder
+                foreach (var file in Directory.EnumerateFiles(directory, "PCB-????-??.db"))
                 {
-                    DataSource = file,
-                    Mode = SqliteOpenMode.ReadOnly,
-                }.ToString());
-                results.Open();
-                using var latest = results.CreateCommand();
-                latest.CommandText = "SELECT COALESCE(MAX(Number), 0) FROM Pcbs";
-                lastSavedNumber = Math.Max(lastSavedNumber, (long)latest.ExecuteScalar()!);
+                    using var results = new SqliteConnection(new SqliteConnectionStringBuilder
+                    {
+                        DataSource = file,
+                        Mode = SqliteOpenMode.ReadOnly,
+                    }.ToString());
+                    results.Open();
+                    using var latest = results.CreateCommand();
+                    latest.CommandText = "SELECT COALESCE(MAX(Number), 0) FROM Pcbs";
+                    lastSavedNumber = Math.Max(lastSavedNumber, (long)latest.ExecuteScalar()!);
+                }
             }
+            using var db = new MachineDbContext(_options);
+            db.Database.OpenConnection();
+            using var command = db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = "UPDATE PcbCounter SET Number = MAX(Number, $saved) + 1 WHERE Id = 1 RETURNING Number";
+            command.Parameters.Add(new SqliteParameter("$saved", lastSavedNumber));
+            var number = (long)(command.ExecuteScalar()
+                ?? throw new InvalidDataException("The PCB counter is missing."));
+            _pcbCounterDirectory = directory;
+            return number;
         }
-        using var db = new MachineDbContext(_options);
-        db.Database.OpenConnection();
-        using var command = db.Database.GetDbConnection().CreateCommand();
-        command.CommandText = "UPDATE PcbCounter SET Number = MAX(Number, $saved) + 1 WHERE Id = 1 RETURNING Number";
-        command.Parameters.Add(new SqliteParameter("$saved", lastSavedNumber));
-        return (long)(command.ExecuteScalar()
-            ?? throw new InvalidDataException("The PCB counter is missing."));
     }
 
     public void SavePcb(string databaseFile, PcbRecord record)

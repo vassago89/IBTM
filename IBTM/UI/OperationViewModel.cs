@@ -175,6 +175,10 @@ public partial class OperationViewModel : ObservableObject
         Supply = supply;
         Placement = placement;
         Fastening = fastening;
+        placement.Station.AssemblyCreated += OnAssemblyCreated;
+        fastening.Station.AssemblyCreated += OnAssemblyCreated;
+        foreach (var assembly in placement.Station.Assemblies.Concat(fastening.Station.Assemblies))
+            OnAssemblyCreated(assembly);
         machine.PcbHistory.Saved += OnPcbSaved;
         machine.PcbHistory.ImageSaved += OnPcbImageSaved;
 
@@ -532,6 +536,11 @@ public partial class OperationViewModel : ObservableObject
         Deactivate();
         Machine.PcbHistory.Saved -= OnPcbSaved;
         Machine.PcbHistory.ImageSaved -= OnPcbImageSaved;
+        Placement.Station.AssemblyCreated -= OnAssemblyCreated;
+        Fastening.Station.AssemblyCreated -= OnAssemblyCreated;
+        foreach (var assembly in Placement.Station.Assemblies.Concat(Fastening.Station.Assemblies)
+            .Concat(Inspection.Station.Assemblies))
+            assembly.ResultsChanged -= OnAssemblyResultsChanged;
         return CommandShutdown.WaitAsync(
             CommandShutdown.CancelAndWaitAsync(
                 [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand,
@@ -1141,26 +1150,37 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(InspectionStatus));
     }
 
+    private void OnAssemblyCreated(HeatSinkAssembly assembly)
+    {
+        assembly.ResultsChanged += OnAssemblyResultsChanged;
+        OnAssemblyResultsChanged(assembly);
+    }
+
+    private void OnAssemblyResultsChanged(HeatSinkAssembly assembly)
+    {
+        if (!Fastening.Station.Assemblies.Contains(assembly))
+            return;
+
+        // Update even while another screen is open or history persistence is delayed.
+        var latest = assembly.ShootingBoltResults.Select(pair =>
+                (Head: FasteningHead.Shooting, Id: pair.Key, Result: pair.Value))
+            .Concat(assembly.PickupBoltResults.Select(pair =>
+                (Head: FasteningHead.Pickup, Id: pair.Key, Result: pair.Value)))
+            .OrderByDescending(row => row.Result.RecordedAt)
+            .FirstOrDefault();
+        if (latest.Result?.RecordedAt is { } recordedAt
+            && (RecentFastening?.Result.RecordedAt is not { } previous || recordedAt > previous))
+        {
+            RecentFastening = new(Recipes.Current.Pcb.GetBoltName(latest.Id), assembly.HeatSink, latest.Head, latest.Result);
+        }
+    }
+
     private void OnBoltFasteningChanged()
     {
         if (IsFasteningResumeConfirmed && !IsFasteningResumeAvailable)
             IsFasteningResumeConfirmed = false;
         OnPropertyChanged(nameof(IsFasteningResumeAvailable));
         OnPropertyChanged(nameof(IsStartReviewAllowed));
-        // Retain the latest completed measurement after the carrier leaves, including
-        // results produced while another screen is open. Do not wait for DB persistence.
-        var latest = Fastening.Station.Assemblies.SelectMany(assembly =>
-                assembly.ShootingBoltResults.Select(pair =>
-                    (assembly.HeatSink, Head: FasteningHead.Shooting, Id: pair.Key, Result: pair.Value))
-                .Concat(assembly.PickupBoltResults.Select(pair =>
-                    (assembly.HeatSink, Head: FasteningHead.Pickup, Id: pair.Key, Result: pair.Value))))
-            .OrderByDescending(row => row.Result.RecordedAt)
-            .FirstOrDefault();
-        if (latest.Result?.RecordedAt is { } recordedAt
-            && (RecentFastening?.Result.RecordedAt is not { } previous || recordedAt > previous))
-        {
-            RecentFastening = new(Recipes.Current.Pcb.GetBoltName(latest.Id), latest.HeatSink, latest.Head, latest.Result);
-        }
 
         if (!_active)
             return;
