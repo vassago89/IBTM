@@ -9,7 +9,7 @@ public enum BoltResultSource
     [Description("Controller")]
     Controller,
 
-    [Description("Manual")]
+    [Description("Manual completion")]
     Manual,
 
     [Description("IO · Assumed OK")]
@@ -20,6 +20,9 @@ public enum BoltResultSource
 
     [Description("IO · Result unavailable")]
     IoResultUnavailable,
+
+    [Description("Fastening interrupted")]
+    Interrupted,
 }
 
 public sealed record BoltResult(
@@ -42,8 +45,9 @@ public sealed record BoltResult(
     public string? TorqueCurveError { get; init; }
 
     [JsonIgnore]
-    public bool IsComplete => Stage is not (BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening)
-        || !Success || Source == BoltResultSource.DryRun;
+    public bool IsComplete => Source != BoltResultSource.Interrupted
+        && (Stage is not (BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening)
+            || !Success || Source == BoltResultSource.DryRun);
     // Keep the bolt's applied criterion with the measurement, independent of later recipe edits.
     public double? MinimumTurns { get; init; }
     public double? MaximumTurns { get; init; }

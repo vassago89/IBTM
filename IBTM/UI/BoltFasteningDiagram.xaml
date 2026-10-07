@@ -64,9 +64,8 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{ui:Text 'Bolt Fastening'}" Style="{StaticResource TitleStyle}" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                <TextBlock x:Name="CycleTime" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
-                    FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                <TextBlock Style="{StaticResource DiagramTitleStyle}" Text="{ui:Text 'Bolt Fastening'}" VerticalAlignment="Center"/>
+                <TextBlock Style="{StaticResource TitleStyle}" x:Name="CycleTime" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
                     Text="{Binding Fastening.Station.LastCycleSeconds, StringFormat='CT · {0:0.0} s',
                         TargetNullValue='CT · —', FallbackValue='CT · —'}"/>
             </Grid>
@@ -184,7 +183,7 @@
                                 <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}" Value="True">
-                                        <Setter Property="Text" Value="{ui:Text 'Bolt ready'}"/>
+                                        <Setter Property="Text" Value="{ui:Text 'Bolt detected'}"/>
                                         <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}" Value="False">
@@ -398,11 +397,11 @@
                                 <Setter Property="Text" Value="{ui:Text 'BOLT · ?'}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn}" Value="True">
-                                        <Setter Property="Text" Value="{ui:Text 'BOLT READY'}"/>
+                                        <Setter Property="Text" Value="{ui:Text 'Bolt detected'}"/>
                                         <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn}" Value="False">
-                                        <Setter Property="Text" Value="{ui:Text 'WAIT SUPPLY'}"/>
+                                        <Setter Property="Text" Value="{ui:Text 'Waiting for supply'}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -411,14 +410,14 @@
                     <TextBlock Canvas.Left="92" Canvas.Top="90" Width="112">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
-                                <Setter Property="Text" Value="{ui:Text 'ESC · ?'}"/>
+                                <Setter Property="Text" Value="{ui:Text 'Position unknown'}"/>
                                 <Style.Triggers>
                                     <MultiDataTrigger>
                                         <MultiDataTrigger.Conditions>
                                             <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="True"/>
                                             <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="False"/>
                                         </MultiDataTrigger.Conditions>
-                                        <Setter Property="Text" Value="{ui:Text 'ESC · BACK'}"/>
+                                        <Setter Property="Text" Value="{ui:Text 'Backward'}"/>
                                         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                                     </MultiDataTrigger>
                                     <MultiDataTrigger>
@@ -426,7 +425,7 @@
                                             <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="False"/>
                                             <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="True"/>
                                         </MultiDataTrigger.Conditions>
-                                        <Setter Property="Text" Value="{ui:Text 'ESC · FWD'}"/>
+                                        <Setter Property="Text" Value="{ui:Text 'Forward'}"/>
                                         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                                     </MultiDataTrigger>
                                     <MultiDataTrigger>

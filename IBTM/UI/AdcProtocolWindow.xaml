@@ -38,8 +38,7 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-            <TextBlock Text="{ui:Text 'HANTAS ADC Protocol'}" Style="{StaticResource TitleStyle}"/>
-            <ComboBox Margin="0,10,0,0" Width="220" HorizontalAlignment="Left"
+            <ComboBox Width="220" HorizontalAlignment="Left"
                 ItemsSource="{Binding Heads}" SelectedItem="{Binding SelectedHead, Mode=TwoWay}"
                 IsEnabled="{Binding ConnectionControlsEnabled}">
                 <ComboBox.ItemTemplate>
@@ -66,15 +65,14 @@
                 <TextBlock Text="{ui:Text 'Port'}" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
                 <ComboBox Grid.Column="1" Margin="10,0,8,0"
                     ItemsSource="{Binding PortNames}"
-                    SelectedItem="{Binding SelectedPort, Mode=TwoWay}" IsEnabled="{Binding PortSelectionEnabled}"/>
-                <Button Grid.Column="2" Content="{ui:Text 'Refresh Ports'}" Padding="12,5"
-                    Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshPortsCommand}" IsEnabled="{Binding PortSelectionEnabled}"/>
+                    SelectedItem="{Binding SelectedPort, Mode=TwoWay}" IsEnabled="{Binding ConnectionSettingsEnabled}"/>
+                <Button Style="{StaticResource CompactButtonStyle}" Grid.Column="2" Content="{ui:Text 'Refresh'}" Command="{Binding RefreshPortsCommand}" IsEnabled="{Binding ConnectionSettingsEnabled}"/>
 
-                <ComboBox IsEnabled="{Binding PortSelectionEnabled}" SelectedItem="{Binding SelectedBaudRate, Mode=TwoWay}" Grid.Column="3" Margin="16,0,0,0" ItemsSource="{Binding BaudRates}"/>
+                <ComboBox IsEnabled="{Binding ConnectionSettingsEnabled}" SelectedItem="{Binding SelectedBaudRate, Mode=TwoWay}" Grid.Column="3" Margin="16,0,0,0" ItemsSource="{Binding BaudRates}"/>
 
                 <TextBlock Grid.Column="4" Margin="16,0,0,0" Text="{ui:Text 'Slave'}" VerticalAlignment="Center"
                     Style="{StaticResource SectionHeaderStyle}"/>
-                <TextBox IsEnabled="{Binding SlaveSelectionEnabled}" Grid.Column="5" Margin="10,0,0,0" Text="{Binding SlaveText, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBox IsEnabled="{Binding ConnectionSettingsEnabled}" Grid.Column="5" Margin="10,0,0,0" Text="{Binding SlaveText, UpdateSourceTrigger=PropertyChanged}"/>
 
                 <Button x:Name="ConnectButton" Grid.Column="6" Margin="16,0,0,0"
                     Content="{Binding ConnectionAction}" Width="110"
@@ -117,22 +115,21 @@
                     </Grid>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel IsEnabled="{Binding ProtocolEnabled}">
-                            <Button Content="{ui:Text 'Select Preset 1'}"
-                                Margin="0,14,0,12" HorizontalAlignment="Left" Padding="14,5"
-                                Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SelectPresetCommand}"/>
+                            <Button Style="{StaticResource CompactButtonStyle}" Content="{ui:Text 'Select Preset 1'}"
+                                Margin="0,14,0,12" HorizontalAlignment="Left" Command="{Binding SelectPresetCommand}"/>
 
                             <WrapPanel Margin="0,0,0,14">
-                                <Button Content="{ui:Text 'Start Fastening'}" Margin="0,0,8,8"
+                                <Button Content="{ui:Text 'Fasten'}" Margin="0,0,8,8"
                                     ToolTipService.ShowOnDisabled="True"
                                     ToolTip="{ui:Text 'Clear interrupted work, then RESET.'}"
                                     Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartCommand}" IsEnabled="{Binding IsTestBoltHeadAllowed}"/>
-                                <Button Content="{ui:Text 'Alarm Reset'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
+                                <Button Content="{ui:Text 'Reset'}" Margin="0,0,8,8"
                                     Command="{Binding ResetAlarmCommand}"/>
-                                <Button Content="{ui:Text 'Read Last Result'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
+                                <Button Content="{ui:Text 'Read Last Result'}" Margin="0,0,8,8"
                                     Command="{Binding ReadResultCommand}"/>
-                                <Button Content="{ui:Text 'Read Device Info'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
+                                <Button Content="{ui:Text 'Read Device Info'}" Margin="0,0,8,8"
                                     Command="{Binding ReadDeviceInformationCommand}"/>
-                                <Button Content="{ui:Text 'Capture RX (3s)'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
+                                <Button Content="{ui:Text 'Capture RX (3s)'}" Margin="0,0,8,8"
                                     Command="{Binding CaptureDeviceInformationCommand}"/>
                             </WrapPanel>
 
@@ -145,8 +142,8 @@
                             </TextBlock>
                             <ScrollViewer Height="48" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel>
-                                    <TextBlock Text="{Binding Bus.Monitor.Sample.Error.Message}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
-                                    <TextBlock Text="{Binding Bus.Monitor.Sample.Rejection}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                                    <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding Bus.Monitor.Sample.Error.Message}"/>
+                                    <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding Bus.Monitor.Sample.Rejection}"/>
                                 </StackPanel>
                             </ScrollViewer>
                             <TextBlock Margin="0,10,0,0"
@@ -208,7 +205,7 @@
             </Border>
         </Grid>
 
-        <TabControl x:Name="ProtocolTabs" Grid.Row="3" Style="{StaticResource SectionTabs}" ItemContainerStyle="{StaticResource SectionTab}">
+        <TabControl x:Name="ProtocolTabs" Grid.Row="3">
         <TabItem Header="{ui:Text 'Frame Log'}">
         <Border Padding="18,14" Style="{StaticResource CardStyle}">
             <Grid>
@@ -219,17 +216,14 @@
                 </Grid.RowDefinitions>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <CheckBox Content="{ui:Text 'Pause display'}" IsChecked="{Binding IsLogPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                    <Button Content="{ui:Text 'Copy'}" Command="{Binding CopyLogCommand}" Padding="12,4" Margin="0,0,8,0"
-                        Style="{StaticResource SecondaryButtonStyle}"/>
-                    <Button Content="{ui:Text 'Copy all'}" Command="{Binding CopyAllLogCommand}" Padding="12,4" Margin="0,0,8,0"
-                        Style="{StaticResource SecondaryButtonStyle}"/>
-                    <Button Content="{ui:Text 'Clear Display'}" Command="{Binding ClearLogCommand}" Padding="12,4" Style="{StaticResource SecondaryButtonStyle}"/>
+                    <Button Style="{StaticResource CompactButtonStyle}" Content="{ui:Text 'Copy'}" Command="{Binding CopyLogCommand}" Margin="0,0,8,0"/>
+                    <Button Style="{StaticResource CompactButtonStyle}" Content="{ui:Text 'Copy all'}" Command="{Binding CopyAllLogCommand}" Margin="0,0,8,0"/>
+                    <Button Style="{StaticResource CompactButtonStyle}" Content="{ui:Text 'Clear Display'}" Command="{Binding ClearLogCommand}"/>
                 </StackPanel>
-                <ui:LogTextBox x:Name="FrameLogBox" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="1" Margin="0,8,0,0"
+                <ui:LogTextBox x:Name="FrameLogBox" Grid.Row="1" Margin="0,8,0,0"
                     Text="{Binding FrameLogText, Mode=OneWay}"
                     IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
-                    SelectionText="{Binding SelectedLogText, Mode=TwoWay}" IsPaused="{Binding IsLogPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="13" TextWrapping="NoWrap"
-                    Padding="8" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                    SelectionText="{Binding SelectedLogText, Mode=TwoWay}" IsPaused="{Binding IsLogPaused, Mode=TwoWay}"/>
                 <TextBlock Grid.Row="2" Text="{Binding ClipboardError}" Height="20" Foreground="{StaticResource AccentRedBrush}"
                     TextTrimming="CharacterEllipsis" ToolTip="{Binding ClipboardError}"/>
             </Grid>
@@ -241,12 +235,9 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="1" Text="{Binding Source={x:Static hantas:AdcControllerError.ReferenceNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
-                    Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,8,0,0"/>
+                <TextBlock Style="{StaticResource DetailTextStyle}" Grid.Row="1" Text="{Binding Source={x:Static hantas:AdcControllerError.ReferenceNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 <DataGrid ItemsSource="{x:Static hantas:AdcControllerError.All}" IsReadOnly="True"
-                    AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                    HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0"
-                    Background="{StaticResource ControlBgBrush}" Foreground="{StaticResource TextPrimaryBrush}">
+                    AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" GridLinesVisibility="Horizontal">
                     <DataGrid.Resources>
                         <Style x:Key="ErrorReferenceText" TargetType="TextBlock">
                             <Setter Property="TextWrapping" Value="Wrap"/>

@@ -28,18 +28,6 @@
             <x:Static Member="core:AdcTorqueCurveSampling.Milliseconds30"/>
         </x:Array>
         <ui:MillisecondsToSecondsConverter x:Key="MillisecondsToSecondsConverter"/>
-        <Style x:Key="SettingFieldLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-        </Style>
-        <Style x:Key="SettingHelpText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="Margin" Value="0,8,0,0"/>
-        </Style>
         <Style TargetType="TextBox" BasedOn="{StaticResource FieldTextBoxStyle}">
             <Setter Property="MinWidth" Value="90"/>
             <Setter Property="MinHeight" Value="32"/>
@@ -114,7 +102,7 @@
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                         <Setter Property="IsEnabled" Value="{Binding IsSettingsEditAllowed}"/>
-                        <Setter Property="Content" Value="{ui:Text 'Save Settings'}"/>
+                        <Setter Property="Content" Value="{ui:Text 'Save'}"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ElementName=SettingsRoot, Path=(Validation.HasError)}" Value="True">
                                 <Setter Property="IsEnabled" Value="False"/>
@@ -126,9 +114,8 @@
                     </Style>
                 </Button.Style>
             </Button>
-            <TextBlock Text="{ui:Text 'Settings'}" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
-        <TabControl Grid.Row="1" Style="{StaticResource SectionTabs}" ItemContainerStyle="{StaticResource SectionTab}">
+        <TabControl Grid.Row="1">
             <TabItem Header="{ui:Text 'Operation &amp; safety'}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
                     <Grid>
@@ -141,21 +128,21 @@
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
                                     <TextBlock Text="{ui:Text 'Enabled units'}" Style="{StaticResource SettingSectionTitle}"/>
-                                    <TextBlock Text="{ui:Text 'Conveyor / PCB'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,0,6"/>
+                                    <TextBlock Text="{ui:Text 'Conveyor / PCB'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,6"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Main conveyor'}"
                                         IsChecked="{Binding Settings.Units.MainConveyor, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'PCB supply'}"
                                         IsChecked="{Binding Settings.Units.PcbSupply, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'PCB placement'}"
                                         IsChecked="{Binding Settings.Units.PcbPlacement, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{ui:Text 'Bolt station'}" Style="{StaticResource SettingFieldLabel}" Margin="0,12,0,6"/>
+                                    <TextBlock Text="{ui:Text 'Bolt station'}" Style="{StaticResource FieldLabelStyle}" Margin="0,12,0,6"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Bolt fastening'}"
                                         IsChecked="{Binding Settings.Units.BoltFastening, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Pickup feeder'}"
                                         IsChecked="{Binding Settings.Units.PickupBoltFeeder, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Shooting feeder'}"
                                         IsChecked="{Binding Settings.Units.ShootingBoltFeeder, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{ui:Text 'Inspection / NG'}" Style="{StaticResource SettingFieldLabel}" Margin="0,12,0,6"/>
+                                    <TextBlock Text="{ui:Text 'Inspection / NG'}" Style="{StaticResource FieldLabelStyle}" Margin="0,12,0,6"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Inspection + NG transfer'}"
                                         IsChecked="{Binding Settings.Units.Inspection, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'NG shuttle + conveyor'}"
@@ -164,12 +151,10 @@
                             </Border>
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
-                                    <TextBlock Text="{ui:Text 'Inspection / NG'}" Style="{StaticResource SettingSectionTitle}"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                         Content="{ui:Text 'Exclude Data Matrix from NG'}"
+                                        ToolTip="{ui:Text 'Record recognition only; unread codes do not trigger NG transfer.'}"
                                         IsChecked="{Binding Settings.InspectionGantry.ExcludeDataMatrixFromNg, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <TextBlock Text="{ui:Text 'Record recognition only; unread codes do not trigger NG transfer.'}"
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -186,7 +171,7 @@
                                     <TextBlock Text="{ui:Text 'Interlocks'}" Style="{StaticResource SettingSectionTitle}"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Emergency stop'}"
                                         IsChecked="{Binding Settings.Options.UseEmergencyStop, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
-                                    <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Door interlock'}"
+                                    <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Doors'}"
                                         IsChecked="{Binding Settings.Options.UseDoorInterlock, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Content="{ui:Text 'Air pressure interlock'}"
                                         IsChecked="{Binding Settings.Options.UseAirPressureInterlock, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
@@ -199,7 +184,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Cylinder / stop timeout (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Cylinder / stop timeout (s)'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox x:Name="IoTimeoutInput" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Options.TimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -228,7 +213,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Transfer timeout (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Transfer timeout (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.TransferTimeoutSeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -239,7 +224,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'After arrival sensor (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'After arrival sensor (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.CarrierStopDelaySeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -250,7 +235,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Rear Ready OFF extra run (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Rear Ready OFF extra run (s)'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.RearSmemaOffDelaySeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -268,7 +253,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Carrier count for alarm'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Carrier count for alarm'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.NgConveyor.AlarmCarrierCount, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
@@ -279,7 +264,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'After arrival sensor (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'After arrival sensor (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.NgConveyor.CarrierStopDelaySeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -290,7 +275,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Eject run after S1 (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Eject run after S1 (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.NgConveyor.EjectRunSeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -315,14 +300,14 @@
                                 <StackPanel>
                                     <TextBlock Text="{ui:Text 'Fastening'}" Style="{StaticResource SettingSectionTitle}"/>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Margin="0,0,0,8"
-                                        Content="{ui:Text 'Collect torque curves'}"
+                                        Content="{ui:Text 'Torque curves'}"
                                         IsChecked="{Binding Settings.BoltFastening.MonitorTorqueCurves, UpdateSourceTrigger=PropertyChanged}"/>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="180"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Torque curve sampling'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Torque curve sampling'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Column="1"
                                             ItemsSource="{StaticResource TorqueCurveSamplingOptions}"
@@ -333,7 +318,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="180"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Torque curve result wait (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Torque curve result wait (s)'}" Style="{StaticResource FieldLabelStyle}"
                                             ToolTip="{ui:Text 'Wait for a curve matching the completed bolt after the graph request finishes.'}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Column="1" VerticalAlignment="Center"
@@ -344,7 +329,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="180"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Torque curve stop wait (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Torque curve stop wait (s)'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Column="1" VerticalAlignment="Center"
                                             Text="{Binding Settings.BoltFastening.TorqueCurveStopTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
@@ -354,7 +339,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="180"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Head order'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Head order'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             ItemsSource="{StaticResource FirstFasteningHeads}"
@@ -382,7 +367,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Pre-tightening preset'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Pre-tightening preset'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             ItemsSource="{StaticResource PickupPresets}"
@@ -393,15 +378,15 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Final tightening preset'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Final tightening preset'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             ItemsSource="{StaticResource PickupPresets}"
                                             SelectedItem="{Binding Settings.BoltFastening.PickupFinalPreset, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
                                     <TextBlock Text="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 → Retighten 1 · per PCB'}"
-                                        Style="{StaticResource SettingHelpText}" Margin="0,4,0,0"/>
-                                    <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource SettingHelpText}"/>
+                                        Style="{StaticResource HelpTextStyle}" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource HelpTextStyle}"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource SettingCard}">
@@ -412,7 +397,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Pickup vacuum delay (ms)'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Pickup vacuum delay (ms)'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.PickupVacuumDelayMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -423,7 +408,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Feeder detection timeout (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Feeder detection timeout (s)'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFeeder.PickupTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -434,7 +419,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Pickup retries (0 = off)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Pickup retries (0 = off)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.PickupRetryCount, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -450,7 +435,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Preset change delay (ms)'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Preset change delay (ms)'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Hantas.PresetSettleMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -461,7 +446,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Fastening result timeout (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Fastening result timeout (s)'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Hantas.FasteningTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -472,7 +457,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Dry run motor duration (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Dry run motor duration (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.DryRunMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -490,7 +475,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Feeder detection timeout (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="{ui:Text 'Feeder detection timeout (s)'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFeeder.ShootingTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -501,7 +486,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'After bolt detection (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'After bolt detection (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFeeder.ShootingRunOnMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -512,7 +497,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Tube ON / OFF timeout (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Tube ON / OFF timeout (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.ShootingDetectionTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -523,7 +508,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Tube detection → head arrival (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Tube detection → head arrival (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.ShootingArrivalDelaySeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -543,13 +528,13 @@
                     </Grid.RowDefinitions>
                     <DockPanel Margin="0,0,0,12">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-                            <TextBlock Text="{ui:Text 'Motion refresh interval (ms, all units)'}" Style="{StaticResource SettingFieldLabel}"
+                            <TextBlock Text="{ui:Text 'Motion refresh interval (ms, all units)'}" Style="{StaticResource FieldLabelStyle}"
                                 VerticalAlignment="Center" Margin="0,0,12,0"/>
                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}" Width="100" ToolTip="10–1000 ms"
                                 Text="{Binding Settings.Options.MotionPollMilliseconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                 VerticalAlignment="Center"/>
                         </StackPanel>
-                        <TextBlock Text="{ui:Text 'Motion group'}" Style="{StaticResource SettingFieldLabel}" DockPanel.Dock="Left"
+                        <TextBlock Text="{ui:Text 'Motion group'}" Style="{StaticResource FieldLabelStyle}" DockPanel.Dock="Left"
                             VerticalAlignment="Center" Margin="0,0,12,0"/>
                         <ComboBox ItemsSource="{Binding MotionGroups}" SelectedItem="{Binding SelectedMotionGroup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             VerticalAlignment="Center" Width="280" HorizontalAlignment="Left"/>
@@ -589,11 +574,11 @@
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
-                                                <TextBlock Text="X / Y" Style="{StaticResource SettingFieldLabel}" Grid.Column="1"
+                                                <TextBlock Text="X / Y" Style="{StaticResource FieldLabelStyle}" Grid.Column="1"
                                                     Margin="4,0,4,8"/>
-                                                <TextBlock Text="Z" Style="{StaticResource SettingFieldLabel}" Grid.Column="2" Margin="4,0,4,8"
+                                                <TextBlock Text="Z" Style="{StaticResource FieldLabelStyle}" Grid.Column="2" Margin="4,0,4,8"
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
-                                                <TextBlock Text="{ui:Text 'Speed (mm/s)'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="1"
+                                                <TextBlock Text="{ui:Text 'Speed (mm/s)'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="1"
                                                     Margin="0,0,12,8" VerticalAlignment="Center"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     Text="{Binding CurrentMotionSettings.HorizontalSpeed, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
@@ -602,7 +587,7 @@
                                                     Text="{Binding CurrentMotionSettings.ZSpeed, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
                                                     VerticalAlignment="Center" Grid.Row="1" Grid.Column="2" Margin="4,0,4,8" MinWidth="0"
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
-                                                <TextBlock Text="{ui:Text 'Acceleration (s)'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="2"
+                                                <TextBlock Text="{ui:Text 'Acceleration (s)'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="2"
                                                     Margin="0,0,12,8" VerticalAlignment="Center"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     Text="{Binding CurrentMotionSettings.AccelerationSeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
@@ -611,7 +596,7 @@
                                                     Text="{Binding CurrentMotionSettings.ZAccelerationSeconds, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
                                                     VerticalAlignment="Center" Grid.Row="2" Grid.Column="2" Margin="4,0,4,8" MinWidth="0"
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
-                                                <TextBlock Text="{ui:Text 'Deceleration (s)'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="3"
+                                                <TextBlock Text="{ui:Text 'Deceleration (s)'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="3"
                                                     Margin="0,0,12,8" VerticalAlignment="Center"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     Text="{Binding CurrentMotionSettings.DecelerationSeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
@@ -623,7 +608,7 @@
                                             </Grid>
                                             <TextBlock
                                                 Text="{ui:Text 'Z accel / decel: blank = X / Y'}"
-                                                Style="{StaticResource SettingHelpText}"/>
+                                                Style="{StaticResource HelpTextStyle}"/>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -657,11 +642,11 @@
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
-                                                <TextBlock Text="X / Y" Style="{StaticResource SettingFieldLabel}" Grid.Column="1"
+                                                <TextBlock Text="X / Y" Style="{StaticResource FieldLabelStyle}" Grid.Column="1"
                                                     Margin="4,0,4,8"/>
-                                                <TextBlock Text="Z" Style="{StaticResource SettingFieldLabel}" Grid.Column="2" Margin="4,0,4,8"
+                                                <TextBlock Text="Z" Style="{StaticResource FieldLabelStyle}" Grid.Column="2" Margin="4,0,4,8"
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
-                                                <TextBlock Text="{ui:Text 'Search speed (mm/s)'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="1"
+                                                <TextBlock Text="{ui:Text 'Search speed (mm/s)'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="1"
                                                     Margin="0,0,12,8" VerticalAlignment="Center"/>
                                                 <TextBox
                                                     Text="{Binding CurrentMotionSettings.HorizontalHome.SearchSpeed, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
@@ -672,7 +657,7 @@
                                                     VerticalAlignment="Center" IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Row="1"
                                                     Grid.Column="2" Margin="4,0,4,8" MinWidth="0"
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
-                                                <TextBlock Text="{ui:Text 'After detection (mm/s)'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="2"
+                                                <TextBlock Text="{ui:Text 'After detection (mm/s)'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="2"
                                                     Margin="0,0,12,8" VerticalAlignment="Center"/>
                                                 <TextBox
                                                     Text="{Binding CurrentMotionSettings.HorizontalHome.DetectionSpeed, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
@@ -683,7 +668,7 @@
                                                     VerticalAlignment="Center" IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Row="2"
                                                     Grid.Column="2" Margin="4,0,4,8" MinWidth="0"
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
-                                                <TextBlock Text="{ui:Text 'Approach speed (mm/s)'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="3"
+                                                <TextBlock Text="{ui:Text 'Approach speed (mm/s)'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="3"
                                                     Margin="0,0,12,8" VerticalAlignment="Center"/>
                                                 <TextBox
                                                     Text="{Binding CurrentMotionSettings.HorizontalHome.ApproachSpeed, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
@@ -694,7 +679,7 @@
                                                     VerticalAlignment="Center" IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Row="3"
                                                     Grid.Column="2" Margin="4,0,4,8" MinWidth="0"
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
-                                                <TextBlock Text="{ui:Text 'Fine / index speed (mm/s)'}" Style="{StaticResource SettingFieldLabel}"
+                                                <TextBlock Text="{ui:Text 'Fine / index speed (mm/s)'}" Style="{StaticResource FieldLabelStyle}"
                                                     Grid.Row="4" Margin="0,0,12,8" VerticalAlignment="Center"/>
                                                 <TextBox
                                                     Text="{Binding CurrentMotionSettings.HorizontalHome.FineSpeed, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
@@ -705,7 +690,7 @@
                                                     VerticalAlignment="Center" IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Row="4"
                                                     Grid.Column="2" Margin="4,0,4,8" MinWidth="0"
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
-                                                <TextBlock Text="{ui:Text 'Search acceleration (s)'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="5"
+                                                <TextBlock Text="{ui:Text 'Search acceleration (s)'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="5"
                                                     Margin="0,0,12,8" VerticalAlignment="Center"/>
                                                 <TextBox
                                                     Text="{Binding CurrentMotionSettings.HorizontalHome.SearchAccelerationSeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
@@ -716,7 +701,7 @@
                                                     VerticalAlignment="Center" IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Row="5"
                                                     Grid.Column="2" Margin="4,0,4,8" MinWidth="0"
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
-                                                <TextBlock Text="{ui:Text 'Detection acceleration (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                                <TextBlock Text="{ui:Text 'Detection acceleration (s)'}" Style="{StaticResource FieldLabelStyle}"
                                                     Grid.Row="6" Margin="0,0,12,8" VerticalAlignment="Center"/>
                                                 <TextBox
                                                     Text="{Binding CurrentMotionSettings.HorizontalHome.DetectionAccelerationSeconds, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True, ValidatesOnExceptions=True}"
@@ -744,13 +729,13 @@
                                             <ColumnDefinition Width="150"/>
                                             <ColumnDefinition Width="190"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Axis'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="0" Margin="0,0,4,4"/>
-                                        <TextBlock Text="{ui:Text 'Number'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="1" Margin="4,0,4,4"/>
-                                        <TextBlock Text="{ui:Text 'SDK unit'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="2" Margin="4,0,4,4"/>
-                                        <TextBlock Text="{ui:Text 'SDK pulse'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="3" Margin="4,0,4,4"/>
-                                        <TextBlock Text="{ui:Text 'Home direction'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="4"
+                                        <TextBlock Text="{ui:Text 'Axis'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="0" Margin="0,0,4,4"/>
+                                        <TextBlock Text="{ui:Text 'Number'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="1" Margin="4,0,4,4"/>
+                                        <TextBlock Text="{ui:Text 'SDK unit'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="2" Margin="4,0,4,4"/>
+                                        <TextBlock Text="{ui:Text 'SDK pulse'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="3" Margin="4,0,4,4"/>
+                                        <TextBlock Text="{ui:Text 'Home direction'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="4"
                                             Margin="4,0,4,4"/>
-                                        <TextBlock Text="{ui:Text 'Home signal'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="5" Margin="4,0,4,4"/>
+                                        <TextBlock Text="{ui:Text 'Home signal'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="5" Margin="4,0,4,4"/>
                                     </Grid>
                                     <ListBox ItemsSource="{Binding CurrentAxisMappings}" IsEnabled="{Binding IsSettingsEditAllowed}"
                                         Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}"
@@ -775,25 +760,25 @@
                                 <Border Style="{StaticResource SettingCard}">
                                     <StackPanel>
                                         <TextBlock Text="{ui:Text 'Motion / I/O controller'}" Style="{StaticResource SettingSectionTitle}"/>
-                                        <TextBlock Text="AJIN" Style="{StaticResource SettingFieldLabel}" Margin="0,0,0,6"/>
+                                        <TextBlock Text="AJIN" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,6"/>
                                         <Grid Margin="0,0,0,8" MinHeight="34">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Interrupt number'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                            <TextBlock Text="{ui:Text 'Interrupt number'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                                 VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Ajin.InterruptNumber, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Column="1"/>
                                         </Grid>
-                                        <TextBlock Text="{ui:Text 'AlphaMotion · TMC-AE16DIOe'}" Style="{StaticResource SettingFieldLabel}" Margin="0,12,0,6"/>
+                                        <TextBlock Text="{ui:Text 'AlphaMotion · TMC-AE16DIOe'}" Style="{StaticResource FieldLabelStyle}" Margin="0,12,0,6"/>
                                         <Grid Margin="0,0,0,8" MinHeight="34">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Card number'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                            <TextBlock Text="{ui:Text 'Card number'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                                 VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.AlphaMotion.ControllerNumber, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
@@ -818,10 +803,10 @@
                                                 <RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
-                                            <TextBlock Text="{ui:Text 'Pickup'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="1" Margin="4,0,4,8"/>
-                                            <TextBlock Text="{ui:Text 'Shooting'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="2"
+                                            <TextBlock Text="{ui:Text 'Pickup'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="1" Margin="4,0,4,8"/>
+                                            <TextBlock Text="{ui:Text 'Shooting'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="2"
                                                 Margin="4,0,4,8"/>
-                                            <TextBlock Text="{ui:Text 'COM port'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="1"
+                                            <TextBlock Text="{ui:Text 'COM port'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="1"
                                                 VerticalAlignment="Center" Margin="0,0,12,8"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.PickupPortName, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
@@ -829,7 +814,7 @@
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.ShootingPortName, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Row="1" Grid.Column="2" Margin="4,0,4,8" MinWidth="0"/>
-                                            <TextBlock Text="{ui:Text 'Baud rate'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="2"
+                                            <TextBlock Text="{ui:Text 'Baud rate'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="2"
                                                 VerticalAlignment="Center" Margin="0,0,12,8"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.PickupBaudRate, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
@@ -837,7 +822,7 @@
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.ShootingBaudRate, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Row="2" Grid.Column="2" Margin="4,0,4,8" MinWidth="0"/>
-                                            <TextBlock Text="{ui:Text 'Slave ID'}" Style="{StaticResource SettingFieldLabel}" Grid.Row="3"
+                                            <TextBlock Text="{ui:Text 'Slave ID'}" Style="{StaticResource FieldLabelStyle}" Grid.Row="3"
                                                 VerticalAlignment="Center" Margin="0,0,12,8"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.PickupSlaveAddress, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
@@ -846,13 +831,13 @@
                                                 Text="{Binding Settings.Hantas.ShootingSlaveAddress, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Row="3" Grid.Column="2" Margin="4,0,4,8" MinWidth="0"/>
                                         </Grid>
-                                        <TextBlock Text="{ui:Text 'Read requests'}" Style="{StaticResource SettingFieldLabel}" Margin="0,12,0,6"/>
+                                        <TextBlock Text="{ui:Text 'Read requests'}" Style="{StaticResource FieldLabelStyle}" Margin="0,12,0,6"/>
                                         <Grid Margin="0,0,0,8" MinHeight="34">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Readiness base wait (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                            <TextBlock Text="{ui:Text 'Readiness base wait (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                                 ToolTip="{ui:Text 'READY wait = base wait × read attempts + status poll interval.'}"
                                                 VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
@@ -864,7 +849,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'SDK completion wait (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                            <TextBlock Text="{ui:Text 'SDK completion wait (s)'}" Style="{StaticResource FieldLabelStyle}"
                                                 ToolTip="{ui:Text 'Closes the connection if the SDK does not finish a request. Does not change the fixed HComm response timeout.'}"
                                                 Margin="0,0,12,0" VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}" Grid.Column="1" VerticalAlignment="Center"
@@ -875,7 +860,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Read attempts (including first)'}" Style="{StaticResource SettingFieldLabel}"
+                                            <TextBlock Text="{ui:Text 'Read attempts (including first)'}" Style="{StaticResource FieldLabelStyle}"
                                                 Margin="0,0,12,0" VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.ReadAttempts, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -886,7 +871,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Status poll interval (s)'}" Style="{StaticResource SettingFieldLabel}"
+                                            <TextBlock Text="{ui:Text 'Status poll interval (s)'}" Style="{StaticResource FieldLabelStyle}"
                                                 Margin="0,0,12,0" VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.StatusPollMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -911,7 +896,7 @@
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
                                     <TextBlock Text="{ui:Text 'Inspection camera'}" Style="{StaticResource SettingSectionTitle}"/>
-                                    <TextBlock Text="{ui:Text 'Device ID / serial number'}" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="{ui:Text 'Device ID / serial number'}" Style="{StaticResource FieldLabelStyle}"/>
                                     <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                         Text="{Binding Settings.InspectionCamera.DeviceId, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
                                         VerticalAlignment="Center" Margin="0,0,0,12"/>
@@ -920,7 +905,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Frame timeout (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Frame timeout (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.InspectionCamera.FrameTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -938,7 +923,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'COM port'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'COM port'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Lighting.Connection, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
@@ -949,7 +934,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Inspection channel (1–9)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Channel (1–9)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Lighting.InspectionChannel, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
@@ -960,7 +945,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Light ON → capture delay (s)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Light ON → capture delay (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Lighting.StabilizationDelayMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" VerticalAlignment="Center"
@@ -980,7 +965,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Test channel (1–9)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Channel (1–9)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox x:Name="LightTestChannelInput" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding LightTestChannel, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" VerticalAlignment="Center"
@@ -991,7 +976,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Brightness (0–255)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="{ui:Text 'Brightness (0–255)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox x:Name="LightTestLevelInput" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding LightTestLevel, BindingGroupName=SettingsInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" VerticalAlignment="Center"
@@ -1013,13 +998,12 @@
                                                 </Style>
                                             </Button.Style>
                                         </Button>
-                                        <Button Content="{ui:Text 'Light OFF'}" Command="{Binding OffTestLightCommand}" IsEnabled="{Binding IsOffTestLightAllowed}" Style="{StaticResource SecondaryButtonStyle}"
+                                        <Button Content="{ui:Text 'Light OFF'}" Command="{Binding OffTestLightCommand}" IsEnabled="{Binding IsOffTestLightAllowed}"
                                             MinWidth="100" Margin="4,0,0,0"/>
                                     </UniformGrid>
                                     <ScrollViewer Height="40" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"
                                         HorizontalScrollBarVisibility="Disabled">
-                                        <TextBlock Text="{Binding LightTestMessage}" Foreground="{StaticResource AccentAmberBrush}"
-                                            TextWrapping="Wrap"/>
+                                        <TextBlock Style="{StaticResource WarningTextStyle}" Text="{Binding LightTestMessage}"/>
                                     </ScrollViewer>
                                 </StackPanel>
                             </Border>
@@ -1039,10 +1023,9 @@
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
                                     <TextBlock Text="{ui:Text 'PCB result database'}" Style="{StaticResource SettingSectionTitle}"/>
-                                    <TextBlock Text="{ui:Text 'Database folder'}" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="{ui:Text 'Database folder'}" Style="{StaticResource FieldLabelStyle}"/>
                                     <DockPanel>
-                                        <Button Content="{ui:Text 'Browse...'}" Command="{Binding BrowsePcbResultsFolderCommand}" IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Style="{StaticResource SecondaryButtonStyle}" DockPanel.Dock="Right" Margin="8,0,0,0"/>
+                                        <Button Content="{ui:Text 'Browse...'}" Command="{Binding BrowsePcbResultsFolderCommand}" IsEnabled="{Binding IsSettingsEditAllowed}" DockPanel.Dock="Right" Margin="8,0,0,0"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding PcbResultsDirectory, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" VerticalAlignment="Center"/>
                                     </DockPanel>
@@ -1053,10 +1036,9 @@
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
                                     <TextBlock Text="{ui:Text 'Machine &amp; communication logs'}" Style="{StaticResource SettingSectionTitle}"/>
-                                    <TextBlock Text="{ui:Text 'Log folder'}" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="{ui:Text 'Log folder'}" Style="{StaticResource FieldLabelStyle}"/>
                                     <DockPanel>
-                                        <Button Content="{ui:Text 'Browse...'}" Command="{Binding BrowseLogFolderCommand}" IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Style="{StaticResource SecondaryButtonStyle}" DockPanel.Dock="Right" Margin="8,0,0,0"/>
+                                        <Button Content="{ui:Text 'Browse...'}" Command="{Binding BrowseLogFolderCommand}" IsEnabled="{Binding IsSettingsEditAllowed}" DockPanel.Dock="Right" Margin="8,0,0,0"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding LogDirectory, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" VerticalAlignment="Center"/>
                                     </DockPanel>
@@ -1066,7 +1048,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{ui:Text 'Retention (days)'}" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                            <TextBlock Text="{ui:Text 'Retention (days)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
                                                 VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Logging.RetentionDays, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -1099,8 +1081,8 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="76"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="{ui:Text 'Input signal'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="0" Margin="0,0,4,0"/>
-                                <TextBlock Text="{ui:Text 'CH (dec)'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="1" Margin="4,0,4,0"/>
+                                <TextBlock Text="{ui:Text 'Input signal'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="0" Margin="0,0,4,0"/>
+                                <TextBlock Text="{ui:Text 'CH (dec)'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="1" Margin="4,0,4,0"/>
                             </Grid>
                             <ListBox IsEnabled="{Binding IsSettingsEditAllowed}" ItemsSource="{Binding InputMappingView}"
                                 Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}" Grid.Row="2"
@@ -1144,9 +1126,9 @@
                                     <ColumnDefinition Width="76"/>
                                     <ColumnDefinition Width="76"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="{ui:Text 'Output signal'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="0" Margin="0,0,4,0"/>
-                                <TextBlock Text="{ui:Text 'ON (dec)'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="1" Margin="4,0,4,0"/>
-                                <TextBlock Text="{ui:Text 'OFF (dec)'}" Style="{StaticResource SettingFieldLabel}" Grid.Column="2" Margin="4,0,4,0"/>
+                                <TextBlock Text="{ui:Text 'Output signal'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="0" Margin="0,0,4,0"/>
+                                <TextBlock Text="{ui:Text 'ON (dec)'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="1" Margin="4,0,4,0"/>
+                                <TextBlock Text="{ui:Text 'OFF (dec)'}" Style="{StaticResource FieldLabelStyle}" Grid.Column="2" Margin="4,0,4,0"/>
                             </Grid>
                             <ListBox IsEnabled="{Binding IsSettingsEditAllowed}" ItemsSource="{Binding OutputMappingView}"
                                 Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}" Grid.Row="2"
@@ -1184,10 +1166,10 @@
         <Border Grid.Row="2" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,12,0,0" Padding="0,10,0,0">
             <StackPanel>
                 <TextBlock Text="{ui:Text 'Language / hardware / logs: Save + restart'}"
-                    Style="{StaticResource SettingHelpText}" Margin="0"/>
-                <TextBlock Text="{ui:Text 'Check the highlighted input.'}" Style="{StaticResource StatusMessageStyle}"
+                    Style="{StaticResource HelpTextStyle}" Margin="0"/>
+                <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{ui:Text 'Check the highlighted input.'}"
                     Visibility="{Binding ElementName=SettingsRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"
-                    TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                    TextWrapping="Wrap"/>
                 <ScrollViewer Height="48" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <TextBlock Text="{Binding DatabaseMessage}" Foreground="{StaticResource TextSecondaryBrush}"
                         Style="{StaticResource StatusMessageStyle}"/>

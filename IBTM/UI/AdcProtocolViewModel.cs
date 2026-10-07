@@ -172,9 +172,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     public bool ConnectionControlsEnabled => !_disposed && !IsClosing && _operationCancellation is null;
 
-    public bool PortSelectionEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && !Bus.IsOpen;
-
-    public bool SlaveSelectionEnabled => ConnectionControlsEnabled && !Bus.IsOpen && _machine.IsUseAdcProtocolAllowed;
+    public bool ConnectionSettingsEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && !Bus.IsOpen;
 
     public bool ProtocolEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && Bus.IsOpen;
 
@@ -528,7 +526,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var result = await bus.Monitor.EnqueueAsync(
                 token => bus.ReadFasteningResultAsync(slave, token), operation.Token);
             ResultMessage = UiText.Format($"Last result: {UiText.Get(result.Status)}  Event {result.EventCount}\n")
-                + $"{UiText.Get("Preset")} {result.Preset}  {UiText.Get("Result torque")} {result.Torque:F2}\n"
+                + $"{UiText.Get("Preset")} {result.Preset}  {UiText.Get("Torque")} {result.Torque:F2}\n"
                 + UiText.Format($"Time {result.FasteningTimeMilliseconds} ms\n")
                 + UiText.Format($"Result error: {AdcControllerError.Describe(result.Error)}");
             ResultSuccess = result.Error != 0 ? false : result.Status switch
@@ -815,8 +813,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(ConnectionAction));
         OnPropertyChanged(nameof(ConnectionControlsEnabled));
-        OnPropertyChanged(nameof(PortSelectionEnabled));
-        OnPropertyChanged(nameof(SlaveSelectionEnabled));
+        OnPropertyChanged(nameof(ConnectionSettingsEnabled));
         OnPropertyChanged(nameof(ProtocolEnabled));
         OnPropertyChanged(nameof(IsTestBoltHeadAllowed));
         OnPropertyChanged(nameof(IsStopAllowed));
@@ -840,7 +837,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     private void ShowResult(BoltResult result)
     {
-        ResultMessage = $"{(result.Success ? "OK" : "NG")}  {UiText.Get("Result torque")} {result.Torque?.ToString("F2") ?? "—"}";
+        ResultMessage = $"{(result.Success ? "OK" : "NG")}  {UiText.Get("Torque")} {result.Torque?.ToString("F2") ?? "—"}";
         if (result.Error is not null)
             ResultMessage += $"\n{result.Error}";
         ResultSuccess = result.Success;

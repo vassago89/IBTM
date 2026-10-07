@@ -28,10 +28,7 @@
             <Setter Property="TextAlignment" Value="Left"/>
             <Setter Property="FontSize" Value="12"/>
         </Style>
-        <Style x:Key="NgBeltDirectionStyle" TargetType="Path">
-            <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
-            <Setter Property="StrokeThickness" Value="3"/>
-            <Setter Property="Visibility" Value="Collapsed"/>
+        <Style x:Key="NgBeltDirectionStyle" TargetType="Path" BasedOn="{StaticResource ConveyorDirectionStyle}">
             <Setter Property="ToolTip" Value="{ui:Text 'NG conveyor drive direction'}"/>
             <Style.Triggers>
                 <MultiDataTrigger>
@@ -39,7 +36,6 @@
                         <Condition Binding="{Binding Signals.Outputs[NgConveyorRun].IsOn}" Value="True"/>
                         <Condition Binding="{Binding Signals.Outputs[NgConveyorReverse].IsOn}" Value="False"/>
                     </MultiDataTrigger.Conditions>
-                    <Setter Property="Visibility" Value="Visible"/>
                     <Setter Property="Data" Value="M 0,0 L 8,9 L 16,0 M 0,18 L 8,27 L 16,18 M 0,36 L 8,45 L 16,36"/>
                 </MultiDataTrigger>
                 <MultiDataTrigger>
@@ -47,7 +43,6 @@
                         <Condition Binding="{Binding Signals.Outputs[NgConveyorRun].IsOn}" Value="True"/>
                         <Condition Binding="{Binding Signals.Outputs[NgConveyorReverse].IsOn}" Value="True"/>
                     </MultiDataTrigger.Conditions>
-                    <Setter Property="Visibility" Value="Visible"/>
                     <Setter Property="Data" Value="M 0,9 L 8,0 L 16,9 M 0,27 L 8,18 L 16,27 M 0,45 L 8,36 L 16,45"/>
                 </MultiDataTrigger>
             </Style.Triggers>

@@ -63,8 +63,7 @@
                     <TextBlock Text="NG" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}"/>
                     <TextBlock Text="{Binding Recipes.Counts.NgCount, StringFormat=N0}" Margin="8,0,16,0" FontSize="22" FontWeight="SemiBold"
                         Foreground="{StaticResource AccentRedBrush}"/>
-                    <Button Content="{ui:Text 'Clear counts'}" Command="{Binding ClearCountsCommand}"
-                        Style="{StaticResource SecondaryButtonStyle}" Padding="12,2" MinHeight="24" VerticalAlignment="Center"/>
+                    <Button Content="{ui:Text 'Clear'}" Command="{Binding ClearCountsCommand}" Padding="12,2" MinHeight="24" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding CountResetError}" ToolTip="{Binding CountResetError}"
                     Foreground="{StaticResource AccentRedBrush}" TextAlignment="Right" TextTrimming="CharacterEllipsis" Margin="0,4,0,0">
@@ -103,10 +102,9 @@
                 <Grid Grid.Row="3" Margin="0,14,0,8">
                     <TextBlock Text="{ui:Text 'Latest fastening'}" FontSize="16" FontWeight="SemiBold"
                         Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <Button HorizontalAlignment="Right" Padding="10,3" Content="{ui:Text 'Torque curves'}"
+                    <Button HorizontalAlignment="Right" Padding="10,3" Content="{ui:Text 'Graph'}"
                         Click="OnTorqueCurvesClick"/>
-                    <TextBlock HorizontalAlignment="Right" Margin="0,0,115,0" VerticalAlignment="Center" FontSize="12"
-                        Foreground="{StaticResource TextMutedBrush}"
+                    <TextBlock Style="{StaticResource DetailTextStyle}" HorizontalAlignment="Right" Margin="0,0,115,0" VerticalAlignment="Center"
                         Text="{Binding RecentFastening.Result.RecordedAt, StringFormat=HH:mm:ss, TargetNullValue=—, FallbackValue=—}"/>
                 </Grid>
                 <Border Grid.Row="4" Height="280" Padding="10,8" BorderThickness="3,0,0,0">
@@ -260,21 +258,20 @@
                                 </Grid>
                                 <UniformGrid Columns="2" Margin="0,10,0,6">
                                     <StackPanel>
-                                        <TextBlock Text="{ui:Text 'TORQUE / TARGET'}" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Style="{StaticResource DetailTextStyle}" Text="{ui:Text 'TORQUE / TARGET'}"/>
                                         <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="14">
                                             <Run Text="{Binding RecentFastening.Result.Torque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                             <Run Text=" / "/><Run Text="{Binding RecentFastening.Result.Controller.CompensatedTargetTorque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                         </TextBlock>
                                     </StackPanel>
                                     <StackPanel>
-                                        <TextBlock Text="{ui:Text 'FASTENING TIME (ms)'}" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Style="{StaticResource DetailTextStyle}" Text="{ui:Text 'Time (ms)'}"/>
                                         <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="14"
                                             Text="{Binding RecentFastening.Result.Controller.FasteningTimeMilliseconds, TargetNullValue=—, FallbackValue=—}"/>
                                     </StackPanel>
                                 </UniformGrid>
-                                <TextBlock Text="{Binding RecentFastening.Result.Error}" ToolTip="{Binding RecentFastening.Result.Error}"
-                                    FontSize="13" TextWrapping="Wrap"
-                                    Foreground="{StaticResource AccentRedBrush}"/>
+                                <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding RecentFastening.Result.Error}" ToolTip="{Binding RecentFastening.Result.Error}"
+                                    FontSize="13"/>
                             </StackPanel>
                         </ScrollViewer>
                     </Grid>
@@ -286,12 +283,11 @@
             Visibility="{Binding HasAlarm, Converter={StaticResource BoolToVis}}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
-                    <TextBlock Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}" FontSize="22" FontWeight="SemiBold"
-                        Margin="0,0,0,12" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}" FontSize="22" FontWeight="SemiBold"
+                        Margin="0,0,0,12"/>
                     <TextBlock Text="{Binding AlarmMessage}" FontSize="14" TextWrapping="Wrap"
                         Foreground="{StaticResource TextPrimaryBrush}" ToolTip="{Binding AlarmDetail}"/>
-                    <TextBlock Text="{Binding AlarmAction}" FontSize="16" Margin="0,16,0,0" TextWrapping="Wrap"
-                        Foreground="{StaticResource AccentAmberBrush}"/>
+                    <TextBlock Style="{StaticResource WarningTextStyle}" Text="{Binding AlarmAction}" FontSize="16" Margin="0,16,0,0"/>
                 </StackPanel>
             </ScrollViewer>
         </Border>
@@ -417,7 +413,7 @@
                                                 <Setter Property="Text" Value="{ui:Text 'No PCB results'}"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="True">
-                                                <Setter Property="Text" Value="{ui:Text 'Loading PCB results...'}"/>
+                                                <Setter Property="Text" Value="{ui:Text 'Loading…'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

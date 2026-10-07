@@ -247,8 +247,10 @@ public sealed class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task AllStandbyMovesEnabledStationsInOrderAndPreservesPlacementRecords()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StandbyMovesOnlyRequestedStationsAndPreservesPlacementRecords(bool individually)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -308,12 +310,36 @@ public sealed class MachineLifecycleTests
                 Assert.False(io.GetInput(InputIo.ShootingHeadVacuumDetected));
             };
 
-            await review.MoveAllToStandbyCommand.ExecuteAsync(null);
+            if (individually)
+            {
+                // An unrelated held PCB must not block Fastening's own standby move.
+                io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+                review.SelectStartAreaCommand.Execute(StartArea.Station2);
+                await review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.MoveToStandby);
+                Assert.Null(review.StartActionMessage);
+                Assert.Equal(new[] { MotionGroup.BoltFastening }, order.Distinct().ToArray());
+                Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+                io.SetInput(InputIo.PcbSupplyPcbDetected, false);
+                review.SelectStartAreaCommand.Execute(StartArea.Supply);
+                await review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.MoveToStandby);
+                Assert.Equal(UiText.Get("Move Placement to standby before Supply."), review.StartActionMessage);
+                Assert.Equal(new[] { MotionGroup.BoltFastening }, order.Distinct().ToArray());
+                foreach (var area in new[] { StartArea.Station1, StartArea.Supply, StartArea.Station3 })
+                {
+                    review.SelectStartAreaCommand.Execute(area);
+                    await review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.MoveToStandby);
+                    Assert.Null(review.StartActionMessage);
+                }
+            }
+            else
+                await review.MoveAllToStandbyCommand.ExecuteAsync(null);
 
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.Null(review.StartActionMessage);
-            Assert.Equal(new[] { MotionGroup.PcbPlacementHandler, MotionGroup.PcbSupply,
-                MotionGroup.BoltFastening, MotionGroup.InspectionGantry }, order.Distinct().ToArray());
+            Assert.Equal(individually
+                ? new[] { MotionGroup.BoltFastening, MotionGroup.PcbPlacementHandler, MotionGroup.PcbSupply, MotionGroup.InspectionGantry }
+                : new[] { MotionGroup.PcbPlacementHandler, MotionGroup.PcbSupply, MotionGroup.BoltFastening, MotionGroup.InspectionGantry },
+                order.Distinct().ToArray());
             Assert.Equal((80d, 70d, 10d), motions[MotionGroup.PcbPlacementHandler].Position);
             Assert.Equal((10d, 20d, 3d), motions[MotionGroup.PcbSupply].Position);
             Assert.Equal((100d, 50d, 0d), motions[MotionGroup.BoltFastening].Position);
@@ -349,7 +375,7 @@ public sealed class MachineLifecycleTests
         try
         {
             await WaitUntilAsync(() => state.SetupEnabled);
-            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.MoveAllToStandbyAsync(default));
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.MoveToStandbyAsync(default));
             Assert.Contains("HOME", error.Message);
             await machine.HomeAsync(default);
             await WaitUntilAsync(() => state.SetupEnabled);
@@ -357,7 +383,7 @@ public sealed class MachineLifecycleTests
             io.SetInput(InputIo.PcbSupplyPcbDetected, true);
             var outputs = new ConcurrentQueue<OutputIo>();
             io.OutputChanged += (output, value) => outputs.Enqueue(output);
-            error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.MoveAllToStandbyAsync(default));
+            error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.MoveToStandbyAsync(default));
             Assert.Contains("Supply is holding", error.Message);
             Assert.Empty(outputs);
             Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
@@ -4610,8 +4636,13 @@ public sealed class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task ConfirmedPlacementResumeKeepsFirstPcbAndStartsAtSecondHeatSink()
+    [Theory]
+    [InlineData(false, HeatSinkSlot.HeatSink1)]
+    [InlineData(true, HeatSinkSlot.HeatSink1)]
+    [InlineData(true, HeatSinkSlot.HeatSink2)]
+    [InlineData(true, HeatSinkSlot.HeatSink1, HeatSinkSlot.HeatSink2)]
+    public async Task ConfirmedPlacementResumeSkipsRecordedAndManuallyPlacedPcbs(
+        bool manual, params HeatSinkSlot[] completed)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -4630,12 +4661,28 @@ public sealed class MachineLifecycleTests
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
             await placement.Station.SeatAsync(CancellationToken.None);
             var job = placement.Station.CurrentJob;
-            var assembly = placement.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-            assembly.IsPlacementCompleted = true;
+            if (!manual)
+                foreach (var heatSink in completed)
+                    placement.Station.GetAssembly(heatSink).IsPlacementCompleted = true;
             await review.CheckStartCommand.ExecuteAsync(null);
+            if (manual)
+            {
+                io.SetInput(InputIo.AutoMode, false);
+                Assert.True(state.AutoMode);
+                var writes = new ConcurrentQueue<OutputIo>();
+                io.OutputChanged += (output, on) => writes.Enqueue(output);
+                foreach (var heatSink in completed)
+                {
+                    var row = review.PlacementResumeTargets.Single(target => target.HeatSink == heatSink);
+                    await row.CompleteCommand.ExecuteAsync(row);
+                    Assert.Null(review.StartActionMessage);
+                    Assert.False(review.IsPlacementResumeConfirmed);
+                }
+                Assert.Empty(writes);
+            }
+            var assemblies = placement.Station.Assemblies.ToArray();
             Assert.Equal(StartArea.Station1, review.SelectedStartArea);
-            Assert.Equal(new[] { new PlacementResumeRow(HeatSinkSlot.HeatSink1, true),
-                new PlacementResumeRow(HeatSinkSlot.HeatSink2, false) }, review.PlacementResumeTargets);
+            Assert.All(review.PlacementResumeTargets, row => Assert.Equal(completed.Contains(row.HeatSink), row.IsCompleted));
             Assert.True(review.IsPlacementResumeAvailable);
             Assert.False(review.IsStartReviewAllowed);
             await review.ConfirmStartCommand.ExecuteAsync(null);
@@ -4646,7 +4693,7 @@ public sealed class MachineLifecycleTests
             HeatSinkSlot? selected = null;
             placement.StepChanged += () =>
             {
-                if (placement.Step is PcbPlacementState.MovingToHandoff)
+                if (placement.Step is PcbPlacementState.MovingToHandoff || placement.Station.Completed)
                 {
                     selected = placement.ActivePcb;
                     machine.Stop();
@@ -4656,18 +4703,70 @@ public sealed class MachineLifecycleTests
             Assert.True(review.IsStartReviewAllowed);
             await review.ConfirmStartCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
 
-            Assert.Equal(HeatSinkSlot.HeatSink2, selected);
+            var remaining = Enum.GetValues<HeatSinkSlot>().Except(completed).ToArray();
+            Assert.Equal(remaining.Length == 0 ? (HeatSinkSlot?)null : remaining[0], selected);
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.Same(job, placement.Station.CurrentJob);
-            Assert.Same(assembly, Assert.Single(placement.Station.Assemblies));
-            Assert.True(assembly.IsPlacementCompleted);
-            Assert.False(placement.Station.Completed);
+            Assert.Equal(completed.Order(), placement.Station.Assemblies.Select(assembly => assembly.HeatSink).Order());
+            Assert.All(assemblies, assembly => Assert.Same(assembly, placement.Station.GetAssembly(assembly.HeatSink)));
+            Assert.All(placement.Station.Assemblies, assembly => Assert.True(assembly.IsPlacementCompleted));
+            Assert.Equal(remaining.Length == 0, placement.Station.Completed);
             Assert.False(review.IsPlacementResumeConfirmed);
             await review.CheckStartCommand.ExecuteAsync(null);
-            Assert.False(review.IsStartReviewAllowed); // Each START needs a new confirmation.
+            Assert.Equal(remaining.Length == 0, review.IsStartReviewAllowed);
         }
         finally
         {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ManualPlacementCompletionRequiresTheCurrentIdleCarrierAndSelectedHeatSink()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<PcbPlacer>().Station;
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+            var job = station.CurrentJob;
+            await review.CheckStartCommand.ExecuteAsync(null);
+            var oldRow = Assert.Single(review.PlacementResumeTargets);
+            Assert.Throws<InvalidOperationException>(() => machine.CompletePlacement(job, HeatSinkSlot.HeatSink2));
+            using (services.GetRequiredService<OperationCancellation>().TryBegin())
+                Assert.Throws<InvalidOperationException>(() => machine.CompletePlacement(job, HeatSinkSlot.HeatSink1));
+            io.IsReady = false;
+            Assert.Throws<InvalidOperationException>(() => machine.CompletePlacement(job, HeatSinkSlot.HeatSink1));
+            io.IsReady = true;
+            await WaitUntilAsync(() => services.GetRequiredService<MachineState>().Available);
+            Assert.Empty(station.Assemblies);
+
+            io.SetInput(InputIo.PcbPlacementHeatSink1Present, false);
+            station.ClearJob();
+            io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+            Assert.Throws<InvalidOperationException>(() => machine.CompletePlacement(job, HeatSinkSlot.HeatSink1));
+            await review.CheckStartCommand.ExecuteAsync(null);
+            await oldRow.CompleteCommand.ExecuteAsync(oldRow);
+            Assert.Empty(station.Assemblies);
+
+            var currentRow = Assert.Single(review.PlacementResumeTargets);
+            await currentRow.CompleteCommand.ExecuteAsync(currentRow);
+            Assert.True(Assert.Single(station.Assemblies).IsPlacementCompleted);
+            Assert.False(station.Completed);
+            Assert.False(review.IsPlacementResumeAvailable); // Recording does not raise the backup plate.
+            await review.ChangeCarrierWorkCommand.ExecuteAsync(CarrierWorkAction.Clear);
+            Assert.False(Assert.Single(station.Assemblies).IsPlacementCompleted);
+            Assert.False(Assert.Single(review.PlacementResumeTargets).IsCompleted);
+        }
+        finally
+        {
+            io.IsReady = true;
             await machine.ShutdownAsync();
         }
     }
@@ -5837,6 +5936,137 @@ public sealed class MachineLifecycleTests
         }
     }
 
+    [Theory]
+    [InlineData(FasteningHead.Pickup)]
+    [InlineData(FasteningHead.Shooting)]
+    public async Task ManualBoltCompletionAndReworkKeepOtherResultsAndPersistManualOk(FasteningHead head)
+    {
+        var settings = FlowSettings();
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-manual-bolts-{Guid.NewGuid():N}");
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.BoltFastening.FirstFasteningHead = head;
+        settings.BoltFastening.PickupPosition = new() { X = 5, Y = 5, Z = 0 };
+        await using var services = CreateServices(settings);
+        var recipes = services.GetRequiredService<RecipeManager>();
+        var manual = new BoltPoint { Head = head, X = 10, Y = 10 };
+        var rework = new BoltPoint { Head = head, X = 20, Y = 20 };
+        var other = new BoltPoint { Head = head == FasteningHead.Pickup ? FasteningHead.Shooting : FasteningHead.Pickup };
+        recipes.Current.Pcb.BoltPoints = [manual, rework, other];
+        foreach (var bolt in recipes.Current.Pcb.BoltPoints)
+            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var fastening = services.GetRequiredService<BoltFasteningStation>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            await fastening.Station.SeatAsync(default);
+            var job = fastening.Station.CurrentJob;
+            var assembly = fastening.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+            var kept = new BoltResult(true, 8) { TorqueCurve = new(0, 5, [0, 4, 8], 15, 8, 8, 1, 0) };
+            assembly.RecordBolt(manual.Head, manual.Id, new(false, null, BoltResultSource.Interrupted));
+            assembly.RecordBolt(rework.Head, rework.Id, new(false, null, BoltResultSource.Interrupted));
+            assembly.RecordBolt(other.Head, other.Id, kept);
+            io.SetInput(InputIo.AutoMode, false);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            review.SelectStartAreaCommand.Execute(StartArea.Station2);
+            var writes = new ConcurrentQueue<OutputIo>();
+            io.OutputChanged += (output, on) => writes.Enqueue(output);
+            var row = review.FasteningResumeBolts.Single(row => row.BoltId == manual.Id);
+            Assert.Equal("Fastening interrupted", row.Status);
+            Assert.False(review.IsFasteningResumeAvailable);
+            review.IsFasteningResumeConfirmed = true;
+            Assert.False(review.IsStartReviewAllowed);
+            await services.GetRequiredService<PcbHistoryWriter>().FlushAsync();
+            var interruptedRecord = Assert.Single(services.GetRequiredService<MachineStore>().LoadPcbs(settings.PcbHistory.Directory));
+            var interruptedResult = (head == FasteningHead.Pickup ? interruptedRecord.PickupBoltResults : interruptedRecord.ShootingBoltResults)[manual.Id];
+            Assert.Equal(BoltResultSource.Interrupted, interruptedResult.Source);
+            Assert.False(interruptedResult.IsComplete);
+            using (services.GetRequiredService<OperationCancellation>().TryBegin())
+                Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, manual.Id, true));
+            await review.CompleteBoltCommand.ExecuteAsync(row);
+            Assert.Null(review.StartActionMessage);
+            Assert.False(fastening.Station.Completed);
+            var manuallyCompleted = review.FasteningResumeBolts.Single(row => row.BoltId == manual.Id);
+            Assert.Equal("OK", manuallyCompleted.Status);
+            Assert.Equal(BoltResultSource.Manual, manuallyCompleted.Result!.Source);
+            Assert.Null(manuallyCompleted.Result.Torque);
+            Assert.Null(manuallyCompleted.Result.Controller);
+            Assert.Null(manuallyCompleted.Result.TorqueCurve);
+            Assert.False(review.IsFasteningResumeAvailable);
+            row = review.FasteningResumeBolts.Single(row => row.BoltId == rework.Id);
+            await review.ReworkBoltCommand.ExecuteAsync(row);
+            Assert.Null(review.StartActionMessage);
+            Assert.Empty(writes);
+            Assert.Equal(1, review.RemainingFasteningCount);
+            Assert.False(review.IsFasteningResumeConfirmed);
+            Assert.True(review.IsFasteningResumeAvailable);
+
+            Guid? selected = null;
+            fastening.StepChanged += () =>
+            {
+                if (fastening.Step is BoltFasteningState.Fastening)
+                {
+                    selected = fastening.ActiveBolt!.Id;
+                    Assert.Equal(head == FasteningHead.Pickup ? BoltFasteningStage.Preliminary : BoltFasteningStage.Single,
+                        fastening.ActiveStage);
+                    machine.Stop();
+                }
+                else if (fastening.Station.Completed)
+                    machine.Stop();
+            };
+            review.IsFasteningResumeConfirmed = true;
+            await review.ConfirmStartCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(rework.Id, selected);
+            Assert.False(state.IsError, state.AlarmDetail);
+            await review.CheckStartCommand.ExecuteAsync(null);
+            row = review.FasteningResumeBolts.Single(row => row.BoltId == rework.Id);
+            await review.CompleteBoltCommand.ExecuteAsync(row);
+            Assert.Equal(0, review.RemainingFasteningCount);
+            selected = null;
+            review.IsFasteningResumeConfirmed = true;
+            await review.ConfirmStartCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Null(selected);
+            Assert.True(fastening.Station.Completed);
+            Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
+            Assert.Null(assembly.TurnsResult);
+            Assert.Same(kept, (other.Head == FasteningHead.Pickup ? assembly.PickupBoltResults : assembly.ShootingBoltResults)[other.Id]);
+
+            var history = services.GetRequiredService<PcbHistoryWriter>();
+            await history.FlushAsync();
+            var store = services.GetRequiredService<MachineStore>();
+            var record = Assert.Single(new MachineStore(store.DatabaseFile).LoadPcbs(settings.PcbHistory.Directory));
+            Assert.Equal(AssemblyResult.Ok, record.FasteningResult);
+            var saved = (head == FasteningHead.Pickup ? record.PickupBoltResults : record.ShootingBoltResults)[manual.Id];
+            Assert.True(saved.Success);
+            Assert.True(saved.IsComplete);
+            Assert.Equal(BoltResultSource.Manual, saved.Source);
+            Assert.NotNull(saved.RecordedAt);
+            Assert.Null(saved.Torque);
+            Assert.Null(saved.Controller);
+            Assert.Null(saved.TorqueCurve);
+            Assert.Equal("OK", new PcbBoltResultView(manual.Id, 1, head, saved, null, null).Verdict);
+            var savedOther = (other.Head == FasteningHead.Pickup ? record.PickupBoltResults : record.ShootingBoltResults)[other.Id];
+            Assert.Equal(BoltResultSource.Controller, savedOther.Source);
+            Assert.Equal(kept.TorqueCurve!.Torques, savedOther.TorqueCurve!.Torques);
+
+            SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, manual.Id, false));
+            fastening.Station.ClearJob();
+            SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, manual.Id, true));
+            Assert.Empty(fastening.Station.Assemblies);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task FasteningResumeConfirmationCannotBypassChangedCarrierOrOtherStartupBlocks()
     {
@@ -6024,7 +6254,7 @@ public sealed class MachineLifecycleTests
             Assert.NotNull(taskFailure);
             Assert.Contains(failure.Message, taskFailure.ToString());
             if (!emergencyStop)
-                Assert.Contains($"OK  {UiText.Get("Result torque")}", diagnostics.ResultMessage);
+                Assert.Contains($"OK  {UiText.Get("Torque")}", diagnostics.ResultMessage);
             Assert.Contains("failed", diagnostics.ResultMessage);
             Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.BoltFastening, state.Alarm);
             Assert.Contains(failure.Message, state.AlarmDetail);

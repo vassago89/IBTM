@@ -30,7 +30,6 @@ public sealed class MachineController : INotifyPropertyChanged
     private readonly OperationCancellation _operations;
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
-    private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly BoltFasteningSettings _fasteningSettings;
     private readonly RecipeManager _recipes;
     private readonly IIoService _io;
@@ -73,7 +72,6 @@ public sealed class MachineController : INotifyPropertyChanged
         OperationCancellation operations,
         MachineOptions options,
         UnitSettings units,
-        PcbPlacementHandlerSettings placementSettings,
         BoltFasteningSettings fasteningSettings,
         RecipeManager recipes,
         IIoService io,
@@ -97,7 +95,6 @@ public sealed class MachineController : INotifyPropertyChanged
         _operations = operations;
         _options = options;
         _units = units;
-        _placementSettings = placementSettings;
         _fasteningSettings = fasteningSettings;
         _recipes = recipes;
         _io = io;
@@ -705,6 +702,56 @@ public sealed class MachineController : INotifyPropertyChanged
                 || _pcbPlacement.Station.IsHeatSinkPresent(assembly.HeatSink));
     }
 
+    public void CompletePlacement(
+        ConveyorStation.Job job, HeatSinkSlot heatSink, CancellationToken cancellationToken = default)
+    {
+        using var operation = _operations.TryBegin(cancellationToken)
+            ?? throw new InvalidOperationException("Stop the machine before changing carrier work.");
+        if (!_state.Available || _state.IsRunningFor(includeOperations: false))
+            throw new InvalidOperationException("Stop the machine and check I/O before changing carrier work.");
+        if (!Enum.IsDefined(heatSink))
+            throw new ArgumentOutOfRangeException(nameof(heatSink));
+        var station = _pcbPlacement.Station;
+        station.RequireCurrentJob(job);
+        operation.Token.ThrowIfCancellationRequested();
+        if (!station.IsHeatSinkPresent(heatSink))
+            throw new InvalidOperationException("No heat sink is detected at this position.");
+        if (station.Completed)
+            throw new InvalidOperationException("Placement work is already complete.");
+
+        station.GetAssembly(job, heatSink).IsPlacementCompleted = true;
+        station.Restart(job);
+        _log?.LogWarning("Operator marked PCB placement complete: job={Job}, heatSink={HeatSink}.", job.Id, heatSink);
+        CheckStartMaterials();
+    }
+
+    public void ChangeBoltWork(
+        ConveyorStation.Job job, Guid boltId, bool completed, CancellationToken cancellationToken = default)
+    {
+        using var operation = _operations.TryBegin(cancellationToken)
+            ?? throw new InvalidOperationException("Stop the machine before changing carrier work.");
+        if (!_state.Available || _state.IsRunningFor(includeOperations: false))
+            throw new InvalidOperationException("Stop the machine and check I/O before changing carrier work.");
+        var station = _fasteningStation.Station;
+        station.RequireCurrentJob(job);
+        var bolt = _recipes.Current.Pcb.BoltPoints.SingleOrDefault(point => point.Id == boltId)
+            ?? throw new InvalidOperationException("The selected bolt is no longer in the recipe.");
+        operation.Token.ThrowIfCancellationRequested();
+        if (!station.IsHeatSinkPresent(bolt.HeatSink))
+            throw new InvalidOperationException("No heat sink is detected at this position.");
+
+        station.GetAssembly(job, bolt.HeatSink).ChangeBoltResult(bolt.Head, bolt.Id,
+            completed ? new(true, null, BoltResultSource.Manual)
+            {
+                RecordedAt = DateTimeOffset.Now,
+                Stage = bolt.Head == FasteningHead.Pickup ? BoltFasteningStage.Retightening : BoltFasteningStage.Single,
+            } : null);
+        station.Restart(job);
+        _log?.LogWarning("Operator changed bolt work: job={Job}, bolt={Bolt}, head={Head}, completed={Completed}.",
+            job.Id, bolt.Id, bolt.Head, completed);
+        CheckStartMaterials();
+    }
+
     public void ChangeCarrierWork(
         StartArea area, ConveyorStation.Job job, CarrierWorkAction action, CancellationToken cancellationToken = default)
     {
@@ -790,7 +837,9 @@ public sealed class MachineController : INotifyPropertyChanged
     {
         return _units.BoltFastening
             && ReferenceEquals(job, _fasteningStation.Station.CurrentJob)
-            && _fasteningStation.Station.CarrierSeated && !_fasteningStation.Station.Completed;
+            && _fasteningStation.Station.CarrierSeated && !_fasteningStation.Station.Completed
+            && !_fasteningStation.Station.Assemblies.Any(assembly => assembly.PickupBoltResults.Values
+                .Concat(assembly.ShootingBoltResults.Values).Any(result => result.Source == BoltResultSource.Interrupted));
     }
 
     public async Task StartAsync(
@@ -2236,12 +2285,29 @@ public sealed class MachineController : INotifyPropertyChanged
         return stopReason;
     }
 
-    public async Task<bool> MoveAllToStandbyAsync(CancellationToken cancellationToken)
+    public async Task<bool> MoveToStandbyAsync(CancellationToken cancellationToken, MotionGroup? selectedGroup = null)
     {
-        var groups = Enum.GetValues<MotionGroup>().Where(_units.IsMotionEnabled).ToArray();
+        var groups = Enum.GetValues<MotionGroup>()
+            .Where(group => _units.IsMotionEnabled(group) && (selectedGroup is null || selectedGroup == group)).ToArray();
         var activeToken = cancellationToken;
         var alarm = MachineAlarm.MotionUnavailable;
         string? materialBlock = null;
+        string? ReadMaterialBlock()
+        {
+            if (groups.Contains(MotionGroup.PcbSupply))
+            {
+                if (_pcbSupply.Pcb != PcbSupplyPcbState.None && _pcbSupply.Gripper != PcbSupplyCylinderState.Backward)
+                    return "Supply is holding a PCB. Support and release it before moving all stations to standby.";
+                if (selectedGroup == MotionGroup.PcbSupply && _units.PcbPlacement && !_pcbPlacement.IsAtStandby)
+                    return "Move Placement to standby before Supply.";
+            }
+            if (groups.Contains(MotionGroup.PcbPlacementHandler) && _io.GetInput(InputIo.PcbPlacementVacuumDetected))
+                return "Release Placement vacuum before moving to standby.";
+            if (groups.Contains(MotionGroup.InspectionGantry) && (_inspectionStation.IsTransferPending
+                || _inspectionStation.Gripper != NgTransferGripperState.Open))
+                return "Finish or release the NG carrier transfer and confirm the gripper is open before standby.";
+            return null;
+        }
         try
         {
             using var operation = BeginManualOperation(
@@ -2257,10 +2323,10 @@ public sealed class MachineController : INotifyPropertyChanged
                 || _state.IsRunningFor(includeOperations: false)
                 || groups.Any(group => _motions[group].Axes.Any(axis => _motions[group].GetAxisState(axis).InMotion)))
                 throw new InvalidOperationException("Stop the machine and HOME all enabled axes before standby.");
-            materialBlock = StandbyMaterialBlock;
+            materialBlock = ReadMaterialBlock();
             if (materialBlock is not null)
                 throw new InvalidOperationException(materialBlock);
-            if (_units.PcbSupply && _pcbSupply.Rotation == PcbSupplyRotationState.Between)
+            if (groups.Contains(MotionGroup.PcbSupply) && _pcbSupply.Rotation == PcbSupplyRotationState.Between)
                 throw new InvalidOperationException("Confirm Supply rotation feedback before moving to the handoff position.");
 
             void CheckMaterial(InputIo input, bool value)
@@ -2270,7 +2336,7 @@ public sealed class MachineController : INotifyPropertyChanged
                     operation.Cancel();
                     return;
                 }
-                materialBlock ??= StandbyMaterialBlock;
+                materialBlock ??= ReadMaterialBlock();
                 if (materialBlock is not null)
                     operation.Cancel();
             }
@@ -2281,25 +2347,25 @@ public sealed class MachineController : INotifyPropertyChanged
                 CheckMaterial(default, false);
                 activeToken.ThrowIfCancellationRequested();
                 // Clear Placement from the shared handoff before Supply returns through it.
-                if (_units.PcbPlacement)
+                if (groups.Contains(MotionGroup.PcbPlacementHandler))
                 {
                     alarm = MachineAlarm.PcbPlacement;
                     _log?.LogInformation("START standby: Placement.");
                     await _pcbPlacement.MoveToStandbyAsync(activeToken);
                 }
-                if (_units.PcbSupply)
+                if (groups.Contains(MotionGroup.PcbSupply))
                 {
                     alarm = MachineAlarm.PcbSupply;
                     _log?.LogInformation("START standby: Supply.");
                     await _pcbSupply.MoveToStandbyAsync(activeToken);
                 }
-                if (_units.BoltFastening)
+                if (groups.Contains(MotionGroup.BoltFastening))
                 {
                     alarm = MachineAlarm.BoltFastening;
                     _log?.LogInformation("START standby: Fastening.");
                     await _fasteningStation.MoveToStandbyAsync(activeToken);
                 }
-                if (_units.Inspection)
+                if (groups.Contains(MotionGroup.InspectionGantry))
                 {
                     alarm = MachineAlarm.Inspection;
                     _log?.LogInformation("START standby: Inspection.");
@@ -2307,7 +2373,7 @@ public sealed class MachineController : INotifyPropertyChanged
                     await _inspectionStation.MoveToWaitingPositionAsync(activeToken);
                 }
                 activeToken.ThrowIfCancellationRequested();
-                _log?.LogInformation("START standby: all enabled stations completed.");
+                _log?.LogInformation("START standby completed: {Stations}.", string.Join(", ", groups));
                 return true;
             }
             finally
@@ -2328,25 +2394,21 @@ public sealed class MachineController : INotifyPropertyChanged
         }
     }
 
-    private string? StandbyMaterialBlock
-    {
-        get
-        {
-            if (_units.PcbSupply && _pcbSupply.Pcb != PcbSupplyPcbState.None
-                && _pcbSupply.Gripper != PcbSupplyCylinderState.Backward)
-                return "Supply is holding a PCB. Support and release it before moving all stations to standby.";
-            if (_units.PcbPlacement && _io.GetInput(InputIo.PcbPlacementVacuumDetected))
-                return "Release Placement vacuum before moving to standby.";
-            if (_units.Inspection && (_inspectionStation.IsTransferPending
-                || _inspectionStation.Gripper != NgTransferGripperState.Open))
-                return "Finish or release the NG carrier transfer and confirm the gripper is open before standby.";
-            return null;
-        }
-    }
-
     public async Task<bool> PrepareStartAreaAsync(
         StartArea area, StartPreparationAction action, CancellationToken cancellationToken)
     {
+        if (action == StartPreparationAction.MoveToStandby)
+        {
+            var group = area switch
+            {
+                StartArea.Supply => MotionGroup.PcbSupply,
+                StartArea.Placement or StartArea.Station1 => MotionGroup.PcbPlacementHandler,
+                StartArea.PickupHead or StartArea.ShootingHead or StartArea.Station2 => MotionGroup.BoltFastening,
+                StartArea.Station3 => MotionGroup.InspectionGantry,
+                _ => throw new ArgumentOutOfRangeException(nameof(area)),
+            };
+            return await MoveToStandbyAsync(cancellationToken, group);
+        }
         var movesSupply = action == StartPreparationAction.MoveToRotationPosition;
         var motion = area switch
         {

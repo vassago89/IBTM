@@ -20,21 +20,18 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <DockPanel LastChildFill="True">
+        <DockPanel LastChildFill="False">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <CheckBox Content="{ui:Text 'Pause display'}" IsChecked="{Binding IsPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                <Button Content="{ui:Text 'Copy'}" Command="{Binding CopyCommand}"
-                    Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Margin="0,0,8,0"/>
-                <Button Content="{ui:Text 'Copy all'}" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Command="{Binding CopyAllCommand}" Margin="0,0,8,0"/>
-                <Button Content="{ui:Text 'Clear Display'}" Command="{Binding ClearCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6"/>
+                <Button Style="{StaticResource CompactButtonStyle}" Content="{ui:Text 'Copy'}" Command="{Binding CopyCommand}" Margin="0,0,8,0"/>
+                <Button Style="{StaticResource CompactButtonStyle}" Content="{ui:Text 'Copy all'}" Command="{Binding CopyAllCommand}" Margin="0,0,8,0"/>
+                <Button Style="{StaticResource CompactButtonStyle}" Content="{ui:Text 'Clear Display'}" Command="{Binding ClearCommand}"/>
             </StackPanel>
-            <TextBlock Text="{ui:Text 'Logs'}" Style="{StaticResource TitleStyle}" VerticalAlignment="Center"/>
         </DockPanel>
-        <ui:LogTextBox x:Name="LogText" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2" Margin="0,12,0,0"
+        <ui:LogTextBox x:Name="LogText" Grid.Row="2" Margin="0,12,0,0"
             Text="{Binding Text, Mode=OneWay}"
             IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
-            SelectionText="{Binding SelectedText, Mode=TwoWay}" IsPaused="{Binding IsPaused, Mode=TwoWay}" FontFamily="Consolas" FontSize="14" TextWrapping="NoWrap" Padding="8"
-            VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+            SelectionText="{Binding SelectedText, Mode=TwoWay}" IsPaused="{Binding IsPaused, Mode=TwoWay}"/>
         <StackPanel Grid.Row="3" Margin="0,12,0,0">
             <ScrollViewer Height="36" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>

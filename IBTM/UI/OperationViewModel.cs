@@ -27,11 +27,14 @@ public sealed record DoorSensorDisplay(string Name, IoInputStatus Input);
 
 public sealed record RecentFasteningView(string BoltName, HeatSinkSlot HeatSink, FasteningHead Head, BoltResult Result);
 
-public sealed record PlacementResumeRow(HeatSinkSlot HeatSink, bool IsCompleted);
+public sealed record PlacementResumeRow(
+    HeatSinkSlot HeatSink, bool IsCompleted, IAsyncRelayCommand<PlacementResumeRow> CompleteCommand);
 
-public sealed record FasteningResumeRow(string Label, HeatSinkSlot HeatSink, BoltResult? Result)
+public sealed record FasteningResumeRow(
+    Guid BoltId, string Label, HeatSinkSlot HeatSink, BoltResult? Result)
 {
     public string Status => Result is null ? "Not recorded"
+        : Result.Source == BoltResultSource.Interrupted ? "Fastening interrupted"
         : !Result.IsComplete ? Result.Stage == BoltFasteningStage.FinalBeforeRetightening
             ? "Retightening pending" : "Final tightening pending"
         : Result.Source == BoltResultSource.DryRun ? "Dry run · NG"
@@ -84,6 +87,9 @@ public partial class OperationViewModel : ObservableObject
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
+        CompletePlacementCommand = new AsyncRelayCommand<PlacementResumeRow>(CompletePlacementAsync);
+        CompleteBoltCommand = new AsyncRelayCommand<FasteningResumeRow>(CompleteBoltAsync);
+        ReworkBoltCommand = new AsyncRelayCommand<FasteningResumeRow>(ReworkBoltAsync);
         PrepareStartAreaCommand = new AsyncRelayCommand<StartPreparationAction>(PrepareStartAreaAsync);
         MoveAllToStandbyCommand = new AsyncRelayCommand(MoveAllToStandbyAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -445,9 +451,9 @@ public partial class OperationViewModel : ObservableObject
                 case MachineAlarm.EmergencyStop:
                     return UiText.Get("When safe, release the emergency stop and press RESET.");
                 case MachineAlarm.DoorOpen:
-                    return UiText.Get("Close the doors, then press RESET.");
+                    return UiText.Get("Close doors, then press RESET");
                 case MachineAlarm.AirPressureLow:
-                    return UiText.Get("Restore air pressure, then press RESET.");
+                    return UiText.Get("Restore air pressure, then press RESET");
                 case MachineAlarm.IoCommunication:
                 case MachineDisplayState.Unavailable:
                     return UiText.Get("Restore I/O communication, then press RESET.");
@@ -529,13 +535,18 @@ public partial class OperationViewModel : ObservableObject
         Machine.PcbHistory.ImageSaved -= OnPcbImageSaved;
         return CommandShutdown.WaitAsync(
             CommandShutdown.CancelAndWaitAsync(
-                [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, PrepareStartAreaCommand, MoveAllToStandbyCommand,
+                [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand,
+                    ChangeCarrierWorkCommand, CompletePlacementCommand, CompleteBoltCommand, ReworkBoltCommand,
+                    PrepareStartAreaCommand, MoveAllToStandbyCommand,
                     HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand,
                     .. StartOutputGroups.Values.SelectMany(rows => rows).Distinct().Select(row => row.ToggleOutputCommand)]),
             PcbDetails.ShutdownAsync());
     }
 
     public ObservableCollection<FasteningResumeRow> FasteningResumeBolts { get; }
+
+    [ObservableProperty]
+    public partial FasteningResumeRow? SelectedFasteningResumeBolt { get; set; }
 
     public ObservableCollection<PlacementResumeRow> PlacementResumeTargets { get; }
 
@@ -559,7 +570,8 @@ public partial class OperationViewModel : ObservableObject
         foreach (var target in Enum.GetValues<HeatSinkSlot>()
             .Where(target => State.Available && Placement.Station.IsHeatSinkPresent(target)))
             PlacementResumeTargets.Add(new(target,
-                Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == target && assembly.IsPlacementCompleted)));
+                Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == target && assembly.IsPlacementCompleted),
+                CompletePlacementCommand));
         OnPropertyChanged(nameof(IsPlacementResumeAvailable));
         OnPropertyChanged(nameof(IsStartReviewAllowed));
     }
@@ -580,6 +592,7 @@ public partial class OperationViewModel : ObservableObject
         // Every explicit check requires a new operator confirmation; sensor edges cannot grant it.
         IsFasteningResumeConfirmed = false;
         _reviewedFasteningJob = Fastening.Station.CurrentJob;
+        var selectedId = SelectedFasteningResumeBolt?.BoltId;
         FasteningResumeBolts.Clear();
         foreach (var bolt in Recipes.Current.Pcb.GetFasteningPoints(_fasteningSettings.FirstFasteningHead)
             .Where(bolt => State.Available && Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)))
@@ -587,8 +600,12 @@ public partial class OperationViewModel : ObservableObject
             var assembly = Fastening.Station.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
             var result = assembly?.ShootingBoltResults.GetValueOrDefault(bolt.Id)
                 ?? assembly?.PickupBoltResults.GetValueOrDefault(bolt.Id);
-            FasteningResumeBolts.Add(new(Recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, result));
+            FasteningResumeBolts.Add(new(bolt.Id, Recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, result));
         }
+        SelectedFasteningResumeBolt = FasteningResumeBolts.FirstOrDefault(row => row.BoltId == selectedId)
+            ?? FasteningResumeBolts.FirstOrDefault(row => row.Result?.Source == BoltResultSource.Interrupted)
+            ?? FasteningResumeBolts.FirstOrDefault(row => row.Result is not { IsComplete: true })
+            ?? FasteningResumeBolts.FirstOrDefault();
         OnPropertyChanged(nameof(RemainingFasteningCount));
         OnPropertyChanged(nameof(IsFasteningResumeAvailable));
         OnPropertyChanged(nameof(IsStartReviewAllowed));
@@ -620,6 +637,9 @@ public partial class OperationViewModel : ObservableObject
 
     public IRelayCommand<StartArea> SelectStartAreaCommand { get; }
     public IAsyncRelayCommand<CarrierWorkAction> ChangeCarrierWorkCommand { get; }
+    public IAsyncRelayCommand<PlacementResumeRow> CompletePlacementCommand { get; }
+    public IAsyncRelayCommand<FasteningResumeRow> CompleteBoltCommand { get; }
+    public IAsyncRelayCommand<FasteningResumeRow> ReworkBoltCommand { get; }
     public IAsyncRelayCommand<StartPreparationAction> PrepareStartAreaCommand { get; }
     public IAsyncRelayCommand MoveAllToStandbyCommand { get; }
 
@@ -628,7 +648,7 @@ public partial class OperationViewModel : ObservableObject
         StartActionMessage = null;
         try
         {
-            var completed = await Machine.MoveAllToStandbyAsync(cancellationToken);
+            var completed = await Machine.MoveToStandbyAsync(cancellationToken);
             if (!completed)
                 StartActionMessage = UiText.Get("Preparation stopped. Check machine status.");
         }
@@ -709,6 +729,54 @@ public partial class OperationViewModel : ObservableObject
         finally
         {
             OnPropertyChanged(nameof(StartStation));
+        }
+    }
+
+    private async Task CompletePlacementAsync(PlacementResumeRow? row, CancellationToken cancellationToken)
+    {
+        if (row is null || !PlacementResumeTargets.Any(target => ReferenceEquals(target, row))
+            || _reviewedPlacementJob is not { } job)
+            return;
+        StartActionMessage = null;
+        try
+        {
+            await Task.Run(() => Machine.CompletePlacement(job, row.HeatSink, cancellationToken), cancellationToken);
+            RefreshPlacementResume();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            _log.LogError(exception, "Manual PCB placement completion failed: {HeatSink}.", row.HeatSink);
+            StartActionMessage = UiText.Get(exception.Message);
+        }
+    }
+
+    private Task CompleteBoltAsync(FasteningResumeRow? row, CancellationToken cancellationToken)
+    {
+        return ChangeBoltWorkAsync(row, true, cancellationToken);
+    }
+
+    private Task ReworkBoltAsync(FasteningResumeRow? row, CancellationToken cancellationToken)
+    {
+        return ChangeBoltWorkAsync(row, false, cancellationToken);
+    }
+
+    private async Task ChangeBoltWorkAsync(FasteningResumeRow? row, bool completed, CancellationToken cancellationToken)
+    {
+        if (row is null || !FasteningResumeBolts.Any(target => ReferenceEquals(target, row))
+            || _reviewedFasteningJob is not { } job)
+            return;
+        StartActionMessage = null;
+        try
+        {
+            await Task.Run(() => Machine.ChangeBoltWork(job, row.BoltId, completed, cancellationToken), cancellationToken);
+            RefreshFasteningResume();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            _log.LogError(exception, "Manual bolt work change failed: {Bolt}, completed={Completed}.", row.BoltId, completed);
+            StartActionMessage = UiText.Get(exception.Message);
         }
     }
 
@@ -795,7 +863,9 @@ public partial class OperationViewModel : ObservableObject
         var previous = StopCommand.ExecutionTask;
         try
         {
-            IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, PrepareStartAreaCommand, MoveAllToStandbyCommand,
+            IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand,
+                ChangeCarrierWorkCommand, CompletePlacementCommand, CompleteBoltCommand, ReworkBoltCommand,
+                PrepareStartAreaCommand, MoveAllToStandbyCommand,
                 HomeCommand,
                 .. StartOutputGroups.Values.SelectMany(rows => rows).Distinct().Select(row => row.ToggleOutputCommand)];
             var pending = CommandShutdown.Capture(commands);

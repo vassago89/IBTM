@@ -33,7 +33,6 @@
         </Style>
     </Window.Style>
     <Window.Resources>
-        <ui:SignalTextConverter x:Key="SignalText"/>
         <DataTemplate DataType="{x:Type ui:OperationViewModel}">
             <ui:OperationView/>
         </DataTemplate>
@@ -203,7 +202,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <StackPanel Width="20" Margin="0,0,8,0" VerticalAlignment="Center">
                             <Border Tag="{Binding Operation.Signals.Outputs[TowerLampRed].IsOn}"
-                                ToolTip="{Binding Operation.Signals.Outputs[TowerLampRed].IsOn, Converter={StaticResource SignalText}}">
+                                ToolTip="{Binding Operation.Signals.Outputs[TowerLampRed].IsOn, Converter={StaticResource SignalTextConverter}}">
                                 <Border.Style>
                                     <Style TargetType="Border" BasedOn="{StaticResource TowerLampLensStyle}">
                                         <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
@@ -211,7 +210,7 @@
                                 </Border.Style>
                             </Border>
                             <Border Tag="{Binding Operation.Signals.Outputs[TowerLampYellow].IsOn}"
-                                ToolTip="{Binding Operation.Signals.Outputs[TowerLampYellow].IsOn, Converter={StaticResource SignalText}}">
+                                ToolTip="{Binding Operation.Signals.Outputs[TowerLampYellow].IsOn, Converter={StaticResource SignalTextConverter}}">
                                 <Border.Style>
                                     <Style TargetType="Border" BasedOn="{StaticResource TowerLampLensStyle}">
                                         <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
@@ -219,7 +218,7 @@
                                 </Border.Style>
                             </Border>
                             <Border Tag="{Binding Operation.Signals.Outputs[TowerLampGreen].IsOn}"
-                                ToolTip="{Binding Operation.Signals.Outputs[TowerLampGreen].IsOn, Converter={StaticResource SignalText}}">
+                                ToolTip="{Binding Operation.Signals.Outputs[TowerLampGreen].IsOn, Converter={StaticResource SignalTextConverter}}">
                                 <Border.Style>
                                     <Style TargetType="Border" BasedOn="{StaticResource TowerLampLensStyle}">
                                         <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
@@ -237,12 +236,12 @@
                                 Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold"
                                 TextTrimming="CharacterEllipsis" ToolTip="{Binding Operation.MachineDisplayState, Converter={StaticResource UiTextConverter}}"/>
                         </Border>
-                        <TextBlock
+                        <TextBlock Style="{StaticResource ErrorTextStyle}"
                             Text="{Binding Operation.Alarm,
                                                   Converter={StaticResource UiTextConverter}}"
                             ToolTip="{Binding Operation.AlarmDetail}"
-                            Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}" FontSize="16"
-                            FontWeight="SemiBold" Width="140" MaxHeight="48" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                            Margin="10,0,0,0" VerticalAlignment="Center" FontSize="16"
+                            FontWeight="SemiBold" Width="140" MaxHeight="48" TextTrimming="CharacterEllipsis"
                             Visibility="{Binding Operation.HasAlarm,
                                                         Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>

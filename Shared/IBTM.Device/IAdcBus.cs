@@ -93,7 +93,7 @@ public enum AdcFunctionCode : byte
 
 public enum AdcRemoteRegister : ushort
 {
-    [Description("Alarm Reset")]
+    [Description("Reset")]
     AlarmReset = 4000,
 
     [Description("Remote Start")]
@@ -216,7 +216,7 @@ public enum AdcEventStatus : ushort
     [Description("Preset Changed")]
     PresetChanged,
 
-    [Description("Alarm Reset")]
+    [Description("Reset")]
     AlarmReset,
 
     [Description("Error")]

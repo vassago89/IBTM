@@ -44,7 +44,7 @@ public enum StartCheckState
 
 public enum CarrierWorkAction
 {
-    [Description("Mark complete")]
+    [Description("Complete")]
     Complete,
     [Description("Clear results")]
     Clear,
@@ -66,4 +66,7 @@ public enum StartPreparationAction
 
     [Description("Rotate and release gripper")]
     RotateAndReleaseGripper,
+
+    [Description("Station to standby")]
+    MoveToStandby,
 }

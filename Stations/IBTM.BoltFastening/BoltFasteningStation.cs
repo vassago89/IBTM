@@ -238,6 +238,9 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         if (cancellationToken.IsCancellationRequested)
             return;
+        if (_units.BoltFastening && Station.Assemblies.Any(assembly => assembly.PickupBoltResults.Values
+            .Concat(assembly.ShootingBoltResults.Values).Any(result => result.Source == BoltResultSource.Interrupted)))
+            throw new InvalidOperationException("Remove interrupted bolts and confirm rework before starting.");
         var resumeJob = selectedBolts is null ? null : Station.CurrentJob;
         if (selectedBolts is not null)
         {
@@ -749,6 +752,13 @@ public sealed class BoltFasteningStation : AutoUnit
                     AdcTorqueCurve? torqueCurve = null;
                     string? torqueCurveError = null;
                     Exception? fasteningFailure = null;
+                    var tighteningStarted = false;
+                    void TrackStart(OutputIo output, bool on)
+                    {
+                        if (on && output == (bolt.Head == FasteningHead.Pickup
+                            ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart))
+                            tighteningStarted = true;
+                    }
                     double? minimumTurns;
                     double? maximumTurns;
                     lock (_recipes.InspectionSync)
@@ -756,6 +766,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         minimumTurns = stage == BoltFasteningStage.Preliminary ? null : bolt.MinimumTurns;
                         maximumTurns = stage == BoltFasteningStage.Preliminary ? null : bolt.MaximumTurns;
                     }
+                    Io.OutputChanged += TrackStart;
                     try
                     {
                         var head = bolt.Head switch
@@ -884,10 +895,17 @@ public sealed class BoltFasteningStation : AutoUnit
                     }
                     finally
                     {
+                        Io.OutputChanged -= TrackStart;
                         // Keep the measured result with its original carrier even if STOP or clearance
                         // fails. A storage failure must not hide the original hardware failure.
                         try
                         {
+                            if (result is null && tighteningStarted)
+                                result = new(false, null, BoltResultSource.Interrupted)
+                                {
+                                    RecordedAt = DateTimeOffset.Now,
+                                    Error = "Remove interrupted bolts and confirm rework before starting.",
+                                };
                             if (result is not null)
                             {
                                 result = result with

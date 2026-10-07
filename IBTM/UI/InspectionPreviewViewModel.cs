@@ -85,7 +85,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         set
         {
             if (_bolt is null)
-                throw new InvalidOperationException(UiText.Get("Select a bolt before changing its threshold."));
+                throw new InvalidOperationException(UiText.Get("Select a bolt."));
             _bolt.BrightnessThreshold = value;
             RefreshBinaryImage();
             OnPropertyChanged();
@@ -99,7 +99,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         set
         {
             if (_bolt is null)
-                throw new InvalidOperationException(UiText.Get("Select a bolt before changing its required bright percentage."));
+                throw new InvalidOperationException(UiText.Get("Select a bolt."));
             _bolt.MinimumBrightRatio = value / 100;
             RefreshResult();
             OnPropertyChanged();

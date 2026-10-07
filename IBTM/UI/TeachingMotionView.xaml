@@ -196,11 +196,9 @@
                 </Grid>
             </StackPanel>
         </Grid>
-        <Button Content="{ui:Text 'Home Selected Unit'}" Command="{Binding HomeCommand}" IsEnabled="{Binding IsHomeAllowed}" Margin="0,8,0,0"
-            Style="{StaticResource SecondaryButtonStyle}"/>
+        <Button Content="{ui:Text 'Home Selected Unit'}" Command="{Binding HomeCommand}" IsEnabled="{Binding IsHomeAllowed}" Margin="0,8,0,0"/>
         <Button Content="{Binding MoveToHorizontalZLabel}"
             Command="{Binding MoveToHorizontalZCommand}" IsEnabled="{Binding IsMoveToHorizontalZAllowed}" Margin="0,6,0,0"
-            Style="{StaticResource SecondaryButtonStyle}"
             Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}"/>
     </StackPanel>
 </UserControl>

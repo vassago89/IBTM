@@ -22,7 +22,7 @@ public enum AxisCondition
     Alarm,
     [Description("Emergency")]
     Emergency,
-    [Description("Unavailable")]
+    [Description("Unknown")]
     Unavailable,
 }
 

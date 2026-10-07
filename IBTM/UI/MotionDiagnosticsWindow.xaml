@@ -61,13 +61,11 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid>
-            <TextBlock Text="{ui:Text 'Motion Monitor'}" Style="{StaticResource TitleStyle}"/>
             <Button Content="{ui:Text 'STOP'}"
                 Command="{Binding StopCommand}"
                 Style="{StaticResource DangerButtonStyle}" HorizontalAlignment="Right" MinWidth="100"/>
         </Grid>
-        <TextBlock Grid.Row="1" Height="36" Margin="0,6,0,16" Text="{Binding ControlStatus}"
-            Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding ControlStatus}"/>
+        <TextBlock Style="{StaticResource WarningTextStyle}" Grid.Row="1" Height="36" Margin="0,6,0,16" Text="{Binding ControlStatus}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ControlStatus}"/>
         <Grid Grid.Row="2" Margin="0,0,0,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -81,7 +79,7 @@
                 IsChecked="{Binding EnabledOnly}"
                 Margin="20,0,0,0" VerticalAlignment="Bottom"/>
         </Grid>
-        <Grid Grid.Row="3" Margin="12,0,12,8">
+        <Grid Grid.Row="3" Margin="12,0,28,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="58"/>
                 <ColumnDefinition Width="42"/>
@@ -193,7 +191,7 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Content="{ui:Text 'Home'}" Width="80" Padding="8,7" Style="{StaticResource SecondaryButtonStyle}"
+                            <Button Content="{ui:Text 'Home'}" Width="80" Padding="8,7"
                                 Command="{Binding HomeCommand}" IsEnabled="{Binding IsHomeAllowed}"/>
                         </StackPanel>
                     </Grid>

@@ -401,6 +401,21 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         return true;
     }
 
+    public bool IsAtStandby
+    {
+        get
+        {
+            if (!Io.IsReady || !MotionServiceBase.IsReadyAndStopped(_motion)
+                || Lift != StationCylinderState.Up || IpmLift != StationCylinderState.Up)
+                return false;
+            const double Tolerance = 0.05;
+            var current = _motion.Position;
+            return Math.Abs(current.X - _settings.HandoffPosition.X) <= Tolerance
+                && Math.Abs(current.Z - _settings.HandoffPosition.Z) <= Tolerance
+                && Enum.GetValues<HeatSinkSlot>().Any(slot => Math.Abs(current.Y - GetHeatSinkPosition(slot).Y) <= Tolerance);
+        }
+    }
+
     public async Task MoveToStandbyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

@@ -10,7 +10,7 @@ public enum PcbSupplyState
     [Description("Waiting for Carrier Exit")]
     WaitingForCarrierExit,
 
-    [Description("Preparing Pickup / Standby")]
+    [Description("Preparing Pickup")]
     MovingToPickup,
 
     [Description("Picking PCB")]

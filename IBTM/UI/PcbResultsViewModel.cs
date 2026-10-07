@@ -184,14 +184,14 @@ public partial class PcbResultsViewModel : ObservableObject
             AppendRow(UiText.Get("Bolt fastening"), UiText.Get(record.FasteningResult));
             AppendRow(UiText.Get("Vision inspection"), UiText.Get(record.InspectionResult));
             AppendRow(UiText.Get("Turns result"), record.TurnsResult is { } turns ? UiText.Get(turns) : UiText.Get("Not set"));
-            AppendRow(UiText.Get("Torque: controller unit"));
+            AppendRow(UiText.Get("Torque (controller unit)"));
             AppendRow(UiText.Get("Blank = not recorded"));
             csv.AppendLine();
             AppendRow(UiText.Get("Bolt results"));
             AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Fastening type"),
                 UiText.Get("Stage"), UiText.Get("Fasten"), UiText.Get("Vision inspection"), UiText.Get("Combined turns"),
-                UiText.Get("Minimum turns"), UiText.Get("Maximum turns"), UiText.Get("Turns result"), UiText.Get("Result torque"),
-                UiText.Get("Target torque"), UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"),
+                UiText.Get("Minimum turns"), UiText.Get("Maximum turns"), UiText.Get("Turns result"), UiText.Get("Torque"),
+                UiText.Get("Target torque"), UiText.Get("Target speed (rpm)"), UiText.Get("Time (ms)"),
                 UiText.Get("Angle A3 (°)"), UiText.Get("Recorded at"), UiText.Get("Result source"),
                 UiText.Get("Error code"), UiText.Get("Error / message"));
             var number = 0;
@@ -216,8 +216,8 @@ public partial class PcbResultsViewModel : ObservableObject
             csv.AppendLine();
             AppendRow(UiText.Get("Fastening stages"));
             AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Stage"), UiText.Get("Preset"),
-                UiText.Get("Result"), UiText.Get("Stage turns"), UiText.Get("Result torque"), UiText.Get("Target torque"),
-                UiText.Get("Target speed (rpm)"), UiText.Get("Fastening time (ms)"), UiText.Get("Angle A3 (°)"),
+                UiText.Get("Result"), UiText.Get("Stage turns"), UiText.Get("Torque"), UiText.Get("Target torque"),
+                UiText.Get("Target speed (rpm)"), UiText.Get("Time (ms)"), UiText.Get("Angle A3 (°)"),
                 UiText.Get("Recorded at"), UiText.Get("Result source"), UiText.Get("Error code"), UiText.Get("Error / message"));
             number = 0;
             foreach (var stage in BoltResults.SelectMany(bolt => bolt.StageResults).OrderBy(row => row.Result.RecordedAt))
@@ -327,14 +327,16 @@ public sealed record PcbBoltResultView(
     public string HeadLabel => UiText.Get(Head);
     public string BoltLabel => Recipe?.Pcb.GetBoltName(BoltId, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
     public string Title => $"{BoltLabel} · {HeadLabel}";
-    public string Verdict => !Result.IsComplete
+    public string Verdict => Result.Source == BoltResultSource.Interrupted ? UiText.Get("Fastening interrupted")
+        : !Result.IsComplete
         ? UiText.Get(Result.Stage == BoltFasteningStage.FinalBeforeRetightening ? "Retightening pending" : "Final tightening pending")
         : Result.Source == BoltResultSource.DryRun ? StageVerdict
         : Result.Stage == BoltFasteningStage.Preliminary ? UiText.Get("Pre-tightening NG")
         : StageVerdict;
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
 
-    public string StageVerdict => Result.Source == BoltResultSource.DryRun
+    public string StageVerdict => Result.Source == BoltResultSource.Interrupted ? UiText.Get("Fastening interrupted")
+        : Result.Source == BoltResultSource.DryRun
         ? UiText.Get("Dry run · NG") : Result.Success ? "OK" : "NG";
 
     public IEnumerable<PcbBoltResultView> StageResults

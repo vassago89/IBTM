@@ -29,7 +29,7 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="48"/>
         </Grid.RowDefinitions>
-        <DockPanel Margin="0,0,0,10">
+        <DockPanel LastChildFill="False" Margin="0,0,0,10">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
                 <StackPanel.Style>
                     <Style TargetType="StackPanel">
@@ -41,8 +41,7 @@
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
-                <Button Content="{ui:Text 'New Recipe'}" Command="{Binding RecipeEditor.NewCommand}"
-                    Style="{StaticResource SecondaryButtonStyle}" MinWidth="100" Margin="0,0,16,0"/>
+                <Button Content="{ui:Text 'New Recipe'}" Command="{Binding RecipeEditor.NewCommand}" MinWidth="100" Margin="0,0,16,0"/>
                 <TextBlock Text="{ui:Text 'Recipe'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" IsEditable="True" IsTextSearchEnabled="False"
                     Text="{Binding RecipeEditor.Name, Mode=TwoWay, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
@@ -50,8 +49,7 @@
                     Width="180" Margin="0,0,6,0"/>
                 <Button Content="{ui:Text 'Load'}" Command="{Binding RecipeEditor.LoadCommand}"
                     CommandParameter="{Binding RecipeEditor.Name}"
-                    IsEnabled="{Binding RecipeEditor.IsSaveAllowed}"
-                    Style="{StaticResource SecondaryButtonStyle}" MinWidth="100" Margin="0,0,6,0"/>
+                    IsEnabled="{Binding RecipeEditor.IsSaveAllowed}" MinWidth="100" Margin="0,0,6,0"/>
                 <Button Command="{Binding SaveCommand}" MinWidth="100">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
@@ -69,7 +67,6 @@
                     </Button.Style>
                 </Button>
             </StackPanel>
-            <TextBlock Text="{ui:Text 'Teaching'}" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
@@ -79,7 +76,7 @@
                 <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="1.3*" MinWidth="340" MaxWidth="360"/>
             </Grid.ColumnDefinitions>
-            <Border Style="{StaticResource CardStyle}" Padding="12">
+            <Border Style="{StaticResource CardStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -87,8 +84,7 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
-                        <TextBlock Text="{ui:Text 'Teaching Unit'}" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,6"/>
-                        <ComboBox ItemsSource="{Binding TeachingUnits}"
+                        <ComboBox AutomationProperties.Name="{ui:Text 'Unit'}" ItemsSource="{Binding TeachingUnits}"
                             SelectedItem="{Binding SelectedTeachingUnit, UpdateSourceTrigger=PropertyChanged}"/>
                         <ComboBox ItemsSource="{Binding HeatSinkSlots}"
                             SelectedItem="{Binding SelectedPcb, UpdateSourceTrigger=PropertyChanged}"
@@ -158,10 +154,8 @@
                         Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{ui:Text 'Fastening order'}" Margin="0,0,0,6"/>
                         <UniformGrid Columns="2">
-                            <Button Content="{ui:Text '↑ Earlier'}" Command="{Binding MoveFasteningEarlierCommand}" IsEnabled="{Binding IsMoveFasteningEarlierAllowed}"
-                                Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="0,0,3,0"/>
-                            <Button Content="{ui:Text '↓ Later'}" Command="{Binding MoveFasteningLaterCommand}" IsEnabled="{Binding IsMoveFasteningLaterAllowed}"
-                                Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="3,0,0,0"/>
+                            <Button Content="{ui:Text '↑ Earlier'}" Command="{Binding MoveFasteningEarlierCommand}" IsEnabled="{Binding IsMoveFasteningEarlierAllowed}" Padding="8,6" Margin="0,0,3,0"/>
+                            <Button Content="{ui:Text '↓ Later'}" Command="{Binding MoveFasteningLaterCommand}" IsEnabled="{Binding IsMoveFasteningLaterAllowed}" Padding="8,6" Margin="3,0,0,0"/>
                         </UniformGrid>
                         <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,10,0,0">
                             <StackPanel>
@@ -179,7 +173,7 @@
                     </StackPanel>
                 </Grid>
             </Border>
-            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="12">
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -222,8 +216,7 @@
                             </StackPanel>
                         </WrapPanel>
                     </StackPanel>
-                    <TabControl Grid.Row="1" Style="{StaticResource SectionTabs}"
-                        ItemContainerStyle="{StaticResource SectionTab}"
+                    <TabControl Grid.Row="1"
                         Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                         <TabItem Header="{ui:Text 'Camera'}">
                             <Grid>
@@ -372,7 +365,7 @@
                     </StackPanel>
                 </Grid>
             </Border>
-            <Border Grid.Column="4" Style="{StaticResource CardStyle}" Padding="12">
+            <Border Grid.Column="4" Style="{StaticResource CardStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
@@ -380,10 +373,9 @@
                     </Grid.RowDefinitions>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <TextBlock Text="{ui:Text 'Motion'}" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,10"/>
                             <ui:TeachingMotionView/>
                             <Button Content="{ui:Text 'Safe Z → Raise Pickup Head'}" Command="{Binding ReturnFromPickupCommand}" IsEnabled="{Binding IsReturnFromPickupAllowed}"
-                                Margin="0,8,0,0" Style="{StaticResource SecondaryButtonStyle}"
+                                Margin="0,8,0,0"
                                 Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </ScrollViewer>
@@ -413,12 +405,10 @@
         </Grid>
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
-                <TextBlock Text="{ui:Text 'Check the highlighted input.'}"
-                    Style="{StaticResource StatusMessageStyle}"
-                    Visibility="{Binding ElementName=TeachingRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"
-                    Foreground="{StaticResource AccentRedBrush}"/>
-                <TextBlock Text="{Binding SaveError}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                <TextBlock Text="{Binding CameraError}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{ui:Text 'Check the highlighted input.'}"
+                    Visibility="{Binding ElementName=TeachingRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"/>
+                <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding SaveError}"/>
+                <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding CameraError}"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>

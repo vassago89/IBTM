@@ -91,7 +91,8 @@ public sealed class HeatSinkAssembly
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
         results[boltId] = result;
-        if (!result.Success || result.Source == BoltResultSource.DryRun)
+        if (result.Source != BoltResultSource.Interrupted
+            && (!result.Success || result.Source == BoltResultSource.DryRun))
         {
             FasteningResult = AssemblyResult.Ng;
         }
@@ -102,11 +103,36 @@ public sealed class HeatSinkAssembly
         ResultsChanged?.Invoke(this);
     }
 
+    public void ChangeBoltResult(FasteningHead head, Guid boltId, BoltResult? result)
+    {
+        var results = head switch
+        {
+            FasteningHead.Shooting => _shootingBoltResults,
+            FasteningHead.Pickup => _pickupBoltResults,
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
+        if (result is null)
+            results.TryRemove(boltId, out _);
+        else
+            results[boltId] = result;
+
+        // Explicit operator edits reopen this PCB; automatic results keep their NG latch.
+        var recorded = _shootingBoltResults.Values.Concat(_pickupBoltResults.Values).ToArray();
+        FasteningResult = recorded.Any(item => item.Source != BoltResultSource.Interrupted
+            && (!item.Success || item.Source == BoltResultSource.DryRun))
+            ? AssemblyResult.Ng : AssemblyResult.Pending;
+        TurnsResult = recorded.Any(item => item.TurnsResult == AssemblyResult.Ng) ? AssemblyResult.Ng
+            : recorded.Any(item => item.TurnsResult.HasValue) ? AssemblyResult.Pending : null;
+        ResultsChanged?.Invoke(this);
+    }
+
     public void CompleteFastening()
     {
         if (FasteningResult != AssemblyResult.Ng)
         {
-            FasteningResult = AssemblyResult.Ok;
+            FasteningResult = _shootingBoltResults.Values.Concat(_pickupBoltResults.Values)
+                .Any(result => result.Source == BoltResultSource.Interrupted)
+                ? AssemblyResult.Pending : AssemblyResult.Ok;
         }
         if (TurnsResult != AssemblyResult.Ng)
         {

@@ -1,11 +1,9 @@
-using System;
 using System.Collections;
 using System.Globalization;
 using System.Linq;
 using System.Resources;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Markup;
@@ -72,10 +70,9 @@ public sealed class LocalizationTests
     }
 
     [Fact]
-    public void XamlTextAndFormattedBindingsUseSelectedLanguage()
+    public async Task XamlTextAndFormattedBindingsUseSelectedLanguage()
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        await VirtualTestSupport.RunOnStaAsync(() =>
         {
             var originalLanguage = UiText.Culture.Name == "ko" ? UiLanguage.Korean : UiLanguage.English;
             try
@@ -92,20 +89,11 @@ public sealed class LocalizationTests
                 panel.Dispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
                 Assert.Equal("설정", ((TextBlock)panel.Children[0]).Text);
                 Assert.Equal("3개", ((TextBlock)panel.Children[1]).Text);
-
-            }
-            catch (Exception exception)
-            {
-                failure = exception;
             }
             finally
             {
                 UiText.Apply(originalLanguage);
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "Localization binding check timed out.");
-        Assert.Null(failure);
     }
 }

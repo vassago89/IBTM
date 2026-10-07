@@ -388,7 +388,7 @@ public partial class SettingsViewModel : ObservableObject
                 cancellationToken);
             if (operation is null)
             {
-                LightTestMessage = UiText.Get("Wait for the current machine operation to finish.");
+                LightTestMessage = UiText.Get("Wait for the current operation to finish.");
                 return;
             }
 

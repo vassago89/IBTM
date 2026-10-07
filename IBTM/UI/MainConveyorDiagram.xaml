@@ -15,10 +15,7 @@
             <Setter Property="StrokeThickness" Value="2"/>
             <Setter Property="Panel.ZIndex" Value="3"/>
         </Style>
-        <Style x:Key="MainBeltDirectionStyle" TargetType="Path">
-            <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
-            <Setter Property="StrokeThickness" Value="3"/>
-            <Setter Property="Visibility" Value="Collapsed"/>
+        <Style x:Key="MainBeltDirectionStyle" TargetType="Path" BasedOn="{StaticResource ConveyorDirectionStyle}">
             <Setter Property="ToolTip" Value="{ui:Text 'Main conveyor drive direction'}"/>
             <Style.Triggers>
                 <MultiDataTrigger>
@@ -26,7 +23,6 @@
                         <Condition Binding="{Binding Signals.Outputs[MainConveyorRun].IsOn}" Value="True"/>
                         <Condition Binding="{Binding Signals.Outputs[MainConveyorForward].IsOn}" Value="True"/>
                     </MultiDataTrigger.Conditions>
-                    <Setter Property="Visibility" Value="Visible"/>
                     <Setter Property="Data" Value="M 0,0 L 9,8 L 0,16 M 18,0 L 27,8 L 18,16 M 36,0 L 45,8 L 36,16"/>
                 </MultiDataTrigger>
                 <MultiDataTrigger>
@@ -34,7 +30,6 @@
                         <Condition Binding="{Binding Signals.Outputs[MainConveyorRun].IsOn}" Value="True"/>
                         <Condition Binding="{Binding Signals.Outputs[MainConveyorForward].IsOn}" Value="False"/>
                     </MultiDataTrigger.Conditions>
-                    <Setter Property="Visibility" Value="Visible"/>
                     <Setter Property="Data" Value="M 9,0 L 0,8 L 9,16 M 27,0 L 18,8 L 27,16 M 45,0 L 36,8 L 45,16"/>
                 </MultiDataTrigger>
             </Style.Triggers>

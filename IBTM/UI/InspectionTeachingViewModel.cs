@@ -228,7 +228,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                     _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata.Number);
                 }
             }
-            ImageSource = UiText.Format($"Recipe · {Preview.Recipe.Name} · {point.Title}");
+            ImageSource = point.Title;
         }
         OnPropertyChanged(nameof(IsInspectAllowed));
         OnPropertyChanged(nameof(IsDrawRegionAllowed));

@@ -18,25 +18,19 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Grid>
-            <TextBlock Text="{ui:Text 'Digital Outputs'}" Style="{StaticResource TitleStyle}"/>
-            <Button Content="{ui:Text 'Clear Messages'}" HorizontalAlignment="Right" Style="{StaticResource SecondaryButtonStyle}" Padding="14,5"
-                Command="{Binding ClearMessagesCommand}"/>
-        </Grid>
-
-
-        <Grid Grid.Row="1" Margin="0,12,0,14">
+        <Grid Margin="0,0,0,14">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="230"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="{ui:Text 'SEARCH · SIGNAL / CHANNEL'}" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBlock Text="{ui:Text 'Search signals'}" Style="{StaticResource SectionHeaderStyle}"/>
                 <TextBox Margin="0,6,0,0"
                     Text="{Binding Filter.SearchText, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
@@ -47,26 +41,26 @@
                     ItemTemplate="{x:Null}" DisplayMemberPath="Value"
                     SelectedItem="{Binding Filter.SelectedArea, Mode=TwoWay}"/>
             </StackPanel>
+            <Button Grid.Column="4" Style="{StaticResource CompactButtonStyle}" Content="{ui:Text 'Clear Messages'}"
+                VerticalAlignment="Bottom" Command="{Binding ClearMessagesCommand}"/>
         </Grid>
 
-        <Grid Grid.Row="2" Margin="12,0,12,6">
+        <Grid Grid.Row="1" Margin="12,0,28,6">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="120"/>
                 <ColumnDefinition Width="2*"/>
                 <ColumnDefinition Width="90"/>
                 <ColumnDefinition Width="3*"/>
                 <ColumnDefinition Width="100"/>
                 <ColumnDefinition Width="90"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="{ui:Text 'NO. (ON/OFF)'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1" Text="{ui:Text 'Output'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="{ui:Text 'DO'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="3" Text="{ui:Text 'Feedback inputs'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="4" Text="{ui:Text 'Match'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="5" Text="{ui:Text 'Manual'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Text="{ui:Text 'Output'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="1" Text="{ui:Text 'State'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2" Text="{ui:Text 'Feedback inputs'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="3" Text="{ui:Text 'Match'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="4" Text="{ui:Text 'Manual'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
         </Grid>
 
-        <ListBox Grid.Row="3"
+        <ListBox Grid.Row="2"
             ItemsSource="{Binding Filter.FilteredRows}"
             Style="{StaticResource IoListStyle}" ItemContainerStyle="{StaticResource IoListItemStyle}">
             <ListBox.GroupStyle>
@@ -76,10 +70,13 @@
             </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type ui:OutputSignalRow}">
-                    <Border x:Name="Row" Padding="11,7" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
+                    <Border Style="{StaticResource IoSignalRowStyle}" x:Name="Row">
                         <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="2*"/>
                                 <ColumnDefinition Width="90"/>
                                 <ColumnDefinition Width="3*"/>
@@ -87,27 +84,25 @@
                                 <ColumnDefinition Width="90"/>
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Text="{Binding Io.Address}" Style="{StaticResource IoAddressStyle}"/>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
-                                <TextBlock Text="{Binding Io.Signal, Converter={StaticResource UiTextConverter}}"
-                                    Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding ActionMessage}" Height="20"
-                                    TextTrimming="CharacterEllipsis" ToolTip="{Binding ActionMessage}"
-                                    Foreground="{StaticResource AccentAmberBrush}" FontSize="13"/>
-                            </StackPanel>
-                            <TextBlock Grid.Column="2"
+                            <TextBlock Text="{Binding Io.Signal, Converter={StaticResource UiTextConverter}}"
+                                VerticalAlignment="Center" Margin="0,0,12,0"
+                                Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                            <TextBlock Grid.Column="1"
                                 Tag="{Binding Io.IsOn}"
                                 Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
                                 Style="{StaticResource IoOutputStateStyle}"/>
-                            <ItemsControl Grid.Column="3" Margin="0,0,12,0"
+                            <ItemsControl Grid.Column="2" Margin="0,0,12,0"
                                 ItemsSource="{Binding Io.Feedback}"
                                 ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
-                            <TextBlock x:Name="FeedbackStatus" Grid.Column="4" Text="{ui:Text 'Not matched'}"
+                            <TextBlock x:Name="FeedbackStatus" Grid.Column="3" Text="{ui:Text 'Not matched'}"
                                 Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"
                                 Visibility="{Binding Io.HasFeedback, Converter={StaticResource BoolToVis}}"/>
-                            <Button x:Name="ToggleOutput" Grid.Column="5" Content="ON"
+                            <Button x:Name="ToggleOutput" Grid.Column="4" Content="ON"
                                 Command="{Binding ToggleCommand}"
                                 Style="{StaticResource IoToggleButtonStyle}"/>
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="5" Text="{Binding ActionMessage}"
+                                Style="{StaticResource StatusMessageStyle}" FontSize="13"
+                                Foreground="{StaticResource AccentAmberBrush}"/>
                         </Grid>
                     </Border>
                     <DataTemplate.Triggers>

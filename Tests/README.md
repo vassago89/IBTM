@@ -42,6 +42,8 @@
 
 첫 볼트 START·헤드 하강 순서는 `FasteningStartsAdcBeforeHeadDescentAndStopsItAfterCompletionOrInterruption`, 다음 슈팅 공급의 이동 병행·실패 정리는 `NextShootingSupplyOverlapsRetractionAndTravelWithoutDuplicateShot`에서 검증한다. 시작 대기 이동은 첫 슈팅 위치까지 먼저 완료되므로 첫 공급에 XY 병행을 요구하지 않는다.
 
+이동 중 정지와 체결 중단 기록은 `StoppingFasteningDistinguishesApproachFromStartedBolt`에서 검증한다. 체결 단계·순서·재개는 `PickupStagesUseSelectedPresetsReversePerPcbAndResumeWithoutAnotherPickup`, 이전 캐리어 결과의 혼입 방지는 `RestartDoesNotCollectThePreviousBoltResult`에서 각각 확인한다.
+
 ## 선택 실행 예
 
 저장소 루트에서 실행한다. 의존성을 아직 복원하지 않았다면 처음에는 `--no-restore`를 생략한다.
