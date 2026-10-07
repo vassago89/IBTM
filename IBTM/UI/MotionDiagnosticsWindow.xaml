@@ -132,7 +132,8 @@
                             <ColumnDefinition Width="196"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{Binding Address}"
-                            Style="{StaticResource IoAddressStyle}"/>
+                            FontFamily="Consolas" FontSize="13" FontWeight="SemiBold"
+                            Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1" Text="{Binding Axis}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                         <TextBlock Grid.Column="2"
                             Text="{Binding Diagnostics.Sample.Position, StringFormat=F3, TargetNullValue=—}"

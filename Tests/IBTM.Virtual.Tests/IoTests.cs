@@ -264,13 +264,11 @@ public sealed class IoTests
         Assert.DoesNotContain(InputIo.PcbSupplyIpmFixerBackward, status.Inputs.Keys);
         var fixer = status.Outputs[OutputIo.PcbSupplyIpmFixerForward];
         Assert.Equal(InputIo.PcbSupplyIpmFixerForward, Assert.Single(fixer.Feedback).Signal);
-        Assert.Equal("024", fixer.Address);
         Assert.False(fixer.IsMatched);
 
         var allOutputs = outputs.ToDictionary(pair => pair.Key, pair => pair.Value);
         var allSignals = new IoSignals(hardware, new VirtualIoService(allOutputs, new()));
         var table = allSignals.Outputs[OutputIo.PickupTableDown];
-        Assert.Equal("037 / 038", table.Address);
         Assert.Equal(IoSection.BoltFasteningPickupHead, table.Section);
         Assert.Equal(new[] { InputIo.PickupTableDown, InputIo.PickupTableUp },
             table.Feedback.Select(row => row.Signal));
@@ -304,8 +302,6 @@ public sealed class IoTests
         Assert.Equal(hardware.Inputs.Keys.Order(), signals.Inputs.Keys.Order());
         var output = Assert.Single(signals.Outputs.Values);
         Assert.Equal(hardware.Outputs[output.Signal].Number, output.Number);
-        Assert.Equal(hardware.Outputs[output.Signal].OffNumber, output.OffNumber);
-        Assert.Equal("068 / 069", output.Address);
         Assert.All(signals.Inputs.Values, row =>
         {
             Assert.Equal(hardware.Area, row.Area);
@@ -325,13 +321,12 @@ public sealed class IoTests
             row => Assert.Same(signals.Inputs[row.Signal], row));
 
         var sensor = signals.Inputs[InputIo.PcbSupplyPcbDetected];
-        Assert.Equal("999", sensor.Address);
         var filter = new IoListViewModel<IoOutputStatus, OutputIo>(signals.Outputs.Values.ToArray(), row => row);
-        filter.SearchText = "069";
+        filter.SearchText = output.Signal.ToString();
         Assert.Same(output, Assert.Single(filter.FilteredRows.Cast<IoOutputStatus>()));
-        filter.SearchText = output.Feedback[0].Address;
+        filter.SearchText = UiText.Get(output.Feedback[1].Signal);
         Assert.Same(output, Assert.Single(filter.FilteredRows.Cast<IoOutputStatus>()));
-        filter.SearchText = "999";
+        filter.SearchText = UiText.Get(sensor.Signal);
         Assert.Empty(filter.FilteredRows.Cast<IoOutputStatus>());
         var changes = 0;
         sensor.PropertyChanged += (_, _) => changes++;

@@ -14,11 +14,9 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
         IoSection? section,
         IIoService io,
         IReadOnlyDictionary<InputIo, IoInputStatus> inputs,
-        int? number = null,
-        int? offNumber = null) : base(signal, area, section, number)
+        int? number = null) : base(signal, area, section, number)
     {
         _io = io;
-        OffNumber = offNumber;
         Feedback = io.GetOutputFeedback(signal) is { } feedback
             ? feedback.OffInput is { } offInput
                 ? [inputs[feedback.OnInput], inputs[offInput]]
@@ -34,17 +32,6 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
     }
 
     public IoInputStatus[] Feedback { get; }
-    public int? OffNumber { get; }
-
-    public override string Address
-    {
-        get
-        {
-            if (OffNumber is not { } off)
-                return base.Address;
-            return off < 0 ? $"{base.Address} / —" : $"{base.Address} / {off:D3}";
-        }
-    }
 
     public override bool? IsOn => _isOn;
 

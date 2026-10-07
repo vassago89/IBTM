@@ -25,8 +25,6 @@ public abstract class IoSignal<T> : INotifyPropertyChanged
     public IoSection? Section { get; }
     public int? Number { get; }
 
-    public virtual string Address => Number?.ToString("D3") ?? "—";
-
     public abstract bool? IsOn { get; }
 
     protected void Notify(string propertyName)

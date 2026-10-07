@@ -39,8 +39,7 @@ public sealed class IoSignals : INotifyPropertyChanged
                                 section.GetSection(output.Key),
                                 io,
                                 Inputs,
-                                output.Value.Number,
-                                output.Value.OffNumber)))
+                                output.Value.Number)))
             .ToDictionary(row => row.Signal);
 
         io.InputChanged += OnInputChanged;

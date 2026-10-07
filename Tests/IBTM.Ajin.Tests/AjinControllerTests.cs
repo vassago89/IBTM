@@ -110,7 +110,6 @@ public sealed class AjinControllerTests
         signals.RefreshOutputs();
         var unassigned = signals.Outputs[OutputIo.TowerLampRed];
         Assert.Null(unassigned.Number);
-        Assert.Equal("—", unassigned.Address);
         Assert.Null(unassigned.IsOn);
         Assert.False(unassigned.IsMatched);
         Assert.False(signals.Outputs[OutputIo.TowerLampGreen].IsOn);

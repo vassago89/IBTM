@@ -65,8 +65,7 @@ public sealed partial class IoListViewModel<TRow, TSignal> : ObservableObject
         where T : struct, Enum
     {
         return UiText.Get(row.Signal).Contains(SearchText, StringComparison.OrdinalIgnoreCase)
-            || row.Signal.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
-            || row.Address.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+            || row.Signal.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase);
     }
 
     partial void OnSearchTextChanged(string value)

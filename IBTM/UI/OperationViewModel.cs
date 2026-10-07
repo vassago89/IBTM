@@ -201,7 +201,6 @@ public partial class OperationViewModel : ObservableObject
         ngConveyor.Changed += OnNgConveyorChanged;
         ngConveyor.StepChanged += OnNgConveyorChanged;
         inspectionStation.Changed += OnInspectionChanged;
-        inspectionStation.StepChanged += OnInspectionChanged;
         state.PropertyChanged += OnMachineStateChanged;
         machine.PropertyChanged += OnMachinePropertyChanged;
         recipes.Changed += OnRecipeChanged;
@@ -517,7 +516,7 @@ public partial class OperationViewModel : ObservableObject
         if (!_pcbHistoryLoaded && (directoryChanged || LoadOlderPcbsCommand.CanExecute(null)))
             LoadOlderPcbsCommand.Execute(null);
         OnMachineStateChanged(this, new(null));
-        RefreshRecipeDisplay();
+        RefreshMapPositions();
         OnPropertyChanged(nameof(Units));
         OnPropertyChanged(nameof(SafetyBypass));
     }
@@ -804,9 +803,10 @@ public partial class OperationViewModel : ObservableObject
             await Task.Run(Machine.CheckStartMaterials, cancellationToken);
             RefreshFasteningResume();
             RefreshPlacementResume();
-            if (Machine.StartChecks[StartArea.Station1] == StartCheckState.UnfinishedCarrier)
+            var checks = Machine.StartChecks;
+            if (checks[StartArea.Station1] == StartCheckState.UnfinishedCarrier)
                 SelectedStartArea = StartArea.Station1;
-            else if (Machine.StartChecks[StartArea.Station2] == StartCheckState.UnfinishedCarrier)
+            else if (checks[StartArea.Station2] == StartCheckState.UnfinishedCarrier)
                 SelectedStartArea = StartArea.Station2;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -841,7 +841,7 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             OnMachineStateChanged(this, new(null));
-            RefreshRecipeDisplay();
+            RefreshMapPositions();
             // A ready machine still requires the operator to confirm this START.
             _windows.ShowStartConfirmation(this, cancellationToken);
         }
@@ -935,14 +935,13 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnPcbSupplyMotionChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (SelectedStartArea == StartArea.Supply)
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
+            OnPcbSupplyChanged();
+        else if (SelectedStartArea == StartArea.Supply)
             foreach (var row in StartOutputs)
                 row.Refresh();
         if (!_active)
             return;
-
-        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
-            OnPcbSupplyChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
@@ -989,10 +988,7 @@ public partial class OperationViewModel : ObservableObject
             return;
 
         if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
-        {
             OnInspectionChanged();
-            OnMainConveyorChanged();
-        }
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
@@ -1084,10 +1080,13 @@ public partial class OperationViewModel : ObservableObject
     {
         RefreshPlacementResume();
         RefreshFasteningResume();
-        RefreshRecipeDisplay();
+        RefreshMapPositions();
+        OnPcbSupplyChanged();
+        OnPcbPlacementChanged();
+        OnBoltFasteningChanged();
     }
 
-    private void RefreshRecipeDisplay()
+    private void RefreshMapPositions()
     {
         OnPropertyChanged(nameof(PcbSupplyMapPosition));
         OnPropertyChanged(nameof(PcbPlacementMapPosition));
@@ -1095,10 +1094,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PickupHeadMapPosition));
         OnPropertyChanged(nameof(NgPickupMapPosition));
         OnPropertyChanged(nameof(InspectionCameraMapPosition));
-        OnPcbSupplyChanged();
-        OnPcbPlacementChanged();
-        OnBoltFasteningChanged();
-        OnInspectionChanged();
     }
 
     // Devices expose Changed events; notifying their property also refreshes nested XAML bindings.
