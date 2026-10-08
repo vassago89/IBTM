@@ -40,4 +40,7 @@ public enum StartBlockReason
     [Description("Review unfinished carriers before starting")]
     UnfinishedCarrier,
 
+    [Description("Support the carrier, then open the NG gripper.")]
+    NgGripperCheckRequired,
+
 }

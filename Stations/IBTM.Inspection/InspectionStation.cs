@@ -529,10 +529,11 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         {
             case InspectionStationState.PreparingTransfer:
                 EnterStep(state, nameof(NgTransferDestination.Shuttle));
+                // A closed gripper without pickup history may still hold a carrier after restart.
+                if (!IsTransferPending && Gripper != NgTransferGripperState.Open)
+                    throw new InvalidOperationException(UiText.Get("Support the carrier, then open the NG gripper."));
                 if (!IsRaised)
                     await SetLiftUpAsync(true, cancellationToken);
-                if (!IsTransferPending && Gripper != NgTransferGripperState.Open)
-                    await SetGripperOpenAsync(true, cancellationToken);
                 break;
             case InspectionStationState.PickingCarrier:
             {

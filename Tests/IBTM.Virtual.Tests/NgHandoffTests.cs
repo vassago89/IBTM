@@ -16,6 +16,27 @@ namespace IBTM.Virtual.Tests;
 public sealed class NgHandoffTests
 {
     [Fact]
+    public async Task ClosedGripperWithoutPickupHistoryDoesNotReleaseOrRaiseAutomatically()
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var transfer = system.Inspection;
+        await transfer.SetGripperOpenAsync(false);
+        system.Io.SetInput(InputIo.NgCarrierDetected, true);
+        Assert.False(transfer.IsTransferPending);
+        Assert.True(transfer.IsRaised);
+        Assert.Equal(InspectionStationState.PreparingTransfer, transfer.NextStep);
+        var wroteOutput = false;
+        system.Io.OutputChanged += (output, value) => wroteOutput = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => transfer.RunAsync());
+
+        Assert.False(wroteOutput);
+        Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
+        Assert.True(system.Io.GetOutput(OutputIo.NgCarrierGripperClose));
+    }
+
+    [Fact]
     public async Task ChangingCarrierWaitReasonDoesNotRepeatReturnButRestartStillReturns()
     {
         var system = await CreateAsync(new UnitSettings { MainConveyor = true });
@@ -277,7 +298,6 @@ public sealed class NgHandoffTests
         if (pickupNeedsPreparation)
         {
             await system.Inspection.SetLiftUpAsync(false);
-            await system.Inspection.SetGripperOpenAsync(false);
         }
         var picked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         io.OutputChanged += (output, on) =>

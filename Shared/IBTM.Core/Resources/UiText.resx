@@ -2204,13 +2204,13 @@ Operation failed. Check controller status.</value>
   <data name="start off sent; see controller feedback." xml:space="preserve">
     <value>START OFF sent; see controller feedback.</value>
   </data>
-  <data name="startup configuration could not be prepared. hardware was not initialized.&#10;&#10;{0}" xml:space="preserve">
-    <value>Startup configuration could not be prepared. Hardware was not initialized.
+  <data name="application could not start.&#10;&#10;{0}" xml:space="preserve">
+    <value>Application could not start.
 
 {0}</value>
   </data>
-  <data name="startup configuration failed" xml:space="preserve">
-    <value>Startup Configuration Failed</value>
+  <data name="startup failed" xml:space="preserve">
+    <value>Startup Failed</value>
   </data>
   <data name="state" xml:space="preserve">
     <value>STATE</value>
@@ -3559,5 +3559,11 @@ Rotation and grip unchanged</value>
   </data>
   <data name="release vacuum" xml:space="preserve">
     <value>Release vacuum</value>
+  </data>
+  <data name="check ng gripper" xml:space="preserve">
+    <value>Check NG gripper</value>
+  </data>
+  <data name="support the carrier, then open the ng gripper." xml:space="preserve">
+    <value>Support the carrier, then open the NG gripper.</value>
   </data>
 </root>

@@ -40,6 +40,8 @@ public enum StartCheckState
     Disabled,
     [Description("Ready")]
     Ready,
+    [Description("Check NG gripper")]
+    NgGripperCheckRequired,
 }
 
 public enum CarrierWorkAction

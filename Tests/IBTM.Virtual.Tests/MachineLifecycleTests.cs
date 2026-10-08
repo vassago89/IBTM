@@ -1607,9 +1607,24 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         await services.GetRequiredService<InspectionStation>().Station.PrepareToReceiveAsync(CancellationToken.None);
         services.GetRequiredService<VirtualCamera>().BoltsPresent = false;
-        // Presence and a closed empty gripper must not skip the first pickup descent.
+        // A closed gripper without pickup history requires operator release, even before the first run.
         await services.GetRequiredService<InspectionStation>().SetGripperOpenAsync(false);
         io.SetInput(InputIo.NgCarrierDetected, true);
+        Assert.False(gantry.IsTransferPending);
+        Assert.Equal(StartBlockReason.NgGripperCheckRequired, machine.StartBlock);
+        Assert.Equal(StartCheckState.NgGripperCheckRequired, machine.StartChecks[StartArea.Station3]);
+        await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(state.AutomaticRunning);
+        Assert.Equal(NgTransferGripperState.Closed, gantry.Gripper);
+        var review = services.GetRequiredService<OperationViewModel>();
+        await review.CheckStartCommand.ExecuteAsync(null);
+        Assert.Equal(StartArea.Station3, review.SelectedStartArea);
+        Assert.False(review.IsStartReviewAllowed);
+        await review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.ReleaseMaterial);
+        Assert.Null(review.StartActionMessage);
+        Assert.Equal(NgTransferGripperState.Open, gantry.Gripper);
+        Assert.Equal(StartBlockReason.None, machine.StartBlock);
+        Assert.True(review.IsStartReviewAllowed);
         var pickupDescents = 0;
         io.OutputChanged += (output, on) =>
         {
@@ -1642,6 +1657,7 @@ public sealed class MachineLifecycleTests
         Assert.False(gantry.Motion.Feedback.IsMoving);
         Assert.True(io.GetInput(InputIo.NgCarrierGripperClosed));
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
+        Assert.True(gantry.IsTransferPending);
         Assert.Equal(MachineAlarm.None, state.Alarm);
 
         Assert.Equal(StartBlockReason.None, machine.StartBlock);
@@ -1713,7 +1729,8 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         Assert.Equal(InspectionStationState.PreparingTransfer, station.NextStep);
-        await VerifyTransferReleaseAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => station.RunAsync());
+        Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
 
         async Task VerifyTransferReleaseAsync()
         {

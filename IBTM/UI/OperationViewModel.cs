@@ -813,7 +813,9 @@ public partial class OperationViewModel : ObservableObject
             RefreshFasteningResume();
             RefreshPlacementResume();
             var checks = Machine.StartChecks;
-            if (checks[StartArea.Station1] == StartCheckState.UnfinishedCarrier)
+            if (checks[StartArea.Station3] == StartCheckState.NgGripperCheckRequired)
+                SelectedStartArea = StartArea.Station3;
+            else if (checks[StartArea.Station1] == StartCheckState.UnfinishedCarrier)
                 SelectedStartArea = StartArea.Station1;
             else if (checks[StartArea.Station2] == StartCheckState.UnfinishedCarrier)
                 SelectedStartArea = StartArea.Station2;
@@ -946,7 +948,7 @@ public partial class OperationViewModel : ObservableObject
     {
         if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
             OnPcbSupplyChanged();
-        else if (SelectedStartArea == StartArea.Supply)
+        else if (sender is MotionStatus && SelectedStartArea == StartArea.Supply)
             foreach (var row in StartOutputs)
                 row.Refresh();
         if (!_active)
@@ -1061,7 +1063,7 @@ public partial class OperationViewModel : ObservableObject
     private void OnMachinePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(MachineController.StartBlock)
-            or nameof(MachineController.HomeBlock) or nameof(MachineController.IsStartAllowed))
+            or nameof(MachineController.IsStartAllowed))
         {
             OnPropertyChanged(nameof(StartBlocked));
             OnPropertyChanged(nameof(StartBlock));

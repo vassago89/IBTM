@@ -659,7 +659,9 @@ public sealed class MachineController : INotifyPropertyChanged
                         StartArea.Station2 => !_fasteningStation.Station.CarrierPresent ? StartCheckState.Empty
                             : _fasteningStation.Station.Completed ? StartCheckState.Completed
                             : _fasteningStation.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier,
-                        StartArea.Station3 => !_inspectionStation.Station.CarrierPresent ? StartCheckState.Empty
+                        StartArea.Station3 => !_inspectionStation.IsTransferPending
+                            && _inspectionStation.Gripper == NgTransferGripperState.Closed ? StartCheckState.NgGripperCheckRequired
+                            : !_inspectionStation.Station.CarrierPresent ? StartCheckState.Empty
                             : _inspectionStation.Station.Completed ? StartCheckState.Completed
                             : _inspectionStation.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier,
                         _ => throw new ArgumentOutOfRangeException(nameof(area)),
@@ -681,6 +683,8 @@ public sealed class MachineController : INotifyPropertyChanged
         var checks = StartChecks;
         if (checks.Values.Contains(StartCheckState.Unknown))
             return StartBlockReason.IoUnavailable;
+        if (checks.Values.Contains(StartCheckState.NgGripperCheckRequired))
+            return StartBlockReason.NgGripperCheckRequired;
         if (checks.Values.Contains(StartCheckState.MaterialRemaining))
             return StartBlockReason.MaterialRemaining;
         if (resumeFastening is not null && !IsFasteningResumeAllowed(resumeFastening)

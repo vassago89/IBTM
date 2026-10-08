@@ -455,7 +455,7 @@ public sealed class UiBindingTests
                     });
                 Assert.True(
                     await VirtualTestSupport.WaitUntilAsync(
-                        () => feedback.Text == "Input conflict",
+                        () => feedback.Text == UiText.Get("Input conflict"),
                         TimeSpan.FromSeconds(2)));
                 await Task.Run(() => io.SetInput(InputIo.PcbPlacementStopperUp, false));
                 state.Refresh();

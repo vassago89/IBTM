@@ -550,8 +550,6 @@ public partial class TeachingViewModel : ObservableObject
 
     public bool BoltPointEditorVisible => IsFasteningSelected || IsInspectionSelected;
 
-    private bool IsBoltSelected => IsInspectionSelected && SelectedPoint?.Position.Bolt is not null;
-
     private TeachingPoint? NextTeachingPoint
     {
         get
@@ -1681,7 +1679,7 @@ public partial class TeachingViewModel : ObservableObject
         get
         {
             return IsInspectionSelected
-                && (IsBoltSelected || IsDataMatrixSelected)
+                && (SelectedPoint?.Position.Bolt is not null || IsDataMatrixSelected)
                 && !State.IsRunning
                 && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
                 && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })

@@ -49,11 +49,10 @@ public partial class App : System.Windows.Application
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
-        base.OnStartup(e);
-
-        var services = new ServiceCollection();
         try
         {
+            base.OnStartup(e);
+            var services = new ServiceCollection();
             var database = await Task.Run(() => new MachineStore());
             var settings = await MachineSettings.LoadAsync(database);
             UiText.Apply(settings.Options.Language);
@@ -83,42 +82,53 @@ public partial class App : System.Windows.Application
                 .AddSingleton(recipes)
                 .AddIbtmApplication(settings)
                 .AddIbtmHardware(settings);
+
+            var serviceProvider = services.BuildServiceProvider(
+                new ServiceProviderOptions { ValidateOnBuild = true, });
+            _serviceProvider = serviceProvider;
+            _camera = serviceProvider.GetRequiredService<ICamera>() as IDisposable;
+            _machine = serviceProvider.GetRequiredService<MachineController>();
+
+            try
+            {
+                await _machine.InitializeAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                // STOP during initialization must still leave the operator a screen for recovery.
+                _log.LogInformation("Machine initialization was canceled. Opening the main window with current equipment status.");
+            }
+            var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
+            mainWindow.Show();
+            _ = serviceProvider.GetRequiredService<RecipeEditorViewModel>().RefreshCommand.ExecuteAsync(null);
+            _log.LogInformation("Main window opened.");
         }
         catch (Exception exception)
         {
-            if (_log is null)
-                InitializeLogging(new LogSettings());
-            _log.LogError(exception, "Startup configuration failed. Hardware was not initialized.");
-            MessageBox.Show(
-                UiText.Format($"Startup configuration could not be prepared. Hardware was not initialized.\n\n{exception.GetBaseException().Message}"),
-                UiText.Get("Startup Configuration Failed"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
             _exitCode = 1;
-            await CompleteExitAsync();
-            Shutdown();
-            return;
+            try
+            {
+                if (_log is null)
+                    InitializeLogging(new LogSettings());
+                _log.LogError(exception, "Application startup failed.");
+                MessageBox.Show(
+                    UiText.Format($"Application could not start.\n\n{exception.GetBaseException().Message}"),
+                    UiText.Get("Startup Failed"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                try
+                {
+                    await CompleteExitAsync();
+                }
+                finally
+                {
+                    Shutdown();
+                }
+            }
         }
-
-        var serviceProvider = services.BuildServiceProvider(
-            new ServiceProviderOptions { ValidateOnBuild = true, });
-        _serviceProvider = serviceProvider;
-        _camera = serviceProvider.GetRequiredService<ICamera>() as IDisposable;
-        _machine = serviceProvider.GetRequiredService<MachineController>();
-
-        try
-        {
-            await _machine.InitializeAsync();
-        }
-        catch (OperationCanceledException)
-        {
-            // STOP during initialization must still leave the operator a screen for recovery.
-            _log.LogInformation("Machine initialization was canceled. Opening the main window with current equipment status.");
-        }
-        var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
-        mainWindow.Show();
-        _ = serviceProvider.GetRequiredService<RecipeEditorViewModel>().RefreshCommand.ExecuteAsync(null);
-        _log.LogInformation("Main window opened.");
     }
 
     [MemberNotNull(nameof(_log), nameof(_loggerFactory))]

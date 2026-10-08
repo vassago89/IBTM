@@ -153,7 +153,10 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
         if (sender is AxisStatus && e.PropertyName != nameof(AxisStatus.State)
             || !_active || IsClosing)
             return;
-        Refresh();
+        if (sender is AxisDiagnostics diagnostics)
+            Axes.First(row => ReferenceEquals(row.Diagnostics, diagnostics)).Refresh();
+        else
+            Refresh();
     }
 
     public async Task<bool> TryCloseAsync()

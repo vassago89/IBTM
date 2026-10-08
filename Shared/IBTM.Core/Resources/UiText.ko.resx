@@ -2204,13 +2204,13 @@
   <data name="start off sent; see controller feedback." xml:space="preserve">
     <value>START OFF 전송 · 체결기 상태 확인</value>
   </data>
-  <data name="startup configuration could not be prepared. hardware was not initialized.&#10;&#10;{0}" xml:space="preserve">
-    <value>시작 설정 실패로 초기화하지 못했습니다.
+  <data name="application could not start.&#10;&#10;{0}" xml:space="preserve">
+    <value>프로그램을 시작하지 못했습니다.
 
 {0}</value>
   </data>
-  <data name="startup configuration failed" xml:space="preserve">
-    <value>시작 설정 실패</value>
+  <data name="startup failed" xml:space="preserve">
+    <value>시작 실패</value>
   </data>
   <data name="state" xml:space="preserve">
     <value>상태</value>
@@ -3557,5 +3557,11 @@
   </data>
   <data name="release vacuum" xml:space="preserve">
     <value>흡착 해제</value>
+  </data>
+  <data name="check ng gripper" xml:space="preserve">
+    <value>NG 그리퍼 확인</value>
+  </data>
+  <data name="support the carrier, then open the ng gripper." xml:space="preserve">
+    <value>캐리어를 받친 뒤 NG 그리퍼를 열어주세요.</value>
   </data>
 </root>

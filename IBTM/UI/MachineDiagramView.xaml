@@ -21,6 +21,9 @@
                 <Trigger Property="Tag" Value="{x:Static app:StartCheckState.UnfinishedCarrier}">
                     <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
                 </Trigger>
+                <Trigger Property="Tag" Value="{x:Static app:StartCheckState.NgGripperCheckRequired}">
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                </Trigger>
                 <Trigger Property="Tag" Value="{x:Static app:StartCheckState.Unknown}">
                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                 </Trigger>

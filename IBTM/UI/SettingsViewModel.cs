@@ -105,11 +105,9 @@ public partial class SettingsViewModel : ObservableObject
 
     public MotionSettings CurrentMotionSettings => _motions[SelectedMotionGroup].Settings;
 
-    public IEnumerable<HardwareMappingRow> CurrentAxisMappings => AxisMappings.Where(row => row.Hardware.Area == CurrentMotionHardwareSettings.Area);
+    public IEnumerable<HardwareMappingRow> CurrentAxisMappings => AxisMappings.Where(row => row.Hardware.Area == _motions[SelectedMotionGroup].Hardware.Area);
 
-    private MotionHardwareSettings CurrentMotionHardwareSettings => _motions[SelectedMotionGroup].Hardware;
-
-    public bool CurrentMotionHasZ => CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
+    public bool CurrentMotionHasZ => _motions[SelectedMotionGroup].Hardware.AxisSignals.ContainsKey(MotionAxis.Z);
 
     public bool IsSettingsEditAllowed => _state.SetupEditingEnabled && !SaveSettingsCommand.IsRunning;
 
