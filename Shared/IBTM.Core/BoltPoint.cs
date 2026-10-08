@@ -85,6 +85,52 @@ public sealed class BoltPoint
         }
     }
 
+    public double FeedDistance
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value) || value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite distance of zero or greater.");
+            field = value;
+        }
+    }
+
+    public double FeedSeconds
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a positive finite time in seconds.");
+            field = value;
+        }
+    } = 1;
+
+    public AxisPosition? FinalFasteningPosition { get; set; }
+
+    public double FinalFeedDistance
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value) || value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite distance of zero or greater.");
+            field = value;
+        }
+    }
+
+    public double FinalFeedSeconds
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a positive finite time in seconds.");
+            field = value;
+        }
+    } = 1;
+
     public double? MinimumTurns
     {
         get;

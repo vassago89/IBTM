@@ -179,8 +179,15 @@ public sealed class BoltFasteningSettings : Setting
         bolt.FasteningY = position.Y;
     }
 
-    public AxisPosition GetBoltPosition(BoltPoint bolt)
+    public AxisPosition GetBoltPosition(BoltPoint bolt, bool final = false)
     {
+        if (final)
+        {
+            if (bolt.FinalFasteningPosition is not { } position
+                || !double.IsFinite(position.X) || !double.IsFinite(position.Y) || !double.IsFinite(position.Z))
+                throw new InvalidOperationException($"Teach shooting final XYZ for {bolt.HeatSink}, bolt {bolt.Id} before moving.");
+            return new() { X = position.X, Y = position.Y, Z = position.Z };
+        }
         if (!bolt.IsFasteningPositionDefined)
             throw new InvalidOperationException($"Record fastening XY for {bolt.HeatSink}, bolt {bolt.Id} before moving.");
         return new()

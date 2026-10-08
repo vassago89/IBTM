@@ -103,6 +103,44 @@ public sealed class AdcBoltHeadTests
         Assert.False(io.GetOutput(start));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ZFeedStopsWithControllerOrCancellation(bool cancel)
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        var feedStopped = false;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var tightening = head.TightenAsync(timeout.Token, async token =>
+        {
+            Assert.True(head.Monitor.Sample!.Status!.Running);
+            if (cancel)
+                timeout.Cancel();
+            else
+                bus.SuppressCompletion = false;
+            try
+            {
+                await Task.Delay(Timeout.Infinite, token);
+            }
+            finally
+            {
+                feedStopped = true;
+            }
+        });
+        if (cancel)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
+        else
+        {
+            var result = await tightening;
+            Assert.True(result.Success);
+            Assert.NotNull(result.Controller);
+        }
+        Assert.True(feedStopped);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
     [Fact]
     public async Task HeadDownIgnoresAQueryStartedBeforeStart()
     {

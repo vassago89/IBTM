@@ -119,6 +119,9 @@
                                                     <DataTrigger Binding="{Binding Position.Bolt}" Value="{x:Null}">
                                                         <Setter Property="Text" Value="{Binding Name}"/>
                                                     </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Position.Target}" Value="{x:Static device:TeachingTarget.BoltFinalPosition}">
+                                                        <Setter Property="Text" Value="{Binding Name}"/>
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
@@ -213,6 +216,51 @@
                                 </StackPanel.Style>
                                 <TextBlock Text="{ui:Text 'Z offset (mm)'}" Margin="0,0,0,4"/>
                                 <TextBox x:Name="FasteningZOffsetInput" Text="{Binding SelectedPoint.FasteningZOffset, Mode=TwoWay, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </StackPanel>
+                        </WrapPanel>
+                        <WrapPanel Margin="0,8,0,0" IsEnabled="{Binding State.SetupEditingEnabled}">
+                            <WrapPanel.Style>
+                                <Style TargetType="WrapPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPosition}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltFinalPosition}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </WrapPanel.Style>
+                            <StackPanel Width="180" Margin="0,0,12,0">
+                                <TextBlock Text="{ui:Text 'Z feed (+mm)'}" Margin="0,0,0,4"/>
+                                <TextBox>
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                            <Setter Property="Text" Value="{Binding SelectedPoint.Position.Bolt.FeedDistance, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltFinalPosition}">
+                                                    <Setter Property="Text" Value="{Binding SelectedPoint.Position.Bolt.FinalFeedDistance, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                            </StackPanel>
+                            <StackPanel Width="180">
+                                <TextBlock Text="{ui:Text 'Z feed time (s)'}" Margin="0,0,0,4"/>
+                                <TextBox>
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                            <Setter Property="Text" Value="{Binding SelectedPoint.Position.Bolt.FeedSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltFinalPosition}">
+                                                    <Setter Property="Text" Value="{Binding SelectedPoint.Position.Bolt.FinalFeedSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
                             </StackPanel>
                         </WrapPanel>
                     </StackPanel>

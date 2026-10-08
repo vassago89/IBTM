@@ -324,7 +324,7 @@ public sealed record PcbBoltPresenceView(Guid BoltId, int? Ordinal, bool Present
 public sealed record PcbBoltResultView(
     Guid BoltId, int? Ordinal, FasteningHead Head, BoltResult Result, bool? Present, Recipe? Recipe)
 {
-    public string HeadLabel => UiText.Get(Head);
+    public string HeadLabel => UiText.Get(Result.ToolHead ?? Head);
     public string BoltLabel => Recipe?.Pcb.GetBoltName(BoltId, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
     public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => Result.Source == BoltResultSource.Interrupted ? UiText.Get("Fastening interrupted")

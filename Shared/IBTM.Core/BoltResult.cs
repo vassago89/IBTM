@@ -34,6 +34,10 @@ public sealed record BoltResult(
     public DateTimeOffset? RecordedAt { get; init; }
     public BoltControllerData? Controller { get; init; }
     public BoltFasteningStage Stage { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public FasteningHead? ToolHead { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ZFeedDistance { get; init; }
     public BoltResult? PreliminaryResult { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BoltResult? PreviousFinalResult { get; init; }

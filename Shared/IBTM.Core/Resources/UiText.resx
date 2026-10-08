@@ -3566,4 +3566,25 @@ Rotation and grip unchanged</value>
   <data name="support the carrier, then open the ng gripper." xml:space="preserve">
     <value>Support the carrier, then open the NG gripper.</value>
   </data>
+  <data name="z feed (+mm)" xml:space="preserve">
+    <value>Z feed (+mm)</value>
+  </data>
+  <data name="z feed time (s)" xml:space="preserve">
+    <value>Z feed time (s)</value>
+  </data>
+  <data name="shooting final tightening" xml:space="preserve">
+    <value>Shooting final tightening</value>
+  </data>
+  <data name="{0} shooting final tightening" xml:space="preserve">
+    <value>{0} · Shooting final</value>
+  </data>
+  <data name="pickup pre-tightening preset" xml:space="preserve">
+    <value>Pickup pre-tightening preset</value>
+  </data>
+  <data name="shooting final tightening preset" xml:space="preserve">
+    <value>Shooting final tightening preset</value>
+  </data>
+  <data name="pickup 1 → 2 · shooting 2 → 1 → 1" xml:space="preserve">
+    <value>Pickup 1 → 2 · Shooting 2 → 1 → 1</value>
+  </data>
 </root>

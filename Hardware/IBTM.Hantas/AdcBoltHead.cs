@@ -359,7 +359,7 @@ public sealed class AdcBoltHead : IBoltHead
             started = fastening;
             if (dryRunMilliseconds == 0 || feedAsync is not null)
                 Monitor.Sampled += OnStatusSampled;
-            // Own STOP cleanup before requesting START or lowering the head.
+            // Own STOP cleanup before requesting START.
             if (Monitor.IsTorqueCurveMonitoringRequested)
                 Monitor.BeginTorqueCurveCapture();
             _io.SetOutput(_start, true);
@@ -376,13 +376,25 @@ public sealed class AdcBoltHead : IBoltHead
                 timeout.Token.ThrowIfCancellationRequested();
                 if (!stopped.Task.IsCompleted && feedStatus.Alarm == 0)
                 {
-                    await feedAsync(timeout.Token);
+                    using var feedCancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+                    var feeding = feedAsync(feedCancellation.Token);
+                    if (await Task.WhenAny(feeding, stopped.Task) == stopped.Task)
+                        feedCancellation.Cancel();
+                    try
+                    {
+                        await feeding;
+                    }
+                    catch (OperationCanceledException) when (feedCancellation.IsCancellationRequested
+                        && !timeout.IsCancellationRequested && stopped.Task.IsCompleted)
+                    {
+                        // RUN OFF stops Z feed; the controller result still belongs to this bolt.
+                    }
                 }
-                else if (dryRunMilliseconds > 0)
+                if (dryRunMilliseconds > 0 && (stopped.Task.IsCompleted || feedStatus.Alarm != 0))
                 {
                     finishedSample = await stopped.Task;
                     failure = new InvalidOperationException(finishedSample.Status!.Alarm != 0
-                        ? AdcControllerError.Describe(finishedSample.Status.Alarm) : "RUN stopped before head DOWN.");
+                        ? AdcControllerError.Describe(finishedSample.Status.Alarm) : "RUN stopped during Z feed.");
                 }
             }
             if (dryRunMilliseconds > 0)

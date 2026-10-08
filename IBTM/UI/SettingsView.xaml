@@ -367,7 +367,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Pre-tightening preset'}" Style="{StaticResource FieldLabelStyle}"
+                                        <TextBlock Text="{ui:Text 'Pickup pre-tightening preset'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             ItemsSource="{StaticResource PickupPresets}"
@@ -378,13 +378,13 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Final tightening preset'}" Style="{StaticResource FieldLabelStyle}"
+                                        <TextBlock Text="{ui:Text 'Shooting final tightening preset'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             ItemsSource="{StaticResource PickupPresets}"
                                             SelectedItem="{Binding Settings.BoltFastening.PickupFinalPreset, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
-                                    <TextBlock Text="{ui:Text 'Pre 1 → Pre 2 → Final 2 → Final 1 → Retighten 1 · per PCB'}"
+                                    <TextBlock Text="{ui:Text 'Pickup 1 → 2 · Shooting 2 → 1 → 1'}"
                                         Style="{StaticResource HelpTextStyle}" Margin="0,4,0,0"/>
                                     <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource HelpTextStyle}"/>
                                 </StackPanel>

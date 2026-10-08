@@ -109,6 +109,8 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.BoltPosition:
                     return _definition.Bolt is { IsFasteningPositionDefined: true } bolt
                         ? _settings.BoltFastening.GetBoltPosition(bolt) : null;
+                case TeachingTarget.BoltFinalPosition:
+                    return _definition.Bolt!.FinalFasteningPosition;
                 case TeachingTarget.ShootingHeadFasteningZ:
                     return new() { Z = _settings.BoltFastening.ShootingHead.FasteningZ };
                 case TeachingTarget.PickupHeadFasteningZ:
@@ -171,6 +173,8 @@ public class TeachingPoint : ObservableObject
                 return inspection.Name;
             if (_definition.Bolt is { } bolt)
             {
+                if (_definition.Target == TeachingTarget.BoltFinalPosition)
+                    return UiText.Format($"{BoltLabel} Shooting final tightening");
                 return _definition.Target == TeachingTarget.BoltPosition
                     ? UiText.Format($"{BoltLabel} Fastening · {UiText.Get(bolt.Head)}")
                     : UiText.Format($"{BoltLabel} Inspection");
@@ -192,6 +196,8 @@ public class TeachingPoint : ObservableObject
         {
             switch (_definition.Target)
             {
+                case TeachingTarget.BoltFinalPosition:
+                    return TeachingPointGroup.ShootingFastening;
                 case TeachingTarget.BoltPosition or TeachingTarget.BoltReference:
                     return _definition.Bolt!.Head == FasteningHead.Shooting
                         ? TeachingPointGroup.ShootingFastening : TeachingPointGroup.PickupFastening;
@@ -288,6 +294,9 @@ public class TeachingPoint : ObservableObject
             case TeachingTarget.BoltPosition:
                 _definition.Bolt!.FasteningX = position.X;
                 _definition.Bolt.FasteningY = position.Y;
+                break;
+            case TeachingTarget.BoltFinalPosition:
+                _definition.Bolt!.FinalFasteningPosition = position;
                 break;
             case TeachingTarget.ShootingHeadFasteningZ:
                 _settings.BoltFastening.ShootingHead.FasteningZ = position.Z;

@@ -3564,4 +3564,25 @@
   <data name="support the carrier, then open the ng gripper." xml:space="preserve">
     <value>캐리어를 받친 뒤 NG 그리퍼를 열어주세요.</value>
   </data>
+  <data name="z feed (+mm)" xml:space="preserve">
+    <value>Z 하강 거리 (+mm)</value>
+  </data>
+  <data name="z feed time (s)" xml:space="preserve">
+    <value>Z 하강 시간 (s)</value>
+  </data>
+  <data name="shooting final tightening" xml:space="preserve">
+    <value>슈팅 본체결</value>
+  </data>
+  <data name="{0} shooting final tightening" xml:space="preserve">
+    <value>{0} · 슈팅 본체결</value>
+  </data>
+  <data name="pickup pre-tightening preset" xml:space="preserve">
+    <value>픽업 가체결 프리셋</value>
+  </data>
+  <data name="shooting final tightening preset" xml:space="preserve">
+    <value>슈팅 본체결 프리셋</value>
+  </data>
+  <data name="pickup 1 → 2 · shooting 2 → 1 → 1" xml:space="preserve">
+    <value>픽업 1 → 2 · 슈팅 2 → 1 → 1</value>
+  </data>
 </root>

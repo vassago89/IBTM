@@ -601,6 +601,9 @@ public partial class TeachingViewModel : ObservableObject
                 .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
                     .Where(bolt => bolt.HeatSink == SelectedPcb)
                     .Select(bolt => Point(TeachingTarget.BoltPosition, TeachMode.XYOnly, bolt)),
+                .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
+                    .Where(bolt => bolt.HeatSink == SelectedPcb && bolt.Head == FasteningHead.Pickup)
+                    .Select(bolt => Point(TeachingTarget.BoltFinalPosition, TeachMode.Full, bolt)),
             ],
             HardwareArea.InspectionGantry => [
                 Point(TeachingTarget.CarrierUpperLeftLocatingPin, TeachMode.XYOnly),
@@ -620,14 +623,19 @@ public partial class TeachingViewModel : ObservableObject
             {
                 TeachingTarget.DataMatrix => 0,
                 TeachingTarget.BoltPosition or TeachingTarget.BoltReference => 1,
-                _ => 2,
+                TeachingTarget.BoltFinalPosition => 2,
+                _ => 3,
             })
             .ThenBy(point => point.Group)
             .ThenBy(point => point.Position.Target == TeachingTarget.PlacementHandoff ? 0 : 1)
             .ToArray();
+        if (IsFasteningSelected && selectedTarget == TeachingTarget.BoltReference)
+            selectedTarget = TeachingTarget.BoltPosition;
+        else if (IsInspectionSelected && selectedTarget is TeachingTarget.BoltPosition or TeachingTarget.BoltFinalPosition)
+            selectedTarget = TeachingTarget.BoltReference;
         SelectedPoint = FilteredPoints.FirstOrDefault(
             point => selectedBolt is not null
-                ? point.Position.Bolt?.Id == selectedBolt.Id
+                ? point.Position.Bolt?.Id == selectedBolt.Id && point.Position.Target == selectedTarget
                 : point.Position.Target == selectedTarget)
             ?? NextTeachingPoint
                 ?? FilteredPoints.FirstOrDefault();

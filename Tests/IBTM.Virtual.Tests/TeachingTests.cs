@@ -865,7 +865,7 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
 
         var position = teaching.SelectedPoint!;
-        Assert.Same(position, teaching.FilteredPoints[0]);
+        Assert.Contains(position, teaching.FilteredPoints);
         Assert.Equal(TeachingTarget.BoltPosition, position.Position.Target);
         Assert.Same(bolt, position.Position.Bolt);
         Assert.True(position.Position.HasPosition);
@@ -888,6 +888,19 @@ public sealed class TeachingTests
         Assert.Equal(expectedZ, settings.BoltFastening.GetHead(head).FasteningZ);
         expectedZ -= 0.75;
         Assert.Equal((expectedX, expectedY, expectedZ), (position.Coordinates!.X, position.Coordinates.Y, position.Coordinates.Z));
+        if (head == FasteningHead.Pickup)
+        {
+            var final = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltFinalPosition);
+            teaching.SelectedPoint = final;
+            Assert.False(teaching.IsMoveToPointAllowed);
+            await fastening.MoveZAsync(expectedZ + 2);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Equal((expectedX, expectedY, expectedZ + 2),
+                (bolt.FinalFasteningPosition!.X, bolt.FinalFasteningPosition.Y, bolt.FinalFasteningPosition.Z));
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Equal(StationCylinderState.Up, fastening.PickupTablePosition);
+            teaching.SelectedPoint = position;
+        }
         await teaching.SaveCommand.ExecuteAsync(null);
         Assert.Null(teaching.SaveError);
         Assert.Null(teaching.RecipeEditor.Error);

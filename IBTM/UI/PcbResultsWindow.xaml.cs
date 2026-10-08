@@ -34,7 +34,7 @@ public partial class PcbResultsWindow : Window
         viewModel.SelectedBoltStage = row;
         _torqueCurves?.Close();
         _torqueCurves = new(new(null,
-            [new(row.BoltId, row.BoltLabel, record.HeatSink, row.Head, row.Result)]))
+            [new(row.BoltId, row.BoltLabel, record.HeatSink, row.Result.ToolHead ?? row.Head, row.Result)]))
         {
             Owner = this,
             Title = Title + " · " + row.BoltLabel,

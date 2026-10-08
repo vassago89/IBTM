@@ -103,6 +103,8 @@ public enum TeachingTarget
     [Description("Shooting Safe Z")]
     ShootingSafeZ,
 
+    [Description("Shooting final tightening")]
+    BoltFinalPosition,
 }
 
 // Command metadata only. Teaching values and writes are owned by the teaching UI.
