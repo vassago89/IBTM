@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Threading;
+using IBTM.BoltFastening;
 using IBTM.Device;
 using Xunit;
 
@@ -12,6 +13,33 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MotionSettingsTests
 {
+    [Fact]
+    public async Task FasteningFeedTimesDefaultToAxisSettingsAndPersistIndependently()
+    {
+        var legacy = JsonSerializer.Deserialize<BoltFasteningSettings>("{}")!;
+        Assert.Null(legacy.FeedAccelerationSeconds);
+        Assert.Null(legacy.FeedDecelerationSeconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => legacy.FeedAccelerationSeconds = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => legacy.FeedDecelerationSeconds = double.NaN);
+
+        var store = VirtualTestSupport.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.BoltFastening.FeedAccelerationSeconds = 0.1;
+        settings.BoltFastening.FeedDecelerationSeconds = 0.2;
+        settings.BoltFastening.Motion.ZAccelerationSeconds = 0.3;
+        settings.BoltFastening.Motion.ZDecelerationSeconds = 0.4;
+        await store.SaveSettingsAsync(settings.Sections);
+        var loaded = await MachineSettings.LoadAsync(store);
+        Assert.Equal(0.1, loaded.BoltFastening.FeedAccelerationSeconds);
+        Assert.Equal(0.2, loaded.BoltFastening.FeedDecelerationSeconds);
+        Assert.Equal(0.3, loaded.BoltFastening.Motion.ZAccelerationSeconds);
+        Assert.Equal(0.4, loaded.BoltFastening.Motion.ZDecelerationSeconds);
+        loaded.BoltFastening.FeedAccelerationSeconds = null;
+        loaded.BoltFastening.FeedDecelerationSeconds = null;
+        Assert.Null(loaded.BoltFastening.FeedAccelerationSeconds);
+        Assert.Null(loaded.BoltFastening.FeedDecelerationSeconds);
+    }
+
     [Fact]
     public async Task MotionPollIntervalDefaultsValidatesAndPersists()
     {

@@ -16,7 +16,7 @@
             <x:Static Member="core:FasteningHead.Shooting"/>
             <x:Static Member="core:FasteningHead.Pickup"/>
         </x:Array>
-        <x:Array x:Key="PickupPresets" Type="{x:Type sys:UInt16}">
+        <x:Array x:Key="FasteningPresets" Type="{x:Type sys:UInt16}">
             <sys:UInt16>1</sys:UInt16>
             <sys:UInt16>2</sys:UInt16>
             <sys:UInt16>3</sys:UInt16>
@@ -299,6 +299,28 @@
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
                                     <TextBlock Text="{ui:Text 'Fastening'}" Style="{StaticResource SettingSectionTitle}"/>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="180"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Fastening Z acceleration (s)'}" Style="{StaticResource FieldLabelStyle}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}" VerticalAlignment="Center"
+                                            ToolTip="{ui:Text 'Blank = Z axis setting'}"
+                                            Text="{Binding Settings.BoltFastening.FeedAccelerationSeconds, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="180"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Fastening Z deceleration (s)'}" Style="{StaticResource FieldLabelStyle}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}" VerticalAlignment="Center"
+                                            ToolTip="{ui:Text 'Blank = Z axis setting'}"
+                                            Text="{Binding Settings.BoltFastening.FeedDecelerationSeconds, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    </Grid>
                                     <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}" Margin="0,0,0,8"
                                         Content="{ui:Text 'Torque curves'}"
                                         IsChecked="{Binding Settings.BoltFastening.MonitorTorqueCurves, UpdateSourceTrigger=PropertyChanged}"/>
@@ -370,7 +392,7 @@
                                         <TextBlock Text="{ui:Text 'Pickup pre-tightening preset'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            ItemsSource="{StaticResource PickupPresets}"
+                                            ItemsSource="{StaticResource FasteningPresets}"
                                             SelectedItem="{Binding Settings.BoltFastening.PickupPreliminaryPreset, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
@@ -378,13 +400,24 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Shooting final tightening preset'}" Style="{StaticResource FieldLabelStyle}"
+                                        <TextBlock Text="{ui:Text 'Shooting IPM final preset'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            ItemsSource="{StaticResource PickupPresets}"
-                                            SelectedItem="{Binding Settings.BoltFastening.PickupFinalPreset, UpdateSourceTrigger=PropertyChanged}"/>
+                                            ItemsSource="{StaticResource FasteningPresets}"
+                                            SelectedItem="{Binding Settings.BoltFastening.ShootingIpmPreset, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
-                                    <TextBlock Text="{ui:Text 'Pickup 1 → 2 · Shooting 2 → 1 → 1'}"
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Shooting PCB final preset'}" Style="{StaticResource FieldLabelStyle}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            ItemsSource="{StaticResource FasteningPresets}"
+                                            SelectedItem="{Binding Settings.BoltFastening.ShootingPcbPreset, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </Grid>
+                                    <TextBlock Text="{ui:Text 'Pre-tighten all → final 2 → 1 → 1 per PCB'}"
                                         Style="{StaticResource HelpTextStyle}" Margin="0,4,0,0"/>
                                     <TextBlock Text="{ui:Text 'Pre-tightening NG: skip final tightening'}" Style="{StaticResource HelpTextStyle}"/>
                                 </StackPanel>

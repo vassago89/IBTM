@@ -28,12 +28,16 @@ public enum AppPage
 
     [Description("Manual")]
     ManualHardware,
+
+    [Description("Results")]
+    Results,
 }
 
 public partial class MainViewModel : ObservableObject
 {
     private readonly TeachingViewModel _teachingViewModel;
     private readonly InspectionTeachingViewModel _inspectionTeachingViewModel;
+    private readonly ResultsViewModel _resultsViewModel;
     private readonly SettingsViewModel _settingsViewModel;
     private readonly ManualHardwareViewModel _manualHardwareViewModel;
     private readonly MachineState _state;
@@ -56,6 +60,7 @@ public partial class MainViewModel : ObservableObject
         OperationViewModel operationViewModel,
         TeachingViewModel teachingViewModel,
         InspectionTeachingViewModel inspectionTeachingViewModel,
+        ResultsViewModel resultsViewModel,
         SettingsViewModel settingsViewModel,
         ManualHardwareViewModel manualHardwareViewModel,
         RecipeEditorViewModel recipeEditor,
@@ -74,6 +79,7 @@ public partial class MainViewModel : ObservableObject
         Operation = operationViewModel;
         _teachingViewModel = teachingViewModel;
         _inspectionTeachingViewModel = inspectionTeachingViewModel;
+        _resultsViewModel = resultsViewModel;
         _settingsViewModel = settingsViewModel;
         _manualHardwareViewModel = manualHardwareViewModel;
         RecipeEditor = recipeEditor;
@@ -121,6 +127,8 @@ public partial class MainViewModel : ObservableObject
                     return _teachingViewModel;
                 case AppPage.Inspection:
                     return _inspectionTeachingViewModel;
+                case AppPage.Results:
+                    return _resultsViewModel;
                 case AppPage.Settings:
                     return _settingsViewModel;
                 case AppPage.ManualHardware:
@@ -140,7 +148,7 @@ public partial class MainViewModel : ObservableObject
         {
             return !NavigateCommand.IsRunning
                 && IsNavigateAllowed(SelectedPage)
-                && (SelectedPage is AppPage.Operation or AppPage.Inspection or AppPage.Settings or AppPage.ManualHardware
+                && (SelectedPage is AppPage.Operation or AppPage.Inspection or AppPage.Results or AppPage.Settings or AppPage.ManualHardware
                     || !RecipeEditor.LoadCommand.IsRunning);
         }
     }
@@ -224,6 +232,7 @@ public partial class MainViewModel : ObservableObject
             Operation.ShutdownAsync(),
             _teachingViewModel.ShutdownAsync(),
             _inspectionTeachingViewModel.ShutdownAsync(),
+            _resultsViewModel.ShutdownAsync(),
             _manualHardwareViewModel.ShutdownAsync(),
             _settingsViewModel.ShutdownAsync(),
             RecipeEditor.ShutdownAsync());
@@ -285,7 +294,7 @@ public partial class MainViewModel : ObservableObject
         return !_shuttingDown && !IsClosing
             && page switch
             {
-                AppPage.Operation or AppPage.Inspection => true,
+                AppPage.Operation or AppPage.Inspection or AppPage.Results => true,
                 AppPage.Settings or AppPage.ManualHardware or AppPage.Teaching => IsMaintenanceAccessAllowed,
                 _ => false,
             };
@@ -303,6 +312,9 @@ public partial class MainViewModel : ObservableObject
                 break;
             case AppPage.Inspection:
                 _inspectionTeachingViewModel.Activate();
+                break;
+            case AppPage.Results:
+                _resultsViewModel.Activate();
                 break;
             case AppPage.Settings:
                 _settingsViewModel.RefreshCommands();

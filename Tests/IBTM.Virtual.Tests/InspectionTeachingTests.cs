@@ -25,6 +25,16 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class InspectionTeachingTests
 {
+    private static InspectionTeachingViewModel CreateEditor(MachineStore store, RecipeManager recipes,
+        InspectionImageLoader images, PcbHistorySettings history,
+        Microsoft.Extensions.Logging.ILogger<InspectionTeachingViewModel> log)
+    {
+        var results = new ResultsViewModel(store, history,
+            new PcbResultsViewModel(recipes, images, NullLogger<PcbResultsViewModel>.Instance),
+            NullLogger<ResultsViewModel>.Instance);
+        return new(recipes, images, results, log);
+    }
+
     [Fact]
     public async Task DamagedReferenceImagesKeepHealthyPreviewsAndSurviveSavingAndSaveAs()
     {
@@ -39,7 +49,7 @@ public sealed class InspectionTeachingTests
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync(recipe.Name);
         var images = new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance);
-        var inspection = new InspectionTeachingViewModel(store, recipes, images, new(),
+        var inspection = CreateEditor(store, recipes, images, new(),
             NullLogger<InspectionTeachingViewModel>.Instance);
         await inspection.RefreshImagesCommand.ExecuteAsync(null);
         Assert.True(inspection.Preview.HasImage);
@@ -100,7 +110,7 @@ public sealed class InspectionTeachingTests
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
         var images = new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance);
-        var editor = new InspectionTeachingViewModel(store, recipes, images, new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var editor = CreateEditor(store, recipes, images, new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         editor.SelectedPoint = Assert.Single(editor.Points, point => point.Bolt is not null);
         var teaching = new TeachingPoint(new(IBTM.Device.TeachingTarget.BoltReference,
@@ -149,7 +159,7 @@ public sealed class InspectionTeachingTests
         var png = await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         var removedId = editor.Preview.Recipe.Pcb.BoltPoints[0].Id;
         editor.Preview.Recipe.Pcb.BoltPoints[0].BrightnessThreshold = 91;
@@ -191,7 +201,7 @@ public sealed class InspectionTeachingTests
         await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var inspection = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var inspection = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await inspection.RefreshImagesCommand.ExecuteAsync(null);
         var editor = new RecipeEditorViewModel(recipes, store, new()) { Name = "inspection" };
         await editor.RefreshCommand.ExecuteAsync(null);
@@ -213,7 +223,7 @@ public sealed class InspectionTeachingTests
         Assert.True(Assert.Single(inspection.Points, point => point.Metadata is not null).IsDataMatrix);
         Assert.Empty(inspection.Preview.Recipe.Pcb.BoltPoints);
 
-        var reopened = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var reopened = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         reopened.Activate();
         await reopened.RefreshImagesCommand.ExecutionTask!;
         Assert.Same(recipes.Current, reopened.Preview.Recipe);
@@ -229,7 +239,7 @@ public sealed class InspectionTeachingTests
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
         await recipes.SaveAsync("검사Ä");
-        var inspection = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var inspection = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await inspection.RefreshImagesCommand.ExecuteAsync(null);
         var editor = new RecipeEditorViewModel(recipes, store, new()) { Name = "검사ä" };
         await editor.RefreshCommand.ExecuteAsync(null);
@@ -335,7 +345,7 @@ public sealed class InspectionTeachingTests
         store.SaveRecipe(recipe, images: [new(1, png), new(2, png), new(3, png), new(4, png)]);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         await VirtualTestSupport.RunOnStaAsync(() =>
         {
@@ -537,7 +547,7 @@ public sealed class InspectionTeachingTests
         var png = await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
         Assert.Same(recipes.Current, editor.Preview.Recipe);
@@ -616,7 +626,7 @@ public sealed class InspectionTeachingTests
         await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
@@ -653,12 +663,12 @@ public sealed class InspectionTeachingTests
         var image = new PcbInspectionImage(VirtualTestSupport.BoltId(1), DateTimeOffset.Now, new(2, 2, 10, 10), false, null, 0, 0.5, png);
         store.SavePcb(databaseFile, record);
         store.SavePcbImage(databaseFile, record.Number, image);
-        var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new() { Directory = directory },
+        var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new() { Directory = directory },
             NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
-        await editor.RefreshHistoryCommand.ExecuteAsync(null);
+        await editor.Results.RefreshHistoryCommand.ExecuteAsync(null);
         editor.SelectedTab = InspectionTeachingTab.History;
-        editor.SelectedRecord = Assert.Single(editor.Records);
+        editor.Results.SelectedRecord = Assert.Single(editor.Results.Records);
         await editor.LoadRecordCommand.ExecutionTask!;
         Assert.Null(editor.Error);
         Assert.NotNull(editor.HistoryImageTarget);
@@ -691,7 +701,7 @@ public sealed class InspectionTeachingTests
         Assert.False(editor.Preview.HasImage);
         Assert.False(editor.IsInspectAllowed);
 
-        editor.SelectedRecord = editor.SelectedRecord! with { DatabaseFile = Path.Combine(directory, "missing.db") };
+        editor.Results.SelectedRecord = editor.Results.SelectedRecord! with { DatabaseFile = Path.Combine(directory, "missing.db") };
         await editor.LoadRecordCommand.ExecutionTask!;
         Assert.NotNull(editor.Error);
         Assert.Null(editor.LoadedRecord);
@@ -707,7 +717,7 @@ public sealed class InspectionTeachingTests
         await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         editor.SelectedPoint = editor.Points.Single(point => point.Bolt?.Id == VirtualTestSupport.BoltId(1));
         editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
@@ -742,7 +752,7 @@ public sealed class InspectionTeachingTests
         await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
         editor.DataMatrix!.ThresholdMinimum = 73;
@@ -796,7 +806,7 @@ public sealed class InspectionTeachingTests
         recipes.Current.BoltInspection.DataMatrix1.ThresholdMinimum = 73;
         await recipes.SaveAsync("Other");
         await recipes.LoadAsync("Inspection");
-        var editor = new InspectionTeachingViewModel(store, recipes,
+        var editor = CreateEditor(store, recipes,
             new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(),
             NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
@@ -826,7 +836,7 @@ public sealed class InspectionTeachingTests
         await SaveRecipeAsync(store, 0);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var editor = new InspectionTeachingViewModel(store, recipes,
+        var editor = CreateEditor(store, recipes,
             new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(),
             NullLogger<InspectionTeachingViewModel>.Instance);
         var paused = new VirtualTestSupport.PausedSynchronizationContext();
@@ -875,7 +885,7 @@ public sealed class InspectionTeachingTests
         await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var editor = new InspectionTeachingViewModel(store, recipes,
+        var editor = CreateEditor(store, recipes,
             new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(),
             NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
@@ -992,7 +1002,8 @@ public sealed class InspectionTeachingTests
         try
         {
             SynchronizationContext.SetSynchronizationContext(paused);
-            editor.SelectedRecord = record;
+            editor.SelectedTab = InspectionTeachingTab.History;
+            editor.Results.SelectedRecord = record;
         }
         finally
         {
@@ -1003,7 +1014,7 @@ public sealed class InspectionTeachingTests
         try
         {
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
-            editor.SelectedRecord = next;
+            editor.Results.SelectedRecord = next;
             var latest = editor.LoadRecordCommand.ExecutionTask!;
             Assert.True(await VirtualTestSupport.WaitUntilAsync(() => editor.LoadedRecord == next, TimeSpan.FromSeconds(2)));
             Assert.False(pending.IsCompleted);
@@ -1038,9 +1049,9 @@ public sealed class InspectionTeachingTests
             DatabaseFile = Path.Combine(directory, "PCB-2026-09.db"),
         };
         store.SavePcb(record.DatabaseFile, record);
-        foreach (var load in new[] { editor.RefreshHistoryCommand, editor.LoadRecordCommand })
+        foreach (var load in new[] { editor.Results.RefreshHistoryCommand, editor.LoadRecordCommand })
         {
-            editor.HistoryDirectory = directory;
+            editor.Results.HistoryDirectory = directory;
             var context = new VirtualTestSupport.PausedSynchronizationContext();
             var previous = SynchronizationContext.Current;
             Task pending;
@@ -1049,7 +1060,8 @@ public sealed class InspectionTeachingTests
                 SynchronizationContext.SetSynchronizationContext(context);
                 if (load == editor.LoadRecordCommand)
                 {
-                    editor.SelectedRecord = record;
+                    editor.SelectedTab = InspectionTeachingTab.History;
+                    editor.Results.SelectedRecord = record;
                     pending = load.ExecutionTask!;
                 }
                 else
@@ -1064,12 +1076,12 @@ public sealed class InspectionTeachingTests
             try
             {
                 Assert.True(await VirtualTestSupport.WaitUntilAsync(() => context.HasPending, TimeSpan.FromSeconds(2)));
-                editor.HistoryDirectory = Path.Combine(directory, "other");
+                editor.Results.HistoryDirectory = Path.Combine(directory, "other");
                 context.Release();
                 await pending.WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.Empty(editor.Records);
+                Assert.Empty(editor.Results.Records);
                 Assert.Null(editor.LoadedRecord);
-                Assert.Null(editor.SelectedRecord);
+                Assert.Null(editor.Results.SelectedRecord);
                 Assert.Empty(editor.HistoryImages);
                 Assert.Null(editor.Error);
             }

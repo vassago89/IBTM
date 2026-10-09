@@ -104,11 +104,13 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             var controller = _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
             var values = new ushort[AdcFasteningResult.RegisterCount];
             var samplingCode = (ushort)1;
+            var angleChannel = false;
             lock (controller)
             {
                 for (var index = 0; index < values.Length; index++)
                     values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
                 samplingCode = controller.Registers.GetValueOrDefault((ushort)4103, (ushort)1);
+                angleChannel = controller.Registers.GetValueOrDefault((ushort)4102) == 4;
             }
             var result = AdcFasteningResult.FromRegisters(values);
             var sampleMilliseconds = samplingCode switch
@@ -122,7 +124,11 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             var samples = Enumerable.Range(0, (FasteningMilliseconds + sampleMilliseconds - 1) / sampleMilliseconds)
                 .Select(index => result.Torque * Math.Min(1.0, index * sampleMilliseconds / 200.0)).ToArray();
             Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), sampleMilliseconds, samples,
-                result.FasteningTimeMilliseconds, result.TargetTorque, result.Torque, result.ScrewCount, result.Error));
+                result.FasteningTimeMilliseconds, result.TargetTorque, result.Torque, result.ScrewCount, result.Error)
+            {
+                Angles = angleChannel ? Enumerable.Range(0, samples.Length)
+                    .Select(index => result.Angle3 * index * sampleMilliseconds / FasteningMilliseconds).ToArray() : null,
+            });
         }
         return Task.FromResult(response);
     }

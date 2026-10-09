@@ -125,6 +125,7 @@ public sealed class AdcProtocolTests
         Assert.True((await status).Status?.Ready);
         Assert.NotNull(curve);
         Assert.Equal(new double[] { -0.25, 0.5, 1.2 }, curve.Torques);
+        Assert.Null(curve.Angles);
         Assert.Equal(10, curve.SampleMilliseconds);
         Assert.Equal(250, curve.FasteningMilliseconds);
         Assert.Equal(1.25, curve.TargetTorque);
@@ -351,13 +352,14 @@ public sealed class AdcProtocolTests
         bus.Monitor.BeginTorqueCurveCapture();
         AdcTorqueCurve? curve = null;
         bus.Monitor.TorqueCurveReceived += received => curve = received;
-        int[] words = [3, 1, 1, 1, 200, 1500, 100, 90, 1000, 0, 0, 0, 0, 1, 0,
-            .. Enumerable.Repeat(1000, 200), .. Enumerable.Repeat(90, 200)];
+        int[] words = [4, 1, 1, 1, 200, 1500, 100, 90, 1000, 0, 0, 0, 0, 1, 0,
+            .. Enumerable.Range(0, 200).Select(index => index * 90), .. Enumerable.Repeat(90, 200)];
         for (byte block = 0; block < 5; block++)
             transport.Receive(GraphBlock(5, (byte)(block + 1), words.Skip(block * 100).Take(100).ToArray()));
         Assert.NotNull(curve);
         Assert.Equal(200, curve.Torques.Length);
         Assert.All(curve.Torques, torque => Assert.Equal(0.9, torque));
+        Assert.Equal(Enumerable.Range(0, 200).Select(index => index * 90d), curve.Angles);
         Assert.Equal(500, curve.StartMilliseconds);
     }
 
@@ -379,6 +381,8 @@ public sealed class AdcProtocolTests
         Assert.NotNull(curve);
         Assert.Equal(sampleMilliseconds, curve.SampleMilliseconds);
         Assert.Equal(sampleCount, curve.Torques.Length);
+        Assert.NotNull(curve.Angles);
+        Assert.Equal(sampleCount, curve.Angles.Length);
         Assert.Equal(0, curve.StartMilliseconds);
     }
 
@@ -394,8 +398,8 @@ public sealed class AdcProtocolTests
         bus.Monitor.BeginTorqueCurveCapture();
         AdcTorqueCurve? curve = null;
         bus.Monitor.TorqueCurveReceived += received => curve = received;
-        int[] words = [1, 0, 4, 1, sampleCount, fasteningMilliseconds, 800, 809, 200, 0, 0, 0, 0, 1, 0,
-            .. Enumerable.Range(0, sampleCount)];
+        int[] words = [1, 4, 4, 1, sampleCount, fasteningMilliseconds, 800, 809, 200, 0, 0, 0, 0, 1, 0,
+            .. Enumerable.Range(0, sampleCount), .. Enumerable.Range(0, sampleCount).Select(index => index * 90)];
         var blocks = words.Chunk(100).ToArray();
         var request = bus.RequestTorqueCurveAsync(0);
         for (var block = 0; block < blocks.Length; block++)
@@ -411,7 +415,15 @@ public sealed class AdcProtocolTests
         Assert.Equal(sampleCount, curve.Torques.Length);
         Assert.Equal(0, curve.Torques[0]);
         Assert.Equal((sampleCount - 1) / 100.0, curve.Torques[^1]);
+        Assert.Equal(Enumerable.Range(0, sampleCount).Select(index => index * 90d), curve.Angles);
         Assert.Equal(expectedStart, curve.StartMilliseconds);
+    }
+
+    [Fact]
+    public void AdcGraphRejectsIncompleteAngleChannel()
+    {
+        Assert.Throws<InvalidDataException>(() => AdcTorqueCurve.FromRegisters(
+            [1, 4, 4, 1, 2, 60, 800, 809, 200, 0, 0, 0, 0, 1, 0, 100, 809, 90], 1));
     }
 
     [Fact]
@@ -635,7 +647,7 @@ public sealed class AdcProtocolTests
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
-        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 0), (4103, 4), (4104, 1) }, bus.RegisterWrites);
+        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 4), (4103, 4), (4104, 1) }, bus.RegisterWrites);
         Assert.Equal(1, bus.GraphRequests);
         Assert.Null(bus.Monitor.TorqueCurveError);
         var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);

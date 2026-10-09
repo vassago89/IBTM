@@ -74,16 +74,27 @@ public sealed class VirtualMotionService : MotionServiceBase, IDisposable, IMoti
         MotionAxis axis,
         double position,
         double velocity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        double? accelerationSeconds = null,
+        double? decelerationSeconds = null)
     {
+        accelerationSeconds ??= axis == MotionAxis.Z
+            ? Settings.ZAccelerationSeconds ?? Settings.AccelerationSeconds : Settings.AccelerationSeconds;
+        decelerationSeconds ??= axis == MotionAxis.Z
+            ? Settings.ZDecelerationSeconds ?? Settings.DecelerationSeconds : Settings.DecelerationSeconds;
+        ValidatePositive(accelerationSeconds.Value, nameof(accelerationSeconds));
+        ValidatePositive(decelerationSeconds.Value, nameof(decelerationSeconds));
         switch (axis)
         {
             case MotionAxis.X:
-                return SimulateMoveAsync(position, _y, _z, velocity, true, cancellationToken);
+                return SimulateMoveAsync(position, _y, _z, velocity, true, cancellationToken,
+                    accelerationSeconds.Value, decelerationSeconds.Value);
             case MotionAxis.Y:
-                return SimulateMoveAsync(_x, position, _z, velocity, true, cancellationToken);
+                return SimulateMoveAsync(_x, position, _z, velocity, true, cancellationToken,
+                    accelerationSeconds.Value, decelerationSeconds.Value);
             case MotionAxis.Z:
-                return SimulateMoveAsync(_x, _y, position, velocity, false, cancellationToken);
+                return SimulateMoveAsync(_x, _y, position, velocity, false, cancellationToken,
+                    accelerationSeconds.Value, decelerationSeconds.Value);
             default:
                 throw new ArgumentOutOfRangeException(nameof(axis));
         }
@@ -190,7 +201,9 @@ public sealed class VirtualMotionService : MotionServiceBase, IDisposable, IMoti
         double z,
         double velocity,
         bool horizontal,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        double accelerationSeconds = 0,
+        double decelerationSeconds = 0)
     {
         cancellationToken.ThrowIfCancellationRequested();
         x = Quantize(x, _resolution.X);
@@ -202,7 +215,18 @@ public sealed class VirtualMotionService : MotionServiceBase, IDisposable, IMoti
         var startZ = _z;
         var distance = Math.Sqrt(
             Math.Pow(x - startX, 2) + Math.Pow(y - startY, 2) + Math.Pow(z - startZ, 2));
-        var duration = distance / velocity;
+        var peakVelocity = velocity;
+        var accelerationDuration = accelerationSeconds;
+        var decelerationDuration = decelerationSeconds;
+        if (distance > 0 && distance < velocity * (accelerationSeconds + decelerationSeconds) / 2)
+        {
+            var acceleration = velocity / accelerationSeconds;
+            var deceleration = velocity / decelerationSeconds;
+            peakVelocity = Math.Sqrt(2 * distance / (1 / acceleration + 1 / deceleration));
+            accelerationDuration = peakVelocity / acceleration;
+            decelerationDuration = peakVelocity / deceleration;
+        }
+        var duration = distance == 0 ? 0 : distance / peakVelocity + (accelerationDuration + decelerationDuration) / 2;
         var stopwatch = Stopwatch.StartNew();
 
         try
@@ -210,7 +234,13 @@ public sealed class VirtualMotionService : MotionServiceBase, IDisposable, IMoti
             while (stopwatch.Elapsed.TotalSeconds < duration)
             {
                 movement.Token.ThrowIfCancellationRequested();
-                var progress = stopwatch.Elapsed.TotalSeconds / duration;
+                var elapsed = Math.Min(stopwatch.Elapsed.TotalSeconds, duration);
+                var traveled = peakVelocity * (elapsed - accelerationDuration / 2);
+                if (elapsed < accelerationDuration)
+                    traveled = peakVelocity * elapsed * elapsed / (2 * accelerationDuration);
+                else if (elapsed > duration - decelerationDuration)
+                    traveled = distance - peakVelocity * Math.Pow(duration - elapsed, 2) / (2 * decelerationDuration);
+                var progress = distance > 0 ? Math.Clamp(traveled / distance, 0, 1) : 1;
                 SetPosition(
                     startX + ((x - startX) * progress),
                     startY + ((y - startY) * progress),

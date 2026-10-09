@@ -168,7 +168,7 @@ public sealed class AdcBoltHeadTests
         {
             fed = true;
             return Task.CompletedTask;
-        }, dryRunMilliseconds: 10);
+        }, dryRunMilliseconds: 500);
         try
         {
             Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
@@ -194,7 +194,7 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(FasteningHead.Pickup, 0)]
     [InlineData(FasteningHead.Shooting, 0)]
-    [InlineData(FasteningHead.Pickup, 20)]
+    [InlineData(FasteningHead.Pickup, 500)]
     public async Task HeadDownWaitsThroughRejectedAndRunOffFeedback(FasteningHead selected, int dryRunMilliseconds)
     {
         using var bus = new AdcControllerStub();
@@ -1324,6 +1324,48 @@ public sealed class AdcBoltHeadTests
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Theory]
+    [InlineData(500, 5000)]
+    [InlineData(1500, 5000)]
+    [InlineData(100, 300)]
+    public async Task DryRunDeadlineIncludesZFeedAndWaitsForItsStop(int feedMilliseconds, int fasteningTimeoutMilliseconds)
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new()
+        {
+            StatusPollMilliseconds = 10,
+            FasteningTimeoutMilliseconds = fasteningTimeoutMilliseconds,
+        });
+        await head.SelectPresetAsync(1);
+        var feedStopped = false;
+        var feedCanceled = false;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var started = Stopwatch.GetTimestamp();
+        var result = await head.TightenAsync(timeout.Token, async token =>
+        {
+            try
+            {
+                await Task.Delay(feedMilliseconds, token);
+            }
+            catch (OperationCanceledException)
+            {
+                feedCanceled = true;
+                throw;
+            }
+            finally
+            {
+                feedStopped = true;
+            }
+        }, dryRunMilliseconds: 600);
+
+        Assert.InRange(Stopwatch.GetElapsedTime(started).TotalMilliseconds, 550, 1000);
+        Assert.Equal(BoltResultSource.DryRun, result.Source);
+        Assert.Equal(feedMilliseconds > 600, feedCanceled);
+        Assert.True(feedStopped);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.Equal(0, bus.ResultReads);
     }
 
     [Fact]

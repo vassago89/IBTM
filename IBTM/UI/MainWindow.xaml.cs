@@ -17,6 +17,15 @@ public partial class MainWindow : Window
         windows.Owner = this;
     }
 
+    private async void OnReinspectionRequested(object? sender, System.EventArgs e)
+    {
+        if (!_viewModel.NavigateCommand.CanExecute(AppPage.Inspection))
+            return;
+        await _viewModel.NavigateCommand.ExecuteAsync(AppPage.Inspection);
+        if (_viewModel.CurrentPage is InspectionTeachingViewModel inspection)
+            inspection.SelectedTab = InspectionTeachingTab.History;
+    }
+
     protected override async void OnClosing(CancelEventArgs e)
     {
         if (_closeApproved)

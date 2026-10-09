@@ -870,7 +870,7 @@ Operation failed. Check controller status.</value>
     <value>INPUTS</value>
   </data>
   <data name="inspect this image" xml:space="preserve">
-    <value>Inspect</value>
+    <value>Inspect image</value>
   </data>
   <data name="inspecting" xml:space="preserve">
     <value>Inspecting</value>
@@ -1378,7 +1378,7 @@ Operation failed. Check controller status.</value>
     <value>ORIGINAL ADC REGISTERS · ADDRESS : HEX</value>
   </data>
   <data name="original · edit roi" xml:space="preserve">
-    <value>Original / ROI</value>
+    <value>Original · inspection area</value>
   </data>
   <data name="output" xml:space="preserve">
     <value>OUTPUT</value>
@@ -1817,7 +1817,7 @@ Operation failed. Check controller status.</value>
     <value>Record Z</value>
   </data>
   <data name="recorded {0} · {1}" xml:space="preserve">
-    <value>Recorded {0} · {1}</value>
+    <value>Saved result {0} · {1}</value>
   </data>
   <data name="recording cancelled; point not saved. record again." xml:space="preserve">
     <value>Recording cancelled · position not saved</value>
@@ -3311,16 +3311,13 @@ COMPLETE: finish</value>
     <value>Edits apply immediately. Save to keep them.</value>
   </data>
   <data name="history reinspection" xml:space="preserve">
-    <value>History</value>
+    <value>Reinspection</value>
   </data>
-  <data name="barcode / pcb / recipe" xml:space="preserve">
-    <value>Barcode / PCB / recipe</value>
+  <data name="barcode" xml:space="preserve">
+    <value>Barcode</value>
   </data>
   <data name="production date" xml:space="preserve">
     <value>Production date</value>
-  </data>
-  <data name="search loaded records · use load older for earlier results" xml:space="preserve">
-    <value>Search loaded records · load more for older records</value>
   </data>
   <data name="no matching pcb records" xml:space="preserve">
     <value>No matching records</value>
@@ -3379,8 +3376,8 @@ COMPLETE: finish</value>
   <data name="final tightening position is not ready." xml:space="preserve">
     <value>Final tightening position is not ready.</value>
   </data>
-  <data name="final tightening head or table feedback was lost." xml:space="preserve">
-    <value>Final tightening head or table feedback was lost.</value>
+  <data name="fastening head or table feedback was lost." xml:space="preserve">
+    <value>Fastening head or table feedback was lost.</value>
   </data>
   <data name="preset change delay (ms)" xml:space="preserve">
     <value>Preset change delay (ms)</value>
@@ -3483,8 +3480,9 @@ Rotation and grip unchanged</value>
   <data name="raise both heads / table" xml:space="preserve">
     <value>Raise heads / table</value>
   </data>
-  <data name="torque curves" xml:space="preserve"><value>Torque curves</value></data>
-  <data name="carrier work {0}" xml:space="preserve"><value>Carrier work {0}</value></data>
+  <data name="torque curves" xml:space="preserve"><value>Torque / angle graphs</value></data>
+  <data name="angle (°)" xml:space="preserve"><value>Angle (°)</value></data>
+  <data name="no angle curve" xml:space="preserve"><value>No angle data</value></data>
   <data name="graph" xml:space="preserve"><value>Graph</value></data>
   <data name="no torque curve" xml:space="preserve"><value>No curve data</value></data>
   <data name="torque compensation not recorded" xml:space="preserve"><value>Torque compensation not recorded</value></data>
@@ -3492,7 +3490,7 @@ Rotation and grip unchanged</value>
   <data name="invalid adc torque curve data" xml:space="preserve"><value>Invalid ADC torque curve data</value></data>
   <data name="request adc graph" xml:space="preserve"><value>Request ADC Graph</value></data>
   <data name="torque (controller unit)" xml:space="preserve"><value>Torque (controller unit)</value></data>
-  <data name="curve covers only part of the fastening time" xml:space="preserve"><value>Only part of the fastening captured</value></data>
+  <data name="no samples before {0} ms" xml:space="preserve"><value>No samples: 0–{0} ms</value></data>
   <data name="{0} ms · {1} samples" xml:space="preserve"><value>{0} ms · {1} samples</value></data>
   <data name="torque curve sampling" xml:space="preserve"><value>Torque curve sampling</value></data>
   <data name="5 ms · up to 1 s" xml:space="preserve"><value>5 ms · up to 1 s</value></data>
@@ -3572,6 +3570,9 @@ Rotation and grip unchanged</value>
   <data name="z feed time (s)" xml:space="preserve">
     <value>Z feed time (s)</value>
   </data>
+  <data name="z feed distance (mm)" xml:space="preserve">
+    <value>Z feed distance (mm)</value>
+  </data>
   <data name="shooting final tightening" xml:space="preserve">
     <value>Shooting final tightening</value>
   </data>
@@ -3581,10 +3582,31 @@ Rotation and grip unchanged</value>
   <data name="pickup pre-tightening preset" xml:space="preserve">
     <value>Pickup pre-tightening preset</value>
   </data>
-  <data name="shooting final tightening preset" xml:space="preserve">
-    <value>Shooting final tightening preset</value>
+  <data name="shooting ipm final preset" xml:space="preserve">
+    <value>Shooting IPM final preset</value>
   </data>
-  <data name="pickup 1 → 2 · shooting 2 → 1 → 1" xml:space="preserve">
-    <value>Pickup 1 → 2 · Shooting 2 → 1 → 1</value>
+  <data name="shooting pcb final preset" xml:space="preserve">
+    <value>Shooting PCB final preset</value>
   </data>
+  <data name="pre-tighten all → final 2 → 1 → 1 per pcb" xml:space="preserve">
+    <value>Pre-tighten all → final 2 → 1 → 1 per PCB</value>
+  </data>
+  <data name="fastening z acceleration (s)" xml:space="preserve">
+    <value>Fastening Z acceleration (s)</value>
+  </data>
+  <data name="fastening z deceleration (s)" xml:space="preserve">
+    <value>Fastening Z deceleration (s)</value>
+  </data>
+  <data name="blank = z axis setting" xml:space="preserve">
+    <value>Blank = Z axis setting</value>
+  </data>
+  <data name="results" xml:space="preserve"><value>Results</value></data>
+  <data name="details" xml:space="preserve"><value>Details</value></data>
+  <data name="select a pcb in results" xml:space="preserve"><value>Select a PCB in Results</value></data>
+  <data name="reinspect" xml:space="preserve"><value>Reinspect</value></data>
+  <data name="double-click a row or press enter" xml:space="preserve"><value>Double-click a row or press Enter</value></data>
+  <data name="matches {0} · total {1}" xml:space="preserve"><value>Showing {0} · total {1}</value></data>
+  <data name="clear filters" xml:space="preserve"><value>Clear filters</value></data>
+  <data name="save settings" xml:space="preserve"><value>Save settings</value></data>
+  <data name="reinspection result" xml:space="preserve"><value>Reinspection result</value></data>
 </root>

@@ -13,10 +13,6 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM.BoltFastening;
 
-public sealed record FasteningTorqueCurve(
-    Guid BoltId, string BoltName, HeatSinkSlot HeatSink, FasteningHead Head,
-    BoltResult Result);
-
 public sealed class BoltFasteningStation : AutoUnit
 {
     private readonly BoltFeederUnit _feeder;
@@ -73,7 +69,6 @@ public sealed class BoltFasteningStation : AutoUnit
         _units = units;
         _log = log;
         Motion = motionStatus;
-        TorqueCurves = [];
         InitializeRecipeBoltPositions();
         recipes.Changed += InitializeRecipeBoltPositions;
         station.Changed += NotifyChanged;
@@ -84,10 +79,6 @@ public sealed class BoltFasteningStation : AutoUnit
     public IBoltHead PickupHead { get; }
 
     public ConveyorStation Station { get; }
-
-    // The overview shows the latest carrier; PCB history owns each result and its curve.
-    public long? TorqueCurveJobId { get; private set; }
-    public IReadOnlyList<FasteningTorqueCurve> TorqueCurves { get; private set; }
 
     private bool IsReadyToFasten => Station.CarrierSeated && !Station.Completed;
 
@@ -266,11 +257,11 @@ public sealed class BoltFasteningStation : AutoUnit
                 var runBolts = _recipes.Current.Pcb.BoltPoints.Where(bolt =>
                     selectedBolts is null || continueAfterSelection || selectedBolts.Contains(bolt.Id)).ToArray();
                 if (_units.ShootingBoltFeeder && runBolts.Any(bolt => bolt.Head == FasteningHead.Shooting))
-                    torqueCompensations[(FasteningHead.Shooting, 1)] =
-                        await ShootingHead.ReadTorqueCompensationAsync(1, cancellationToken);
+                    torqueCompensations[(FasteningHead.Shooting, _settings.ShootingPcbPreset)] =
+                        await ShootingHead.ReadTorqueCompensationAsync(_settings.ShootingPcbPreset, cancellationToken);
                 if (_units.PickupBoltFeeder && runBolts.Any(bolt => bolt.Head == FasteningHead.Pickup))
                 {
-                    var finalPreset = _settings.PickupFinalPreset;
+                    var finalPreset = _settings.ShootingIpmPreset;
                     if (!torqueCompensations.ContainsKey((FasteningHead.Shooting, finalPreset)))
                         torqueCompensations[(FasteningHead.Shooting, finalPreset)] =
                             await ShootingHead.ReadTorqueCompensationAsync(finalPreset, cancellationToken);
@@ -439,35 +430,41 @@ public sealed class BoltFasteningStation : AutoUnit
                         .Where(bolt => _runTargets.Contains(bolt.HeatSink)
                             && (selectedBolts is null || selectedBolts.Contains(bolt.Id)));
                     var work = new List<(BoltPoint Bolt, BoltFasteningStage Stage)>();
-                    foreach (var group in selected.GroupBy(bolt => (bolt.Head, bolt.HeatSink)))
+                    foreach (var group in selected.GroupBy(bolt => bolt.Head))
                     {
-                        if (group.Key.Head == FasteningHead.Shooting)
+                        if (group.Key == FasteningHead.Shooting)
                         {
                             work.AddRange(group.Select(point => (point, BoltFasteningStage.Single)));
                             continue;
                         }
-                        var pickupResults = Station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == group.Key.HeatSink)?.PickupBoltResults;
-                        var retighteningBolt = recipeBolts.First(point => point.Head == group.Key.Head
-                            && point.HeatSink == group.Key.HeatSink).Id;
+                        // Finish pickup pre-tightening on every loaded PCB before changing to shooting.
                         foreach (var point in group)
                         {
-                            if (selectedBolts is not null && pickupResults?.GetValueOrDefault(point.Id) is
-                                { Stage: BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening })
+                            if (selectedBolts is not null
+                                && Station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == point.HeatSink)
+                                    ?.PickupBoltResults.GetValueOrDefault(point.Id) is
+                                        { Stage: BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening })
                                 continue;
                             work.Add((point, BoltFasteningStage.Preliminary));
                         }
-                        foreach (var point in group.Reverse())
+                        foreach (var heatSink in group.GroupBy(point => point.HeatSink))
                         {
-                            if (selectedBolts is not null
-                                && pickupResults?.GetValueOrDefault(point.Id) is { Stage: BoltFasteningStage.FinalBeforeRetightening })
+                            var pickupResults = Station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == heatSink.Key)?.PickupBoltResults;
+                            var retighteningBolt = recipeBolts.First(point => point.Head == group.Key
+                                && point.HeatSink == heatSink.Key).Id;
+                            foreach (var point in heatSink.Reverse())
                             {
-                                work.Add((point, BoltFasteningStage.Retightening));
-                                continue;
+                                if (selectedBolts is not null
+                                    && pickupResults?.GetValueOrDefault(point.Id) is { Stage: BoltFasteningStage.FinalBeforeRetightening })
+                                {
+                                    work.Add((point, BoltFasteningStage.Retightening));
+                                    continue;
+                                }
+                                work.Add((point, point.Id == retighteningBolt
+                                    ? BoltFasteningStage.FinalBeforeRetightening : BoltFasteningStage.Final));
+                                if (point.Id == retighteningBolt)
+                                    work.Add((point, BoltFasteningStage.Retightening));
                             }
-                            work.Add((point, point.Id == retighteningBolt
-                                ? BoltFasteningStage.FinalBeforeRetightening : BoltFasteningStage.Final));
-                            if (point.Id == retighteningBolt)
-                                work.Add((point, BoltFasteningStage.Retightening));
                         }
                     }
                     _runBolts = work.ToArray();
@@ -476,7 +473,8 @@ public sealed class BoltFasteningStation : AutoUnit
                     CheckCarrier();
                     if (_settings.MonitorTorqueCurves)
                     {
-                        if (_units.PickupBoltFeeder && work.Any(item => item.Bolt.Head == FasteningHead.Pickup)
+                        if (_units.PickupBoltFeeder && work.Any(item => item.Bolt.Head == FasteningHead.Pickup
+                                && item.Stage == BoltFasteningStage.Preliminary)
                             && PickupHead.Monitor is { } pickupMonitor)
                             await pickupMonitor.SetTorqueCurveMonitoringAsync(
                                 true, _carrierOperation.Token, _settings.TorqueCurveSampling);
@@ -754,6 +752,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     AdcTorqueCurve? torqueCurve = null;
                     string? torqueCurveError = null;
                     Exception? fasteningFailure = null;
+                    double? feedStartZ = null;
                     var tighteningStarted = false;
                     void TrackStart(OutputIo output, bool on)
                     {
@@ -778,9 +777,9 @@ public sealed class BoltFasteningStation : AutoUnit
                             _ => throw new ArgumentOutOfRangeException(nameof(bolt.Head)),
                         };
                         var started = Stopwatch.GetTimestamp();
-                        var preset = bolt.Head == FasteningHead.Shooting ? (ushort)1
+                        var preset = bolt.Head == FasteningHead.Shooting ? _settings.ShootingPcbPreset
                             : stage == BoltFasteningStage.Preliminary
-                                ? _settings.PickupPreliminaryPreset : _settings.PickupFinalPreset;
+                                ? _settings.PickupPreliminaryPreset : _settings.ShootingIpmPreset;
                         await head.SelectPresetAsync(preset, token);
                         _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
                             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
@@ -799,14 +798,23 @@ public sealed class BoltFasteningStation : AutoUnit
                                     OperationCancellation.CancelIfNotDisposed(fastening);
                             }
 
-                            var feedStartZ = _motion.Position.Z;
+                            feedStartZ = _motion.Position.Z;
                             Task FeedZAsync(CancellationToken feedToken)
                             {
                                 feedToken.ThrowIfCancellationRequested();
-                                _log?.LogInformation("Bolt {Bolt}, {Head}: RUN ON; Z feed +{Distance} mm, {Seconds} s, speed={Speed} mm/s.",
-                                    bolt.Id, toolHead, feedDistance, feedSeconds, feedDistance / feedSeconds);
-                                return _motion.MoveAxisAsync(MotionAxis.Z, feedStartZ + feedDistance,
-                                    feedDistance / feedSeconds, feedToken);
+                                var accelerationSeconds = _settings.FeedAccelerationSeconds
+                                    ?? _settings.Motion.ZAccelerationSeconds ?? _settings.Motion.AccelerationSeconds;
+                                var decelerationSeconds = _settings.FeedDecelerationSeconds
+                                    ?? _settings.Motion.ZDecelerationSeconds ?? _settings.Motion.DecelerationSeconds;
+                                var rampSeconds = accelerationSeconds + decelerationSeconds;
+                                // Keep the configured ramp times. Short moves form a triangle below the commanded speed.
+                                var velocity = feedSeconds < rampSeconds
+                                    ? 2 * feedDistance * rampSeconds / (feedSeconds * feedSeconds)
+                                    : feedDistance / (feedSeconds - rampSeconds / 2);
+                                _log?.LogInformation("Bolt {Bolt}, {Head}: RUN ON; Z feed +{Distance} mm in {Seconds} s; speed={Speed} mm/s including acceleration/deceleration.",
+                                    bolt.Id, toolHead, feedDistance, feedSeconds, velocity);
+                                return _motion.MoveAxisAsync(MotionAxis.Z, feedStartZ.Value + feedDistance,
+                                    velocity, feedToken, accelerationSeconds, decelerationSeconds);
                             }
 
                             Changed += CheckFasteningFeedback;
@@ -839,7 +847,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 };
                                 _log?.LogInformation(
                                     "Bolt {Head}, {HeatSink}, point {Bolt}: cycle completed; success={Success}, source={Source}, error={Error}.",
-                                    bolt.Head, bolt.HeatSink, bolt.Id, completed.Success, completed.Source, completed.Error);
+                                    toolHead, bolt.HeatSink, bolt.Id, completed.Success, completed.Source, completed.Error);
                                 Station.RequireCurrentJob(job);
                                 result = completed;
                                 if (_settings.MonitorTorqueCurves && dryRunMilliseconds == 0
@@ -860,9 +868,7 @@ public sealed class BoltFasteningStation : AutoUnit
                             }
                             catch (OperationCanceledException) when (fastening.IsCancellationRequested && !token.IsCancellationRequested)
                             {
-                                throw new MotionInterlockException(isFinal
-                                    ? UiText.Get("Final tightening head or table feedback was lost.")
-                                    : "Keep the pickup table raised during shooting fastening.");
+                                throw new MotionInterlockException(UiText.Get("Fastening head or table feedback was lost."));
                             }
                             finally
                             {
@@ -886,6 +892,7 @@ public sealed class BoltFasteningStation : AutoUnit
                             var nextShootingBolt = toolHead == FasteningHead.Shooting && _units.ShootingBoltFeeder
                                 && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
                             var safeZ = toolHead == FasteningHead.Shooting && nextBolt is { Head: FasteningHead.Pickup }
+                                && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Preliminary
                                 ? _settings.SafeZ : _settings.GetSafeZ(toolHead);
                             await ClearHeadAsync(toolHead, safeZ, token, nextShootingBolt);
                         }
@@ -903,11 +910,26 @@ public sealed class BoltFasteningStation : AutoUnit
                         try
                         {
                             if (result is null && tighteningStarted)
+                            {
                                 result = new(false, null, BoltResultSource.Interrupted)
                                 {
                                     RecordedAt = DateTimeOffset.Now,
                                     Error = "Remove interrupted bolts and confirm rework before starting.",
                                 };
+                                if (feedStartZ is { } startZ)
+                                {
+                                    try
+                                    {
+                                        result = result with { ZFeedDistance = _motion.Position.Z - startZ };
+                                    }
+                                    catch (Exception positionError)
+                                    {
+                                        // Keep the interrupted result even when current position cannot be read.
+                                        result = result with { Error = $"{result.Error} Z: {positionError.Message}" };
+                                        _log?.LogWarning(positionError, "Bolt {Bolt}: interrupted Z feed distance unavailable.", bolt.Id);
+                                    }
+                                }
+                            }
                             if (result is not null)
                             {
                                 result = result with
@@ -923,14 +945,6 @@ public sealed class BoltFasteningStation : AutoUnit
                                 };
                                 var recordStarted = Stopwatch.GetTimestamp();
                                 assembly.RecordBolt(bolt.Head, bolt.Id, result);
-                                if (TorqueCurveJobId != job.Id)
-                                {
-                                    TorqueCurveJobId = job.Id;
-                                    TorqueCurves = [];
-                                }
-                                TorqueCurves = [.. TorqueCurves.Where(row => row.BoltId != bolt.Id || row.Result.Stage != stage),
-                                    new(bolt.Id, _recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, toolHead,
-                                        result)];
                                 resultReceived?.Invoke(bolt, result);
                                 _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}, minimum={MinimumTurns}, maximum={MaximumTurns}, turns result={TurnsResult}.",
                                     bolt.Id, result.Success, result.TotalTurns, result.MinimumTurns, result.MaximumTurns, result.TurnsResult);

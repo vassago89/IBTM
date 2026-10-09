@@ -291,6 +291,8 @@ public static class MachineTestSupport
         public IXyMotion Motion { get; set; } = null!;
         public MotionAxis? LastMovedAxis { get; private set; }
         public double? LastMoveVelocity { get; private set; }
+        public double? LastMoveAccelerationSeconds { get; private set; }
+        public double? LastMoveDecelerationSeconds { get; private set; }
         public List<(MotionAxis Axis, double Position)> AxisMoves { get; }
 
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
@@ -318,6 +320,8 @@ public static class MachineTestSupport
             if (method.Name == nameof(IAxisMotion.MoveAxisAsync))
             {
                 LastMovedAxis = (MotionAxis)arguments![0]!;
+                LastMoveAccelerationSeconds = (double?)arguments[4];
+                LastMoveDecelerationSeconds = (double?)arguments[5];
                 AxisMoves.Add(((MotionAxis)arguments![0]!, (double)arguments[1]!));
             }
             if (method.Name is nameof(IAxisMotion.MoveAxisAsync) or nameof(IXyMotion.MoveToXYAsync))

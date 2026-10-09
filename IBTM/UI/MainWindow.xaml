@@ -42,6 +42,9 @@
         <DataTemplate DataType="{x:Type ui:InspectionTeachingViewModel}">
             <ui:InspectionTeachingView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type ui:ResultsViewModel}">
+            <ui:ResultsView ReinspectionRequested="OnReinspectionRequested"/>
+        </DataTemplate>
         <DataTemplate DataType="{x:Type ui:SettingsViewModel}">
             <ui:SettingsView/>
         </DataTemplate>
@@ -111,6 +114,18 @@
                             <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.Inspection}">
+                                        <Setter Property="Tag" Value="Selected"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="{ui:Text 'Results'}" Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static ui:AppPage.Results}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.Results}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>

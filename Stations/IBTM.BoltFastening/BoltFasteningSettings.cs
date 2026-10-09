@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -19,6 +20,27 @@ public sealed class BoltFasteningSettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
+    // Unset preserves the existing Z motion times.
+    public double? FeedAccelerationSeconds
+    {
+        get;
+        set
+        {
+            if (value is { } seconds && (!double.IsFinite(seconds) || seconds <= 0))
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a positive finite acceleration time.");
+            field = value;
+        }
+    }
+    public double? FeedDecelerationSeconds
+    {
+        get;
+        set
+        {
+            if (value is { } seconds && (!double.IsFinite(seconds) || seconds <= 0))
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a positive finite deceleration time.");
+            field = value;
+        }
+    }
     public FasteningHead FirstFasteningHead
     {
         get;
@@ -39,7 +61,19 @@ public sealed class BoltFasteningSettings : Setting
             field = value;
         }
     } = 2;
-    public ushort PickupFinalPreset
+    [JsonPropertyName("PickupFinalPreset")]
+    public ushort ShootingIpmPreset
+    {
+        get;
+        set
+        {
+            if (value is < 1 or > 3)
+                throw new ArgumentOutOfRangeException(nameof(value), "IO bolt presets are 1, 2 and 3.");
+            field = value;
+        }
+    } = 1;
+
+    public ushort ShootingPcbPreset
     {
         get;
         set

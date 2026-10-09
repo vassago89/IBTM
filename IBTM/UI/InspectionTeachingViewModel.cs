@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,7 +22,6 @@ public enum InspectionTeachingTab
 // Offline image/recipe editing. This page has no camera, motion or I/O ownership.
 public partial class InspectionTeachingViewModel : ObservableObject
 {
-    private readonly MachineStore _store;
     private readonly RecipeManager _recipes;
     private readonly ILogger<InspectionTeachingViewModel> _log;
     private readonly IAsyncRelayCommand[] _commands;
@@ -31,10 +29,11 @@ public partial class InspectionTeachingViewModel : ObservableObject
     private IReadOnlyList<RecipeImageItem> _carrierImages;
     private bool _shuttingDown;
 
-    public InspectionTeachingViewModel(MachineStore store, RecipeManager recipes, InspectionImageLoader images,
-        PcbHistorySettings history, ILogger<InspectionTeachingViewModel> log)
+    public InspectionTeachingViewModel(RecipeManager recipes, InspectionImageLoader images,
+        ResultsViewModel results, ILogger<InspectionTeachingViewModel> log)
     {
-        _store = store;
+        Results = results;
+        results.PropertyChanged += OnResultsChanged;
         _recipes = recipes;
         _log = log;
         _images = images;
@@ -42,40 +41,28 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Preview = new(recipes.Current);
         Points = [];
         HistoryImages = [];
-        Records = [];
         RefreshImagesCommand = new AsyncRelayCommand(RefreshImagesAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         InspectCommand = new AsyncRelayCommand(InspectAsync);
-        RefreshHistoryCommand = new AsyncRelayCommand(RefreshHistoryAsync);
-        LoadOlderCommand = new AsyncRelayCommand(LoadOlderAsync);
         LoadRecordCommand = new AsyncRelayCommand(LoadRecordAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         DrawRegionCommand = new RelayCommand<Rect>(DrawRegion);
-        ClearHistoryFilterCommand = new RelayCommand(ClearHistoryFilter);
         ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
-        _commands = [RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
+        _commands = [RefreshImagesCommand, SaveCommand, InspectCommand, LoadRecordCommand];
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
-        HistoryDirectory = history.Directory;
         recipes.Changed += OnRecipeChanged;
     }
 
+    public ResultsViewModel Results { get; }
     public InspectionPreviewViewModel Preview { get; }
-    public ObservableCollection<PcbRecord> Records { get; }
-    public IReadOnlyList<PcbRecord> FilteredRecords => Records.Where(MatchesHistoryRecord).ToArray();
     public IAsyncRelayCommand RefreshImagesCommand { get; }
     public IAsyncRelayCommand SaveCommand { get; }
     public IAsyncRelayCommand InspectCommand { get; }
-    public IAsyncRelayCommand RefreshHistoryCommand { get; }
-    public IAsyncRelayCommand LoadOlderCommand { get; }
     public IAsyncRelayCommand LoadRecordCommand { get; }
     public IRelayCommand<Rect> DrawRegionCommand { get; }
-    public IRelayCommand ClearHistoryFilterCommand { get; }
     public IRelayCommand ShowRecipeImageCommand { get; }
 
     [ObservableProperty] public partial InspectionTeachingTab SelectedTab { get; set; }
-    [ObservableProperty] public partial DateTime? HistoryDate { get; set; }
-    [ObservableProperty] public partial string? HistorySearch { get; set; }
-    [ObservableProperty] public partial AssemblyResult? HistoryResult { get; set; }
     [ObservableProperty] public partial IReadOnlyList<InspectionPoint> Points { get; private set; }
     [ObservableProperty] public partial InspectionPoint? SelectedPoint { get; set; }
     [ObservableProperty] public partial string? Error { get; private set; }
@@ -86,9 +73,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(OriginalResult))]
     public partial PcbInspectionImageItem? OriginalImage { get; private set; }
     [ObservableProperty] public partial bool IsLoaded { get; private set; }
-    [ObservableProperty] public partial string HistoryDirectory { get; set; }
-    [ObservableProperty] public partial bool HasOlder { get; private set; } = true;
-    [ObservableProperty] public partial PcbRecord? SelectedRecord { get; set; }
     [ObservableProperty] public partial PcbRecord? LoadedRecord { get; private set; }
     [ObservableProperty] public partial IReadOnlyList<PcbInspectionImageItem> HistoryImages { get; private set; }
     [ObservableProperty]
@@ -130,6 +114,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         _shuttingDown = true;
         _recipes.Changed -= OnRecipeChanged;
+        Results.PropertyChanged -= OnResultsChanged;
         OnPropertyChanged(nameof(IsIdle));
         OnPropertyChanged(nameof(IsInspectAllowed));
         OnPropertyChanged(nameof(IsDrawRegionAllowed));
@@ -329,62 +314,22 @@ public partial class InspectionTeachingViewModel : ObservableObject
         else
         {
             UseHistoryImage();
-            if (SelectedRecord is not null && LoadedRecord != SelectedRecord)
+            if (Results.SelectedRecord is not null && LoadedRecord != Results.SelectedRecord)
                 _ = LoadRecordCommand.ExecuteAsync(null);
-            if (Records.Count == 0 && !RefreshHistoryCommand.IsRunning && !LoadOlderCommand.IsRunning)
-                _ = RefreshHistoryCommand.ExecuteAsync(null);
         }
     }
 
-    private bool MatchesHistoryRecord(PcbRecord record)
+    private void OnResultsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        var search = HistorySearch?.Trim();
-        return (HistoryDate is null || record.CreatedAt.LocalDateTime.Date == HistoryDate.Value.Date)
-            && (HistoryResult is null || record.InspectionResult == HistoryResult)
-            && (string.IsNullOrEmpty(search)
-                || record.PcbBarcode?.Contains(search, StringComparison.OrdinalIgnoreCase) == true
-                || record.Number.ToString().Contains(search, StringComparison.OrdinalIgnoreCase)
-                || record.RecipeName.Contains(search, StringComparison.OrdinalIgnoreCase));
-    }
-
-    partial void OnHistoryDateChanged(DateTime? value)
-    {
-        RefreshHistoryFilter();
-    }
-
-    partial void OnHistorySearchChanged(string? value)
-    {
-        RefreshHistoryFilter();
-    }
-
-    partial void OnHistoryResultChanged(AssemblyResult? value)
-    {
-        RefreshHistoryFilter();
-    }
-
-    private void ClearHistoryFilter()
-    {
-        HistoryDate = null;
-        HistorySearch = null;
-        HistoryResult = null;
-    }
-
-    private void RefreshHistoryFilter()
-    {
-        OnPropertyChanged(nameof(FilteredRecords));
-        if (SelectedRecord is not null && !MatchesHistoryRecord(SelectedRecord))
-            SelectedRecord = null;
-    }
-
-    partial void OnSelectedRecordChanged(PcbRecord? value)
-    {
+        if (e.PropertyName != nameof(ResultsViewModel.SelectedRecord))
+            return;
         LoadRecordCommand.Cancel();
         LoadedRecord = null;
         HistoryImages = [];
         SelectedHistoryImage = null;
         Error = null;
         Message = null;
-        if (value is not null && !_shuttingDown)
+        if (Results.SelectedRecord is not null && SelectedTab == InspectionTeachingTab.History && !_shuttingDown)
             _ = LoadRecordCommand.ExecuteAsync(null);
     }
 
@@ -394,77 +339,11 @@ public partial class InspectionTeachingViewModel : ObservableObject
             UseHistoryImage();
     }
 
-    private async Task RefreshHistoryAsync(CancellationToken token)
-    {
-        var selectedRecord = SelectedRecord;
-        var selectedImage = SelectedHistoryImage;
-        ClearHistory();
-        await LoadOlderAsync(token);
-        if (token.IsCancellationRequested || SelectedTab != InspectionTeachingTab.History || selectedRecord is null)
-            return;
-        SelectedRecord = Records.FirstOrDefault(record => record.Number == selectedRecord.Number
-            && record.DatabaseFile == selectedRecord.DatabaseFile && MatchesHistoryRecord(record));
-        if (SelectedRecord is not { } restored)
-            return;
-        await LoadRecordCommand.ExecutionTask!;
-        if (!token.IsCancellationRequested && SelectedTab == InspectionTeachingTab.History
-            && SelectedRecord == restored && selectedImage is not null)
-        {
-            SelectedHistoryImage = HistoryImages.FirstOrDefault(image => image.Record.BoltId == selectedImage.Record.BoltId)
-                ?? SelectedHistoryImage;
-        }
-    }
-
-    partial void OnHistoryDirectoryChanged(string value)
-    {
-        RefreshHistoryCommand.Cancel();
-        ClearHistory();
-        HasOlder = true;
-        Error = null;
-        Message = null;
-    }
-
-    private void ClearHistory()
-    {
-        LoadOlderCommand.Cancel();
-        LoadRecordCommand.Cancel();
-        Records.Clear();
-        OnPropertyChanged(nameof(FilteredRecords));
-        SelectedRecord = null;
-        LoadedRecord = null;
-        HistoryImages = [];
-        SelectedHistoryImage = null;
-    }
-
-    private async Task LoadOlderAsync(CancellationToken token)
-    {
-        Error = null;
-        var before = Records.Count > 0 ? Records[^1].Number : (long?)null;
-        var directory = HistoryDirectory;
-        try
-        {
-            var records = await Task.Run(() => _store.LoadPcbs(directory, before), token);
-            if (token.IsCancellationRequested)
-                return;
-            foreach (var record in records)
-                Records.Add(record);
-            OnPropertyChanged(nameof(FilteredRecords));
-            HasOlder = records.Count == MachineStore.PcbHistoryPageSize;
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception exception)
-        {
-            if (!token.IsCancellationRequested)
-                Error = exception.Message;
-            _log.LogError(exception, "Inspection history load failed for {Directory}.", directory);
-        }
-    }
-
     private async Task LoadRecordAsync(CancellationToken token)
     {
         // Keep the previous command invocation in the shutdown wait, even after a new selection.
         var previous = LoadRecordCommand.ExecutionTask;
-        var record = SelectedRecord;
+        var record = Results.SelectedRecord;
         try
         {
             if (_shuttingDown || record is null)
@@ -475,7 +354,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             HistoryImages = [];
             SelectedHistoryImage = null;
             var images = await _images.LoadRecordAsync(record, Preview.Recipe, token);
-            if (token.IsCancellationRequested || SelectedRecord != record)
+            if (token.IsCancellationRequested || Results.SelectedRecord != record)
                 return;
             LoadedRecord = record;
             UpdateHistoryImages(images, images.FirstOrDefault()?.Record);
@@ -483,7 +362,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (!token.IsCancellationRequested && SelectedRecord == record)
+            if (!token.IsCancellationRequested && Results.SelectedRecord == record)
                 Error = exception.Message;
             _log.LogError(exception, "Inspection image history failed for PCB {Number}.", record?.Number);
         }

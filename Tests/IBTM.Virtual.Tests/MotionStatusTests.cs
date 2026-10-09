@@ -525,7 +525,9 @@ public sealed class MotionStatusTests
             MotionAxis axis,
             double position,
             double velocity,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            double? accelerationSeconds = null,
+            double? decelerationSeconds = null)
         {
             Failure = new IOException("Feedback also became unavailable.");
             throw new InvalidOperationException("Move was rejected.");

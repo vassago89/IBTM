@@ -19,13 +19,16 @@ public enum AdcTorqueCurveSampling
     Milliseconds30 = 4,
 }
 
-// Decoded torque samples with the fastening result they belong to.
+// Decoded monitoring samples with the fastening result they belong to.
 public sealed record AdcTorqueCurve(
     [property: JsonIgnore] long ReceivedAt, int SampleMilliseconds, double[] Torques,
     ushort FasteningMilliseconds, double TargetTorque, double FinalTorque,
     ushort ScrewCount, ushort ErrorCode)
 {
     private const int MetadataRegisterCount = 15;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double[]? Angles { get; init; }
 
     // A full ADC buffer contains the last 200 points of the fastening.
     [JsonIgnore]
@@ -59,8 +62,19 @@ public sealed record AdcTorqueCurve(
         var torques = new double[length];
         for (var index = 0; index < length; index++)
             torques[index] = values[offset + index] / 100.0;
+        double[]? angles = null;
+        if (values[0] == 4 || values[1] == 4)
+        {
+            var angleOffset = MetadataRegisterCount + (values[0] == 4 ? 0 : length);
+            if (values.Count < angleOffset + length)
+                throw new InvalidDataException("ADC angle/time channel is incomplete.");
+            angles = new double[length];
+            // Angle is in degrees; only torque uses the protocol's x100 scale.
+            for (var index = 0; index < length; index++)
+                angles[index] = values[angleOffset + index];
+        }
         return new(receivedAt, sampleMilliseconds, torques,
             unchecked((ushort)values[5]), values[6] / 100.0, values[7] / 100.0,
-            unchecked((ushort)values[13]), unchecked((ushort)values[12]));
+            unchecked((ushort)values[13]), unchecked((ushort)values[12])) { Angles = angles };
     }
 }

@@ -490,15 +490,17 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         MotionAxis axis,
         double position,
         double velocity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        double? accelerationSeconds = null,
+        double? decelerationSeconds = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var accelerationSeconds = axis == MotionAxis.Z
+        accelerationSeconds ??= axis == MotionAxis.Z
             ? Settings.ZAccelerationSeconds ?? Settings.AccelerationSeconds : Settings.AccelerationSeconds;
-        var decelerationSeconds = axis == MotionAxis.Z
+        decelerationSeconds ??= axis == MotionAxis.Z
             ? Settings.ZDecelerationSeconds ?? Settings.DecelerationSeconds : Settings.DecelerationSeconds;
-        ValidatePositive(accelerationSeconds, nameof(accelerationSeconds));
-        ValidatePositive(decelerationSeconds, nameof(decelerationSeconds));
+        ValidatePositive(accelerationSeconds.Value, nameof(accelerationSeconds));
+        ValidatePositive(decelerationSeconds.Value, nameof(decelerationSeconds));
         var axisNumber = GetAxis(axis);
         var velocityInUnits = velocity * 1000;
         try
@@ -512,8 +514,8 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
                 AjinController.Check(
                     CAXM.AxmMoveStartPos(
                         axisNumber, position * 1000, velocityInUnits,
-                        velocityInUnits / accelerationSeconds,
-                        velocityInUnits / decelerationSeconds),
+                        velocityInUnits / accelerationSeconds.Value,
+                        velocityInUnits / decelerationSeconds.Value),
                     $"{nameof(CAXM.AxmMoveStartPos)} (axis={axisNumber})");
             }).ConfigureAwait(false);
             await WaitForMoveAsync([axisNumber], cancellationToken).ConfigureAwait(false);

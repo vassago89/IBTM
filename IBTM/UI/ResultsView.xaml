@@ -1,0 +1,115 @@
+<UserControl x:Class="IBTM.UI.ResultsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
+    xmlns:storage="clr-namespace:IBTM.Storage;assembly=IBTM.Storage"
+    mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:ResultsViewModel, IsDesignTimeCreatable=False}"
+    Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource AppBgBrush}"
+    Loaded="OnViewLoaded" Unloaded="OnViewUnloaded">
+    <UserControl.Resources>
+        <Style x:Key="SelectedRecordButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="MinWidth" Value="100"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedRecord}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <WrapPanel Margin="0,0,0,8">
+            <StackPanel Width="320" Margin="0,0,12,8">
+                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{ui:Text 'Barcode'}" Margin="0,0,0,4"/>
+                <TextBox Height="34" Text="{Binding HistorySearch, UpdateSourceTrigger=PropertyChanged}"
+                    AutomationProperties.Name="{ui:Text 'Barcode'}"/>
+            </StackPanel>
+            <StackPanel Width="170" Margin="0,0,12,8">
+                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{ui:Text 'Production date'}" Margin="0,0,0,4"/>
+                <DatePicker Height="34" SelectedDate="{Binding HistoryDate}" SelectedDateFormat="Short"
+                    AutomationProperties.Name="{ui:Text 'Production date'}"/>
+            </StackPanel>
+            <StackPanel Width="110" Margin="0,0,12,8">
+                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{ui:Text 'Result'}" Margin="0,0,0,4"/>
+                <ComboBox Height="34" SelectedValue="{Binding HistoryResult}" SelectedValuePath="Tag"
+                    AutomationProperties.Name="{ui:Text 'Result'}">
+                    <ComboBoxItem Content="{ui:Text 'All'}" Tag="{x:Null}"/>
+                    <ComboBoxItem Content="OK" Tag="{x:Static core:AssemblyResult.Ok}"/>
+                    <ComboBoxItem Content="NG" Tag="{x:Static core:AssemblyResult.Ng}"/>
+                    <ComboBoxItem Content="{ui:Text 'Pending'}" Tag="{x:Static core:AssemblyResult.Pending}"/>
+                </ComboBox>
+            </StackPanel>
+            <Button Content="{ui:Text 'Clear filters'}" Command="{Binding ClearHistoryFilterCommand}" Height="34"
+                Style="{StaticResource CompactButtonStyle}" VerticalAlignment="Bottom" Margin="0,0,8,8"/>
+            <Button Content="{ui:Text 'Refresh'}" Command="{Binding RefreshHistoryCommand}" IsEnabled="{Binding IsIdle}"
+                Style="{StaticResource CompactButtonStyle}" Height="34" VerticalAlignment="Bottom" Margin="0,0,0,8"/>
+        </WrapPanel>
+        <DockPanel Grid.Row="1" Margin="0,0,0,10">
+            <TextBlock DockPanel.Dock="Right" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center">
+                <TextBlock.Text>
+                    <MultiBinding StringFormat="{ui:Text 'Matches {0} · total {1}'}">
+                        <Binding ElementName="RecordsGrid" Path="Items.Count"/>
+                        <Binding Path="Records.Count"/>
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+            <StackPanel Orientation="Horizontal">
+                <Button Content="{ui:Text 'Details'}" Click="OnOpenResultsClick" Style="{StaticResource SelectedRecordButtonStyle}"
+                    ToolTip="{ui:Text 'Double-click a row or press Enter'}" Margin="0,0,8,0"/>
+                <Button Content="{ui:Text 'Reinspect'}" Click="OnReinspectClick" Style="{StaticResource SelectedRecordButtonStyle}" Margin="0,0,14,0"/>
+                <TextBlock Text="{Binding SelectedRecord.Number, StringFormat={ui:Text 'PCB {0}'}, TargetNullValue={ui:Text 'Select a PCB'}, FallbackValue={ui:Text 'Select a PCB'}}"
+                    Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DockPanel>
+        <Grid Grid.Row="2">
+            <DataGrid x:Name="RecordsGrid" ItemsSource="{Binding Records}" SelectedItem="{Binding SelectedRecord}" IsSynchronizedWithCurrentItem="False"
+                IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                SelectionMode="Single" SelectionUnit="FullRow" MouseDoubleClick="OnRecordDoubleClick" PreviewKeyDown="OnRecordKeyDown">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="{ui:Text 'Production date'}" Binding="{Binding CreatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="180"/>
+                    <DataGridTemplateColumn Header="{ui:Text 'Result'}" SortMemberPath="Result" Width="75">
+                        <DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type storage:PcbRecord}">
+                            <TextBlock Text="{Binding Result, Converter={StaticResource UiTextConverter}}" Tag="{Binding Result}" Style="{StaticResource ResultValueStyle}"/>
+                        </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="PCB" Binding="{Binding Number}" Width="75"/>
+                    <DataGridTemplateColumn Header="{ui:Text 'Barcode'}" SortMemberPath="PcbBarcode" Width="*" MinWidth="240">
+                        <DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type storage:PcbRecord}">
+                            <TextBlock Text="{Binding PcbBarcode, TargetNullValue=—}" ToolTip="{Binding PcbBarcode}" TextTrimming="CharacterEllipsis"/>
+                        </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="{ui:Text 'Bolt fastening'}" SortMemberPath="FasteningResult" Width="95">
+                        <DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type storage:PcbRecord}">
+                            <TextBlock Text="{Binding FasteningResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding FasteningResult}" Style="{StaticResource ResultValueStyle}"/>
+                        </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="{ui:Text 'Inspection'}" SortMemberPath="InspectionResult" Width="80">
+                        <DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type storage:PcbRecord}">
+                            <TextBlock Text="{Binding InspectionResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding InspectionResult}" Style="{StaticResource ResultValueStyle}"/>
+                        </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                <TextBlock.Style><Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Setter Property="Text" Value="{ui:Text 'No matching PCB records'}"/>
+                    <Style.Triggers>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding ElementName=RecordsGrid, Path=Items.Count}" Value="0"/>
+                            <Condition Binding="{Binding Error}" Value="{x:Null}"/>
+                        </MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger>
+                        <DataTrigger Binding="{Binding IsIdle}" Value="False"><Setter Property="Text" Value="{ui:Text 'Loading…'}"/></DataTrigger>
+                    </Style.Triggers>
+                </Style></TextBlock.Style>
+            </TextBlock>
+        </Grid>
+        <TextBlock Grid.Row="3" Text="{Binding Error}" Style="{StaticResource ErrorStatusMessageStyle}" Margin="0,8,0,0"/>
+    </Grid>
+</UserControl>

@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using IBTM.Core;
 
 namespace IBTM.UI;
 
@@ -29,18 +30,20 @@ public partial class PcbResultsWindow : Window
     private void OnTorqueCurveClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { CommandParameter: PcbBoltResultView { Result.TorqueCurve: not null } row }
-            || DataContext is not PcbResultsViewModel { Record: { } record } viewModel)
+            || DataContext is not PcbResultsViewModel { Record: not null } viewModel)
             return;
         viewModel.SelectedBoltStage = row;
-        _torqueCurves?.Close();
-        _torqueCurves = new(new(null,
-            [new(row.BoltId, row.BoltLabel, record.HeatSink, row.Result.ToolHead ?? row.Head, row.Result)]))
+        if (_torqueCurves is null)
         {
-            Owner = this,
-            Title = Title + " · " + row.BoltLabel,
-        };
-        _torqueCurves.Closed += OnTorqueCurvesClosed;
-        _torqueCurves.Show();
+            _torqueCurves = new(row) { Owner = this };
+            _torqueCurves.Closed += OnTorqueCurvesClosed;
+            _torqueCurves.Show();
+        }
+        _torqueCurves.DataContext = row;
+        _torqueCurves.Title = Title + " · " + row.BoltLabel + " · " + UiText.Get(row.Result.Stage);
+        if (_torqueCurves.WindowState == WindowState.Minimized)
+            _torqueCurves.WindowState = WindowState.Normal;
+        _torqueCurves.Activate();
     }
 
     private void OnTorqueCurvesClosed(object? sender, EventArgs e)

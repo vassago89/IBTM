@@ -400,7 +400,7 @@ public sealed class MachineStore
             throw new InvalidDataException($"PCB {record.Number} already belongs to a different production record ({databaseFile}).");
     }
 
-    public IReadOnlyList<PcbRecord> LoadPcbs(string directory, long? beforeNumber = null, int count = PcbHistoryPageSize)
+    public IReadOnlyList<PcbRecord> LoadPcbs(string directory, long? beforeNumber = null, int? count = null)
     {
         var records = new List<PcbRecord>();
         if (!Directory.Exists(directory))
@@ -417,7 +417,7 @@ public sealed class MachineStore
             using var command = connection.CreateCommand();
             command.CommandText = "SELECT Number, Value FROM Pcbs WHERE ($before IS NULL OR Number < $before) ORDER BY Number DESC LIMIT $count";
             command.Parameters.AddWithValue("$before", (object?)beforeNumber ?? DBNull.Value);
-            command.Parameters.AddWithValue("$count", count - records.Count);
+            command.Parameters.AddWithValue("$count", count - records.Count ?? -1);
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {

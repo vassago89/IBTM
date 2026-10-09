@@ -1682,17 +1682,22 @@ public sealed class AjinControllerTests
 
         settings.ZAccelerationSeconds = 0.1;
         settings.ZDecelerationSeconds = 0.25;
+        await motion.MoveAxisAsync(MotionAxis.Z, 3, 3, accelerationSeconds: 0.05, decelerationSeconds: 0.15);
+        Assert.Equal(new double[] { 60000 }, AjinSdk.Moves[1].Accelerations);
+        Assert.Equal(new double[] { 20000 }, AjinSdk.Moves[1].Decelerations);
+        Assert.Equal(0.1, settings.ZAccelerationSeconds);
+        Assert.Equal(0.25, settings.ZDecelerationSeconds);
         await motion.AdjustAxisAsync(MotionAxis.Z, 1, 3);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             motion.JogAsync(MotionAxis.Z, -3, cancellation.Token));
-        Assert.Equal(3, AjinSdk.Moves.Count);
-        Assert.All(AjinSdk.Moves.Skip(1), move =>
+        Assert.Equal(4, AjinSdk.Moves.Count);
+        Assert.All(AjinSdk.Moves.Skip(2), move =>
         {
             Assert.Equal(new[] { 11 }, move.Axes);
             Assert.Equal(new double[] { 30000 }, move.Accelerations);
             Assert.Equal(new double[] { 12000 }, move.Decelerations);
         });
-        Assert.Equal(new double[] { -3000 }, AjinSdk.Moves[2].Velocities);
+        Assert.Equal(new double[] { -3000 }, AjinSdk.Moves[3].Velocities);
         Assert.Equal(MotionCommand.None, motion.Command);
     }
 
@@ -1714,6 +1719,11 @@ public sealed class AjinControllerTests
         settings.ZAccelerationSeconds = 0.2;
         settings.ZDecelerationSeconds = value;
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => motion.JogAsync(MotionAxis.Z, -1));
+        settings.ZDecelerationSeconds = 0.3;
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            motion.MoveAxisAsync(MotionAxis.Z, 2, 1, accelerationSeconds: value));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            motion.MoveAxisAsync(MotionAxis.Z, 2, 1, decelerationSeconds: value));
         Assert.Empty(AjinSdk.Moves);
         Assert.Equal(MotionCommand.None, motion.Command);
     }

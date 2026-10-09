@@ -207,6 +207,7 @@
                     </Grid.RowDefinitions>
                     <TextBlock Text="{ui:Text 'Bolt results'}" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,8"/>
                     <DataGrid x:Name="BoltResultsGrid" Grid.Row="1" ItemsSource="{Binding BoltResults}" SelectedItem="{Binding SelectedBolt, Mode=TwoWay}" AutoGenerateColumns="False"
+                        IsSynchronizedWithCurrentItem="False"
                         IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False"
                         CanUserReorderColumns="False" RowHeight="48" ColumnHeaderHeight="34" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
@@ -216,7 +217,7 @@
                                     <TextBlock Style="{StaticResource DetailTextStyle}" Text="{Binding Result.Stage, Converter={StaticResource UiTextConverter}}"/>
                                 </StackPanel>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                            <DataGridTextColumn Header="{ui:Text 'Fastening method'}" Binding="{Binding HeadLabel, Mode=OneWay}" Width="85"/>
+                            <DataGridTextColumn Header="{ui:Text 'Head'}" Binding="{Binding HeadLabel, Mode=OneWay}" Width="85"/>
                             <DataGridTemplateColumn Header="{ui:Text 'Fasten'}" Width="120"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                 <TextBlock Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource FasteningVerdict}" FontSize="13"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
@@ -263,10 +264,10 @@
                                     </StackPanel>
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Text="{Binding SelectedBolt.Title, TargetNullValue={ui:Text 'Controller'}, FallbackValue={ui:Text 'Controller'}}"
-                                        ToolTip="{Binding SelectedBolt.Title}" Height="24" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="16"/>
+                                    <TextBlock Text="{Binding SelectedBoltStage.Title, TargetNullValue={ui:Text 'Controller'}, FallbackValue={ui:Text 'Controller'}}"
+                                        ToolTip="{Binding SelectedBoltStage.Title}" Height="24" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="16"/>
                                     <WrapPanel Margin="0,3,0,4" TextBlock.FontSize="13" TextBlock.Foreground="{StaticResource TextMutedBrush}">
-                                        <ComboBox ItemsSource="{Binding SelectedBolt.StageResults}" SelectedItem="{Binding SelectedBoltStage, Mode=TwoWay}"
+                                        <ComboBox ItemsSource="{Binding BoltStages}" SelectedItem="{Binding SelectedBoltStage, Mode=TwoWay}" IsSynchronizedWithCurrentItem="False"
                                             MinWidth="120" Margin="0,0,12,0">
                                             <ComboBox.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                                 <TextBlock Text="{Binding Result.Stage, Converter={StaticResource UiTextConverter}}"/>
@@ -281,7 +282,7 @@
                                 <TabItem Header="{ui:Text 'Fastening stages'}" Padding="10,4">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                         <StackPanel Margin="0,8,0,0">
-                                            <DataGrid ItemsSource="{Binding SelectedBolt.StageResults}" SelectedItem="{Binding SelectedBoltStage, Mode=TwoWay}"
+                                            <DataGrid ItemsSource="{Binding BoltStages}" SelectedItem="{Binding SelectedBoltStage, Mode=TwoWay}" IsSynchronizedWithCurrentItem="False"
                                                 AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"
                                                 CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False" RowHeight="38">
                                                 <DataGrid.Columns>
@@ -297,7 +298,7 @@
                                                     <DataGridTextColumn Header="{ui:Text 'Turns'}" Binding="{Binding Result.MeasuredTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
                                                     <DataGridTextColumn Header="{ui:Text 'Torque'}" Binding="{Binding Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
                                                     <DataGridTextColumn Header="{ui:Text 'Time (ms)'}" Binding="{Binding Result.Controller.FasteningTimeMilliseconds, TargetNullValue='—', FallbackValue='—'}" Width="130"/>
-                                                    <DataGridTemplateColumn Header="{ui:Text 'Torque curves'}" Width="100">
+                                                    <DataGridTemplateColumn Header="{ui:Text 'Graph'}" Width="100">
                                                         <DataGridTemplateColumn.CellTemplate>
                                                             <DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                                                 <Button Content="{ui:Text 'Graph'}" CommandParameter="{Binding}" Click="OnTorqueCurveClick" Padding="8,2" FontSize="12"
@@ -307,7 +308,7 @@
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding Result.TorqueCurve}" Value="{x:Null}">
                                                                                     <Setter Property="IsEnabled" Value="False"/>
-                                                                                    <Setter Property="ToolTip" Value="{ui:Text 'No torque curve'}"/>
+                                                                                    <Setter Property="ToolTip" Value="{Binding Result.TorqueCurveError, TargetNullValue={ui:Text 'No torque curve'}}"/>
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
@@ -318,6 +319,8 @@
                                                     </DataGridTemplateColumn>
                                                 </DataGrid.Columns>
                                             </DataGrid>
+                                            <TextBlock Text="{Binding SelectedBoltStage.Result.TorqueCurveError}"
+                                                Style="{StaticResource ErrorStatusMessageStyle}" Margin="8,6,0,0"/>
                                             <StackPanel Orientation="Horizontal" Margin="8,14,0,0" VerticalAlignment="Center">
                                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,14,0">
                                                     <TextBlock.Style><Style TargetType="TextBlock">
@@ -356,6 +359,7 @@
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Target torque'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.CompensatedTargetTorque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Target speed (rpm)'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.TargetSpeedRpm, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Time (ms)'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.FasteningTimeMilliseconds, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
+                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Z feed distance (mm)'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.ZFeedDistance, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Angle A1 (°)'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.Angle1, StringFormat=0.##, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Angle A2 (°)'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.Angle2, StringFormat=0.##, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Angle A3 (°)'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.Angle3, StringFormat=0.##, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>

@@ -68,11 +68,13 @@ public sealed class PcbHistoryTests
         var assembly = services.GetRequiredService<BoltFasteningStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
         var boltId = VirtualTestSupport.BoltId(1);
         var preliminaryCurve = new AdcTorqueCurve(1, 30, [0, 0.5], 60, 0.5, 0.5, 1, 0);
-        var finalCurve = new AdcTorqueCurve(2, 30, [0.5, 1], 60, 1, 1, 2, 0);
-        var retighteningCurve = new AdcTorqueCurve(3, 30, [0.75, 1], 60, 1, 1, 3, 0);
+        var finalCurve = new AdcTorqueCurve(2, 30, [0.5, 1], 60, 1, 1, 2, 0) { Angles = [0, 180] };
+        var retighteningCurve = new AdcTorqueCurve(3, 30, [0.75, 1], 60, 1, 1, 3, 0) { Angles = [0, 45] };
         var preliminary = new BoltResult(true, 0.5)
         {
             Stage = BoltFasteningStage.Preliminary,
+            ToolHead = FasteningHead.Pickup,
+            ZFeedDistance = 1.25,
             TorqueCurve = preliminaryCurve,
         };
         PcbRecord? published = null;
@@ -80,6 +82,8 @@ public sealed class PcbHistoryTests
         var firstFinal = new BoltResult(true, 1)
         {
             Stage = BoltFasteningStage.FinalBeforeRetightening,
+            ToolHead = FasteningHead.Shooting,
+            ZFeedDistance = 0.75,
             PreliminaryResult = preliminary,
             TorqueCurve = finalCurve,
         };
@@ -87,6 +91,8 @@ public sealed class PcbHistoryTests
         assembly.RecordBolt(FasteningHead.Pickup, boltId, new(true, 1)
         {
             Stage = BoltFasteningStage.Retightening,
+            ToolHead = FasteningHead.Shooting,
+            ZFeedDistance = 0,
             PreviousFinalResult = firstFinal,
             TorqueCurve = retighteningCurve,
         });
@@ -108,11 +114,17 @@ public sealed class PcbHistoryTests
         Assert.Equal(preliminaryCurve.Torques, restored[0].Result.TorqueCurve!.Torques);
         Assert.Equal(finalCurve.Torques, restored[1].Result.TorqueCurve!.Torques);
         Assert.Equal(retighteningCurve.Torques, restored[2].Result.TorqueCurve!.Torques);
+        Assert.Null(restored[0].Result.TorqueCurve!.Angles);
+        Assert.Equal(finalCurve.Angles, restored[1].Result.TorqueCurve!.Angles);
+        Assert.Equal(retighteningCurve.Angles, restored[2].Result.TorqueCurve!.Angles);
+        Assert.Equal(new double?[] { 1.25, 0.75, 0 }, restored.Select(row => row.Result.ZFeedDistance));
+        Assert.Equal(new[] { UiText.Get(FasteningHead.Pickup), UiText.Get(FasteningHead.Shooting),
+            UiText.Get(FasteningHead.Shooting) }, restored.Select(row => row.HeadLabel));
         Assert.Equal(30, restored[1].Result.TorqueCurve!.SampleMilliseconds);
         Assert.Equal(60, restored[1].Result.TorqueCurve!.FasteningMilliseconds);
         Assert.Equal(0, restored[1].Result.TorqueCurve!.ReceivedAt);
         Assert.NotSame(finalCurve, restored[1].Result.TorqueCurve);
-        Assert.Same(details.SelectedBolt, details.SelectedBoltStage);
+        Assert.Same(details.BoltStages.Last(), details.SelectedBoltStage);
         Assert.Equal(BoltFasteningStage.Retightening, details.SelectedBoltStage!.Result.Stage);
     }
 
@@ -731,6 +743,41 @@ public sealed class PcbHistoryTests
     }
 
     [Fact]
+    public async Task ResultsLoadAllMonthsAndKeepFilteredSelectionWhenRefreshed()
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var store = services.GetRequiredService<MachineStore>();
+        var results = services.GetRequiredService<ResultsViewModel>();
+        results.HistoryDirectory = store.DatabaseFile + ".results";
+        var september = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.FromHours(9));
+        for (var number = 1; number <= 130; number++)
+        {
+            var createdAt = number <= 65 ? september : september.AddDays(1);
+            var record = new PcbRecord(number, createdAt, createdAt, "Default", HeatSinkSlot.HeatSink1,
+                $"PCB-{number:000}", AssemblyResult.Ok, AssemblyResult.Ok, AssemblyResult.Ok,
+                new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), []);
+            store.SavePcb(Path.Combine(results.HistoryDirectory, $"PCB-{createdAt:yyyy-MM}.db"), record);
+        }
+
+        await results.RefreshHistoryCommand.ExecuteAsync(null);
+        Assert.Null(results.Error);
+        Assert.Equal(Enumerable.Range(1, 130).Reverse().Select(number => (long)number),
+            results.Records.Select(record => record.Number));
+        results.HistorySearch = "pcb-001";
+        results.HistoryDate = september.LocalDateTime.Date;
+        results.HistoryResult = AssemblyResult.Ok;
+        results.SelectedRecord = Assert.Single(results.Records, results.IsRecordVisible);
+        Assert.Equal(1, results.SelectedRecord.Number);
+
+        await results.RefreshHistoryCommand.ExecuteAsync(null);
+        Assert.Null(results.Error);
+        Assert.Equal(130, results.Records.Count);
+        Assert.Same(Assert.Single(results.Records, results.IsRecordVisible), results.SelectedRecord);
+        Assert.Equal(1, results.SelectedRecord!.Number);
+        await results.ShutdownAsync();
+    }
+
+    [Fact]
     public void RestoredCounterCannotReuseSavedPcbNumbersOrOverwriteTheirResults()
     {
         var store = VirtualTestSupport.OpenMachineStore();
@@ -799,12 +846,13 @@ public sealed class PcbHistoryTests
         var inspection = services.GetRequiredService<InspectionStation>().Station;
         var existing = fastening.GetAssembly(HeatSinkSlot.HeatSink1);
         var timestamp = DateTimeOffset.Now;
-        var measured = new BoltResult(true, 8) { RecordedAt = timestamp };
+        var measured = new BoltResult(true, 8) { RecordedAt = timestamp, ToolHead = FasteningHead.Shooting };
         existing.RecordBolt(FasteningHead.Pickup, VirtualTestSupport.BoltId(1), measured);
         var view = services.GetRequiredService<OperationViewModel>();
         try
         {
             Assert.Same(measured, view.RecentFastening?.Result);
+            Assert.Equal(FasteningHead.Shooting, view.RecentFastening?.Head);
             await Assert.ThrowsAsync<IOException>(history.FlushAsync);
             view.Deactivate();
             var manual = new BoltResult(true, null, BoltResultSource.Manual)
@@ -813,6 +861,7 @@ public sealed class PcbHistoryTests
             };
             existing.ChangeBoltResult(FasteningHead.Pickup, VirtualTestSupport.BoltId(1), manual);
             Assert.Same(manual, view.RecentFastening?.Result);
+            Assert.Equal(FasteningHead.Pickup, view.RecentFastening?.Head);
             fastening.TransferAssembliesTo(inspection, fastening.CurrentJob, inspection.CurrentJob);
             existing.PcbBarcode = "Inspected";
             Assert.Same(manual, view.RecentFastening?.Result);
@@ -1008,7 +1057,7 @@ public sealed class PcbHistoryTests
         var pickup = details.BoltResults.Single(row => row.Head == FasteningHead.Pickup);
         details.SelectedBolt = pickup;
         Assert.Same(pickup, details.SelectedBolt);
-        Assert.Same(pickup, details.SelectedBoltStage);
+        Assert.Same(Assert.Single(details.BoltStages), details.SelectedBoltStage);
         Assert.Equal(bolt, details.SelectedImage?.Record.BoltId);
 
         await details.LoadImagesCommand.ExecuteAsync(null);

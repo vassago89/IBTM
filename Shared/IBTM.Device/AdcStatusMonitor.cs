@@ -169,11 +169,11 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             }
             if (!enabled)
                 return true;
-            // Torque / channel 2 off / selected sampling / fastening.
+            // Torque / angle / selected sampling / fastening.
             // ADC retains 200 samples: the sampling interval also determines the time window.
             // ADC requests use GetGraph(4200, 1), not the MDC 4100 enable/disable write.
             await _bus.WriteRegisterAsync(SlaveAddress, 4101, 1, token).ConfigureAwait(false);
-            await _bus.WriteRegisterAsync(SlaveAddress, 4102, 0, token).ConfigureAwait(false);
+            await _bus.WriteRegisterAsync(SlaveAddress, 4102, 4, token).ConfigureAwait(false);
             await _bus.WriteRegisterAsync(SlaveAddress, 4103, (ushort)sampling, token).ConfigureAwait(false);
             await _bus.WriteRegisterAsync(SlaveAddress, 4104, 1, token).ConfigureAwait(false);
             await _bus.RequestTorqueCurveAsync(SlaveAddress, token).ConfigureAwait(false);

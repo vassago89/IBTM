@@ -123,6 +123,7 @@ public static class DependencyInjection
             .AddSingleton<ManualHardwareViewModel>()
             .AddSingleton<MotionDiagnosticsViewModel>()
             .AddSingleton<TeachingViewModel>()
+            .AddSingleton<ResultsViewModel>()
             .AddSingleton<InspectionTeachingViewModel>()
             .AddSingleton<DiagnosticWindowManager>()
             .AddSingleton<MainViewModel>()

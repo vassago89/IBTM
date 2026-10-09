@@ -272,6 +272,9 @@ public sealed class AdcBoltHead : IBoltHead
         var fasteningTimeoutMilliseconds = _connection.FasteningTimeoutMilliseconds;
         if (dryRunMilliseconds == 0 || feedAsync is not null)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fasteningTimeoutMilliseconds);
+        var operationTimeoutMilliseconds = dryRunMilliseconds > 0
+            ? feedAsync is null ? dryRunMilliseconds : Math.Min(dryRunMilliseconds, fasteningTimeoutMilliseconds)
+            : fasteningTimeoutMilliseconds;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         (ushort EventCount, ushort Preset)? started = null;
         BoltResult? completed = null;
@@ -353,8 +356,7 @@ public sealed class AdcBoltHead : IBoltHead
             var fastening = (EventCount: initialEvent?[0] ?? (ushort)0, Preset: preset);
             _io.SetOutput(_direction, false);
 
-            if (dryRunMilliseconds == 0 || feedAsync is not null)
-                timeout.CancelAfter(fasteningTimeoutMilliseconds);
+            timeout.CancelAfter(operationTimeoutMilliseconds);
             timeout.Token.ThrowIfCancellationRequested();
             started = fastening;
             if (dryRunMilliseconds == 0 || feedAsync is not null)
@@ -400,9 +402,13 @@ public sealed class AdcBoltHead : IBoltHead
             if (dryRunMilliseconds > 0)
             {
                 Monitor.Sampled -= OnStatusSampled;
-                timeout.CancelAfter(Timeout.Infinite);
                 if (failure is null)
-                    await Task.Delay(dryRunMilliseconds, timeout.Token);
+                {
+                    timeout.CancelAfter(Timeout.Infinite);
+                    var remaining = TimeSpan.FromMilliseconds(dryRunMilliseconds) - Stopwatch.GetElapsedTime(startedAt);
+                    if (remaining > TimeSpan.Zero)
+                        await Task.Delay(remaining, timeout.Token);
+                }
             }
             waitingForResult = dryRunMilliseconds == 0;
             if (dryRunMilliseconds == 0)
@@ -475,10 +481,17 @@ public sealed class AdcBoltHead : IBoltHead
             failure = ioFailure;
             throw failure;
         }
+        catch (OperationCanceledException) when (dryRunMilliseconds > 0
+            && operationTimeoutMilliseconds == dryRunMilliseconds
+            && !cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested
+            && (feedAsync is null || runObserved))
+        {
+            // The dry-run deadline includes Z feed. Its cancellation has already drained the move.
+        }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
         {
             failure = new TimeoutException(
-                $"ADC {_portName}/{_slaveAddress} fastening timed out after {fasteningTimeoutMilliseconds} ms; "
+                $"ADC {_portName}/{_slaveAddress} fastening timed out after {operationTimeoutMilliseconds} ms; "
                 + $"waiting for RUN ON then OFF / fastening result; RUN observed={runObserved}, last RUN={Monitor.Sample?.Status?.Running}; "
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "

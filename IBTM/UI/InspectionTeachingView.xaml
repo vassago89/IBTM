@@ -6,7 +6,6 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     xmlns:data="clr-namespace:System.Windows.Data;assembly=PresentationFramework"
     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
-    xmlns:storage="clr-namespace:IBTM.Storage;assembly=IBTM.Storage"
     mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:InspectionTeachingViewModel, IsDesignTimeCreatable=False}"
     Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource AppBgBrush}"
     Validation.ErrorTemplate="{x:Null}">
@@ -21,16 +20,15 @@
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="48"/>
         </Grid.RowDefinitions>
-        <DockPanel LastChildFill="False" Margin="0,0,0,10">
+        <DockPanel Margin="0,0,0,10">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0" IsEnabled="{Binding IsIdle}">
                 <Button Command="{Binding SaveCommand}" MinWidth="100" ToolTip="{ui:Text 'Active recipe edits apply immediately. Save to keep changes after restart.'}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                            <Setter Property="Content" Value="{ui:Text 'Save'}"/>
+                            <Setter Property="Content" Value="{ui:Text 'Save settings'}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
                                     <Setter Property="Content" Value="{ui:Text 'Saving...'}"/>
@@ -42,18 +40,18 @@
                     </Button.Style>
                 </Button>
             </StackPanel>
+            <TabControl SelectedValue="{Binding SelectedTab, BindingGroupName={x:Null}}" SelectedValuePath="Tag" VerticalAlignment="Bottom">
+                <TabControl.Template><ControlTemplate TargetType="TabControl"><TabPanel IsItemsHost="True"/></ControlTemplate></TabControl.Template>
+                <TabItem Header="{ui:Text 'Inspection Setup'}" Tag="{x:Static ui:InspectionTeachingTab.Setup}"/>
+                <TabItem Header="{ui:Text 'History reinspection'}" Tag="{x:Static ui:InspectionTeachingTab.History}"/>
+            </TabControl>
         </DockPanel>
-        <TabControl Grid.Row="1" SelectedValue="{Binding SelectedTab, BindingGroupName={x:Null}}" SelectedValuePath="Tag" Margin="0,0,0,10">
-            <TabControl.Template><ControlTemplate TargetType="TabControl"><TabPanel IsItemsHost="True"/></ControlTemplate></TabControl.Template>
-            <TabItem Header="{ui:Text 'Inspection Setup'}" Tag="{x:Static ui:InspectionTeachingTab.Setup}"/>
-            <TabItem Header="{ui:Text 'History reinspection'}" Tag="{x:Static ui:InspectionTeachingTab.History}"/>
-        </TabControl>
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition><ColumnDefinition.Style><Style TargetType="ColumnDefinition">
                     <Setter Property="Width" Value="300"/>
                     <Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static ui:InspectionTeachingTab.History}">
-                        <Setter Property="Width" Value="540"/>
+                        <Setter Property="Width" Value="340"/>
                     </DataTrigger></Style.Triggers>
                 </Style></ColumnDefinition.Style></ColumnDefinition>
                 <ColumnDefinition Width="*"/>
@@ -98,99 +96,16 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="0.8*"/>
                         </Grid.RowDefinitions>
-                        <StackPanel Margin="0,0,0,8">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <Button Style="{StaticResource CompactButtonStyle}" Grid.Column="1" Content="{ui:Text 'Refresh'}" Command="{Binding RefreshHistoryCommand}"
-                                    IsEnabled="{Binding IsIdle}" Margin="0,0,6,0"/>
-                                <Button Grid.Column="2" Content="{ui:Text 'Load more'}" Command="{Binding LoadOlderCommand}"
-                                    IsEnabled="{Binding IsIdle}">
-                                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource CompactButtonStyle}">
-                                        <Style.Triggers><DataTrigger Binding="{Binding HasOlder}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers>
-                                    </Style></Button.Style>
-                                </Button>
-                            </Grid>
-                            <Grid Margin="0,8,0,6">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/><ColumnDefinition Width="90"/></Grid.ColumnDefinitions>
-                                <StackPanel Margin="0,0,8,0">
-                                    <TextBlock Style="{StaticResource DetailTextStyle}" Text="{ui:Text 'Barcode / PCB / recipe'}" Margin="0,0,0,4"/>
-                                    <TextBox Text="{Binding HistorySearch, UpdateSourceTrigger=PropertyChanged, BindingGroupName={x:Null}}"
-                                        AutomationProperties.Name="{ui:Text 'Barcode / PCB / recipe'}"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                                    <TextBlock Style="{StaticResource DetailTextStyle}" Text="{ui:Text 'Production date'}" Margin="0,0,0,4"/>
-                                    <DatePicker SelectedDate="{Binding HistoryDate, BindingGroupName={x:Null}}" SelectedDateFormat="Short"
-                                        AutomationProperties.Name="{ui:Text 'Production date'}"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Style="{StaticResource DetailTextStyle}" Text="{ui:Text 'Inspection result'}" Margin="0,0,0,4"/>
-                                    <ComboBox SelectedValue="{Binding HistoryResult, BindingGroupName={x:Null}}" SelectedValuePath="Tag"
-                                        AutomationProperties.Name="{ui:Text 'Inspection result'}">
-                                        <ComboBoxItem Content="{ui:Text 'All'}" Tag="{x:Null}"/>
-                                        <ComboBoxItem Content="OK" Tag="{x:Static core:AssemblyResult.Ok}"/>
-                                        <ComboBoxItem Content="NG" Tag="{x:Static core:AssemblyResult.Ng}"/>
-                                        <ComboBoxItem Content="{ui:Text 'Pending'}" Tag="{x:Static core:AssemblyResult.Pending}"/>
-                                    </ComboBox>
-                                </StackPanel>
-                            </Grid>
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="{ui:Text 'Clear'}" Command="{Binding ClearHistoryFilterCommand}" Padding="8,3" Margin="8,0,0,0"/>
-                                <TextBlock Style="{StaticResource DetailTextStyle}" Text="{ui:Text 'Search loaded records · use Load Older for earlier results'}" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                            </DockPanel>
-                        </StackPanel>
-                        <Grid Grid.Row="1">
-                            <ListBox Style="{StaticResource FlatPanelListStyle}" ItemsSource="{Binding FilteredRecords}" SelectedItem="{Binding SelectedRecord, BindingGroupName={x:Null}}" IsSynchronizedWithCurrentItem="False"
-                                ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                <ListBox.ItemTemplate><DataTemplate DataType="{x:Type storage:PcbRecord}">
-                                    <Grid Margin="6,5">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding PcbBarcode}">
-                                                <Run Text="{Binding CreatedAt, Mode=OneWay, StringFormat={}{0:MM-dd HH:mm:ss}}"/>
-                                                <Run Text="  ·  "/><Run Text="{Binding PcbBarcode, Mode=OneWay, TargetNullValue=—}"/>
-                                            </TextBlock>
-                                            <TextBlock Style="{StaticResource DetailTextStyle}" Margin="0,4,0,0"
-                                                TextTrimming="CharacterEllipsis" ToolTip="{Binding RecipeName}">
-                                                <Run Text="PCB "/><Run Text="{Binding Number, Mode=OneWay}"/><Run Text=" · "/>
-                                                <Run Text="{Binding HeatSink, Mode=OneWay, Converter={StaticResource UiTextConverter}}"/><Run Text=" · "/>
-                                                <Run Text="{Binding RecipeName, Mode=OneWay}"/>
-                                            </TextBlock>
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="1" Text="{Binding InspectionResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding InspectionResult}"
-                                            Style="{StaticResource ResultValueStyle}" Margin="12,0,4,0" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </DataTemplate></ListBox.ItemTemplate>
-                            </ListBox>
-                            <TextBlock Text="{ui:Text 'No matching PCB records'}" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-                                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding FilteredRecords.Count}" Value="0"/>
-                                                <Condition Binding="{Binding Error}" Value="{x:Null}"/>
-                                            </MultiDataTrigger.Conditions>
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </MultiDataTrigger>
-                                        <DataTrigger Binding="{Binding RefreshHistoryCommand.IsRunning}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                        <DataTrigger Binding="{Binding LoadOlderCommand.IsRunning}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                    </Style.Triggers>
-                                </Style></TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
-                        <TextBlock Grid.Row="2" Margin="0,10,0,8" FontWeight="SemiBold">
+                        <TextBlock Margin="0,0,0,8" FontWeight="SemiBold">
                             <TextBlock.Style><Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="{Binding LoadedRecord.Number, StringFormat={ui:Text 'PCB {0} · images'}, TargetNullValue={ui:Text 'Select a PCB'}, FallbackValue={ui:Text 'Select a PCB'}}"/>
+                                <Setter Property="Text" Value="{Binding LoadedRecord.Number, StringFormat={ui:Text 'PCB {0} · images'}, TargetNullValue={ui:Text 'Select a PCB in Results'}, FallbackValue={ui:Text 'Select a PCB in Results'}}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding LoadRecordCommand.IsRunning}" Value="True"><Setter Property="Text" Value="{ui:Text 'Loading…'}"/></DataTrigger>
-                                    <DataTrigger Binding="{Binding RefreshHistoryCommand.IsRunning}" Value="True"><Setter Property="Text" Value="{ui:Text 'Loading…'}"/></DataTrigger>
-                                    <DataTrigger Binding="{Binding LoadOlderCommand.IsRunning}" Value="True"><Setter Property="Text" Value="{ui:Text 'Loading…'}"/></DataTrigger>
                                 </Style.Triggers>
                             </Style></TextBlock.Style>
                         </TextBlock>
-                        <Grid Grid.Row="3">
+                        <Grid Grid.Row="1">
                             <ListBox Style="{StaticResource FlatPanelListStyle}" ItemsSource="{Binding HistoryImages}" SelectedItem="{Binding SelectedHistoryImage, BindingGroupName={x:Null}}"
                                 ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbInspectionImageItem}">
@@ -246,7 +161,13 @@
                         </WrapPanel>
                         <TextBlock Text="{Binding ImageSource}" Height="22" TextTrimming="CharacterEllipsis" ToolTip="{Binding ImageSource}"/>
                         <TextBlock Text="{Binding OriginalResult}" Height="22" TextTrimming="CharacterEllipsis" ToolTip="{Binding OriginalResult}"
-                            Tag="{Binding OriginalImage.Verdict}" Style="{StaticResource ResultValueStyle}" Margin="0,3,0,0"/>
+                            Tag="{Binding OriginalImage.Verdict}" Margin="0,3,0,0">
+                            <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}">
+                                <Style.Triggers><DataTrigger Binding="{Binding OriginalImage}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></TextBlock.Style>
+                        </TextBlock>
                         <TextBlock Text="{Binding HistoryImageError}" Foreground="{StaticResource AccentAmberBrush}"
                             TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding HistoryImageError}">
                             <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource StatusMessageStyle}">
@@ -360,7 +281,14 @@
                         </Border>
                     </Grid>
                     <StackPanel Grid.Row="2">
-                        <TextBlock Style="{StaticResource DetailTextStyle}" Text="{ui:Text 'Inspection result'}" Margin="0,8,0,0"/>
+                        <TextBlock Margin="0,8,0,0">
+                            <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource DetailTextStyle}">
+                                <Setter Property="Text" Value="{ui:Text 'Inspection result'}"/>
+                                <Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static ui:InspectionTeachingTab.History}">
+                                    <Setter Property="Text" Value="{ui:Text 'Reinspection result'}"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></TextBlock.Style>
+                        </TextBlock>
                         <TextBlock MinHeight="26" Margin="0,8,0,0" FontWeight="SemiBold" FontSize="17"
                             Tag="{Binding Preview.Success}" TextWrapping="Wrap">
                             <TextBlock.Style>
@@ -392,7 +320,7 @@
                 </Grid>
             </Border>
         </Grid>
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{ui:Text 'Check the highlighted input.'}"
                     Visibility="{Binding ElementName=EditorRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"

@@ -11,7 +11,9 @@ public interface IAxisMotion : IMotionFeedback
         MotionAxis axis,
         double position,
         double velocity,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        double? accelerationSeconds = null,
+        double? decelerationSeconds = null);
     Task<bool> HomeAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default);
     Task JogAsync(
         MotionAxis axis,

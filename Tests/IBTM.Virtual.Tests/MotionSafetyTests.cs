@@ -63,6 +63,9 @@ public sealed class MotionSafetyTests
         Assert.Equal(z, position.Z, 6);
         Assert.False(motion.IsMoving);
         Assert.Equal(MotionCommand.None, motion.Command);
+        var unchanged = motion.MoveAxisAsync(axis, target, 1);
+        Assert.True(unchanged.IsCompletedSuccessfully);
+        await unchanged;
     }
 
     [Theory]

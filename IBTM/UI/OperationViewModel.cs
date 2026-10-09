@@ -1173,7 +1173,8 @@ public partial class OperationViewModel : ObservableObject
         if (latest.Result?.RecordedAt is { } recordedAt
             && (RecentFastening?.Result.RecordedAt is not { } previous || recordedAt > previous))
         {
-            RecentFastening = new(Recipes.Current.Pcb.GetBoltName(latest.Id), assembly.HeatSink, latest.Head, latest.Result);
+            RecentFastening = new(Recipes.Current.Pcb.GetBoltName(latest.Id), assembly.HeatSink,
+                latest.Result.ToolHead ?? latest.Head, latest.Result);
         }
     }
 

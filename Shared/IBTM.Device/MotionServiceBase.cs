@@ -96,7 +96,9 @@ public abstract class MotionServiceBase : IXyMotion
         MotionAxis axis,
         double position,
         double velocity,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        double? accelerationSeconds = null,
+        double? decelerationSeconds = null)
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
@@ -110,7 +112,7 @@ public abstract class MotionServiceBase : IXyMotion
 
         ValidateTarget(axis, position);
         EnsureStopped();
-        await MoveAsync(axis, position, velocity, cancellationToken);
+        await MoveAsync(axis, position, velocity, cancellationToken, accelerationSeconds, decelerationSeconds);
     }
 
     public async Task MoveToXYAsync(
@@ -204,7 +206,9 @@ public abstract class MotionServiceBase : IXyMotion
         MotionAxis axis,
         double position,
         double velocity,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        double? accelerationSeconds = null,
+        double? decelerationSeconds = null);
 
     protected abstract Task<bool> HomeAxesAsync(
         MotionAxis[] axes,
