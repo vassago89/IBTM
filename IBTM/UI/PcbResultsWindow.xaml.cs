@@ -2,7 +2,6 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using IBTM.Core;
 
 namespace IBTM.UI;
 
@@ -35,12 +34,10 @@ public partial class PcbResultsWindow : Window
         viewModel.SelectedBoltStage = row;
         if (_torqueCurves is null)
         {
-            _torqueCurves = new(row) { Owner = this };
+            _torqueCurves = new(viewModel) { Owner = this };
             _torqueCurves.Closed += OnTorqueCurvesClosed;
             _torqueCurves.Show();
         }
-        _torqueCurves.DataContext = row;
-        _torqueCurves.Title = Title + " · " + row.BoltLabel + " · " + UiText.Get(row.Result.Stage);
         if (_torqueCurves.WindowState == WindowState.Minimized)
             _torqueCurves.WindowState = WindowState.Normal;
         _torqueCurves.Activate();

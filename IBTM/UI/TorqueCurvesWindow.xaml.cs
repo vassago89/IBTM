@@ -6,10 +6,10 @@ namespace IBTM.UI;
 
 public partial class TorqueCurvesWindow : Window
 {
-    public TorqueCurvesWindow(PcbBoltResultView result)
+    public TorqueCurvesWindow(PcbResultsViewModel viewModel)
     {
         InitializeComponent();
-        DataContext = result;
+        DataContext = viewModel;
         MinWidth = Math.Min(MinWidth, SystemParameters.WorkArea.Width - 32);
         MinHeight = Math.Min(MinHeight, SystemParameters.WorkArea.Height - 32);
         Width = Math.Min(Width, SystemParameters.WorkArea.Width - 32);

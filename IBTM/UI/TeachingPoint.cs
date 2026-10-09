@@ -175,6 +175,8 @@ public class TeachingPoint : ObservableObject
             {
                 if (_definition.Target == TeachingTarget.BoltFinalPosition)
                     return UiText.Format($"{BoltLabel} Shooting final tightening");
+                if (_definition.Target == TeachingTarget.BoltPosition && bolt.Head == FasteningHead.Pickup)
+                    return UiText.Format($"{BoltLabel} Pickup pre-tightening");
                 return _definition.Target == TeachingTarget.BoltPosition
                     ? UiText.Format($"{BoltLabel} Fastening · {UiText.Get(bolt.Head)}")
                     : UiText.Format($"{BoltLabel} Inspection");

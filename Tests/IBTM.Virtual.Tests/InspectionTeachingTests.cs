@@ -667,7 +667,7 @@ public sealed class InspectionTeachingTests
             NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         await editor.Results.RefreshHistoryCommand.ExecuteAsync(null);
-        editor.SelectedTab = InspectionTeachingTab.History;
+        editor.ImageMode = InspectionImageMode.Recorded;
         editor.Results.SelectedRecord = Assert.Single(editor.Results.Records);
         await editor.LoadRecordCommand.ExecutionTask!;
         Assert.Null(editor.Error);
@@ -1002,7 +1002,7 @@ public sealed class InspectionTeachingTests
         try
         {
             SynchronizationContext.SetSynchronizationContext(paused);
-            editor.SelectedTab = InspectionTeachingTab.History;
+            editor.ImageMode = InspectionImageMode.Recorded;
             editor.Results.SelectedRecord = record;
         }
         finally
@@ -1060,7 +1060,7 @@ public sealed class InspectionTeachingTests
                 SynchronizationContext.SetSynchronizationContext(context);
                 if (load == editor.LoadRecordCommand)
                 {
-                    editor.SelectedTab = InspectionTeachingTab.History;
+                    editor.ImageMode = InspectionImageMode.Recorded;
                     editor.Results.SelectedRecord = record;
                     pending = load.ExecutionTask!;
                 }

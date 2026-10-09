@@ -23,37 +23,25 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="48"/>
         </Grid.RowDefinitions>
-        <DockPanel Margin="0,0,0,10">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0" IsEnabled="{Binding IsIdle}">
-                <Button Command="{Binding SaveCommand}" MinWidth="100" ToolTip="{ui:Text 'Active recipe edits apply immediately. Save to keep changes after restart.'}">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                            <Setter Property="Content" Value="{ui:Text 'Save settings'}"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
-                                    <Setter Property="Content" Value="{ui:Text 'Saving...'}"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding IsLoaded}" Value="False"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
-                                <DataTrigger Binding="{Binding ElementName=EditorRoot, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </StackPanel>
-            <TabControl SelectedValue="{Binding SelectedTab, BindingGroupName={x:Null}}" SelectedValuePath="Tag" VerticalAlignment="Bottom">
-                <TabControl.Template><ControlTemplate TargetType="TabControl"><TabPanel IsItemsHost="True"/></ControlTemplate></TabControl.Template>
-                <TabItem Header="{ui:Text 'Inspection Setup'}" Tag="{x:Static ui:InspectionTeachingTab.Setup}"/>
-                <TabItem Header="{ui:Text 'History reinspection'}" Tag="{x:Static ui:InspectionTeachingTab.History}"/>
-            </TabControl>
-        </DockPanel>
+        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,0,0,10" IsEnabled="{Binding IsIdle}">
+            <Button Command="{Binding SaveCommand}" MinWidth="100" ToolTip="{ui:Text 'Changes apply immediately. Save inspection settings to the current recipe.'}">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                        <Setter Property="Content" Value="{ui:Text 'Save inspection settings'}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
+                                <Setter Property="Content" Value="{ui:Text 'Saving...'}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsLoaded}" Value="False"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                            <DataTrigger Binding="{Binding ElementName=EditorRoot, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition><ColumnDefinition.Style><Style TargetType="ColumnDefinition">
-                    <Setter Property="Width" Value="300"/>
-                    <Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static ui:InspectionTeachingTab.History}">
-                        <Setter Property="Width" Value="340"/>
-                    </DataTrigger></Style.Triggers>
-                </Style></ColumnDefinition.Style></ColumnDefinition>
+                <ColumnDefinition Width="320"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <Border Style="{StaticResource CardStyle}" Padding="10" Margin="0,0,10,0">
@@ -61,7 +49,7 @@
                     <DockPanel>
                         <DockPanel.Style><Style TargetType="DockPanel">
                             <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static ui:InspectionTeachingTab.Setup}">
+                            <Style.Triggers><DataTrigger Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Reference}">
                                 <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger></Style.Triggers>
                         </Style></DockPanel.Style>
@@ -89,7 +77,7 @@
                     <Grid>
                         <Grid.Style><Style TargetType="Grid">
                             <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static ui:InspectionTeachingTab.History}">
+                            <Style.Triggers><DataTrigger Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Recorded}">
                                 <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger></Style.Triggers>
                         </Style></Grid.Style>
@@ -97,14 +85,18 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Margin="0,0,0,8" FontWeight="SemiBold">
-                            <TextBlock.Style><Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="{Binding LoadedRecord.Number, StringFormat={ui:Text 'PCB {0} · images'}, TargetNullValue={ui:Text 'Select a PCB in Results'}, FallbackValue={ui:Text 'Select a PCB in Results'}}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding LoadRecordCommand.IsRunning}" Value="True"><Setter Property="Text" Value="{ui:Text 'Loading…'}"/></DataTrigger>
-                                </Style.Triggers>
-                            </Style></TextBlock.Style>
-                        </TextBlock>
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="{Binding Results.SelectedRecord.PcbBarcode, TargetNullValue=—}" FontWeight="SemiBold"
+                                TextTrimming="CharacterEllipsis" ToolTip="{Binding Results.SelectedRecord.PcbBarcode}"/>
+                            <TextBlock Margin="0,4,0,0">
+                                <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource DetailTextStyle}">
+                                    <Setter Property="Text" Value="{Binding Results.SelectedRecord.Number, StringFormat={ui:Text 'PCB {0}'}}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding LoadRecordCommand.IsRunning}" Value="True"><Setter Property="Text" Value="{ui:Text 'Loading…'}"/></DataTrigger>
+                                    </Style.Triggers>
+                                </Style></TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
                         <Grid Grid.Row="1">
                             <ListBox Style="{StaticResource FlatPanelListStyle}" ItemsSource="{Binding HistoryImages}" SelectedItem="{Binding SelectedHistoryImage, BindingGroupName={x:Null}}"
                                 ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -121,22 +113,19 @@
                                     </Grid>
                                 </DataTemplate></ListBox.ItemTemplate>
                             </ListBox>
-                            <TextBlock Text="{ui:Text 'No saved images for this PCB.'}" Foreground="{StaticResource TextMutedBrush}"
-                                HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-                                <TextBlock.Style><Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HistoryImages.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-                                        <DataTrigger Binding="{Binding LoadedRecord}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                        <DataTrigger Binding="{Binding LoadRecordCommand.IsRunning}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                    </Style.Triggers>
-                                </Style></TextBlock.Style>
-                            </TextBlock>
                         </Grid>
                     </Grid>
                 </Grid>
             </Border>
-            <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="10">
+            <Border Grid.Column="1" Padding="10">
+                <Border.Style><Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
+                    <Style.Triggers>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Recorded}"/>
+                            <Condition Binding="{Binding Preview.HasImage}" Value="False"/>
+                        </MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Collapsed"/></MultiDataTrigger>
+                    </Style.Triggers>
+                </Style></Border.Style>
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
@@ -153,11 +142,6 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Content="{ui:Text 'Show Reference Image'}" Command="{Binding ShowRecipeImageCommand}" Margin="0,0,8,6">
-                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                    <Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static ui:InspectionTeachingTab.History}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers>
-                                </Style></Button.Style>
-                            </Button>
                         </WrapPanel>
                         <TextBlock Text="{Binding ImageSource}" Height="22" TextTrimming="CharacterEllipsis" ToolTip="{Binding ImageSource}"/>
                         <TextBlock Text="{Binding OriginalResult}" Height="22" TextTrimming="CharacterEllipsis" ToolTip="{Binding OriginalResult}"
@@ -171,7 +155,7 @@
                         <TextBlock Text="{Binding HistoryImageError}" Foreground="{StaticResource AccentAmberBrush}"
                             TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding HistoryImageError}">
                             <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource StatusMessageStyle}">
-                                <Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static ui:InspectionTeachingTab.Setup}">
+                                <Style.Triggers><DataTrigger Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Reference}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                 </DataTrigger></Style.Triggers>
                             </Style></TextBlock.Style>
@@ -183,7 +167,7 @@
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
                                             <MultiDataTrigger><MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding SelectedTab}" Value="{x:Static ui:InspectionTeachingTab.Setup}"/>
+                                                <Condition Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Reference}"/>
                                                 <Condition Binding="{Binding SelectedPoint.Metadata}" Value="{x:Null}"/>
                                             </MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger>
                                         </Style.Triggers>
@@ -281,14 +265,7 @@
                         </Border>
                     </Grid>
                     <StackPanel Grid.Row="2">
-                        <TextBlock Margin="0,8,0,0">
-                            <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource DetailTextStyle}">
-                                <Setter Property="Text" Value="{ui:Text 'Inspection result'}"/>
-                                <Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static ui:InspectionTeachingTab.History}">
-                                    <Setter Property="Text" Value="{ui:Text 'Reinspection result'}"/>
-                                </DataTrigger></Style.Triggers>
-                            </Style></TextBlock.Style>
-                        </TextBlock>
+                        <TextBlock Text="{ui:Text 'Inspection result'}" Style="{StaticResource DetailTextStyle}" Margin="0,8,0,0"/>
                         <TextBlock MinHeight="26" Margin="0,8,0,0" FontWeight="SemiBold" FontSize="17"
                             Tag="{Binding Preview.Success}" TextWrapping="Wrap">
                             <TextBlock.Style>
@@ -319,6 +296,21 @@
                     </StackPanel>
                 </Grid>
             </Border>
+            <TextBlock Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24" TextWrapping="Wrap">
+                <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Setter Property="Text" Value="{Binding HistoryImageError, TargetNullValue={ui:Text 'Select an image'}}"/>
+                    <Style.Triggers>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Recorded}"/>
+                            <Condition Binding="{Binding Preview.HasImage}" Value="False"/>
+                        </MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger>
+                        <DataTrigger Binding="{Binding HistoryImages.Count}" Value="0"><Setter Property="Text" Value="{ui:Text 'No saved images for this PCB.'}"/></DataTrigger>
+                        <DataTrigger Binding="{Binding LoadedRecord}" Value="{x:Null}"><Setter Property="Text" Value="{Binding Error}"/></DataTrigger>
+                        <DataTrigger Binding="{Binding LoadRecordCommand.IsRunning}" Value="True"><Setter Property="Text" Value="{ui:Text 'Loading…'}"/></DataTrigger>
+                    </Style.Triggers>
+                </Style></TextBlock.Style>
+            </TextBlock>
         </Grid>
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>

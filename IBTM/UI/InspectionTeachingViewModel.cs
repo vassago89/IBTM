@@ -13,10 +13,10 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
-public enum InspectionTeachingTab
+public enum InspectionImageMode
 {
-    Setup,
-    History,
+    Reference,
+    Recorded,
 }
 
 // Offline image/recipe editing. This page has no camera, motion or I/O ownership.
@@ -46,7 +46,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
         InspectCommand = new AsyncRelayCommand(InspectAsync);
         LoadRecordCommand = new AsyncRelayCommand(LoadRecordAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         DrawRegionCommand = new RelayCommand<Rect>(DrawRegion);
-        ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
         _commands = [RefreshImagesCommand, SaveCommand, InspectCommand, LoadRecordCommand];
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
@@ -60,9 +59,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public IAsyncRelayCommand InspectCommand { get; }
     public IAsyncRelayCommand LoadRecordCommand { get; }
     public IRelayCommand<Rect> DrawRegionCommand { get; }
-    public IRelayCommand ShowRecipeImageCommand { get; }
 
-    [ObservableProperty] public partial InspectionTeachingTab SelectedTab { get; set; }
+    [ObservableProperty] public partial InspectionImageMode ImageMode { get; set; }
     [ObservableProperty] public partial IReadOnlyList<InspectionPoint> Points { get; private set; }
     [ObservableProperty] public partial InspectionPoint? SelectedPoint { get; set; }
     [ObservableProperty] public partial string? Error { get; private set; }
@@ -106,6 +104,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     public void Activate()
     {
+        ImageMode = InspectionImageMode.Reference;
         if (IsIdle)
             _ = RefreshImagesCommand.ExecuteAsync(null);
     }
@@ -178,7 +177,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     partial void OnSelectedPointChanged(InspectionPoint? value)
     {
-        if (SelectedTab == InspectionTeachingTab.Setup)
+        if (ImageMode == InspectionImageMode.Reference)
             ShowRecipeImage();
         OnPropertyChanged(nameof(IsDataMatrixSelected));
         OnPropertyChanged(nameof(DataMatrix));
@@ -189,6 +188,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         InspectCommand.Cancel();
         Error = null;
+        HistoryImageError = null;
         Message = null;
         ImageSource = null;
         OriginalImage = null;
@@ -301,15 +301,17 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedTabChanged(InspectionTeachingTab value)
+    partial void OnImageModeChanged(InspectionImageMode value)
     {
         if (_shuttingDown)
             return;
-        if (value == InspectionTeachingTab.Setup)
+        if (value == InspectionImageMode.Reference)
         {
             LoadRecordCommand.Cancel();
-            SelectedPoint ??= Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
-            ShowRecipeImage();
+            if (SelectedPoint is null && Points.Count > 0)
+                SelectedPoint = Points.FirstOrDefault(point => point.Metadata is not null) ?? Points[0];
+            else
+                ShowRecipeImage();
         }
         else
         {
@@ -329,13 +331,17 @@ public partial class InspectionTeachingViewModel : ObservableObject
         SelectedHistoryImage = null;
         Error = null;
         Message = null;
-        if (Results.SelectedRecord is not null && SelectedTab == InspectionTeachingTab.History && !_shuttingDown)
+        if (_shuttingDown || ImageMode != InspectionImageMode.Recorded)
+            return;
+        if (Results.SelectedRecord is null)
+            ImageMode = InspectionImageMode.Reference;
+        else
             _ = LoadRecordCommand.ExecuteAsync(null);
     }
 
     partial void OnSelectedHistoryImageChanged(PcbInspectionImageItem? value)
     {
-        if (SelectedTab == InspectionTeachingTab.History)
+        if (ImageMode == InspectionImageMode.Recorded)
             UseHistoryImage();
     }
 
@@ -382,7 +388,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         HistoryImages = images.Select(image => image with { Recipe = recipe }).ToArray();
         var previous = SelectedHistoryImage;
         SelectedHistoryImage = HistoryImages.FirstOrDefault(image => ReferenceEquals(image.Record, selected));
-        if (SelectedTab == InspectionTeachingTab.History && SelectedHistoryImage == previous)
+        if (ImageMode == InspectionImageMode.Recorded && SelectedHistoryImage == previous)
             UseHistoryImage();
     }
 

@@ -23,7 +23,7 @@ public partial class MainWindow : Window
             return;
         await _viewModel.NavigateCommand.ExecuteAsync(AppPage.Inspection);
         if (_viewModel.CurrentPage is InspectionTeachingViewModel inspection)
-            inspection.SelectedTab = InspectionTeachingTab.History;
+            inspection.ImageMode = InspectionImageMode.Recorded;
     }
 
     protected override async void OnClosing(CancelEventArgs e)

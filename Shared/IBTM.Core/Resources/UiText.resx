@@ -923,9 +923,6 @@ Operation failed. Check controller status.</value>
   <data name="inspection s3 support" xml:space="preserve">
     <value>Inspection S3 Support</value>
   </data>
-  <data name="inspection setup" xml:space="preserve">
-    <value>Setup</value>
-  </data>
   <data name="inspection station" xml:space="preserve">
     <value>Inspection Station</value>
   </data>
@@ -1512,11 +1509,11 @@ Operation failed. Check controller status.</value>
   <data name="pcb {0}" xml:space="preserve">
     <value>PCB {0}</value>
   </data>
-  <data name="pcb {0} · images" xml:space="preserve">
-    <value>PCB {0} · images</value>
-  </data>
   <data name="pcb {0} · results" xml:space="preserve">
     <value>PCB {0} · Results</value>
+  </data>
+  <data name="pcb {0} · torque curves" xml:space="preserve">
+    <value>PCB {0} · Torque / angle graphs</value>
   </data>
   <data name="pending" xml:space="preserve">
     <value>Pending</value>
@@ -2158,9 +2155,6 @@ Operation failed. Check controller status.</value>
   <data name="shooting vacuum" xml:space="preserve">
     <value>Shooting vacuum</value>
   </data>
-  <data name="show reference image" xml:space="preserve">
-    <value>Reference image</value>
-  </data>
   <data name="shutdown could not be completed.&#10;" xml:space="preserve">
     <value>Shutdown could not be completed.
 </value>
@@ -2581,8 +2575,8 @@ Speed   Configured axis speed</value>
   <data name="z accel / decel: blank = x / y" xml:space="preserve">
     <value>Z accel / decel: blank uses X/Y values</value>
   </data>
-  <data name="z offset (mm)" xml:space="preserve">
-    <value>Z offset (mm)</value>
+  <data name="fastening start offset (mm)" xml:space="preserve">
+    <value>Fastening start offset (mm)</value>
   </data>
   <data name="z → common safe z" xml:space="preserve">
     <value>Z → Safe height</value>
@@ -3307,11 +3301,8 @@ COMPLETE: finish</value>
   <data name="sdk pulse must be a positive integer." xml:space="preserve">
     <value>SDK Pulse must be a positive integer.</value>
   </data>
-  <data name="active recipe edits apply immediately. save to keep changes after restart." xml:space="preserve">
-    <value>Edits apply immediately. Save to keep them.</value>
-  </data>
-  <data name="history reinspection" xml:space="preserve">
-    <value>Reinspection</value>
+  <data name="changes apply immediately. save inspection settings to the current recipe." xml:space="preserve">
+    <value>Changes apply immediately. Saves inspection settings to the current recipe.</value>
   </data>
   <data name="barcode" xml:space="preserve">
     <value>Barcode</value>
@@ -3564,11 +3555,20 @@ Rotation and grip unchanged</value>
   <data name="support the carrier, then open the ng gripper." xml:space="preserve">
     <value>Support the carrier, then open the NG gripper.</value>
   </data>
-  <data name="z feed (+mm)" xml:space="preserve">
-    <value>Z feed (+mm)</value>
+  <data name="z feed during fastening" xml:space="preserve">
+    <value>Z feed during fastening</value>
   </data>
-  <data name="z feed time (s)" xml:space="preserve">
-    <value>Z feed time (s)</value>
+  <data name="distance (+mm)" xml:space="preserve">
+    <value>Distance (+mm)</value>
+  </data>
+  <data name="time (s)" xml:space="preserve">
+    <value>Time (s)</value>
+  </data>
+  <data name="0 = no movement" xml:space="preserve">
+    <value>0 = no movement</value>
+  </data>
+  <data name="{0} pickup pre-tightening" xml:space="preserve">
+    <value>{0} · Pickup pre-tightening</value>
   </data>
   <data name="z feed distance (mm)" xml:space="preserve">
     <value>Z feed distance (mm)</value>
@@ -3602,11 +3602,10 @@ Rotation and grip unchanged</value>
   </data>
   <data name="results" xml:space="preserve"><value>Results</value></data>
   <data name="details" xml:space="preserve"><value>Details</value></data>
-  <data name="select a pcb in results" xml:space="preserve"><value>Select a PCB in Results</value></data>
   <data name="reinspect" xml:space="preserve"><value>Reinspect</value></data>
   <data name="double-click a row or press enter" xml:space="preserve"><value>Double-click a row or press Enter</value></data>
   <data name="matches {0} · total {1}" xml:space="preserve"><value>Showing {0} · total {1}</value></data>
   <data name="clear filters" xml:space="preserve"><value>Clear filters</value></data>
-  <data name="save settings" xml:space="preserve"><value>Save settings</value></data>
-  <data name="reinspection result" xml:space="preserve"><value>Reinspection result</value></data>
+  <data name="save inspection settings" xml:space="preserve"><value>Save inspection settings</value></data>
+  <data name="select an image" xml:space="preserve"><value>Select an image</value></data>
 </root>
