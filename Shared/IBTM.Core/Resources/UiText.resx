@@ -217,28 +217,28 @@ Operation failed. Check controller status.</value>
     <value>Bolt fastening</value>
   </data>
   <data name="bolt fastening backup plate down" xml:space="preserve">
-    <value>Bolt Fastening Backup Plate Down</value>
+    <value>Fastening Backup Plate Down</value>
   </data>
   <data name="bolt fastening backup plate up" xml:space="preserve">
-    <value>Bolt Fastening Backup Plate Up</value>
+    <value>Fastening Backup Plate Up</value>
   </data>
   <data name="bolt fastening heat sink 1 present" xml:space="preserve">
-    <value>Bolt Fastening Heat Sink 1 Present</value>
+    <value>Fastening Heat Sink 1 Present</value>
   </data>
   <data name="bolt fastening heat sink 2 present" xml:space="preserve">
-    <value>Bolt Fastening Heat Sink 2 Present</value>
+    <value>Fastening Heat Sink 2 Present</value>
   </data>
   <data name="bolt fastening station" xml:space="preserve">
-    <value>Bolt Fastening Station</value>
+    <value>Fastening Station</value>
   </data>
   <data name="bolt fastening stopper down" xml:space="preserve">
-    <value>Bolt Fastening Stopper Down</value>
+    <value>Fastening Stopper Down</value>
   </data>
   <data name="bolt fastening stopper up" xml:space="preserve">
-    <value>Bolt Fastening Stopper Up</value>
+    <value>Fastening Stopper Up</value>
   </data>
   <data name="bolt fastening unit" xml:space="preserve">
-    <value>Bolt Fastening Unit</value>
+    <value>Fastening Unit</value>
   </data>
   <data name="bolt fastening x" xml:space="preserve">
     <value>Bolt Fastening X</value>
@@ -1441,10 +1441,10 @@ Operation failed. Check controller status.</value>
     <value>PCB Placement - Heat Sink 2</value>
   </data>
   <data name="pcb placement backup plate down" xml:space="preserve">
-    <value>PCB Placement Backup Plate Down</value>
+    <value>Placement Backup Plate Down</value>
   </data>
   <data name="pcb placement backup plate up" xml:space="preserve">
-    <value>PCB Placement Backup Plate Up</value>
+    <value>Placement Backup Plate Up</value>
   </data>
   <data name="pcb placement handler" xml:space="preserve">
     <value>PCB Placement Handler</value>
@@ -1459,19 +1459,19 @@ Operation failed. Check controller status.</value>
     <value>PCB Placement Handler Z</value>
   </data>
   <data name="pcb placement heat sink 1 present" xml:space="preserve">
-    <value>PCB Placement Heat Sink 1 Present</value>
+    <value>Placement Heat Sink 1 Present</value>
   </data>
   <data name="pcb placement heat sink 2 present" xml:space="preserve">
-    <value>PCB Placement Heat Sink 2 Present</value>
+    <value>Placement Heat Sink 2 Present</value>
   </data>
   <data name="pcb placement station" xml:space="preserve">
-    <value>PCB Placement Station</value>
+    <value>Placement Station</value>
   </data>
   <data name="pcb placement stopper down" xml:space="preserve">
-    <value>PCB Placement Stopper Down</value>
+    <value>Placement Stopper Down</value>
   </data>
   <data name="pcb placement stopper up" xml:space="preserve">
-    <value>PCB Placement Stopper Up</value>
+    <value>Placement Stopper Up</value>
   </data>
   <data name="pcb receive z" xml:space="preserve">
     <value>PCB Receive Z</value>
@@ -3603,9 +3603,11 @@ Rotation and grip unchanged</value>
   <data name="results" xml:space="preserve"><value>Results</value></data>
   <data name="details" xml:space="preserve"><value>Details</value></data>
   <data name="reinspect" xml:space="preserve"><value>Reinspect</value></data>
+  <data name="reinspection result" xml:space="preserve"><value>Reinspection result</value></data>
   <data name="double-click a row or press enter" xml:space="preserve"><value>Double-click a row or press Enter</value></data>
   <data name="matches {0} · total {1}" xml:space="preserve"><value>Showing {0} · total {1}</value></data>
   <data name="clear filters" xml:space="preserve"><value>Clear filters</value></data>
   <data name="save inspection settings" xml:space="preserve"><value>Save inspection settings</value></data>
   <data name="select an image" xml:space="preserve"><value>Select an image</value></data>
+  <data name="barcode not read" xml:space="preserve"><value>Barcode not read</value></data>
 </root>

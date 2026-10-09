@@ -42,8 +42,8 @@ public sealed record BoltResult(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BoltResult? PreviousFinalResult { get; init; }
 
-    // Persist each curve with the exact bolt/stage result that produced it.
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    // Samples are stored separately in PcbBoltCurves, keyed by PCB, bolt and stage.
+    [JsonIgnore]
     public AdcTorqueCurve? TorqueCurve { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TorqueCurveError { get; init; }

@@ -130,11 +130,15 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
                         <WrapPanel IsEnabled="{Binding IsIdle}">
-                            <Button Content="{ui:Text 'Inspect This Image'}" Command="{Binding InspectCommand}" Margin="0,0,8,6">
+                            <Button Command="{Binding InspectCommand}" Margin="0,0,8,6">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                        <Setter Property="Content" Value="{ui:Text 'Inspect This Image'}"/>
                                         <Setter Property="IsEnabled" Value="{Binding IsInspectAllowed}"/>
                                         <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Recorded}">
+                                                <Setter Property="Content" Value="{ui:Text 'Reinspect'}"/>
+                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding ElementName=EditorRoot, Path=(Validation.HasError)}" Value="True">
                                                 <Setter Property="IsEnabled" Value="False"/>
                                             </DataTrigger>
@@ -265,7 +269,14 @@
                         </Border>
                     </Grid>
                     <StackPanel Grid.Row="2">
-                        <TextBlock Text="{ui:Text 'Inspection result'}" Style="{StaticResource DetailTextStyle}" Margin="0,8,0,0"/>
+                        <TextBlock Margin="0,8,0,0">
+                            <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource DetailTextStyle}">
+                                <Setter Property="Text" Value="{ui:Text 'Inspection result'}"/>
+                                <Style.Triggers><DataTrigger Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Recorded}">
+                                    <Setter Property="Text" Value="{ui:Text 'Reinspection result'}"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></TextBlock.Style>
+                        </TextBlock>
                         <TextBlock MinHeight="26" Margin="0,8,0,0" FontWeight="SemiBold" FontSize="17"
                             Tag="{Binding Preview.Success}" TextWrapping="Wrap">
                             <TextBlock.Style>

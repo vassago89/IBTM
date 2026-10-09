@@ -58,22 +58,26 @@
                     </Style>
                 </Button.Style>
             </Button>
-            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
-                <TextBlock Text="{Binding Record.Number, StringFormat={ui:Text 'PCB {0}'}}" FontSize="24" FontWeight="SemiBold"/>
-                <Border Background="{StaticResource ControlBgBrush}" CornerRadius="4" Margin="12,0,0,0" Padding="12,5" VerticalAlignment="Center">
+            <DockPanel VerticalAlignment="Center">
+                <Border DockPanel.Dock="Right" Background="{StaticResource ControlBgBrush}" CornerRadius="4" Margin="12,0,0,0" Padding="12,5" VerticalAlignment="Center">
                     <TextBlock Text="{Binding Record.Result, Converter={StaticResource UiTextConverter}}" Tag="{Binding Record.Result}" Style="{StaticResource ResultValueStyle}"/>
                 </Border>
-            </StackPanel>
-            <StackPanel VerticalAlignment="Center">
-                <WrapPanel TextBlock.Foreground="{StaticResource TextSecondaryBrush}" TextBlock.FontSize="13">
-                    <TextBlock Text="{Binding Record.RecipeName}" Margin="0,0,14,0"/>
-                    <TextBlock Text="{Binding Record.HeatSink, Converter={StaticResource UiTextConverter}}"/>
-                </WrapPanel>
-                <WrapPanel TextBlock.Foreground="{StaticResource TextMutedBrush}" TextBlock.FontSize="13" Margin="0,3,0,0">
-                    <TextBlock Text="{Binding Record.CreatedAt, StringFormat={ui:Text 'Created {0:yyyy-MM-dd HH:mm:ss}'}}" Margin="0,0,14,0"/>
-                    <TextBlock Text="{Binding Record.UpdatedAt, StringFormat={ui:Text 'Updated {0:HH:mm:ss}'}}"/>
-                </WrapPanel>
-            </StackPanel>
+                <StackPanel>
+                    <TextBlock FontSize="22" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Record.PcbBarcode}">
+                        <TextBlock.Style><Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="{Binding Record.PcbBarcode, TargetNullValue={ui:Text 'Barcode not read'}, FallbackValue={ui:Text 'Barcode not read'}}"/>
+                            <Style.Triggers><DataTrigger Binding="{Binding Record.PcbBarcode}" Value="">
+                                <Setter Property="Text" Value="{ui:Text 'Barcode not read'}"/>
+                            </DataTrigger></Style.Triggers>
+                        </Style></TextBlock.Style>
+                    </TextBlock>
+                    <WrapPanel TextBlock.Foreground="{StaticResource TextMutedBrush}" TextBlock.FontSize="13" Margin="0,3,0,0">
+                        <TextBlock Text="{Binding Record.Number, StringFormat={ui:Text 'PCB {0}'}}" Margin="0,0,14,0"/>
+                        <TextBlock Text="{Binding Record.CreatedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
+                            ToolTip="{Binding Record.UpdatedAt, StringFormat={ui:Text 'Updated {0:HH:mm:ss}'}}"/>
+                    </WrapPanel>
+                </StackPanel>
+            </DockPanel>
         </DockPanel>
         <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,8">
             <Border Style="{StaticResource Card}" Margin="0,0,10,0" Padding="12,6">
@@ -107,7 +111,7 @@
                         <TextBlock Text="{ui:Text 'Inspection images'}" Style="{StaticResource PanelTitleStyle}"/>
                         <DockPanel Margin="0,4,0,0">
                             <TextBlock DockPanel.Dock="Left" Text="{ui:Text 'Data Matrix · '}" Style="{StaticResource CaptionTextStyle}"/>
-                            <TextBlock Text="{Binding Record.PcbBarcode, TargetNullValue={ui:Text 'Not read'}, FallbackValue={ui:Text 'Not read'}}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Record.PcbBarcode}"
+                            <TextBlock Text="{Binding Record.PcbBarcodeResult, Converter={StaticResource UiTextConverter}, TargetNullValue='—', FallbackValue='—'}"
                                 Tag="{Binding Record.PcbBarcodeResult}" FontSize="13">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}">
@@ -217,18 +221,19 @@
                                     <TextBlock Style="{StaticResource DetailTextStyle}" Text="{Binding Result.Stage, Converter={StaticResource UiTextConverter}}"/>
                                 </StackPanel>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                            <DataGridTextColumn Header="{ui:Text 'Head'}" Binding="{Binding HeadLabel, Mode=OneWay}" Width="85"/>
-                            <DataGridTemplateColumn Header="{ui:Text 'Fasten'}" Width="120"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource FasteningVerdict}" FontSize="13"/>
+                            <DataGridTextColumn Header="{ui:Text 'Head'}" Binding="{Binding HeadLabel, Mode=OneWay}" Width="60"/>
+                            <DataGridTemplateColumn Header="{ui:Text 'Fasten'}" Width="110"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
+                                <TextBlock Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource FasteningVerdict}" FontSize="13" TextWrapping="Wrap"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                            <DataGridTextColumn Header="{ui:Text 'Torque'}" Binding="{Binding Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="85"/>
                             <DataGridTemplateColumn Header="{ui:Text 'VISION'}" Width="62"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                 <TextBlock Text="{Binding VisionVerdict}" Tag="{Binding VisionVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="{ui:Text 'Turns'}" Width="105"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock Text="{Binding TurnsVerdict}" Tag="{Binding TurnsVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
-                            </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="{ui:Text 'ACTUAL / MIN / MAX'}" Width="190"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock FontSize="13"><Run Text="{Binding Result.TotalTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding Result.MaximumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding TurnsVerdict}" Tag="{Binding TurnsVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
+                                    <TextBlock Text="{Binding Result.TotalTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource DetailTextStyle}"/>
+                                </StackPanel>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -269,6 +274,11 @@
                                     <WrapPanel Margin="0,3,0,4" TextBlock.FontSize="13" TextBlock.Foreground="{StaticResource TextMutedBrush}">
                                         <ComboBox ItemsSource="{Binding BoltStages}" SelectedItem="{Binding SelectedBoltStage, Mode=TwoWay}" IsSynchronizedWithCurrentItem="False"
                                             MinWidth="120" Margin="0,0,12,0">
+                                            <ComboBox.Style><Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                                <Style.Triggers><DataTrigger Binding="{Binding ElementName=FasteningStagesTab, Path=IsSelected}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger></Style.Triggers>
+                                            </Style></ComboBox.Style>
                                             <ComboBox.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                                 <TextBlock Text="{Binding Result.Stage, Converter={StaticResource UiTextConverter}}"/>
                                             </DataTemplate></ComboBox.ItemTemplate>
@@ -279,7 +289,7 @@
                                 </StackPanel>
                             </DockPanel>
                             <TabControl Grid.Row="1">
-                                <TabItem Header="{ui:Text 'Fastening stages'}" Padding="10,4">
+                                <TabItem x:Name="FasteningStagesTab" Header="{ui:Text 'Fastening stages'}" Padding="10,4">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                         <StackPanel Margin="0,8,0,0">
                                             <DataGrid ItemsSource="{Binding BoltStages}" SelectedItem="{Binding SelectedBoltStage, Mode=TwoWay}" IsSynchronizedWithCurrentItem="False"
@@ -366,48 +376,46 @@
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Stage turns'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.MeasuredTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Snug angle (°)'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.SnugAngle, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Preset'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.Preset, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
-                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Event count'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.EventCount, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
-                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Screw count'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.ScrewCount, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
-                                        <StackPanel Style="{StaticResource Metric}" ToolTip="{Binding SelectedBoltStage.ControllerErrorDescription}"><TextBlock Text="{ui:Text 'Error code'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.ErrorCode, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
-                                        <StackPanel Style="{StaticResource Metric}">
-                                            <TextBlock Text="{ui:Text 'Status'}" Style="{StaticResource CaptionTextStyle}"/>
-                                            <TextBlock Text="{Binding SelectedBoltStage.ControllerStatus, TargetNullValue='—', FallbackValue='—'}" ToolTip="{Binding SelectedBoltStage.ControllerStatus}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MetricValue}">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SelectedBoltStage.Result.Controller.StatusCode}" Value="1">
-                                                                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding SelectedBoltStage.Result.Controller.StatusCode}" Value="2">
-                                                                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </StackPanel>
-                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Direction'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Direction, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}" ToolTip="{Binding SelectedBoltStage.Direction}"/></StackPanel>
-                                        <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Port / address'}" Style="{StaticResource CaptionTextStyle}"/>
-                                            <TextBlock Style="{StaticResource MetricValue}"><Run Text="{Binding SelectedBoltStage.Result.Controller.Port, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding SelectedBoltStage.Result.Controller.SlaveAddress, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
-                                        </StackPanel>
                                     </UniformGrid>
                                 </TabItem>
                                 <TabItem Header="{ui:Text 'Diagnostics'}" Padding="10,4">
-                                    <Grid Margin="0,8,0,0">
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="*"/>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="64"/>
-                                        </Grid.RowDefinitions>
-                                        <DockPanel Margin="0,0,0,4">
-                                            <TextBlock DockPanel.Dock="Left" Text="{ui:Text 'Error / message'}" Style="{StaticResource CaptionTextStyle}" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding SelectedBoltStage.ControllerErrorDescription}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedBoltStage.ControllerErrorDescription}"/>
-                                        </DockPanel>
-                                        <TextBox Grid.Row="1" Text="{Binding SelectedBoltStage.Result.Error, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontSize="13" Padding="6" BorderThickness="0" Foreground="{StaticResource AccentRedBrush}"/>
-                                        <TextBlock Grid.Row="2" Text="{ui:Text 'ORIGINAL ADC REGISTERS · ADDRESS : HEX'}" Style="{StaticResource CaptionTextStyle}" Margin="0,8,0,4"/>
-                                        <TextBox Grid.Row="3" Text="{Binding SelectedBoltStage.RegisterText, Mode=OneWay, TargetNullValue={ui:Text 'Not recorded'}, FallbackValue={ui:Text 'Not recorded'}}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="13" Padding="6" BorderThickness="0"/>
-                                    </Grid>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <UniformGrid Columns="3" VerticalAlignment="Top">
+                                                <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Event count'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.EventCount, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
+                                                <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Screw count'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.ScrewCount, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
+                                                <StackPanel Style="{StaticResource Metric}" ToolTip="{Binding SelectedBoltStage.ControllerErrorDescription}"><TextBlock Text="{ui:Text 'Error code'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Result.Controller.ErrorCode, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}"/></StackPanel>
+                                                <StackPanel Style="{StaticResource Metric}">
+                                                    <TextBlock Text="{ui:Text 'Status'}" Style="{StaticResource CaptionTextStyle}"/>
+                                                    <TextBlock Text="{Binding SelectedBoltStage.ControllerStatus, TargetNullValue='—', FallbackValue='—'}" ToolTip="{Binding SelectedBoltStage.ControllerStatus}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource MetricValue}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding SelectedBoltStage.Result.Controller.StatusCode}" Value="1">
+                                                                        <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding SelectedBoltStage.Result.Controller.StatusCode}" Value="2">
+                                                                        <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Direction'}" Style="{StaticResource CaptionTextStyle}"/><TextBlock Text="{Binding SelectedBoltStage.Direction, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}" ToolTip="{Binding SelectedBoltStage.Direction}"/></StackPanel>
+                                                <StackPanel Style="{StaticResource Metric}"><TextBlock Text="{ui:Text 'Port / address'}" Style="{StaticResource CaptionTextStyle}"/>
+                                                    <TextBlock Style="{StaticResource MetricValue}"><Run Text="{Binding SelectedBoltStage.Result.Controller.Port, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding SelectedBoltStage.Result.Controller.SlaveAddress, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
+                                                </StackPanel>
+                                            </UniformGrid>
+                                            <DockPanel Margin="0,0,0,4">
+                                                <TextBlock DockPanel.Dock="Left" Text="{ui:Text 'Error / message'}" Style="{StaticResource CaptionTextStyle}" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{Binding SelectedBoltStage.ControllerErrorDescription}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedBoltStage.ControllerErrorDescription}"/>
+                                            </DockPanel>
+                                            <TextBox MinHeight="32" MaxHeight="96" Text="{Binding SelectedBoltStage.Result.Error, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontSize="13" Padding="6" BorderThickness="0" Foreground="{StaticResource AccentRedBrush}"/>
+                                            <TextBlock Text="{ui:Text 'ORIGINAL ADC REGISTERS · ADDRESS : HEX'}" Style="{StaticResource CaptionTextStyle}" Margin="0,8,0,4"/>
+                                            <TextBox Height="64" Text="{Binding SelectedBoltStage.RegisterText, Mode=OneWay, TargetNullValue={ui:Text 'Not recorded'}, FallbackValue={ui:Text 'Not recorded'}}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="13" Padding="6" BorderThickness="0"/>
+                                        </StackPanel>
+                                    </ScrollViewer>
                                 </TabItem>
                             </TabControl>
                         </Grid>
@@ -416,10 +424,16 @@
             </Border>
         </Grid>
         <Grid Grid.Row="3" Margin="0,8,0,0" Height="24">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <TextBlock Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
                 Text="{ui:Text 'Torque (controller unit)'}"/>
-            <TextBlock Grid.Column="1" Text="{Binding ExportMessage}" ToolTip="{Binding ExportMessage}"
+            <TextBlock Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                Text="{ui:Text 'Loading…'}" Foreground="{StaticResource TextMutedBrush}"
+                Visibility="{Binding LoadCurvesCommand.IsRunning, Converter={StaticResource BoolToVis}}"/>
+            <TextBlock Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                Text="{Binding CurveLoadError}" ToolTip="{Binding CurveLoadError}"
+                Foreground="{StaticResource AccentRedBrush}" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Grid.Column="2" Text="{Binding ExportMessage}" ToolTip="{Binding ExportMessage}"
                 Margin="16,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
         </Grid>
     </Grid>

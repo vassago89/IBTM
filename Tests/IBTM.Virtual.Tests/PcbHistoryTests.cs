@@ -107,7 +107,16 @@ public sealed class PcbHistoryTests
         Assert.Same(finalCurve, stages[1].Result.TorqueCurve);
         Assert.Same(retighteningCurve, stages[2].Result.TorqueCurve);
         var reopened = VirtualTestSupport.OpenMachineStore(store.DatabaseFile);
-        details.Record = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        var summary = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.False(summary.IsCurveDataLoaded);
+        var summarizedBolt = summary.PickupBoltResults[boltId];
+        Assert.Null(summarizedBolt.TorqueCurve);
+        Assert.Null(summarizedBolt.PreviousFinalResult!.TorqueCurve);
+        Assert.Null(summarizedBolt.PreviousFinalResult.PreliminaryResult!.TorqueCurve);
+        details.Record = summary;
+        await details.LoadCurvesCommand.ExecutionTask!;
+        Assert.Null(details.CurveLoadError);
+        Assert.True(details.Record.IsCurveDataLoaded);
         var restored = Assert.Single(details.BoltResults).StageResults.ToArray();
         Assert.Equal(new[] { BoltFasteningStage.Preliminary, BoltFasteningStage.FinalBeforeRetightening,
             BoltFasteningStage.Retightening }, restored.Select(row => row.Result.Stage));
@@ -126,6 +135,152 @@ public sealed class PcbHistoryTests
         Assert.NotSame(finalCurve, restored[1].Result.TorqueCurve);
         Assert.Same(details.BoltStages.Last(), details.SelectedBoltStage);
         Assert.Equal(BoltFasteningStage.Retightening, details.SelectedBoltStage!.Result.Stage);
+
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = details.Record.DatabaseFile, Mode = SqliteOpenMode.ReadOnly,
+        }.ToString());
+        connection.Open();
+        using var query = connection.CreateCommand();
+        query.CommandText = "SELECT Value FROM Pcbs WHERE Number=$pcb";
+        query.Parameters.AddWithValue("$pcb", details.Record.Number);
+        Assert.DoesNotContain("\"TorqueCurve\":", (string)query.ExecuteScalar()!);
+        query.CommandText = "SELECT COUNT(*) FROM PcbBoltCurves WHERE PcbNumber=$pcb";
+        Assert.Equal(3L, query.ExecuteScalar());
+    }
+
+    [Fact]
+    public void SeparateCurvesKeepResultOwnershipAndRollBackWithFailedSaves()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        var directory = store.DatabaseFile + ".results";
+        var file = Path.Combine(directory, "PCB-2026-10.db");
+        var boltId = VirtualTestSupport.BoltId(1);
+        var shooting = new BoltResult(true, 8)
+        {
+            TorqueCurve = new(1, 5, [0, 4, 8], 15, 8, 8, 1, 0) { Angles = [0, 90, 180] },
+        };
+        var pickup = new BoltResult(true, 2)
+        {
+            TorqueCurve = new(2, 5, [0, 1, 2], 15, 2, 2, 2, 0),
+        };
+        var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
+            "ORIGINAL", AssemblyResult.Ok, AssemblyResult.Ok, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult> { [boltId] = shooting },
+            new Dictionary<Guid, BoltResult> { [boltId] = pickup }, new Dictionary<Guid, bool>(), [boltId])
+        {
+            DatabaseFile = file,
+        };
+        store.SavePcb(file, record);
+        store.SavePcb(file, record with { Number = 2 });
+        var summary = store.LoadPcbs(directory).Single(row => row.Number == record.Number);
+        Assert.Null(summary.ShootingBoltResults[boltId].TorqueCurve);
+        Assert.Null(summary.PickupBoltResults[boltId].TorqueCurve);
+        Assert.Throws<InvalidOperationException>(() => store.SavePcb(file, summary));
+
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = file, ForeignKeys = true,
+        }.ToString());
+        connection.Open();
+        using var query = connection.CreateCommand();
+        query.CommandText = """
+            CREATE TRIGGER FailCurveSave BEFORE INSERT ON PcbBoltCurves
+            BEGIN SELECT RAISE(ABORT, 'Graph write failed'); END;
+            """;
+        query.ExecuteNonQuery();
+        Assert.Throws<SqliteException>(() => store.SavePcb(file, record with { PcbBarcode = "CHANGED" }));
+        var restored = store.LoadPcb(summary);
+        Assert.Equal("ORIGINAL", restored.PcbBarcode);
+        Assert.Equal(shooting.TorqueCurve.Torques, restored.ShootingBoltResults[boltId].TorqueCurve!.Torques);
+        Assert.Equal(shooting.TorqueCurve.Angles, restored.ShootingBoltResults[boltId].TorqueCurve!.Angles);
+        Assert.Equal(pickup.TorqueCurve.Torques, restored.PickupBoltResults[boltId].TorqueCurve!.Torques);
+        query.CommandText = "DROP TRIGGER FailCurveSave";
+        query.ExecuteNonQuery();
+
+        store.SavePcb(file, restored with
+        {
+            ShootingBoltResults = new Dictionary<Guid, BoltResult> { [boltId] = new(true, null, BoltResultSource.Manual) },
+            PickupBoltResults = new Dictionary<Guid, BoltResult>(),
+        });
+        restored = store.LoadPcb(summary);
+        Assert.Null(restored.ShootingBoltResults[boltId].TorqueCurve);
+        Assert.Empty(restored.PickupBoltResults);
+        query.CommandText = "SELECT COUNT(*) FROM PcbBoltCurves WHERE PcbNumber=1";
+        Assert.Equal(0L, query.ExecuteScalar());
+        query.CommandText = "SELECT COUNT(*) FROM PcbBoltCurves WHERE PcbNumber=2";
+        Assert.Equal(2L, query.ExecuteScalar());
+        var image = new PcbInspectionImage(boltId, record.CreatedAt, new(0, 0, 1, 1), true, null, 1, 0.5, [1]);
+        Assert.Throws<SqliteException>(() => store.SavePcbImage(file, 999, image));
+        store.SavePcbImage(file, 2, image);
+        query.CommandText = "DELETE FROM Pcbs WHERE Number=2";
+        query.ExecuteNonQuery();
+        query.CommandText = "SELECT COUNT(*) FROM PcbBoltCurves";
+        Assert.Equal(0L, query.ExecuteScalar());
+        query.CommandText = "SELECT COUNT(*) FROM PcbImages";
+        Assert.Equal(0L, query.ExecuteScalar());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PendingCurveLoadDoesNotReplaceLiveResultsOrAClosedSelection(bool closeSelection)
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var store = services.GetRequiredService<MachineStore>();
+        var details = services.GetRequiredService<PcbResultsViewModel>();
+        var directory = store.DatabaseFile + ".results";
+        var file = Path.Combine(directory, "PCB-2026-10.db");
+        var boltId = VirtualTestSupport.BoltId(1);
+        var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
+            null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult>
+            {
+                [boltId] = new(true, 4) { TorqueCurve = new(1, 5, [0, 4], 10, 4, 4, 1, 0) },
+            },
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [boltId])
+        {
+            DatabaseFile = file,
+        };
+        store.SavePcb(file, record);
+        var summary = Assert.Single(store.LoadPcbs(directory));
+        var paused = new VirtualTestSupport.PausedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(paused);
+            details.Record = summary;
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+        var pending = details.LoadCurvesCommand.ExecutionTask!;
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
+            var live = record with
+            {
+                ShootingBoltResults = new Dictionary<Guid, BoltResult>
+                {
+                    [boltId] = new(true, 8) { TorqueCurve = new(2, 5, [0, 8], 10, 8, 8, 2, 0) },
+                },
+            };
+            details.Record = closeSelection ? null : live;
+            var shutdown = details.ShutdownAsync();
+            Assert.False(shutdown.IsCompleted);
+            paused.Release();
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Same(closeSelection ? null : live, details.Record);
+            Assert.Null(details.CurveLoadError);
+            if (!closeSelection)
+                Assert.Equal(new double[] { 0, 8 }, details.SelectedBoltStage!.Result.TorqueCurve!.Torques);
+        }
+        finally
+        {
+            paused.Release();
+            await pending.WaitAsync(TimeSpan.FromSeconds(2));
+        }
     }
 
     [Fact]
@@ -153,13 +308,6 @@ public sealed class PcbHistoryTests
         var details = new PcbInspectionImageItem(image, null, new Recipe()).Details;
         Assert.Contains("55", details);
         Assert.Contains(UiText.Get(" · Dilate ON"), details);
-
-        // Older records carry no attempt metadata; missing feedback must remain unknown.
-        var legacy = System.Text.Json.JsonSerializer.Deserialize<PcbInspectionImage>(
-            """{"BoltId":null,"CapturedAt":"2026-10-02T00:00:00Z","Region":{"X":0,"Y":0,"Width":1,"Height":1},"Success":true,"Barcode":"OLD"}""")!;
-        Assert.Null(legacy.Threshold);
-        Assert.Null(legacy.Dilated);
-        Assert.Equal("OLD", new PcbInspectionImageItem(legacy, null, new Recipe()).Details);
     }
 
     [Fact]
@@ -229,15 +377,10 @@ public sealed class PcbHistoryTests
     }
 
     [Fact]
-    public void ProductionCountsAreAddedToExistingMachineDatabase()
+    public void ProductionCountsPersistPerRecipeWithoutCaseDuplicates()
     {
         var original = VirtualTestSupport.OpenMachineStore();
         original.SaveRecipe(new Recipe { Name = "Existing" });
-        using var connection = new SqliteConnection($"Data Source={original.DatabaseFile}");
-        connection.Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = "DROP TABLE ProductionCounts";
-        command.ExecuteNonQuery();
 
         var updated = new MachineStore(original.DatabaseFile);
         Assert.Equal("Existing", updated.LoadRecipe("Existing").Name);
@@ -389,11 +532,8 @@ public sealed class PcbHistoryTests
             command.CommandText = "SELECT Value FROM Pcbs WHERE Number=$number";
             command.Parameters.AddWithValue("$number", record.Number);
             var json = (string)command.ExecuteScalar()!;
-            Assert.DoesNotContain("BoltNumber", json);
             using var saved = System.Text.Json.JsonDocument.Parse(json);
-            Assert.False(saved.RootElement.TryGetProperty("BoltNames", out _));
-            // Keep the existing database JSON name while the code names the shooting head explicitly.
-            Assert.All(saved.RootElement.GetProperty("PcbBoltResults").EnumerateObject(),
+            Assert.All(saved.RootElement.GetProperty(nameof(PcbRecord.ShootingBoltResults)).EnumerateObject(),
                 result => Assert.True(Guid.TryParse(result.Name, out var id) && id != Guid.Empty));
             Assert.All(saved.RootElement.GetProperty(nameof(PcbRecord.PickupBoltResults)).EnumerateObject(),
                 result => Assert.True(Guid.TryParse(result.Name, out var id) && id != Guid.Empty));
@@ -401,6 +541,8 @@ public sealed class PcbHistoryTests
 
         var details = services.GetRequiredService<PcbResultsViewModel>();
         details.Record = record;
+        await details.LoadCurvesCommand.ExecutionTask!;
+        record = details.Record!;
         Assert.Equal(6, details.BoltResults.Count);
         Assert.Empty(details.InspectionOnlyResults);
         for (var index = 0; index < bolts.Length; index++)
@@ -463,28 +605,6 @@ public sealed class PcbHistoryTests
         Assert.Empty(details.BoltResults);
         Assert.Equal(6, details.InspectionOnlyResults.Count);
         Assert.Equal("Bolt 5", details.InspectionOnlyResults.Single(row => row.BoltId == bolts[4].Id).BoltLabel);
-
-        // Old name copies are ignored; the result's GUID order supplies unnamed bolt numbers.
-        var legacyJson = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(record))!;
-        legacyJson["BoltNames"] = new System.Text.Json.Nodes.JsonObject
-        {
-            [bolts[4].Id.ToString()] = "저장된 옛 이름",
-        };
-        var legacy = System.Text.Json.JsonSerializer.Deserialize<PcbRecord>(legacyJson.ToJsonString())!;
-        details.Record = legacy with { Number = record.Number, DatabaseFile = record.DatabaseFile };
-        Assert.Equal(Enumerable.Range(1, 6).Select(number => $"Bolt {number}"),
-            details.BoltResults.Select(row => row.BoltLabel));
-        Assert.Empty(details.InspectionOnlyResults);
-        await details.LoadImagesCommand.ExecuteAsync(null);
-        Assert.Equal(bolts[4].Id, details.SelectedImage?.Record.BoltId);
-        Assert.Equal("Bolt 5", details.SelectedImage?.Title);
-        details.Record = legacy with
-        {
-            ShootingBoltResults = new Dictionary<Guid, BoltResult>(),
-            PickupBoltResults = new Dictionary<Guid, BoltResult>(),
-        };
-        Assert.Equal(Enumerable.Range(1, 6).Select(number => $"Bolt {number}"),
-            details.InspectionOnlyResults.Select(row => row.BoltLabel));
     }
 
     [Fact]
@@ -576,7 +696,7 @@ public sealed class PcbHistoryTests
         {
             connection.Open();
             using var command = connection.CreateCommand();
-            command.CommandText = "DROP TABLE PcbCounter";
+            command.CommandText = "CREATE TRIGGER FailCounter BEFORE UPDATE ON PcbCounter BEGIN SELECT RAISE(ABORT, 'counter write failed'); END";
             command.ExecuteNonQuery();
         }
 
@@ -589,7 +709,13 @@ public sealed class PcbHistoryTests
         Assert.Same(assembly, work.GetAssembly(HeatSinkSlot.HeatSink1));
         Assert.Equal(2, history.PendingCount);
 
-        _ = new MachineStore(store.DatabaseFile); // Restore the missing counter.
+        using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "DROP TRIGGER FailCounter";
+            command.ExecuteNonQuery();
+        }
         await history.FlushAsync();
         Assert.Null(history.SaveError);
         Assert.Equal(0, history.PendingCount);
@@ -649,22 +775,12 @@ public sealed class PcbHistoryTests
     }
 
     [Fact]
-    public async Task CounterUpgradesExistingDatabaseAndContinuesAcrossReopen()
+    public async Task CounterAllocatesUniqueNumbersAndContinuesAcrossReopen()
     {
         var store = VirtualTestSupport.OpenMachineStore();
         var settings = new PcbHistorySettings { Directory = store.DatabaseFile + ".results" };
         store.SaveSettings([settings]);
-        using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
-        {
-            connection.Open();
-            using var command = connection.CreateCommand();
-            command.CommandText = """
-                INSERT INTO Recipes (Name, Value) VALUES ('Existing', '{"Name":"Existing","X":123.4}')
-                """;
-            command.ExecuteNonQuery();
-            command.CommandText = "DROP TABLE PcbCounter";
-            command.ExecuteNonQuery();
-        }
+        store.SaveRecipe(new Recipe { Name = "Existing" });
 
         store = new(store.DatabaseFile);
         Assert.Equal(1, store.NextPcbNumber(settings.Directory));

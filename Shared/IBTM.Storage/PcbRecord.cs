@@ -15,7 +15,7 @@ public sealed record PcbRecord(
     AssemblyResult PcbBarcodeResult,
     AssemblyResult FasteningResult,
     AssemblyResult InspectionResult,
-    [property: JsonPropertyName("PcbBoltResults")] IReadOnlyDictionary<Guid, BoltResult> ShootingBoltResults,
+    IReadOnlyDictionary<Guid, BoltResult> ShootingBoltResults,
     IReadOnlyDictionary<Guid, BoltResult> PickupBoltResults,
     IReadOnlyDictionary<Guid, bool> BoltPresenceResults,
     IReadOnlyList<Guid> BoltIds)
@@ -36,6 +36,9 @@ public sealed record PcbRecord(
 
     [JsonIgnore]
     public string? DatabaseFile { get; init; }
+
+    [JsonIgnore]
+    public bool IsCurveDataLoaded { get; init; } = true;
 
     [JsonIgnore]
     public AssemblyResult Result

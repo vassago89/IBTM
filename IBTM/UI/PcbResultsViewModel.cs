@@ -20,17 +20,21 @@ namespace IBTM.UI;
 
 public partial class PcbResultsViewModel : ObservableObject
 {
+    private readonly MachineStore _store;
     private readonly RecipeManager _recipes;
     private readonly InspectionImageLoader _images;
     private readonly ILogger<PcbResultsViewModel> _log;
     private bool _shuttingDown;
 
-    public PcbResultsViewModel(RecipeManager recipes, InspectionImageLoader images, ILogger<PcbResultsViewModel> log)
+    public PcbResultsViewModel(MachineStore store, RecipeManager recipes, InspectionImageLoader images,
+        ILogger<PcbResultsViewModel> log)
     {
+        _store = store;
         _recipes = recipes;
         _images = images;
         _log = log;
         LoadImagesCommand = new AsyncRelayCommand(LoadImagesAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        LoadCurvesCommand = new AsyncRelayCommand(LoadCurvesAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         ExportCsvCommand = new AsyncRelayCommand(ExportCsvAsync);
         BoltResults = [];
         BoltStages = [];
@@ -39,6 +43,7 @@ public partial class PcbResultsViewModel : ObservableObject
     }
 
     public IAsyncRelayCommand LoadImagesCommand { get; }
+    public IAsyncRelayCommand LoadCurvesCommand { get; }
     public IAsyncRelayCommand ExportCsvCommand { get; }
 
     [ObservableProperty]
@@ -61,6 +66,9 @@ public partial class PcbResultsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string? ImageError { get; private set; }
+
+    [ObservableProperty]
+    public partial string? CurveLoadError { get; private set; }
 
     [ObservableProperty]
     public partial string? ExportMessage { get; private set; }
@@ -87,6 +95,8 @@ public partial class PcbResultsViewModel : ObservableObject
     {
         if (_shuttingDown)
             return;
+        LoadCurvesCommand.Cancel();
+        CurveLoadError = null;
         if (oldValue?.Number != newValue?.Number || oldValue?.DatabaseFile != newValue?.DatabaseFile)
         {
             SelectedBolt = null;
@@ -101,6 +111,8 @@ public partial class PcbResultsViewModel : ObservableObject
         {
             RefreshResults();
         }
+        if (newValue is { IsCurveDataLoaded: false })
+            _ = LoadCurvesCommand.ExecuteAsync(null);
     }
 
     private void RefreshResults()
@@ -200,7 +212,7 @@ public partial class PcbResultsViewModel : ObservableObject
     {
         _shuttingDown = true;
         _recipes.Changed -= OnRecipeChanged;
-        return CommandShutdown.CancelAndWaitAsync([LoadImagesCommand, ExportCsvCommand]);
+        return CommandShutdown.CancelAndWaitAsync([LoadImagesCommand, LoadCurvesCommand, ExportCsvCommand]);
     }
 
     private async Task ExportCsvAsync()
@@ -318,6 +330,35 @@ public partial class PcbResultsViewModel : ObservableObject
         {
             ExportMessage = UiText.Format($"CSV export failed: {exception.Message}");
             _log.LogError(exception, "PCB {Number} CSV export failed.", record.Number);
+        }
+    }
+
+    private async Task LoadCurvesAsync(CancellationToken cancellationToken)
+    {
+        var previous = LoadCurvesCommand.ExecutionTask;
+        var record = Record;
+        try
+        {
+            if (_shuttingDown || record is not { IsCurveDataLoaded: false })
+                return;
+            var loaded = await Task.Run(() => _store.LoadPcb(record), cancellationToken);
+            if (!cancellationToken.IsCancellationRequested && ReferenceEquals(Record, record))
+                Record = loaded;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (cancellationToken.IsCancellationRequested || !ReferenceEquals(Record, record))
+                return;
+            CurveLoadError = exception.Message;
+            _log.LogError(exception, "PCB {Number} graph history load failed.", record?.Number);
+        }
+        finally
+        {
+            if (previous is { IsCompleted: false })
+                await previous;
         }
     }
 

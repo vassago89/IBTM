@@ -597,11 +597,8 @@ public sealed class BoltFasteningTests
             Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
             return;
         }
-        // Reload the pending result: it still owes only the extra pass.
+        // The pending result still owes only the extra pass.
         firstFinal = firstFinal with { ZFeedDistance = 2.5 };
-        var saved = System.Text.Json.JsonSerializer.Serialize(firstFinal);
-        firstFinal = System.Text.Json.JsonSerializer.Deserialize<BoltResult>(saved)!;
-        Assert.Equal(2.5, firstFinal.ZFeedDistance);
         assembly.RecordBolt(FasteningHead.Pickup, bolts[0].Id, firstFinal);
         Assert.Equal("Retightening pending",
             new FasteningResumeRow(bolts[0].Id, "Bolt", HeatSinkSlot.HeatSink1, firstFinal).Status);
@@ -907,19 +904,6 @@ public sealed class BoltFasteningTests
         assembly.CompleteInspection();
         Assert.Equal(AssemblyResult.Ok, assembly.TurnsResult);
         Assert.Equal(AssemblyResult.Ok, assembly.Result);
-
-        // Older single-stage records have neither of the new stage fields.
-        var legacy = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(final))!.AsObject();
-        legacy.Remove(nameof(BoltResult.Stage));
-        legacy.Remove(nameof(BoltResult.PreliminaryResult));
-        legacy[nameof(BoltResult.Controller)]!.AsObject().Remove(nameof(BoltControllerData.TorqueCompensationPercent));
-        var single = System.Text.Json.JsonSerializer.Deserialize<BoltResult>(legacy.ToJsonString())!;
-        Assert.Equal(BoltFasteningStage.Single, single.Stage);
-        Assert.True(single.IsComplete);
-        Assert.Null(single.PreliminaryResult);
-        Assert.Null(single.Controller!.TorqueCompensationPercent);
-        Assert.Equal(2, single.TotalTurns);
-        Assert.Equal(AssemblyResult.Ng, single.TurnsResult);
     }
 
     [Fact]

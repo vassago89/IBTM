@@ -5,7 +5,7 @@ using IBTM.Core;
 namespace IBTM.Storage;
 
 public sealed record PcbInspectionImage(
-    Guid? BoltId,
+    [property: JsonIgnore] Guid? BoltId,
     DateTimeOffset CapturedAt,
     PixelRegion Region,
     bool Success,

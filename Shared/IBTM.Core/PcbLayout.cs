@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text.Json.Serialization;
 using System.Windows.Data;
 
 namespace IBTM.Core;
@@ -16,8 +15,6 @@ public sealed class PcbLayout
         FasteningOrder = [];
     }
 
-    // Old shared PCB-local coordinates must not be read as independently taught bolts.
-    [JsonPropertyName("TaughtBolts")]
     public ObservableCollection<BoltPoint> BoltPoints
     {
         get;

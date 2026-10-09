@@ -6056,7 +6056,7 @@ public sealed class MachineLifecycleTests
             var history = services.GetRequiredService<PcbHistoryWriter>();
             await history.FlushAsync();
             var store = services.GetRequiredService<MachineStore>();
-            var record = Assert.Single(new MachineStore(store.DatabaseFile).LoadPcbs(settings.PcbHistory.Directory));
+            var record = store.LoadPcb(Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)));
             Assert.Equal(AssemblyResult.Ok, record.FasteningResult);
             var saved = (head == FasteningHead.Pickup ? record.PickupBoltResults : record.ShootingBoltResults)[manual.Id];
             Assert.True(saved.Success);

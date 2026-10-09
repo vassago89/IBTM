@@ -729,10 +729,10 @@
                         <TabItem Header="{ui:Text 'Individual review'}">
                             <TabItem.Style>
                                 <Style TargetType="TabItem" BasedOn="{StaticResource SectionTab}">
-                                    <Setter Property="IsEnabled" Value="False"/>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station1}"><Setter Property="IsEnabled" Value="True"/></DataTrigger>
-                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}"><Setter Property="IsEnabled" Value="True"/></DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station1}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TabItem.Style>

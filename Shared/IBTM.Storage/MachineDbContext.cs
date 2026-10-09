@@ -27,6 +27,17 @@ internal sealed class MachineDbContext : DbContext
             .WithMany()
             .HasForeignKey(row => row.RecipeName)
             .OnDelete(DeleteBehavior.Cascade);
+
+        var counter = modelBuilder.Entity<PcbCounterRow>();
+        counter.ToTable("PcbCounter", table => table.HasCheckConstraint("SingleCounter", "Id = 1"));
+        counter.HasKey(row => row.Id);
+        counter.Property(row => row.Id).ValueGeneratedNever();
+        counter.HasData(new PcbCounterRow { Id = 1, Number = 0 });
+
+        var counts = modelBuilder.Entity<ProductionCountRow>();
+        counts.ToTable("ProductionCounts");
+        counts.HasKey(row => row.RecipeName);
+        counts.Property(row => row.RecipeName).UseCollation("NOCASE");
     }
 }
 
@@ -52,4 +63,17 @@ internal sealed class RecipeImageRow
     public string RecipeName { get; set; } = "";
     public int Number { get; set; }
     public byte[] Image { get; set; }
+}
+
+internal sealed class PcbCounterRow
+{
+    public int Id { get; set; }
+    public long Number { get; set; }
+}
+
+internal sealed class ProductionCountRow
+{
+    public string RecipeName { get; set; } = "";
+    public long OkCount { get; set; }
+    public long NgCount { get; set; }
 }

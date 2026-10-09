@@ -30,7 +30,7 @@ public sealed class InspectionTeachingTests
         Microsoft.Extensions.Logging.ILogger<InspectionTeachingViewModel> log)
     {
         var results = new ResultsViewModel(store, history,
-            new PcbResultsViewModel(recipes, images, NullLogger<PcbResultsViewModel>.Instance),
+            new PcbResultsViewModel(store, recipes, images, NullLogger<PcbResultsViewModel>.Instance),
             NullLogger<ResultsViewModel>.Instance);
         return new(recipes, images, results, log);
     }
