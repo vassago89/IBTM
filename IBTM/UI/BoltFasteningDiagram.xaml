@@ -66,8 +66,8 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Style="{StaticResource DiagramTitleStyle}" Text="{ui:Text 'Bolt Fastening'}" VerticalAlignment="Center"/>
                 <TextBlock Style="{StaticResource TitleStyle}" x:Name="CycleTime" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
-                    Text="{Binding Fastening.Station.LastCycleSeconds, StringFormat='CT · {0:0.0} s',
-                        TargetNullValue='CT · —', FallbackValue='CT · —'}"/>
+                    Text="{Binding Fastening.Station.LastCycleSeconds, StringFormat='CT {0:0.0} s',
+                        TargetNullValue='CT —', FallbackValue='CT —'}"/>
             </Grid>
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}"
                 Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}"
@@ -103,7 +103,7 @@
                         <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" Foreground="{StaticResource TextPrimaryBrush}"
                             Text="{Binding Fastening.ActiveStage, Converter={StaticResource UiTextConverter}, TargetNullValue='', FallbackValue=''}"/>
                         <TextBlock DockPanel.Dock="Left" Margin="0,0,6,0"
-                            Text="{Binding BoltFasteningActiveBolt.HeatSink, Converter={StaticResource UiTextConverter}, StringFormat='{}{0} ·'}"/>
+                            Text="{Binding BoltFasteningActiveBolt.HeatSink, Converter={StaticResource UiTextConverter}}"/>
                         <TextBlock TextTrimming="CharacterEllipsis" ToolTip="{Binding BoltFasteningActiveBolt.Name}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">

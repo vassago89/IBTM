@@ -21,7 +21,7 @@ public sealed class InspectionPoint
     public BoltPoint? Bolt { get; }
     public bool IsDataMatrix => Bolt is null;
     public string Name => IsDataMatrix ? UiText.Get("Data Matrix") : _recipe.Pcb.GetBoltName(Bolt!.Id);
-    public string Title => $"{UiText.Get(HeatSink)} · {Name}";
+    public string Title => $"{UiText.Get(HeatSink)} {Name}";
     public int ImageCount => _recipe.CarrierImages.Count(image => image.IsForTarget(HeatSink, Bolt?.Id));
 
     public CarrierImageTile? Metadata => _recipe.FindInspectionImage(HeatSink, Bolt?.Id);

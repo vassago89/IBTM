@@ -737,7 +737,11 @@
                     <Grid>
                         <ScrollViewer x:Name="PART_ContentHost"/>
                         <ContentControl x:Name="PART_Watermark" Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
-                            Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False" Focusable="False" Visibility="Collapsed"/>
+                            Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False" Focusable="False" Visibility="Collapsed">
+                            <ContentControl.ContentTemplate>
+                                <DataTemplate><TextBlock Text="{ui:Text 'Select date'}"/></DataTemplate>
+                            </ContentControl.ContentTemplate>
+                        </ContentControl>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="Text" Value=""><Setter TargetName="PART_Watermark" Property="Visibility" Value="Visible"/></Trigger>

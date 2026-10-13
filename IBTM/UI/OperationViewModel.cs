@@ -812,13 +812,6 @@ public partial class OperationViewModel : ObservableObject
             await Task.Run(Machine.CheckStartMaterials, cancellationToken);
             RefreshFasteningResume();
             RefreshPlacementResume();
-            var checks = Machine.StartChecks;
-            if (checks[StartArea.Station3] == StartCheckState.NgGripperCheckRequired)
-                SelectedStartArea = StartArea.Station3;
-            else if (checks[StartArea.Station1] == StartCheckState.UnfinishedCarrier)
-                SelectedStartArea = StartArea.Station1;
-            else if (checks[StartArea.Station2] == StartCheckState.UnfinishedCarrier)
-                SelectedStartArea = StartArea.Station2;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -1205,7 +1198,7 @@ public partial class OperationViewModel : ObservableObject
     private void OnInspectionCaptured(ImageFrame frame, HeatSinkSlot pcb, Guid? boltId)
     {
         InspectionImageCaption = boltId is { } id
-            ? $"{UiText.Get(pcb)} · {Recipes.Current.Pcb.GetBoltName(id)}"
+            ? $"{UiText.Get(pcb)} {Recipes.Current.Pcb.GetBoltName(id)}"
             : UiText.Format($"{UiText.Get(pcb)} · Data Matrix");
         InspectionImage = InspectionPreviewViewModel.CreateBitmap(frame);
     }

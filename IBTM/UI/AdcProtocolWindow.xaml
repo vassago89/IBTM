@@ -37,17 +37,15 @@
             </RowDefinition>
         </Grid.RowDefinitions>
 
-        <StackPanel>
-            <ComboBox Width="220" HorizontalAlignment="Left"
-                ItemsSource="{Binding Heads}" SelectedItem="{Binding SelectedHead, Mode=TwoWay}"
-                IsEnabled="{Binding ConnectionControlsEnabled}">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate DataType="{x:Type core:FasteningHead}">
-                        <TextBlock Text="{Binding Converter={StaticResource UiTextConverter}}"/>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-        </StackPanel>
+        <ComboBox Width="220" HorizontalAlignment="Left"
+            ItemsSource="{Binding Heads}" SelectedItem="{Binding SelectedHead, Mode=TwoWay}"
+            IsEnabled="{Binding ConnectionControlsEnabled}">
+            <ComboBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type core:FasteningHead}">
+                    <TextBlock Text="{Binding Converter={StaticResource UiTextConverter}}"/>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
 
         <Border Grid.Row="1" Margin="0,18,0,12" Padding="16,14" Style="{StaticResource CardStyle}">
             <Grid IsEnabled="{Binding ConnectionControlsEnabled}">
@@ -140,10 +138,10 @@
                                 <Run Text="{ui:Text '  Preset '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Preset, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
                                 <LineBreak/><Run Text="{ui:Text 'Alarm '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
                             </TextBlock>
-                            <ScrollViewer Height="48" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding Bus.Monitor.Sample.Error.Message}"/>
-                                    <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding Bus.Monitor.Sample.Rejection}"/>
+                                    <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding Bus.Monitor.Sample.Error.Message}"/>
+                                    <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding Bus.Monitor.Sample.Rejection}"/>
                                 </StackPanel>
                             </ScrollViewer>
                             <TextBlock Margin="0,10,0,0"
@@ -224,7 +222,7 @@
                     Text="{Binding FrameLogText, Mode=OneWay}"
                     IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
                     SelectionText="{Binding SelectedLogText, Mode=TwoWay}" IsPaused="{Binding IsLogPaused, Mode=TwoWay}"/>
-                <TextBlock Grid.Row="2" Text="{Binding ClipboardError}" Height="20" Foreground="{StaticResource AccentRedBrush}"
+                <TextBlock Grid.Row="2" Text="{Binding ClipboardError}" Style="{StaticResource ErrorStatusMessageStyle}"
                     TextTrimming="CharacterEllipsis" ToolTip="{Binding ClipboardError}"/>
             </Grid>
         </Border>

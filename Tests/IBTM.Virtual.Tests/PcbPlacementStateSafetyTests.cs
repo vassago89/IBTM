@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,6 +16,49 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbPlacementStateSafetyTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IpmDelayStartsAfterCylinderFeedback(bool down)
+    {
+        using var rig = new PlacementRig();
+        rig.Settings.IpmDelaySeconds = 0.1;
+        rig.Io.AutoResponseEnabled = false;
+        rig.Io.SetInputs(
+            (InputIo.PcbPlacementIpmDown, !down),
+            (InputIo.PcbPlacementIpmUp, down));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+
+        var operation = rig.Placer.SetIpmDownAsync(down, stop.Token);
+        Assert.Equal(down, rig.Io.GetOutput(OutputIo.PcbPlacementIpmDown));
+        await Task.Delay(150, stop.Token);
+        Assert.False(operation.IsCompleted);
+
+        var elapsed = Stopwatch.StartNew();
+        rig.Io.SetInputs(
+            (InputIo.PcbPlacementIpmDown, down),
+            (InputIo.PcbPlacementIpmUp, !down));
+        await operation;
+        Assert.True(elapsed.ElapsedMilliseconds >= 90);
+    }
+
+    [Fact]
+    public async Task IpmDelayCanBeCancelledAfterFeedback()
+    {
+        using var rig = new PlacementRig();
+        rig.Settings.IpmDelaySeconds = 10;
+        rig.Io.AutoResponseEnabled = false;
+        rig.Io.SetInput(InputIo.PcbPlacementIpmDown, true);
+        using var stop = new CancellationTokenSource();
+
+        var operation = rig.Placer.SetIpmDownAsync(true, stop.Token);
+        Assert.False(operation.IsCompleted);
+        stop.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation.WaitAsync(TimeSpan.FromSeconds(1)));
+        Assert.True(rig.Io.GetOutput(OutputIo.PcbPlacementIpmDown));
+    }
+
     [Fact]
     public async Task CancelledLiftDoesNotReportMovingAxesOrLowerHandler()
     {

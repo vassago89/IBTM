@@ -104,9 +104,10 @@ public sealed class AdcBoltHeadTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ZFeedStopsWithControllerOrCancellation(bool cancel)
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    public async Task ZFeedStopsWithControllerOrCancellation(bool cancel, bool stopFeedOnCompletion)
     {
         using var bus = new AdcControllerStub { SuppressCompletion = true };
         var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
@@ -128,7 +129,7 @@ public sealed class AdcBoltHeadTests
             {
                 feedStopped = true;
             }
-        });
+        }, stopFeedOnCompletion: stopFeedOnCompletion);
         if (cancel)
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
         else
@@ -139,6 +140,76 @@ public sealed class AdcBoltHeadTests
         }
         Assert.True(feedStopped);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(BeforeFeedFailure.Cancel)]
+    [InlineData(BeforeFeedFailure.Communication)]
+    [InlineData(BeforeFeedFailure.Alarm)]
+    public async Task ZFeedWithCompletionStopDisabledFinishesTravelOrStopsOnFault(BeforeFeedFailure? failure)
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var feedStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finishFeed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var feedStopped = false;
+        var feedCanceled = false;
+        var cycle = head.TightenAsync(stop.Token, async token =>
+        {
+            feedStarted.SetResult();
+            try
+            {
+                await finishFeed.Task.WaitAsync(token);
+            }
+            finally
+            {
+                feedCanceled = token.IsCancellationRequested;
+                feedStopped = true;
+            }
+        }, stopFeedOnCompletion: false);
+        try
+        {
+            await feedStarted.Task.WaitAsync(stop.Token);
+            bus.SuppressCompletion = false;
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => head.Monitor.Sample?.Status is { Running: false, Alarm: 0 }, TimeSpan.FromSeconds(2)));
+            Assert.False(feedStopped);
+            Assert.False(cycle.IsCompleted);
+            switch (failure)
+            {
+                case null:
+                    finishFeed.SetResult();
+                    Assert.True((await cycle).Success);
+                    Assert.False(feedCanceled);
+                    Assert.Equal(1, bus.ResultReads);
+                    break;
+                case BeforeFeedFailure.Cancel:
+                    stop.Cancel();
+                    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
+                    break;
+                case BeforeFeedFailure.Communication:
+                    bus.StatusReadFailure = new IOException("ADC disconnected during remaining Z feed");
+                    Assert.Same(bus.StatusReadFailure, await Assert.ThrowsAsync<IOException>(() => cycle));
+                    break;
+                case BeforeFeedFailure.Alarm:
+                    bus.CurrentAlarm = 125;
+                    await Assert.ThrowsAsync<InvalidOperationException>(() => cycle);
+                    break;
+            }
+            Assert.True(feedStopped);
+            if (failure is not null)
+                Assert.True(feedCanceled);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        }
+        finally
+        {
+            stop.Cancel();
+            finishFeed.TrySetResult();
+            await ((Task)cycle).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
     }
 
     [Fact]

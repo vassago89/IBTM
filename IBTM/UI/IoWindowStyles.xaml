@@ -254,15 +254,12 @@
     </DataTemplate>
 
     <DataTemplate x:Key="IoStatusTemplate" DataType="{x:Type ui:TeachingViewModel}">
-        <DockPanel LastChildFill="True">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <ui:IoGroupItemsControl ItemsSource="{Binding TeachingIoGroups}" ItemTemplate="{StaticResource TeachingIoGroupTemplate}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                </ui:IoGroupItemsControl>
-            </ScrollViewer>
-        </DockPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ui:IoGroupItemsControl ItemsSource="{Binding TeachingIoGroups}" ItemTemplate="{StaticResource TeachingIoGroupTemplate}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ui:IoGroupItemsControl>
+        </ScrollViewer>
     </DataTemplate>
-    <!-- Compact raw feedback for the machine plan. The view binds directly to IoSignals. -->
 </ResourceDictionary>

@@ -306,8 +306,6 @@ public sealed class MachineStoreTests
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyPcbDetected] = 28;
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyGripperClosed] = 22;
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyGripperOpen] = 23;
-        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerForward] = 24;
-        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerBackward] = 25;
         settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = 25;
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 91;
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorReadyFromRear] = 92;
@@ -326,6 +324,11 @@ public sealed class MachineStoreTests
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MovePulse = 10;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.HomeDirection = HomeDirection.Positive;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.HomeSignal = HomeSignal.NegativeLimit;
+        Assert.Equal(0, settings.PcbPlacementHandler.IpmDelaySeconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.PcbPlacementHandler.IpmDelaySeconds = -1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.PcbPlacementHandler.IpmDelaySeconds = double.NaN);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.PcbPlacementHandler.IpmDelaySeconds = double.MaxValue);
+        settings.PcbPlacementHandler.IpmDelaySeconds = 0.25;
         var motion = settings.PcbPlacementHandler.Motion;
         motion.AccelerationSeconds = 0.3;
         motion.DecelerationSeconds = 0.7;

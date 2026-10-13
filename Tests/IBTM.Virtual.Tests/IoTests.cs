@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
@@ -84,48 +85,31 @@ public sealed class IoTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SupplyFixerUsesCurrentForwardSensorForBothOutputDirections(bool forward)
+    [Fact]
+    public void SupplyFixerHasNoInputFeedbackAfterSettingsReload()
     {
         var hardware = new PcbSupplyHardwareSettings();
-        var virtualIo = new VirtualIoService(hardware.Outputs, new() { TimeoutMilliseconds = 100 })
+        hardware.Inputs[InputIo.PcbSupplyIpmFixerForward] = 28;
+        hardware.Inputs[InputIo.PcbSupplyIpmFixerBackward] = 29;
+        hardware = JsonSerializer.Deserialize<PcbSupplyHardwareSettings>(JsonSerializer.Serialize(hardware))!;
+        Assert.DoesNotContain(InputIo.PcbSupplyIpmFixerForward, hardware.Inputs.Keys);
+        Assert.DoesNotContain(InputIo.PcbSupplyIpmFixerBackward, hardware.Inputs.Keys);
+        var virtualIo = new VirtualIoService(hardware.Outputs, new())
         {
             AutoResponseEnabled = false,
         };
         IIoService io = virtualIo;
         var signals = new IoSignals([hardware], io);
         var output = signals.Outputs[OutputIo.PcbSupplyIpmFixerForward];
-        Assert.Equal(InputIo.PcbSupplyIpmFixerForward, Assert.Single(output.Feedback).Signal);
-        virtualIo.SetInput(InputIo.PcbSupplyIpmFixerForward, !forward);
-        var scheduler = new ConcurrentExclusiveSchedulerPair();
-        try
+        Assert.Empty(output.Feedback);
+        Assert.Null(io.GetOutputFeedback(OutputIo.PcbSupplyIpmFixerForward));
+        foreach (var forward in new[] { true, false })
         {
-            await Task.Factory.StartNew(async () =>
-            {
-                var waiting = io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, forward);
-                Assert.False(waiting.IsCompleted);
-                signals.RefreshOutputs();
-                Assert.False(output.IsMatched);
-                virtualIo.SetInput(InputIo.PcbSupplyIpmFixerForward, forward);
-                virtualIo.SetInput(InputIo.PcbSupplyIpmFixerForward, !forward);
-                await Assert.ThrowsAsync<IoTimeoutException>(() => waiting);
-            }, CancellationToken.None, TaskCreationOptions.None, scheduler.ExclusiveScheduler).Unwrap();
-
-            var waiting = io.WaitForOutputFeedbackAsync(OutputIo.PcbSupplyIpmFixerForward, forward);
-            virtualIo.SetInput(InputIo.PcbSupplyIpmFixerForward, forward);
-            await waiting;
-            Assert.True(output.IsMatched);
-            Assert.False(output.HasConflict);
-            virtualIo.IsReady = false;
-            Assert.Null(output.Feedback[0].IsOn);
+            virtualIo.SetInput(InputIo.PcbSupplyIpmFixerForward, !forward);
+            io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, forward);
+            signals.RefreshOutputs();
+            Assert.Equal(forward, output.IsOn);
             Assert.False(output.IsMatched);
-        }
-        finally
-        {
-            scheduler.Complete();
-            await scheduler.Completion;
         }
     }
 
@@ -206,6 +190,7 @@ public sealed class IoTests
             InputIo.Unused7,
             InputIo.Unused8,
             InputIo.Unused80,
+            InputIo.PcbSupplyIpmFixerForward,
             InputIo.PcbSupplyIpmFixerBackward,
             InputIo.PcbPlacementCarrierPresent,
             InputIo.BoltFasteningCarrierPresent,
@@ -227,12 +212,11 @@ public sealed class IoTests
         Assert.Equal(22, inputs[InputIo.PcbSupplyPcbDetected]); // DI-106
         Assert.Equal(24, inputs[InputIo.PcbSupplyGripperClosed]); // DI-108
         Assert.Equal(25, inputs[InputIo.PcbSupplyGripperOpen]); // DI-109
-        Assert.Equal(28, inputs[InputIo.PcbSupplyIpmFixerForward]); // DI-10C
         Assert.Equal(40, inputs[InputIo.PickupTableDown]); // DI-118
         Assert.Equal(41, inputs[InputIo.PickupTableUp]); // DI-119
         Assert.DoesNotContain(InputIo.PcbSupplyIpmFixerBackward, inputs.Keys);
         Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber);
-        Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback!.OffInput);
+        Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback);
 
         var outputs = hardware.OfType<IoHardwareSettings>().SelectMany(section => section.Outputs).ToArray();
         Assert.Equal(Enum.GetValues<OutputIo>().Except([OutputIo.Unused3]).Order(), outputs.Select(pair => pair.Key).Order());
@@ -263,7 +247,7 @@ public sealed class IoTests
         var status = new IoSignals([settings.PcbSupplyHardware], io);
         Assert.DoesNotContain(InputIo.PcbSupplyIpmFixerBackward, status.Inputs.Keys);
         var fixer = status.Outputs[OutputIo.PcbSupplyIpmFixerForward];
-        Assert.Equal(InputIo.PcbSupplyIpmFixerForward, Assert.Single(fixer.Feedback).Signal);
+        Assert.Empty(fixer.Feedback);
         Assert.False(fixer.IsMatched);
 
         var allOutputs = outputs.ToDictionary(pair => pair.Key, pair => pair.Value);

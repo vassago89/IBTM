@@ -269,7 +269,7 @@ public sealed class PcbTransferTests
             (InputIo.PcbPlacementBackupPlateDown, false));
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+        io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
         await placer.MoveAxisAsync(MotionAxis.Z, placementSettings.HandoffPosition.Z);
         Assert.Equal(placementSettings.HandoffPosition.Z, placementMotion.Position.Z);
         await placer.SetLiftDownAsync(true);
@@ -514,7 +514,7 @@ public sealed class PcbTransferTests
                 io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         };
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false);
+        io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, false);
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
 

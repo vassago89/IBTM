@@ -62,9 +62,7 @@
             <StackPanel Orientation="Horizontal">
                 <Button Content="{ui:Text 'Details'}" Click="OnOpenResultsClick" Style="{StaticResource SelectedRecordButtonStyle}"
                     ToolTip="{ui:Text 'Double-click a row or press Enter'}" Margin="0,0,8,0"/>
-                <Button Content="{ui:Text 'Reinspect'}" Click="OnReinspectClick" Style="{StaticResource SelectedRecordButtonStyle}" Margin="0,0,14,0"/>
-                <TextBlock Text="{Binding SelectedRecord.Number, StringFormat={ui:Text 'PCB {0}'}, TargetNullValue={ui:Text 'Select a PCB'}, FallbackValue={ui:Text 'Select a PCB'}}"
-                    Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                <Button Content="{ui:Text 'Reinspect'}" Click="OnReinspectClick" Style="{StaticResource SelectedRecordButtonStyle}"/>
             </StackPanel>
         </DockPanel>
         <Grid Grid.Row="2">

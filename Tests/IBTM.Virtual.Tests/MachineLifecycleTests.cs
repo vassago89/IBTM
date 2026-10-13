@@ -43,7 +43,7 @@ public sealed class MachineLifecycleTests
             io.SetInput(InputIo.AutoMode, false);
             await machine.HomeAsync(default);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, false);
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             io.SetInput(InputIo.PcbSupplyPcbDetected, true);
             var writes = new ConcurrentQueue<(OutputIo Output, bool On)>();
@@ -79,8 +79,6 @@ public sealed class MachineLifecycleTests
             Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
             io.SetInputs((InputIo.PcbSupplyUnrotated, false), (InputIo.PcbSupplyRotated, true));
             await WaitForOutputAsync(io, OutputIo.PcbSupplyIpmFixerForward, false);
-            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
-            io.SetInput(InputIo.PcbSupplyIpmFixerForward, false);
             await WaitForOutputAsync(io, OutputIo.PcbSupplyGripperClosed, false);
             Assert.False(releasing.IsCompleted);
             io.SetInputs((InputIo.PcbSupplyGripperClosed, false), (InputIo.PcbSupplyGripperOpen, true));
@@ -288,7 +286,7 @@ public sealed class MachineLifecycleTests
             var job = station.CurrentJob;
             var assembly = station.GetAssembly(HeatSinkSlot.HeatSink1);
             assembly.IsPlacementCompleted = true;
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             await review.CheckStartCommand.ExecuteAsync(null);
             Assert.True(review.IsPlacementResumeAvailable);
@@ -346,7 +344,7 @@ public sealed class MachineLifecycleTests
             Assert.Equal((5d, 20d, 0d), motions[MotionGroup.InspectionGantry].Position);
             Assert.True(io.GetInput(InputIo.ShootingTubeBoltDetected));
             Assert.True(io.GetInput(InputIo.PcbSupplyGripperOpen));
-            Assert.False(io.GetInput(InputIo.PcbSupplyIpmFixerForward)); // The actual hardware has one fixer sensor.
+            Assert.False(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
             Assert.True(io.GetInput(InputIo.PcbSupplyRotated));
             Assert.Same(job, station.CurrentJob);
             Assert.True(assembly.IsPlacementCompleted);
@@ -464,7 +462,7 @@ public sealed class MachineLifecycleTests
             await machine.HomeAsync(default);
             await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
             io.AutoResponseEnabled = false;
             if (timeout)
                 settings.Options.TimeoutMilliseconds = 100;
@@ -507,7 +505,7 @@ public sealed class MachineLifecycleTests
             await machine.HomeAsync(default);
             await WaitUntilAsync(() => state.SetupEnabled);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
             io.AutoResponseEnabled = false;
             var moving = review.MoveAllToStandbyCommand.ExecuteAsync(null);
             await WaitForOutputAsync(io, OutputIo.PcbPlacementIpmDown, false);
@@ -1618,7 +1616,7 @@ public sealed class MachineLifecycleTests
         Assert.Equal(NgTransferGripperState.Closed, gantry.Gripper);
         var review = services.GetRequiredService<OperationViewModel>();
         await review.CheckStartCommand.ExecuteAsync(null);
-        Assert.Equal(StartArea.Station3, review.SelectedStartArea);
+        review.SelectStartAreaCommand.Execute(StartArea.Station3);
         Assert.False(review.IsStartReviewAllowed);
         await review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.ReleaseMaterial);
         Assert.Null(review.StartActionMessage);
@@ -4470,7 +4468,8 @@ public sealed class MachineLifecycleTests
             state.AutomaticRunning = false;
             io.SetInput(InputIo.AutoMode, false);
             await blockedCommand.ExecuteAsync(null);
-            Assert.False(io.GetOutput(cylinders[0].Output));
+            Assert.True(state.AutoMode);
+            Assert.True(io.GetOutput(cylinders[0].Output));
         }
         finally
         {
@@ -4809,7 +4808,9 @@ public sealed class MachineLifecycleTests
             await placement.SeatAsync(default);
             await services.GetRequiredService<BoltFasteningStation>().Station.SeatAsync(default);
             placement.GetAssembly(HeatSinkSlot.HeatSink1).IsPlacementCompleted = true;
+            review.SelectStartAreaCommand.Execute(StartArea.Station2);
             await review.CheckStartCommand.ExecuteAsync(null);
+            Assert.Equal(StartArea.Station2, review.SelectedStartArea);
             Assert.True(review.IsPlacementResumeAvailable);
             Assert.True(review.IsFasteningResumeAvailable);
             Assert.Single(review.FasteningResumeBolts);
@@ -4841,7 +4842,7 @@ public sealed class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task StartPreparationSupplyReleaseWaitsForFixerAndKeepsOtherStationReviews()
+    public async Task StartPreparationSupplyReleaseSkipsFixerFeedbackAndKeepsOtherStationReviews()
     {
         var settings = FlowSettings();
         await using var services = CreateServices(settings);
@@ -4864,23 +4865,23 @@ public sealed class MachineLifecycleTests
             await review.CheckStartCommand.ExecuteAsync(null);
             Assert.True(review.IsPlacementResumeAvailable);
             Assert.True(review.IsFasteningResumeAvailable);
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             io.AutoResponseEnabled = false;
             var commands = new ConcurrentQueue<OutputIo>();
+            io.SetInput(InputIo.PcbSupplyIpmFixerForward, true);
             io.OutputChanged += (output, on) => commands.Enqueue(output);
             review.SelectStartAreaCommand.Execute(StartArea.Supply);
             review.IsPlacementResumeConfirmed = true;
             review.IsFasteningResumeConfirmed = true;
             var releasing = review.PrepareStartAreaCommand.ExecuteAsync(StartPreparationAction.ReleaseMaterial);
-            await WaitForOutputAsync(io, OutputIo.PcbSupplyIpmFixerForward, false);
+            await WaitForOutputAsync(io, OutputIo.PcbSupplyGripperClosed, false);
             Assert.False(releasing.IsCompleted);
-            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.True(io.GetInput(InputIo.PcbSupplyGripperClosed));
             Assert.True(review.IsPlacementResumeConfirmed);
             Assert.True(review.IsFasteningResumeConfirmed);
             Assert.False(review.IsStartReviewAllowed); // The operation still owns the machine.
             review.SelectStartAreaCommand.Execute(StartArea.Station2); // Keep the area captured at button press.
-            io.SetInputs((InputIo.PcbSupplyIpmFixerForward, false), (InputIo.PcbSupplyIpmFixerBackward, true));
             await WaitForOutputAsync(io, OutputIo.PcbSupplyGripperClosed, false);
             Assert.False(releasing.IsCompleted);
             io.SetInputs((InputIo.PcbSupplyGripperClosed, false), (InputIo.PcbSupplyGripperOpen, true));
@@ -4928,7 +4929,7 @@ public sealed class MachineLifecycleTests
                 await review.Supply.MoveToRotationPositionAsync();
                 await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, false);
             }
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             io.SetInput(InputIo.PcbSupplyPcbDetected, true);
             io.AutoResponseEnabled = false;
@@ -4940,7 +4941,7 @@ public sealed class MachineLifecycleTests
             if (!timeout)
                 await review.StopCommand.ExecuteAsync(null);
             await releasing.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.Equal(rotate, io.GetOutput(OutputIo.PcbSupplyGripperClosed));
             Assert.Equal(rotate, io.GetOutput(OutputIo.PcbSupplyIpmFixerForward)); // No next output or reversal after cancellation.
             Assert.Equal(timeout ? MachineAlarm.PcbSupply : MachineAlarm.None, state.Alarm);
             Assert.False(string.IsNullOrWhiteSpace(review.StartActionMessage));
@@ -5195,7 +5196,7 @@ public sealed class MachineLifecycleTests
         try
         {
             await WaitUntilAsync(() => state.SetupEnabled);
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+            io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
             io.AutoResponseEnabled = false;
             io.SetInput(InputIo.AutoMode, false);
@@ -5205,7 +5206,8 @@ public sealed class MachineLifecycleTests
             Assert.False(state.SetupEnabled);
             io.SetInput(InputIo.Door1Open, false);
             Assert.False(await releasing.WaitAsync(TimeSpan.FromSeconds(2)));
-            Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.False(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.True(io.GetInput(InputIo.PcbSupplyGripperClosed));
             Assert.False(state.IsError, state.AlarmDetail);
         }
         finally
@@ -5881,7 +5883,7 @@ public sealed class MachineLifecycleTests
         {
             await WaitUntilAsync(() => machine.IsStartAllowed);
             await review.CheckStartCommand.ExecuteAsync(null);
-            Assert.Equal(StartArea.Station2, review.SelectedStartArea);
+            review.SelectStartAreaCommand.Execute(StartArea.Station2);
             Assert.False(review.IsFasteningResumeConfirmed);
             Assert.False(review.IsStartReviewAllowed);
             Assert.Equal(2, review.RemainingFasteningCount);
@@ -7942,7 +7944,8 @@ public sealed class MachineLifecycleTests
             Func<CancellationToken, Task>? feedAsync = null,
             int dryRunMilliseconds = 0,
             Action<BoltResult>? resultReceived = null,
-            ushort? torqueCompensationPercent = null)
+            ushort? torqueCompensationPercent = null,
+            bool stopFeedOnCompletion = true)
         {
             Started.SetResult();
             try
@@ -8010,7 +8013,8 @@ public sealed class MachineLifecycleTests
             Func<CancellationToken, Task>? feedAsync = null,
             int dryRunMilliseconds = 0,
             Action<BoltResult>? resultReceived = null,
-            ushort? torqueCompensationPercent = null)
+            ushort? torqueCompensationPercent = null,
+            bool stopFeedOnCompletion = true)
         {
             throw new NotSupportedException();
         }

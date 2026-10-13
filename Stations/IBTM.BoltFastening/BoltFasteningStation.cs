@@ -837,7 +837,8 @@ public sealed class BoltFasteningStation : AutoUnit
                                         result = received;
                                         result = received with { ZFeedDistance = _motion.Position.Z - feedStartZ };
                                     },
-                                    torqueCompensations.TryGetValue((toolHead, preset), out var compensation) ? compensation : null);
+                                    torqueCompensations.TryGetValue((toolHead, preset), out var compensation) ? compensation : null,
+                                    stopFeedOnCompletion: _settings.StopZFeedOnCompletion);
                                 _log?.LogInformation("Bolt timing {Bolt}: controller START/result/STOP, elapsed={ElapsedMs:F1} ms, controller time={ControllerMs} ms.",
                                     bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds, completed.Controller?.FasteningTimeMilliseconds);
                                 completed = completed with

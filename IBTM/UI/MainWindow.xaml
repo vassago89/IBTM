@@ -196,18 +196,18 @@
 
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
-                <RowDefinition Height="64"/>
+                <RowDefinition Height="Auto" MinHeight="64"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="64"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="64"/>
             </Grid.RowDefinitions>
 
             <Border Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
-                <Grid Margin="18,0">
+                <Grid Margin="18,6">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="338"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="18"/>
-                        <ColumnDefinition Width="240"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="24"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="18"/>
@@ -361,33 +361,20 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" IsEnabled="{Binding CurrentPageEnabled}">
-                <ContentPresenter Content="{Binding CurrentPage}"/>
-            </Grid>
+            <ContentPresenter Grid.Row="1" IsEnabled="{Binding CurrentPageEnabled}" Content="{Binding CurrentPage}"/>
 
-            <Border Grid.Row="2" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
-                BorderThickness="0,1,0,0" Padding="18,6">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="100"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{ui:Text 'Messages'}" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
-                        VerticalAlignment="Center"/>
-                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel>
-                            <TextBlock Text="{Binding Operation.AlarmMessage}" ToolTip="{Binding Operation.AlarmDetail}"
-                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                            <TextBlock Text="{Binding Operation.ResetError}"
-                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                            <TextBlock Text="{Binding NavigationError}"
-                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                            <TextBlock Text="{Binding RecipeEditor.Error}"
-                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                        </StackPanel>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
+            <ScrollViewer Grid.Row="2" MaxHeight="80" Margin="18,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock Text="{Binding Operation.AlarmMessage}" ToolTip="{Binding Operation.AlarmDetail}"
+                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock Text="{Binding Operation.ResetError}"
+                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock Text="{Binding NavigationError}"
+                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock Text="{Binding RecipeEditor.Error}"
+                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                </StackPanel>
+            </ScrollViewer>
 
             <Border Grid.Row="3" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
                 BorderThickness="0,1,0,0">

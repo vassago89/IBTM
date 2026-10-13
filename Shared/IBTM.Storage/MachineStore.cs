@@ -38,12 +38,12 @@ public sealed class MachineStore
     public const int PcbHistoryPageSize = 100;
 
     private readonly DbContextOptions<MachineDbContext> _options;
-    private readonly Lock _pcbCounterGate;
+    private readonly Lock _pcbHistoryGate;
     private string? _pcbCounterDirectory;
 
     public MachineStore(string? databaseFile = null)
     {
-        _pcbCounterGate = new();
+        _pcbHistoryGate = new();
         DatabaseFile = Path.GetFullPath(
             databaseFile ?? Path.Combine(AppContext.BaseDirectory, "Data", "Machine.db"));
         Directory.CreateDirectory(Path.GetDirectoryName(DatabaseFile)!);
@@ -311,7 +311,7 @@ public sealed class MachineStore
     public long NextPcbNumber(string directory)
     {
         directory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
-        lock (_pcbCounterGate)
+        lock (_pcbHistoryGate)
         {
             // Reconcile restored counters on first use and when the results folder changes.
             long lastSavedNumber = 0;
@@ -347,6 +347,8 @@ public sealed class MachineStore
     {
         if (!record.IsCurveDataLoaded)
             throw new InvalidOperationException("Load the complete PCB result before saving it.");
+        // Readers must wait until a new monthly file's schema is committed.
+        using var historyLock = _pcbHistoryGate.EnterScope();
         Directory.CreateDirectory(Path.GetDirectoryName(databaseFile)!);
         using var connection = new SqliteConnection(
             new SqliteConnectionStringBuilder { DataSource = databaseFile, ForeignKeys = true }.ToString());
@@ -418,6 +420,7 @@ public sealed class MachineStore
 
     public IReadOnlyList<PcbRecord> LoadPcbs(string directory, long? beforeNumber = null, int? count = null)
     {
+        using var historyLock = _pcbHistoryGate.EnterScope();
         var records = new List<PcbRecord>();
         if (!Directory.Exists(directory))
             return records;

@@ -28,8 +28,8 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Style="{StaticResource DiagramTitleStyle}" Text="{ui:Text 'Inspection Station'}"/>
                 <TextBlock Style="{StaticResource TitleStyle}" x:Name="CycleTime" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
-                    Text="{Binding Inspection.Station.LastCycleSeconds, StringFormat='CT · {0:0.0} s',
-                        TargetNullValue='CT · —', FallbackValue='CT · —'}"/>
+                    Text="{Binding Inspection.Station.LastCycleSeconds, StringFormat='CT {0:0.0} s',
+                        TargetNullValue='CT —', FallbackValue='CT —'}"/>
             </Grid>
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}"
                 Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54"

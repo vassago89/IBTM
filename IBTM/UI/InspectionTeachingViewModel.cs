@@ -104,7 +104,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     public void Activate()
     {
-        ImageMode = InspectionImageMode.Reference;
         if (IsIdle)
             _ = RefreshImagesCommand.ExecuteAsync(null);
     }
@@ -456,7 +455,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
         if (saved is not null)
         {
-            ImageSource = $"PCB {LoadedRecord!.Number} · {saved.Title} · {saved.Record.CapturedAt:yyyy-MM-dd HH:mm:ss}";
+            ImageSource = $"PCB {LoadedRecord!.Number} {saved.Title} {saved.Record.CapturedAt:yyyy-MM-dd HH:mm:ss}";
             OriginalImage = saved;
         }
         OnPropertyChanged(nameof(IsInspectAllowed));

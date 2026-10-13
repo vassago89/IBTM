@@ -38,9 +38,10 @@
                 </TextBlock>
             </Grid>
         </DataTemplate>
-        <Style x:Key="ReviewHeading" TargetType="TextBlock">
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin" Value="0,16,0,8"/>
+        <Style x:Key="ReviewStatusLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,5,16,5"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         <Style x:Key="CarrierCylinderButton" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
             <Setter Property="Background" Value="{StaticResource AttentionBackgroundBrush}"/>
@@ -68,7 +69,7 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="CarrierActions" TargetType="StackPanel">
+        <Style x:Key="CarrierActions" TargetType="UniformGrid">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding StartStation}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
             </Style.Triggers>
@@ -262,23 +263,10 @@
                 BorderBrush="{StaticResource DividerBrush}" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <StackPanel Margin="0,0,0,10">
-                        <TextBlock x:Name="SelectedAreaTitle" Text="{Binding SelectedStartArea, Converter={StaticResource UiTextConverter}}" FontSize="15" FontWeight="SemiBold"/>
-                    </StackPanel>
-                    <StackPanel Grid.Row="1">
-                        <TextBlock Text="{Binding StartActionMessage}" TextWrapping="Wrap" Margin="0,0,0,12"
-                            Foreground="{StaticResource AccentAmberBrush}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding StartActionMessage}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </StackPanel>
+                    <TextBlock x:Name="SelectedAreaTitle" Text="{Binding SelectedStartArea, Converter={StaticResource UiTextConverter}}"
+                        FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                    <TextBlock Grid.Row="1" Text="{Binding StartActionMessage}" TextWrapping="Wrap" Margin="0,0,0,12"
+                        Foreground="{StaticResource AccentAmberBrush}" Style="{StaticResource StatusMessageStyle}"/>
                     <TabControl Grid.Row="2">
                         <TabItem Header="{ui:Text 'Main controls'}">
                             <Grid>
@@ -296,9 +284,6 @@
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Supply}">
                                                         <Setter Property="Content" Value="{ui:Text 'Release fixer / gripper'}"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.PickupHead}">
-                                                        <Setter Property="Content" Value="{ui:Text 'Release vacuum'}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.ShootingHead}">
                                                         <Setter Property="Content" Value="{ui:Text 'Stop shooting / release vacuum'}"/>
@@ -329,8 +314,7 @@
                                     </Button>
                                     <Button Content="{ui:Text 'Move to rotation position'}"
                                         Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.MoveToRotationPosition}"
-                                        Height="40" Margin="0,0,0,8"
-                                        ToolTip="{ui:Text 'Move Z to travel height, then XY and Z to the rotation position. Rotation and grip remain unchanged.'}">
+                                        Height="40" Margin="0,0,0,8">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -342,66 +326,48 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <StackPanel>
-                                        <StackPanel.Style>
-                                            <Style TargetType="StackPanel">
+                                    <Button x:Name="RaiseToolingButton"
+                                        Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.RaiseTooling}"
+                                        Height="40" Margin="0,0,0,8">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="Content" Value="{ui:Text 'Raise handler / IPM'}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Supply}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.PickupHead}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Raise pickup head / table'}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.ShootingHead}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Raise shooting head'}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Raise both heads / table'}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station3}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Raise pickup'}"/>
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </StackPanel.Style>
-                                        <Button x:Name="RaiseToolingButton"
-                                            Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.RaiseTooling}"
-                                            ToolTip="{ui:Text 'Raises the working cylinders in order without axis motion. Material grip is retained.'}"
-                                            Height="40" Margin="0,0,0,8">
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                    <Setter Property="Content" Value="{ui:Text 'Raise handler / IPM'}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.PickupHead}">
-                                                            <Setter Property="Content" Value="{ui:Text 'Raise pickup head / table'}"/>
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.ShootingHead}">
-                                                            <Setter Property="Content" Value="{ui:Text 'Raise shooting head'}"/>
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}">
-                                                            <Setter Property="Content" Value="{ui:Text 'Raise both heads / table'}"/>
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station3}">
-                                                            <Setter Property="Content" Value="{ui:Text 'Raise pickup'}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <UniformGrid Style="{StaticResource CarrierActions}" Columns="2"
+                                        ToolTip="{ui:Text 'Raises the tooling first, then operates only the selected support or stopper and waits for feedback. Work records are retained.'}">
+                                        <Button x:Name="ToggleCarrierSupportButton"
+                                            Tag="{Binding StartStation.BackupPlate}"
+                                            Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ToggleCarrierSupport}"
+                                            Style="{StaticResource CarrierCylinderButton}" MinHeight="40" Padding="8,7" Margin="0,0,4,6">
+                                            <TextBlock Text="{ui:Text 'Raise/lower carrier support'}" TextWrapping="Wrap" TextAlignment="Center"/>
                                         </Button>
-                                    </StackPanel>
-                                    <StackPanel Style="{StaticResource CarrierActions}">
-                                        <UniformGrid Columns="2">
-                                            <UniformGrid.ToolTip>
-                                                <StackPanel MaxWidth="320">
-                                                    <TextBlock Text="{ui:Text 'Raises the tooling first, then operates only the selected support or stopper and waits for feedback. Work records are retained.'}"
-                                                        TextWrapping="Wrap"/>
-                                                    <TextBlock Text="{ui:Text 'Each button lowers an UP cylinder and raises a DOWN cylinder. Unknown position blocks operation.'}"
-                                                        TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                                </StackPanel>
-                                            </UniformGrid.ToolTip>
-                                            <Button x:Name="ToggleCarrierSupportButton"
-                                                Tag="{Binding StartStation.BackupPlate}"
-                                                Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ToggleCarrierSupport}"
-                                                Style="{StaticResource CarrierCylinderButton}" MinHeight="40" Padding="8,7" Margin="0,0,4,6">
-                                                <TextBlock Text="{ui:Text 'Raise/lower carrier support'}" TextWrapping="Wrap" TextAlignment="Center"/>
-                                            </Button>
-                                            <Button x:Name="ToggleStopperButton"
-                                                Tag="{Binding StartStation.Stopper}"
-                                                Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ToggleStopper}"
-                                                Style="{StaticResource CarrierCylinderButton}" MinHeight="40" Padding="8,7" Margin="4,0,0,6">
-                                                <TextBlock Text="{ui:Text 'Raise/lower stopper'}" TextWrapping="Wrap" TextAlignment="Center"/>
-                                            </Button>
-                                        </UniformGrid>
-                                    </StackPanel>
+                                        <Button x:Name="ToggleStopperButton"
+                                            Tag="{Binding StartStation.Stopper}"
+                                            Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ToggleStopper}"
+                                            Style="{StaticResource CarrierCylinderButton}" MinHeight="40" Padding="8,7" Margin="4,0,0,6">
+                                            <TextBlock Text="{ui:Text 'Raise/lower stopper'}" TextWrapping="Wrap" TextAlignment="Center"/>
+                                        </Button>
+                                    </UniformGrid>
                                 </StackPanel>
                                 <StackPanel Grid.Row="2" Margin="0,12,0,0">
-                                    <TextBlock Text="{ui:Text 'Position (mm)'}" Style="{StaticResource ReviewHeading}" Margin="0,0,0,8"/>
+                                    <TextBlock Text="{ui:Text 'Position (mm)'}" FontWeight="SemiBold" Margin="0,0,0,8"/>
                                     <UniformGrid Columns="3">
                                         <StackPanel><TextBlock Text="X" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding StartMotion.Position.X, StringFormat=F3, TargetNullValue=—}"/></StackPanel>
                                         <StackPanel><TextBlock Text="Y" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding StartMotion.Position.Y, StringFormat=F3, TargetNullValue=—}"/></StackPanel>
@@ -412,16 +378,14 @@
                         </TabItem>
                         <TabItem Header="{ui:Text 'Individual I/O'}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
-                                <StackPanel>
-                                    <ItemsControl ItemsSource="{Binding StartOutputs}" ItemTemplate="{StaticResource TeachingOutputTemplate}"/>
-                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding StartOutputs}" ItemTemplate="{StaticResource TeachingOutputTemplate}"/>
                             </ScrollViewer>
                         </TabItem>
                     </TabControl>
                 </Grid>
             </Border>
             <Border Grid.Column="2" Padding="12" Background="{StaticResource PanelBgBrush}"
-                BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="1">
+                BorderBrush="{StaticResource DividerBrush}" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
@@ -558,17 +522,19 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                    <StackPanel>
-                                        <StackPanel.Style>
-                                            <Style TargetType="StackPanel">
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Supply}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </StackPanel.Style>
-                                        <TextBlock Text="{ui:Text 'Gripper'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="{ui:Text 'Gripper'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Text" Value="{Binding Supply.Gripper, Converter={StaticResource UiTextConverter}}"/>
@@ -587,8 +553,8 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Text="{ui:Text 'Rotation'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock>
+                                        <TextBlock Grid.Row="1" Text="{ui:Text 'Rotation'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Text" Value="{Binding Supply.Rotation, Converter={StaticResource UiTextConverter}}"/>
@@ -601,20 +567,22 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Text="{ui:Text 'PCB detected'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
-                                    </StackPanel>
-                                    <StackPanel>
-                                        <StackPanel.Style>
-                                            <Style TargetType="StackPanel">
+                                        <TextBlock Grid.Row="2" Text="{ui:Text 'PCB detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Placement}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </StackPanel.Style>
-                                        <TextBlock Text="{ui:Text 'Lift'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="{ui:Text 'Lift'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Text" Value="{Binding Placement.Lift, Converter={StaticResource UiTextConverter}}"/>
@@ -627,8 +595,8 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Text="{ui:Text 'IPM'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock>
+                                        <TextBlock Grid.Row="1" Text="{ui:Text 'IPM'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Text" Value="{Binding Placement.IpmLift, Converter={StaticResource UiTextConverter}}"/>
@@ -641,89 +609,91 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Text="{ui:Text 'PCB detected'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
-                                        <TextBlock Text="{ui:Text 'Vacuum detected'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementVacuumDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
-                                    </StackPanel>
-                                    <StackPanel>
-                                        <StackPanel.Style>
-                                            <Style TargetType="StackPanel">
+                                        <TextBlock Grid.Row="2" Text="{ui:Text 'PCB detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[PcbPlacementPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                        <TextBlock Grid.Row="3" Text="{ui:Text 'Vacuum detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[PcbPlacementVacuumDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.PickupHead}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </StackPanel.Style>
-                                        <TextBlock Text="{ui:Text 'Vacuum detected'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock Text="{Binding Signals.Inputs[PickupHeadVacuumDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
-                                        <TextBlock Text="{ui:Text 'Bolt detected'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock Text="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
-                                    </StackPanel>
-                                    <StackPanel>
-                                        <StackPanel.Style>
-                                            <Style TargetType="StackPanel">
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="{ui:Text 'Vacuum detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[PickupHeadVacuumDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                        <TextBlock Grid.Row="1" Text="{ui:Text 'Bolt detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.ShootingHead}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </StackPanel.Style>
-                                        <TextBlock Text="{ui:Text 'Vacuum detected'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock Text="{Binding Signals.Inputs[ShootingHeadVacuumDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
-                                        <TextBlock Text="{ui:Text 'Bolt detected'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock Text="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
-                                        <TextBlock Text="{ui:Text 'Tube bolt detected'}" Style="{StaticResource ReviewHeading}"/>
-                                        <TextBlock Text="{Binding Signals.Inputs[ShootingTubeBoltDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
-                                    </StackPanel>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="{ui:Text 'Vacuum detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[ShootingHeadVacuumDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                        <TextBlock Grid.Row="1" Text="{ui:Text 'Bolt detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                        <TextBlock Grid.Row="2" Text="{ui:Text 'Tube bolt detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[ShootingTubeBoltDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                    </Grid>
 
                                     </StackPanel>
                                 </ScrollViewer>
-                                <StackPanel Grid.Row="1" Style="{StaticResource CarrierActions}" Margin="0,12,0,0">
-                                                    <UniformGrid Columns="2">
-                                                        <Button x:Name="CompleteWorkButton" Content="{ui:Text 'Mark all complete'}" Command="{Binding ChangeCarrierWorkCommand}"
-                                                            CommandParameter="{x:Static app:CarrierWorkAction.Complete}" Margin="0,0,4,0" Height="40">
-                                                            <Button.Style>
-                                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                                    <Style.Triggers>
-                                                                        <MultiDataTrigger>
-                                                                            <MultiDataTrigger.Conditions>
-                                                                                <Condition Binding="{Binding State.Available}" Value="True"/>
-                                                                                <Condition Binding="{Binding State.IsRunning}" Value="False"/>
-                                                                                <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
-                                                                                <Condition Binding="{Binding Machine.IsResetting}" Value="False"/>
-                                                                                <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
-                                                                                <Condition Binding="{Binding StartStation.Completed}" Value="False"/>
-                                                                            </MultiDataTrigger.Conditions>
-                                                                            <Setter Property="IsEnabled" Value="True"/>
-                                                                        </MultiDataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Button.Style>
-                                                        </Button>
-                                                        <Button x:Name="ClearWorkButton" Content="{ui:Text 'Rework all'}" ToolTip="{ui:Text 'Clear results'}" Command="{Binding ChangeCarrierWorkCommand}"
-                                                            CommandParameter="{x:Static app:CarrierWorkAction.Clear}" Margin="4,0,0,0" Height="40">
-                                                            <Button.Style>
-                                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                                    <Style.Triggers>
-                                                                        <MultiDataTrigger>
-                                                                            <MultiDataTrigger.Conditions>
-                                                                                <Condition Binding="{Binding State.Available}" Value="True"/>
-                                                                                <Condition Binding="{Binding State.IsRunning}" Value="False"/>
-                                                                                <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
-                                                                                <Condition Binding="{Binding Machine.IsResetting}" Value="False"/>
-                                                                                <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
-                                                                            </MultiDataTrigger.Conditions>
-                                                                            <Setter Property="IsEnabled" Value="True"/>
-                                                                        </MultiDataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Button.Style>
-                                                        </Button>
-                                                    </UniformGrid>
-                                </StackPanel>
+                                <UniformGrid Grid.Row="1" Style="{StaticResource CarrierActions}" Margin="0,12,0,0" Columns="2">
+                                    <Button x:Name="CompleteWorkButton" Content="{ui:Text 'Mark all complete'}" Command="{Binding ChangeCarrierWorkCommand}"
+                                        CommandParameter="{x:Static app:CarrierWorkAction.Complete}" Margin="0,0,4,0" Height="40">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding State.Available}" Value="True"/>
+                                                            <Condition Binding="{Binding State.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding Machine.IsResetting}" Value="False"/>
+                                                            <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
+                                                            <Condition Binding="{Binding StartStation.Completed}" Value="False"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button x:Name="ClearWorkButton" Content="{ui:Text 'Rework all'}" ToolTip="{ui:Text 'Clear results'}" Command="{Binding ChangeCarrierWorkCommand}"
+                                        CommandParameter="{x:Static app:CarrierWorkAction.Clear}" Margin="4,0,0,0" Height="40">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding State.Available}" Value="True"/>
+                                                            <Condition Binding="{Binding State.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
+                                                            <Condition Binding="{Binding Machine.IsResetting}" Value="False"/>
+                                                            <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </UniformGrid>
                             </Grid>
                         </TabItem>
                         <TabItem Header="{ui:Text 'Individual review'}">
@@ -795,7 +765,7 @@
                                                     </Style>
                                                 </Button.Style>
                                             </Button>
-                                            <Button Content="{ui:Text 'Removed · rework'}" ToolTip="{ui:Text 'Remove the bolt before rework.'}" Command="{Binding ReworkBoltCommand}" CommandParameter="{Binding SelectedFasteningResumeBolt}" Margin="4,0,0,0" Height="36" Padding="4,5">
+                                            <Button Content="{ui:Text 'Removed · rework'}" Command="{Binding ReworkBoltCommand}" CommandParameter="{Binding SelectedFasteningResumeBolt}" Margin="4,0,0,0" Height="36" Padding="4,5">
                                                 <Button.Style>
                                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                                         <Style.Triggers>
@@ -840,83 +810,75 @@
                     </TabControl>
                     <StackPanel Grid.Row="1">
                         <StackPanel Style="{StaticResource PlacementReview}" Margin="0,12,0,0">
-                            <Border Padding="10" Background="{StaticResource ControlBgBrush}" BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="0,3,0,0">
-                                <StackPanel>
-                                    <CheckBox x:Name="ConfirmPlacementResume" IsChecked="{Binding IsPlacementResumeConfirmed, Mode=TwoWay}"
-                                        IsEnabled="{Binding IsPlacementResumeAvailable}" ToolTipService.ShowOnDisabled="True">
-                                        <CheckBox.ToolTip>
-                                            <TextBlock Text="{ui:Text 'Check the seated S1 carrier and the placement records above. Resume requires matching records and the backup plate UP.'}"
-                                                TextWrapping="Wrap" MaxWidth="320"/>
-                                        </CheckBox.ToolTip>
-                                        <TextBlock Text="{ui:Text 'I checked the carrier and placed PCBs. Resume unfinished placement.'}" TextWrapping="Wrap"/>
-                                    </CheckBox>
-                                </StackPanel>
-                            </Border>
+                            <CheckBox x:Name="ConfirmPlacementResume" IsChecked="{Binding IsPlacementResumeConfirmed, Mode=TwoWay}"
+                                IsEnabled="{Binding IsPlacementResumeAvailable}" ToolTipService.ShowOnDisabled="True">
+                                <CheckBox.ToolTip>
+                                    <TextBlock Text="{ui:Text 'Check the seated S1 carrier and the placement records above. Resume requires matching records and the backup plate UP.'}"
+                                        TextWrapping="Wrap" MaxWidth="320"/>
+                                </CheckBox.ToolTip>
+                                <TextBlock Text="{ui:Text 'I checked the carrier and placed PCBs. Resume unfinished placement.'}" TextWrapping="Wrap"/>
+                            </CheckBox>
                         </StackPanel>
                         <StackPanel Style="{StaticResource FasteningReview}" Margin="0,12,0,0">
-                            <Border Padding="10" Background="{StaticResource ControlBgBrush}" BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="0,3,0,0">
-                                <StackPanel>
-                                    <TextBlock x:Name="FasteningResumeHint" TextWrapping="Wrap" Margin="0,0,0,8"
-                                        Foreground="{StaticResource AccentAmberBrush}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
+                            <TextBlock x:Name="FasteningResumeHint" TextWrapping="Wrap" Margin="0,0,0,8"
+                                Foreground="{StaticResource AccentAmberBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding State.Available}" Value="True"/>
+                                                    <Condition Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.UnfinishedCarrier}"/>
+                                                    <Condition Binding="{Binding IsFasteningResumeAvailable}" Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Setter Property="Text" Value="{ui:Text 'Review carrier and records.'}"/>
+                                                <Setter Property="ToolTip" Value="{ui:Text 'Review the current carrier and recipe targets, then select RESET.'}"/>
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding State.Available}" Value="True"/>
+                                                    <Condition Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.UnfinishedCarrier}"/>
+                                                    <Condition Binding="{Binding Fastening.Station.CarrierPresent}" Value="True"/>
+                                                    <Condition Binding="{Binding Fastening.Station.BackupPlate}" Value="{x:Static device:StationCylinderState.Down}"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Setter Property="Text" Value="{ui:Text 'Raise carrier support.'}"/>
+                                                <Setter Property="ToolTip" Value="{ui:Text 'S2 backup plate is DOWN. Check the carrier and head clearance, then select Raise/lower carrier support. After UP feedback, check resume again.'}"/>
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding State.Available}" Value="True"/>
+                                                    <Condition Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.UnfinishedCarrier}"/>
+                                                    <Condition Binding="{Binding Fastening.Station.CarrierPresent}" Value="True"/>
+                                                    <Condition Binding="{Binding Fastening.Station.BackupPlate}" Value="{x:Static device:StationCylinderState.Between}"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Setter Property="Text" Value="{ui:Text 'Backup plate position unknown'}"/>
+                                                <Setter Property="ToolTip" Value="{ui:Text 'Cannot confirm S2 backup plate position. Check the actual position and the UP/DOWN sensors. Resume requires UP ON and DOWN OFF.'}"/>
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding State.Available}" Value="True"/>
+                                                    <Condition Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.UnfinishedCarrier}"/>
+                                                    <Condition Binding="{Binding Fastening.Station.CarrierPresent}" Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Setter Property="Text" Value="{ui:Text 'Carrier not detected.'}"/>
+                                                <Setter Property="ToolTip" Value="{ui:Text 'S2 carrier is not detected. Check the actual carrier, then select RESET.'}"/>
+                                            </MultiDataTrigger>
+                                            <DataTrigger Binding="{Binding State.IsRunning}" Value="True">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding State.Available}" Value="True"/>
-                                                            <Condition Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.UnfinishedCarrier}"/>
-                                                            <Condition Binding="{Binding IsFasteningResumeAvailable}" Value="False"/>
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Setter Property="Text" Value="{ui:Text 'Review carrier and records.'}"/>
-                                                        <Setter Property="ToolTip" Value="{ui:Text 'Review the current carrier and recipe targets, then select RESET.'}"/>
-                                                    </MultiDataTrigger>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding State.Available}" Value="True"/>
-                                                            <Condition Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.UnfinishedCarrier}"/>
-                                                            <Condition Binding="{Binding Fastening.Station.CarrierPresent}" Value="True"/>
-                                                            <Condition Binding="{Binding Fastening.Station.BackupPlate}" Value="{x:Static device:StationCylinderState.Down}"/>
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Setter Property="Text" Value="{ui:Text 'Raise carrier support.'}"/>
-                                                        <Setter Property="ToolTip" Value="{ui:Text 'S2 backup plate is DOWN. Check the carrier and head clearance, then select Raise/lower carrier support. After UP feedback, check resume again.'}"/>
-                                                    </MultiDataTrigger>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding State.Available}" Value="True"/>
-                                                            <Condition Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.UnfinishedCarrier}"/>
-                                                            <Condition Binding="{Binding Fastening.Station.CarrierPresent}" Value="True"/>
-                                                            <Condition Binding="{Binding Fastening.Station.BackupPlate}" Value="{x:Static device:StationCylinderState.Between}"/>
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Setter Property="Text" Value="{ui:Text 'Backup plate position unknown'}"/>
-                                                        <Setter Property="ToolTip" Value="{ui:Text 'Cannot confirm S2 backup plate position. Check the actual position and the UP/DOWN sensors. Resume requires UP ON and DOWN OFF.'}"/>
-                                                    </MultiDataTrigger>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding State.Available}" Value="True"/>
-                                                            <Condition Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.UnfinishedCarrier}"/>
-                                                            <Condition Binding="{Binding Fastening.Station.CarrierPresent}" Value="False"/>
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Setter Property="Text" Value="{ui:Text 'Carrier not detected.'}"/>
-                                                        <Setter Property="ToolTip" Value="{ui:Text 'S2 carrier is not detected. Check the actual carrier, then select RESET.'}"/>
-                                                    </MultiDataTrigger>
-                                                    <DataTrigger Binding="{Binding State.IsRunning}" Value="True">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <CheckBox x:Name="ConfirmFasteningResume" IsChecked="{Binding IsFasteningResumeConfirmed, Mode=TwoWay}"
-                                        IsEnabled="{Binding IsFasteningResumeAvailable}">
-                                        <TextBlock Text="{ui:Text 'I checked the carrier and bolts. Resume unfinished fastening.'}" TextWrapping="Wrap"/>
-                                    </CheckBox>
-                                </StackPanel>
-                            </Border>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <CheckBox x:Name="ConfirmFasteningResume" IsChecked="{Binding IsFasteningResumeConfirmed, Mode=TwoWay}"
+                                IsEnabled="{Binding IsFasteningResumeAvailable}">
+                                <TextBlock Text="{ui:Text 'I checked the carrier and bolts. Resume unfinished fastening.'}" TextWrapping="Wrap"/>
+                            </CheckBox>
                         </StackPanel>
                     </StackPanel>
                 </Grid>

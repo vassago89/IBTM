@@ -26,9 +26,11 @@ namespace IBTM.Virtual.Tests;
 public sealed class BoltFasteningTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PickupPreliminaryThenShootingFinalFeedsEachBoltExceptRetightening(bool earlyTorque)
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    public async Task PickupPreliminaryThenShootingFinalFeedsEachBoltExceptRetightening(
+        bool earlyTorque, bool stopFeedOnCompletion)
     {
         var settings = new BoltFasteningSettings
         {
@@ -40,6 +42,7 @@ public sealed class BoltFasteningTests
             PickupHead = new() { FasteningZ = 10 },
             FeedAccelerationSeconds = 0.05,
             FeedDecelerationSeconds = 0.1,
+            StopZFeedOnCompletion = stopFeedOnCompletion,
             Motion = new()
             {
                 HorizontalSpeed = 20_000, ZSpeed = 20_000,
@@ -157,7 +160,7 @@ public sealed class BoltFasteningTests
                 var bolt = station.ActiveBolt!;
                 feeds.Add((Array.IndexOf(bolts, bolt) + 1, startZ, motion.Position.Z));
                 var distance = pickupRunning ? bolt.FeedDistance : bolt.FinalFeedDistance;
-                if (earlyTorque)
+                if (earlyTorque && stopFeedOnCompletion)
                     Assert.InRange(motion.Position.Z, startZ, startZ + distance - 0.01);
                 else
                 {

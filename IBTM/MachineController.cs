@@ -1488,7 +1488,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 _pcbPlacement.SetLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
             if (!pcbDetected && !_io.GetInput(InputIo.PcbPlacementPcbDetected))
                 await ObserveRaiseAsync(
-                    _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false, operation.Token), MachineAlarm.PcbPlacement);
+                    _pcbPlacement.SetIpmDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
         }
         if (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
             await ObserveRaiseAsync(_fasteningStation.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening);
@@ -2450,14 +2450,16 @@ public sealed class MachineController : INotifyPropertyChanged
                     if (area != StartArea.Supply || !_pcbSupply.IsRotateAndReleaseAllowed)
                         return false;
                     await _pcbSupply.SetTeachingRotationAsync(true, activeToken);
-                    await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, activeToken);
+                    activeToken.ThrowIfCancellationRequested();
+                    _io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, false);
                     await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, activeToken);
                     break;
                 case StartPreparationAction.ReleaseMaterial:
                     switch (area)
                     {
                         case StartArea.Supply:
-                            await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, activeToken);
+                            activeToken.ThrowIfCancellationRequested();
+                            _io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, false);
                             await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, activeToken);
                             break;
                         case StartArea.Placement or StartArea.Station1:
@@ -2538,7 +2540,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 await _pcbPlacement.SetLiftDownAsync(false, cancellationToken);
                 if (vacuumDetected || _io.GetInput(InputIo.PcbPlacementVacuumDetected))
                     throw new InvalidOperationException("Release Placement vacuum before raising the IPM support.");
-                await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false, cancellationToken);
+                await _pcbPlacement.SetIpmDownAsync(false, cancellationToken);
                 break;
             case StartArea.PickupHead:
                 await _fasteningStation.SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
@@ -2608,7 +2610,7 @@ public sealed class MachineController : INotifyPropertyChanged
             operation.Token.ThrowIfCancellationRequested();
             switch (output.Signal)
             {
-                case OutputIo.ShootBolt:
+                case OutputIo.ShootBolt or OutputIo.PcbSupplyIpmFixerForward:
                     _io.SetOutput(output.Signal, value);
                     break;
                 case OutputIo.PcbSupplyRotate:
@@ -2616,6 +2618,9 @@ public sealed class MachineController : INotifyPropertyChanged
                     break;
                 case OutputIo.PcbPlacementHandlerDown:
                     await _pcbPlacement.SetLiftDownAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbPlacementIpmDown:
+                    await _pcbPlacement.SetIpmDownAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbPlacementVacuumEjector:
                     await _pcbPlacement.SetVacuumAsync(value, operation.Token);
@@ -2641,7 +2646,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 case OutputIo.NgShuttleDown:
                     await _ngConveyor.SetShuttleDownAsync(value, operation.Token);
                     break;
-                case OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward or OutputIo.PcbPlacementIpmDown
+                case OutputIo.PcbSupplyGripperClosed
                     or OutputIo.PickupTableDown or OutputIo.PcbPlacementBackupPlateUp or OutputIo.BoltFasteningBackupPlateUp
                     or OutputIo.InspectionBackupPlateUp or OutputIo.PcbPlacementStopperUp or OutputIo.BoltFasteningStopperUp
                     or OutputIo.InspectionStopperUp:

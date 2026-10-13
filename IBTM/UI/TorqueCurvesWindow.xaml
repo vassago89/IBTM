@@ -20,6 +20,6 @@
         <ui:TorqueCurvePlot Grid.Row="1" Curve="{Binding SelectedBoltStage.Result.TorqueCurve}"
             TorqueCompensationPercent="{Binding SelectedBoltStage.Result.Controller.TorqueCompensationPercent}"
             TargetTorque="{Binding SelectedBoltStage.Result.Controller.CompensatedTargetTorque}"/>
-        <TextBlock Style="{StaticResource WarningTextStyle}" Grid.Row="2" Text="{Binding SelectedBoltStage.Result.TorqueCurveError}" Margin="0,10,0,0"/>
+        <TextBlock Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource AccentAmberBrush}" Grid.Row="2" Text="{Binding SelectedBoltStage.Result.TorqueCurveError}" Margin="0,10,0,0"/>
     </Grid>
 </Window>

@@ -14,7 +14,7 @@ public interface IBoltHead
     Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default);
     Task<ushort> ReadTorqueCompensationAsync(ushort preset, CancellationToken cancellationToken = default);
     // Feed starts only after fresh RUN ON feedback following START, inside the same STOP cleanup.
-    // RUN OFF cancels and drains feed before publishing the fastening result.
+    // RUN OFF stops feed when requested; otherwise feed finishes before publishing the result.
     // A positive dry-run duration replaces result waiting with timed motor operation.
     // Deliver a measured result before STOP cleanup so its owner can retain it if cleanup fails.
     // Pass the preset setting captured at operation start; tightening does not query it.
@@ -23,5 +23,6 @@ public interface IBoltHead
         Func<CancellationToken, Task>? feedAsync = null,
         int dryRunMilliseconds = 0,
         Action<BoltResult>? resultReceived = null,
-        ushort? torqueCompensationPercent = null);
+        ushort? torqueCompensationPercent = null,
+        bool stopFeedOnCompletion = true);
 }

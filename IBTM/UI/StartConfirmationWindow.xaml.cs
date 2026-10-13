@@ -37,6 +37,13 @@ public partial class StartConfirmationWindow : Window
     {
         CancelButton.Focus();
         await _viewModel.CheckStartCommand.ExecuteAsync(null);
+        var checks = _viewModel.Machine.StartChecks;
+        if (checks[StartArea.Station3] == StartCheckState.NgGripperCheckRequired)
+            _viewModel.SelectStartAreaCommand.Execute(StartArea.Station3);
+        else if (checks[StartArea.Station1] == StartCheckState.UnfinishedCarrier)
+            _viewModel.SelectStartAreaCommand.Execute(StartArea.Station1);
+        else if (checks[StartArea.Station2] == StartCheckState.UnfinishedCarrier)
+            _viewModel.SelectStartAreaCommand.Execute(StartArea.Station2);
         FasteningHeatSinkSelector.SelectedValue = _viewModel.SelectedFasteningResumeBolt?.HeatSink ?? HeatSinkSlot.HeatSink1;
     }
 

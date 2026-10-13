@@ -21,7 +21,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="48"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,0,0,10" IsEnabled="{Binding IsIdle}">
             <Button Command="{Binding SaveCommand}" MinWidth="100" ToolTip="{ui:Text 'Changes apply immediately. Save inspection settings to the current recipe.'}">
@@ -97,23 +97,21 @@
                                 </Style></TextBlock.Style>
                             </TextBlock>
                         </StackPanel>
-                        <Grid Grid.Row="1">
-                            <ListBox Style="{StaticResource FlatPanelListStyle}" ItemsSource="{Binding HistoryImages}" SelectedItem="{Binding SelectedHistoryImage, BindingGroupName={x:Null}}"
-                                ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbInspectionImageItem}">
-                                    <Grid Margin="6,6">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="64"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <Image Source="{Binding Image}" Width="60" Height="50" Stretch="Uniform"/>
-                                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}"/>
-                                            <TextBlock Style="{StaticResource DetailTextStyle}" Text="{Binding Details}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Details}" Margin="0,4,0,0"/>
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="2" Text="{Binding Verdict}" Tag="{Binding Verdict}"
-                                            Style="{StaticResource ResultValueStyle}" Margin="12,0,4,0" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </DataTemplate></ListBox.ItemTemplate>
-                            </ListBox>
-                        </Grid>
+                        <ListBox Grid.Row="1" Style="{StaticResource FlatPanelListStyle}" ItemsSource="{Binding HistoryImages}" SelectedItem="{Binding SelectedHistoryImage, BindingGroupName={x:Null}}"
+                            ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbInspectionImageItem}">
+                                <Grid Margin="6,6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="64"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <Image Source="{Binding Image}" Width="60" Height="50" Stretch="Uniform"/>
+                                    <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}"/>
+                                        <TextBlock Style="{StaticResource DetailTextStyle}" Text="{Binding Details}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Details}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding Verdict}" Tag="{Binding Verdict}"
+                                        Style="{StaticResource ResultValueStyle}" Margin="12,0,4,0" VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate></ListBox.ItemTemplate>
+                        </ListBox>
                     </Grid>
                 </Grid>
             </Border>
@@ -165,19 +163,6 @@
                             </Style></TextBlock.Style>
                         </TextBlock>
                         <StackPanel IsEnabled="{Binding IsIdle}" Margin="0,8,0,0">
-                            <TextBlock Text="{ui:Text 'Reference image unavailable'}" Height="22" Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,0,6">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <MultiDataTrigger><MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Reference}"/>
-                                                <Condition Binding="{Binding SelectedPoint.Metadata}" Value="{x:Null}"/>
-                                            </MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
                             <WrapPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{ui:Text 'Data Matrix'}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,6"/>
                                 <CheckBox Content="{ui:Text 'Extended search'}" IsChecked="{Binding DataMatrix.TryHarder, BindingGroupName={x:Null}, NotifyOnSourceUpdated=True}"
@@ -282,7 +267,6 @@
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}">
                                     <Setter Property="Text" Value="{Binding Preview.Result}"/>
-                                    <Setter Property="ToolTip" Value="{Binding Preview.Result}"/>
                                     <Style.Triggers>
                                         <MultiDataTrigger>
                                             <MultiDataTrigger.Conditions>
@@ -290,14 +274,13 @@
                                                 <Condition Binding="{Binding Preview.HasImage}" Value="True"/>
                                                 <Condition Binding="{Binding Preview.Success}" Value="{x:Null}"/>
                                             </MultiDataTrigger.Conditions>
-                                            <Setter Property="Text" Value="{ui:Text 'After changing settings, select Inspect This Image to check the result.'}"/>
+                                            <Setter Property="Text" Value="{ui:Text 'Not inspected'}"/>
                                         </MultiDataTrigger>
                                         <DataTrigger Binding="{Binding InspectCommand.IsRunning}" Value="True">
                                             <Setter Property="Text" Value="{ui:Text 'Inspecting'}"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding ElementName=EditorRoot, Path=(Validation.HasError)}" Value="True">
                                             <Setter Property="Text" Value="{ui:Text 'Check the highlighted input.'}"/>
-                                            <Setter Property="ToolTip" Value="{ui:Text 'Check the highlighted input.'}"/>
                                             <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -323,7 +306,7 @@
                 </Style></TextBlock.Style>
             </TextBlock>
         </Grid>
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{ui:Text 'Check the highlighted input.'}"
                     Visibility="{Binding ElementName=EditorRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"

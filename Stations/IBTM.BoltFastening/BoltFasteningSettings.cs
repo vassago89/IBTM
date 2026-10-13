@@ -13,6 +13,7 @@ public sealed class BoltFasteningSettings : Setting
         PickupPosition = new();
         ShootingHead = new();
         PickupHead = new();
+        StopZFeedOnCompletion = true;
         MonitorTorqueCurves = true;
         TorqueCurveSampling = AdcTorqueCurveSampling.Milliseconds30;
         TorqueCurveTimeoutMilliseconds = 1_000;
@@ -20,6 +21,7 @@ public sealed class BoltFasteningSettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
+    public bool StopZFeedOnCompletion { get; set; }
     // Unset preserves the existing Z motion times.
     public double? FeedAccelerationSeconds
     {

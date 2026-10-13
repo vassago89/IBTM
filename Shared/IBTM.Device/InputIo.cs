@@ -58,7 +58,7 @@ public enum InputIo
     [Description("Supply Gripper Open")]
     PcbSupplyGripperOpen = 15,
 
-    [Description("Supply IPM Fixer Forward")]
+    [Description("Unused (former Supply IPM forward sensor)")]
     PcbSupplyIpmFixerForward = 16,
 
     [Description("Unused (former Supply IPM backward sensor)")]

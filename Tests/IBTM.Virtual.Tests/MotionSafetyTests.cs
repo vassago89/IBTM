@@ -207,7 +207,7 @@ public sealed class MotionSafetyTests
         await supply.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+        io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
         Assert.False(VirtualTestSupport.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
 
         await supply.MoveToXYAsync(10, 10, settings.HorizontalSpeed);

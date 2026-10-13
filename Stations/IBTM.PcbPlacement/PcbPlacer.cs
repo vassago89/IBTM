@@ -345,7 +345,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 {
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
-                    await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true, operation.Token);
+                    await SetIpmDownAsync(true, operation.Token);
                     await SetLiftDownAsync(false, operation.Token);
                     await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, operation.Token);
                     await MoveAxisAsync(MotionAxis.Y, position.Y, operation.Token);
@@ -359,10 +359,10 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     operation.Token.ThrowIfCancellationRequested();
                     await SetVacuumAsync(false, operation.Token);
 
-                    await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false, operation.Token);
+                    await SetIpmDownAsync(false, operation.Token);
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
-                    await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true, operation.Token);
+                    await SetIpmDownAsync(true, operation.Token);
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
                     Station.GetAssembly(job, target).IsPlacementCompleted = true;
@@ -438,7 +438,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             CheckHolding();
             preparation.Token.ThrowIfCancellationRequested();
-            await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, carryingPcb, preparation.Token);
+            await SetIpmDownAsync(carryingPcb, preparation.Token);
             await SetLiftDownAsync(false, preparation.Token);
             await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, preparation.Token);
             if (departure is { } destination)
@@ -479,7 +479,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             approach.Token.ThrowIfCancellationRequested();
             await SetLiftDownAsync(false, approach.Token);
             await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, approach.Token);
-            await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true, approach.Token);
+            await SetIpmDownAsync(true, approach.Token);
             await MoveAxisAsync(MotionAxis.X, _settings.HandoffPosition.X, approach.Token);
             await MoveAxisAsync(MotionAxis.Y, _settings.HandoffPosition.Y, approach.Token);
             CheckSupply();
@@ -606,6 +606,13 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         if (axis != MotionAxis.Z)
             EnsureHandlerRaised(cancellationToken);
         return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
+    }
+
+    public async Task SetIpmDownAsync(bool down, CancellationToken cancellationToken = default)
+    {
+        await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, down, cancellationToken);
+        if (_settings.IpmDelaySeconds > 0)
+            await Task.Delay(TimeSpan.FromSeconds(_settings.IpmDelaySeconds), cancellationToken);
     }
 
     public Task SetLiftDownAsync(bool down, CancellationToken cancellationToken = default)

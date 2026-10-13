@@ -8,22 +8,20 @@
     d:DataContext="{d:DesignInstance Type=ui:ManualHardwareViewModel, IsDesignTimeCreatable=False}">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="16" MaxWidth="1100" HorizontalAlignment="Left">
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                <Button Command="{Binding Operation.HomeCommand}" IsEnabled="{Binding Operation.Machine.IsHomeAllowed}"
-                    ToolTip="{Binding Operation.Machine.HomeBlock, Converter={StaticResource UiTextConverter}}"
-                    ToolTipService.ShowOnDisabled="True" MinWidth="160" Height="40">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                            <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Operation.State.IsHoming}" Value="True">
-                                    <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </StackPanel>
+            <Button Command="{Binding Operation.HomeCommand}" IsEnabled="{Binding Operation.Machine.IsHomeAllowed}"
+                ToolTip="{Binding Operation.Machine.HomeBlock, Converter={StaticResource UiTextConverter}}"
+                ToolTipService.ShowOnDisabled="True" MinWidth="160" Height="40" HorizontalAlignment="Left" Margin="0,0,0,16">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                        <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Operation.State.IsHoming}" Value="True">
+                                <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
             <ItemsControl ItemsSource="{Binding Conveyors}" Margin="0,0,-10,0">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
@@ -48,11 +46,11 @@
                                     Style="{StaticResource IoOutputStateStyle}"/>
                                 <UniformGrid Grid.Row="1" Grid.ColumnSpan="2" Columns="2" Margin="0,12,0,0">
                                     <Button Content="{ui:Text 'Run'}" Command="{Binding RunCommand}"
-                                        ToolTip="{Binding ActionMessage}" ToolTipService.ShowOnDisabled="True"
                                         Style="{StaticResource PrimaryButtonStyle}" MinWidth="140" Margin="0,0,6,0"/>
                                     <Button Content="{ui:Text 'Stop'}" Command="{Binding StopCommand}" MinWidth="140" Margin="6,0,0,0"/>
                                 </UniformGrid>
-                                <TextBlock Style="{StaticResource WarningTextStyle}" Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding ActionMessage}" Margin="0,8,0,0"/>
+                                <TextBlock Style="{StaticResource StatusMessageStyle}" Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding ActionMessage}"
+                                    Foreground="{StaticResource AccentAmberBrush}" Margin="0,8,0,0"/>
                             </Grid>
                         </Border>
                     </DataTemplate>

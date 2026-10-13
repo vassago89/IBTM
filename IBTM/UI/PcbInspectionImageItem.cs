@@ -43,6 +43,6 @@ public sealed record PcbInspectionImageItem(
 
     public override string ToString()
     {
-        return $"{Title} · {Verdict}";
+        return $"{Title} {Verdict}";
     }
 }

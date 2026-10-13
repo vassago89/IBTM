@@ -205,7 +205,9 @@ public sealed class UiBindingTests
             state.SetError(MachineAlarm.MotionUnavailable, new IOException("Supply axis alarm."));
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => teaching.IsStepXPlusAllowed,
-                TimeSpan.FromSeconds(2)));
+                TimeSpan.FromSeconds(2)),
+                $"Motion={teaching.MotionHint}; running={state.IsRunning}; manual={state.ManualMode}; "
+                + $"raised={services.GetRequiredService<InspectionStation>().IsRaised}; axes={string.Join(", ", teaching.Motion.Axes.Select(pair => $"{pair.Key}: {pair.Value.State}"))}");
             var before = inspection.Position;
             await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
             Assert.Equal(before.X + teaching.StepDistance, inspection.Position.X, 3);
@@ -612,16 +614,16 @@ public sealed class UiBindingTests
             diagram.DataContext = operation;
             var cycleTime = (TextBlock)diagram.FindName("CycleTime");
             await Dispatcher.Yield(DispatcherPriority.DataBind);
-            Assert.Equal("CT · —", cycleTime.Text);
+            Assert.Equal("CT —", cycleTime.Text);
             var job = station.CurrentJob;
             station.Restart(job);
             await Task.Run(() => station.Complete(job, TimeSpan.FromSeconds(12.3)));
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => cycleTime.Text == "CT · 12.3 s", TimeSpan.FromSeconds(2)));
+                () => cycleTime.Text == "CT 12.3 s", TimeSpan.FromSeconds(2)));
             station.Restart(job);
             await Task.Run(() => station.Complete(job));
             await Dispatcher.Yield(DispatcherPriority.DataBind);
-            Assert.Equal("CT · 12.3 s", cycleTime.Text);
+            Assert.Equal("CT 12.3 s", cycleTime.Text);
             station.Restart(job);
         }
 
@@ -872,9 +874,8 @@ public sealed class UiBindingTests
                 Assert.Same(selected, results.SelectedItem);
                 Assert.Equal(selected.HeadLabel, Assert.IsType<TextBlock>(results.Columns[1].GetCellContent(selected)).Text);
                 var turnsCell = Assert.IsType<ContentPresenter>(results.Columns[5].GetCellContent(selected));
-                var turns = Assert.IsType<TextBlock>(VisualTreeHelper.GetChild(turnsCell, 0));
-                Assert.Equal("12.889 / 12.5 / —",
-                    new System.Windows.Documents.TextRange(turns.ContentStart, turns.ContentEnd).Text);
+                var turns = Assert.IsType<StackPanel>(VisualTreeHelper.GetChild(turnsCell, 0));
+                Assert.Equal(new[] { "OK", "12.889" }, turns.Children.OfType<TextBlock>().Select(text => text.Text));
                 detailsWindow.Close();
                 Assert.Null(operation.PcbDetails.Record);
             }
@@ -1029,7 +1030,7 @@ public sealed class UiBindingTests
         foreach (var (path, signal) in new[]
         {
             ("Signals.Inputs[MainConveyorEntryCarrierDetected].IsOn", InputIo.MainConveyorEntryCarrierDetected),
-            ("Signals.Inputs[PcbSupplyIpmFixerForward].IsOn", InputIo.PcbSupplyIpmFixerForward),
+            ("Signals.Inputs[PcbSupplyGripperClosed].IsOn", InputIo.PcbSupplyGripperClosed),
             ("Signals.Inputs[PcbPlacementVacuumDetected].IsOn", InputIo.PcbPlacementVacuumDetected),
             ("Signals.Inputs[PickupHeadVacuumDetected].IsOn", InputIo.PickupHeadVacuumDetected),
             ("Placement.Station.CarrierPresent", InputIo.PcbPlacementHeatSink1Present),

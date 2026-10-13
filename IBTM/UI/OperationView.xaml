@@ -43,13 +43,11 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{ui:Text 'DOORS'}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold"/>
-                </StackPanel>
+                <TextBlock VerticalAlignment="Center" Text="{ui:Text 'DOORS'}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold"/>
                 <ItemsControl Grid.Column="1" ItemsSource="{Binding DoorSensors}" ItemTemplate="{StaticResource DoorSensorTemplate}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <UniformGrid Columns="6"/>
+                            <WrapPanel/>
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
@@ -66,17 +64,7 @@
                     <Button Content="{ui:Text 'Clear'}" Command="{Binding ClearCountsCommand}" Padding="12,2" MinHeight="24" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding CountResetError}" ToolTip="{Binding CountResetError}"
-                    Foreground="{StaticResource AccentRedBrush}" TextAlignment="Right" TextTrimming="CharacterEllipsis" Margin="0,4,0,0">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding CountResetError}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                    TextAlignment="Right" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" TextWrapping="NoWrap" Style="{StaticResource ErrorStatusMessageStyle}"/>
             </Grid>
         </Border>
         <Border Grid.Row="1" Background="{StaticResource EquipBgBrush}"
@@ -119,8 +107,8 @@
                             </Style>
                         </TextBlock.Style>
                         <Run Text="{Binding RecentFastening.HeatSink, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
-                        <Run Text=" · "/><Run Text="{Binding RecentFastening.BoltName, Mode=OneWay}"/>
-                        <Run Text=" · "/><Run Text="{Binding RecentFastening.Result.Stage, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
+                        <Run Text=" "/><Run Text="{Binding RecentFastening.BoltName, Mode=OneWay}"/>
+                        <Run Text=" "/><Run Text="{Binding RecentFastening.Result.Stage, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                     </TextBlock>
                     <Grid Grid.Row="1" Margin="0,0,0,10">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

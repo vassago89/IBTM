@@ -4,7 +4,7 @@ using IBTM.Device;
 
 namespace IBTM.PcbSupply;
 
-public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
+public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings, IJsonOnDeserialized
 {
     public PcbSupplyHardwareSettings() : base(
         MotionGroup.PcbSupply,
@@ -28,7 +28,6 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
             [InputIo.PcbSupplyUnrotated] = 21,
             [InputIo.PcbSupplyGripperClosed] = 24,
             [InputIo.PcbSupplyGripperOpen] = 25,
-            [InputIo.PcbSupplyIpmFixerForward] = 28,
             [InputIo.PcbSupplyPcbDetected] = 22,
         };
         Outputs = new()
@@ -44,12 +43,16 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
                 21,
                 InputIo.PcbSupplyRotated,
                 InputIo.PcbSupplyUnrotated),
-            [OutputIo.PcbSupplyIpmFixerForward] = CreateOutput(
-                24,
-                InputIo.PcbSupplyIpmFixerForward),
+            [OutputIo.PcbSupplyIpmFixerForward] = CreateOutput(24),
         };
     }
 
     [JsonIgnore]
     public override HardwareArea Area => HardwareArea.PcbSupply;
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        Inputs.Remove(InputIo.PcbSupplyIpmFixerForward);
+        Inputs.Remove(InputIo.PcbSupplyIpmFixerBackward);
+    }
 }

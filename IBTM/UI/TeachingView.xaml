@@ -27,47 +27,45 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="48"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <DockPanel LastChildFill="False" Margin="0,0,0,10">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
-                <StackPanel.Style>
-                    <Style TargetType="StackPanel">
-                        <Setter Property="IsEnabled" Value="{Binding State.SetupEditingEnabled}"/>
+        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Margin="12,0,0,10">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="IsEnabled" Value="{Binding State.SetupEditingEnabled}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter Property="IsEnabled" Value="False"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <Button Content="{ui:Text 'New Recipe'}" Command="{Binding RecipeEditor.NewCommand}" MinWidth="100" Margin="0,0,16,0"/>
+            <TextBlock Text="{ui:Text 'Recipe'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" IsEditable="True" IsTextSearchEnabled="False"
+                Text="{Binding RecipeEditor.Name, Mode=TwoWay, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
+                AutomationProperties.Name="{ui:Text 'Recipe'}" ToolTip="{Binding RecipeEditor.Name}"
+                Width="180" Margin="0,0,6,0"/>
+            <Button Content="{ui:Text 'Load'}" Command="{Binding RecipeEditor.LoadCommand}"
+                CommandParameter="{Binding RecipeEditor.Name}"
+                IsEnabled="{Binding RecipeEditor.IsSaveAllowed}" MinWidth="100" Margin="0,0,6,0"/>
+            <Button Command="{Binding SaveCommand}" MinWidth="100">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                        <Setter Property="IsEnabled" Value="{Binding IsSaveAllowed}"/>
+                        <Setter Property="Content" Value="{ui:Text 'Save'}"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
+                                <Setter Property="Content" Value="{ui:Text 'Saving...'}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ElementName=TeachingRoot, Path=(Validation.HasError)}" Value="True">
                                 <Setter Property="IsEnabled" Value="False"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </StackPanel.Style>
-                <Button Content="{ui:Text 'New Recipe'}" Command="{Binding RecipeEditor.NewCommand}" MinWidth="100" Margin="0,0,16,0"/>
-                <TextBlock Text="{ui:Text 'Recipe'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" IsEditable="True" IsTextSearchEnabled="False"
-                    Text="{Binding RecipeEditor.Name, Mode=TwoWay, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
-                    AutomationProperties.Name="{ui:Text 'Recipe'}" ToolTip="{Binding RecipeEditor.Name}"
-                    Width="180" Margin="0,0,6,0"/>
-                <Button Content="{ui:Text 'Load'}" Command="{Binding RecipeEditor.LoadCommand}"
-                    CommandParameter="{Binding RecipeEditor.Name}"
-                    IsEnabled="{Binding RecipeEditor.IsSaveAllowed}" MinWidth="100" Margin="0,0,6,0"/>
-                <Button Command="{Binding SaveCommand}" MinWidth="100">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                            <Setter Property="IsEnabled" Value="{Binding IsSaveAllowed}"/>
-                            <Setter Property="Content" Value="{ui:Text 'Save'}"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
-                                    <Setter Property="Content" Value="{ui:Text 'Saving...'}"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ElementName=TeachingRoot, Path=(Validation.HasError)}" Value="True">
-                                    <Setter Property="IsEnabled" Value="False"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </StackPanel>
-        </DockPanel>
+                </Button.Style>
+            </Button>
+        </StackPanel>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1.1*" MinWidth="260" MaxWidth="300"/>
@@ -451,11 +449,10 @@
                                 Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </ScrollViewer>
-                    <ScrollViewer Grid.Row="1" Height="48" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <TextBlock TextWrapping="Wrap"
-                            Foreground="{StaticResource AccentAmberBrush}">
+                    <ScrollViewer Grid.Row="1" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock Margin="0,8,0,0" Foreground="{StaticResource AccentAmberBrush}">
                             <TextBlock.Style>
-                                <Style TargetType="TextBlock">
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource StatusMessageStyle}">
                                     <Setter Property="Text" Value="{Binding HomeBlock, Converter={StaticResource UiTextConverter}}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding HomeBlock}" Value="{x:Static machine:HomeBlockReason.None}">
@@ -475,7 +472,7 @@
                 </Grid>
             </Border>
         </Grid>
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{ui:Text 'Check the highlighted input.'}"
                     Visibility="{Binding ElementName=TeachingRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"/>

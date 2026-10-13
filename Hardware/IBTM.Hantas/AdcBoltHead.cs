@@ -265,7 +265,8 @@ public sealed class AdcBoltHead : IBoltHead
         Func<CancellationToken, Task>? feedAsync = null,
         int dryRunMilliseconds = 0,
         Action<BoltResult>? resultReceived = null,
-        ushort? torqueCompensationPercent = null)
+        ushort? torqueCompensationPercent = null,
+        bool stopFeedOnCompletion = true)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegative(dryRunMilliseconds);
@@ -292,7 +293,7 @@ public sealed class AdcBoltHead : IBoltHead
         Exception? failure = null;
         var waitingForResult = false;
         Exception? ioFailure = null;
-        void OnIoFaulted(Exception exception)
+        void OnFaulted(Exception exception)
         {
             Interlocked.CompareExchange(ref ioFailure, exception, null);
             OperationCancellation.CancelIfNotDisposed(timeout);
@@ -300,8 +301,17 @@ public sealed class AdcBoltHead : IBoltHead
         void OnStatusSampled(AdcStatusSample sample)
         {
             var cycleStartedAt = Interlocked.Read(ref startedAt);
-            if (sample.StartedAt < cycleStartedAt || stopped.Task.IsCompleted)
+            if (sample.StartedAt < cycleStartedAt)
                 return;
+            if (stopped.Task.IsCompleted)
+            {
+                // With completion-stop disabled, Z may still be moving after RUN OFF.
+                if (!stopFeedOnCompletion && sample.Error is { } feedbackError)
+                    OnFaulted(feedbackError);
+                else if (!stopFeedOnCompletion && sample.Status is { Alarm: > 0 } alarm)
+                    OnFaulted(new InvalidOperationException(AdcControllerError.Describe(alarm.Alarm)));
+                return;
+            }
             var observedAt = Stopwatch.GetTimestamp();
             var queryMilliseconds = Stopwatch.GetElapsedTime(sample.StartedAt, sample.CompletedAt).TotalMilliseconds;
             statusSamples++;
@@ -334,7 +344,7 @@ public sealed class AdcBoltHead : IBoltHead
             if (status.Alarm != 0 || runObserved && !status.Running)
                 stopped.TrySetResult(sample);
         }
-        _io.Faulted += OnIoFaulted;
+        _io.Faulted += OnFaulted;
         try
         {
             _io.CheckReady();
@@ -380,7 +390,10 @@ public sealed class AdcBoltHead : IBoltHead
                 {
                     using var feedCancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
                     var feeding = feedAsync(feedCancellation.Token);
-                    if (await Task.WhenAny(feeding, stopped.Task) == stopped.Task)
+                    if (await Task.WhenAny(feeding, stopped.Task) == stopped.Task
+                        && (stopFeedOnCompletion || dryRunMilliseconds > 0
+                            || !stopped.Task.IsCompletedSuccessfully
+                            || (await stopped.Task).Status is not { Alarm: 0 }))
                         feedCancellation.Cancel();
                     try
                     {
@@ -508,7 +521,7 @@ public sealed class AdcBoltHead : IBoltHead
         finally
         {
             Monitor.Sampled -= OnStatusSampled;
-            _io.Faulted -= OnIoFaulted;
+            _io.Faulted -= OnFaulted;
             StopAfterOperation(failure);
             // Record the summary after START OFF; diagnostics must not hold the motor on.
             var stoppedAt = Stopwatch.GetTimestamp();

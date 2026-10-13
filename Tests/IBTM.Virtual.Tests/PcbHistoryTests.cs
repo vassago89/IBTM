@@ -106,6 +106,9 @@ public sealed class PcbHistoryTests
         Assert.Same(preliminaryCurve, stages[0].Result.TorqueCurve);
         Assert.Same(finalCurve, stages[1].Result.TorqueCurve);
         Assert.Same(retighteningCurve, stages[2].Result.TorqueCurve);
+        var selectedBolt = details.SelectedBolt;
+        var selectedStage = details.BoltStages[0];
+        details.SelectedBoltStage = selectedStage;
         var reopened = VirtualTestSupport.OpenMachineStore(store.DatabaseFile);
         var summary = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
         Assert.False(summary.IsCurveDataLoaded);
@@ -133,8 +136,9 @@ public sealed class PcbHistoryTests
         Assert.Equal(60, restored[1].Result.TorqueCurve!.FasteningMilliseconds);
         Assert.Equal(0, restored[1].Result.TorqueCurve!.ReceivedAt);
         Assert.NotSame(finalCurve, restored[1].Result.TorqueCurve);
-        Assert.Same(details.BoltStages.Last(), details.SelectedBoltStage);
-        Assert.Equal(BoltFasteningStage.Retightening, details.SelectedBoltStage!.Result.Stage);
+        Assert.Same(selectedBolt, details.SelectedBolt);
+        Assert.Same(selectedStage, details.SelectedBoltStage);
+        Assert.Equal(preliminaryCurve.Torques, details.SelectedBoltStage!.Result.TorqueCurve!.Torques);
 
         using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
@@ -580,6 +584,10 @@ public sealed class PcbHistoryTests
         var dataMatrix = selectedImage! with { Record = selectedImage.Record with { BoltId = null } };
         details.SelectedImage = dataMatrix;
         Assert.Null(details.SelectedBolt);
+        Assert.Same(dataMatrix, details.SelectedImage);
+        details.Record = record with { UpdatedAt = record.UpdatedAt.AddSeconds(1) };
+        Assert.Null(details.SelectedBolt);
+        Assert.Null(details.SelectedBoltStage);
         Assert.Same(dataMatrix, details.SelectedImage);
         details.SelectedImage = selectedImage;
 

@@ -149,7 +149,7 @@ public partial class PcbResultsViewModel : ObservableObject
         while (BoltResults.Count > results.Length)
             BoltResults.RemoveAt(BoltResults.Count - 1);
         if (SelectedBolt is null || !BoltResults.Contains(SelectedBolt))
-            SelectedBolt = BoltResults.FirstOrDefault();
+            SelectedBolt = SelectedImage is { Record.BoltId: null } ? null : BoltResults.FirstOrDefault();
         else
             RefreshStages();
     }
@@ -267,7 +267,7 @@ public partial class PcbResultsViewModel : ObservableObject
                     result.MinimumTurns, result.MaximumTurns, bolt.TurnsVerdict, result.Torque,
                     controller?.CompensatedTargetTorque, controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds,
                     controller?.Angle3, result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
-                    string.Join(" · ", new[] { result.Error, controller?.ErrorCode > 0 ? bolt.ControllerErrorDescription : null }
+                    string.Join(" ", new[] { result.Error, controller?.ErrorCode > 0 ? bolt.ControllerErrorDescription : null }
                         .Where(message => !string.IsNullOrWhiteSpace(message))), result.ZFeedDistance);
             }
             foreach (var bolt in InspectionOnlyResults)
@@ -292,7 +292,7 @@ public partial class PcbResultsViewModel : ObservableObject
                     stage.StageVerdict, result.MeasuredTurns, result.Torque, controller?.CompensatedTargetTorque,
                     controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds, controller?.Angle3,
                     result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
-                    string.Join(" · ", new[] { result.Error, controller?.ErrorCode > 0 ? stage.ControllerErrorDescription : null }
+                    string.Join(" ", new[] { result.Error, controller?.ErrorCode > 0 ? stage.ControllerErrorDescription : null }
                         .Where(message => !string.IsNullOrWhiteSpace(message))), result.ZFeedDistance);
             }
 
@@ -454,7 +454,7 @@ public sealed partial class PcbBoltResultView : ObservableObject
 
     public string HeadLabel => UiText.Get(Result.ToolHead ?? Head);
     public string BoltLabel => Recipe?.Pcb.GetBoltName(BoltId, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
-    public string Title => $"{BoltLabel} · {HeadLabel}";
+    public string Title => $"{BoltLabel} {HeadLabel}";
     public string Verdict => Result.Source == BoltResultSource.Interrupted ? UiText.Get("Fastening interrupted")
         : !Result.IsComplete
         ? UiText.Get(Result.Stage == BoltFasteningStage.FinalBeforeRetightening ? "Retightening pending" : "Final tightening pending")

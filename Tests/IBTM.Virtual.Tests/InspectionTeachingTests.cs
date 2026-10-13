@@ -675,6 +675,14 @@ public sealed class InspectionTeachingTests
         Assert.Equal(VirtualTestSupport.BoltId(1), editor.SelectedPoint!.Bolt?.Id);
         Assert.Contains("PCB 7", editor.ImageSource);
         Assert.Contains("NG", editor.OriginalResult);
+        var selectedImage = editor.SelectedHistoryImage!;
+        var imageLoad = editor.LoadRecordCommand.ExecutionTask;
+        editor.Activate();
+        await editor.RefreshImagesCommand.ExecutionTask!;
+        Assert.Equal(InspectionImageMode.Recorded, editor.ImageMode);
+        Assert.Same(selectedImage.Record, editor.SelectedHistoryImage!.Record);
+        Assert.Same(selectedImage.Image, editor.Preview.Image);
+        Assert.Same(imageLoad, editor.LoadRecordCommand.ExecutionTask);
         editor.Preview.BrightnessThreshold = 0;
         editor.Preview.MinimumBrightPercent = 0;
         await editor.InspectCommand.ExecuteAsync(null);
