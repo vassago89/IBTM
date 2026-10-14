@@ -1396,6 +1396,9 @@ public partial class TeachingViewModel : ObservableObject
                     return false;
                 case { } point when ActiveMotionGroup == MotionGroup.PcbSupply:
                     return _pcbSupply.IsMoveToTeachingPositionAllowed(point.Position);
+                case { Position.Target: TeachingTarget.BoltPreliminaryPosition }
+                    when _settings.BoltFastening.ShootingPreliminaryZ is null:
+                    return false;
                 case { } point:
                     return (point.Position.Mode == TeachMode.ZOnly || IsHorizontalMoveAllowed)
                         && point.Position.HasPosition;

@@ -176,9 +176,10 @@ public sealed class RecipeTests
         var reference = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.ShootingHeadPreliminaryZ, MotionGroup.BoltFastening, TeachMode.ZOnly), settings);
         Assert.Null(reference.Coordinates);
-        Assert.False(point.Position.HasPosition);
+        Assert.True(point.Position.HasPosition);
+        Assert.Equal((3, 4), (point.Coordinates!.X, point.Coordinates.Y));
         Assert.Throws<InvalidOperationException>(() => fastening.GetBoltPosition(bolt, preliminary: true));
-        Assert.Throws<MotionInterlockException>(() => point.MovePosition);
+        Assert.Throws<InvalidOperationException>(() => point.MovePosition);
         Assert.Same(fastening, reference.Setting);
         Assert.Equal(TeachingStorage.Machine, reference.Storage);
         Assert.Equal(TeachingStorage.Recipe, point.Storage);

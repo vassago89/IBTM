@@ -123,11 +123,7 @@ public class TeachingPoint : ObservableObject
                     return _definition.Bolt is { IsFasteningPositionDefined: true } bolt
                         ? _settings.BoltFastening.GetBoltPosition(bolt) : null;
                 case TeachingTarget.BoltPreliminaryPosition:
-                    var preliminaryBolt = _definition.Bolt!;
-                    return preliminaryBolt.PreliminaryFasteningPosition is { } preliminaryPosition
-                        && double.IsFinite(preliminaryPosition.X) && double.IsFinite(preliminaryPosition.Y)
-                        && _settings.BoltFastening.ShootingPreliminaryZ is not null
-                            ? _settings.BoltFastening.GetBoltPosition(preliminaryBolt, preliminary: true) : null;
+                    return _definition.Bolt!.PreliminaryFasteningPosition;
                 case TeachingTarget.ShootingHeadPreliminaryZ:
                     return _settings.BoltFastening.ShootingPreliminaryZ is { } preliminaryZ ? new() { Z = preliminaryZ } : null;
                 case TeachingTarget.ShootingHeadFasteningZ:
@@ -244,7 +240,7 @@ public class TeachingPoint : ObservableObject
                 return inspection.PositionLabel;
             if (Coordinates is not { } position)
                 return UiText.Get("Not taught");
-            if (_definition.Target is TeachingTarget.BoltPosition or TeachingTarget.BoltPreliminaryPosition)
+            if (_definition.Target == TeachingTarget.BoltPosition)
                 return $"X {position.X:F3}  Y {position.Y:F3}  Z {position.Z:F3}";
             switch (_definition.Mode)
             {
@@ -365,6 +361,8 @@ public class TeachingPoint : ObservableObject
         {
             var position = Coordinates ?? throw new MotionInterlockException(
                 UiText.Get("Record the selected teaching position before moving."));
+            if (_definition.Target == TeachingTarget.BoltPreliminaryPosition)
+                return _settings.BoltFastening.GetBoltPosition(_definition.Bolt!, preliminary: true);
             return new()
             {
                 X = position.X,

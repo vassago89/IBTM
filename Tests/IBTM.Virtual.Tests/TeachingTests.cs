@@ -896,6 +896,7 @@ public sealed class TeachingTests
         Assert.Equal((expectedX, expectedY, expectedZ), (position.Coordinates!.X, position.Coordinates.Y, position.Coordinates.Z));
         if (head == FasteningHead.Pickup)
         {
+            settings.BoltFastening.ShootingPreliminaryZ = null;
             var preliminary = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltPreliminaryPosition);
             Assert.Equal(TeachMode.XYOnly, preliminary.Position.Mode);
             teaching.SelectedPoint = preliminary;
@@ -904,6 +905,8 @@ public sealed class TeachingTests
             await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal((expectedX, expectedY), (bolt.PreliminaryFasteningPosition!.X, bolt.PreliminaryFasteningPosition.Y));
+            Assert.True(preliminary.Position.HasPosition);
+            Assert.False(teaching.IsMoveToPointAllowed);
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.ShootingHeadPreliminaryZ);
             await fastening.MoveZAsync(expectedZ + 2);
             await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
@@ -912,7 +915,7 @@ public sealed class TeachingTests
                 .LoadSettings().Get<BoltFasteningSettings>().ShootingPreliminaryZ);
             teaching.SelectedPoint = preliminary;
             Assert.Equal((expectedX, expectedY, expectedZ + 2.25),
-                (preliminary.Coordinates!.X, preliminary.Coordinates.Y, preliminary.Coordinates.Z));
+                (preliminary.MovePosition.X, preliminary.MovePosition.Y, preliminary.MovePosition.Z));
             await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
             await teaching.MoveToPointCommand.ExecuteAsync(null);
             Assert.Equal((expectedX, expectedY, expectedZ + 2.25), fastening.Motion.Feedback.Position);
