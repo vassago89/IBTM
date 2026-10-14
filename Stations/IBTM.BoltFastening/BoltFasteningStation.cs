@@ -1466,7 +1466,7 @@ public sealed class BoltFasteningStation : AutoUnit
 
     private async Task MoveWithShootingHeadDownAsync(AxisPosition position, CancellationToken cancellationToken)
     {
-        if (ShootingHeadPosition != StationCylinderState.Down || PickupTablePosition != StationCylinderState.Up)
+        if (ShootingHeadPosition == StationCylinderState.Between || PickupTablePosition != StationCylinderState.Up)
             await RaiseCylindersAsync(cancellationToken);
         else if (PickupHeadPosition != StationCylinderState.Up)
             await SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);

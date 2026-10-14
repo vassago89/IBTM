@@ -247,6 +247,71 @@ public sealed class BoltFasteningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task ShootingPreliminaryTravelStopsWhenHeadOrTableFeedbackIsLost(bool loseTable)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            FirstFasteningHead = FasteningHead.Pickup,
+            ShootingPreliminaryZ = 12, SafeZ = 3,
+            PickupPosition = new() { X = 100, Y = 100, Z = 5 },
+            PickupVacuumDelayMilliseconds = 0,
+            Motion = new() { HorizontalSpeed = 1_000, ZSpeed = 20_000 },
+        };
+        var units = new UnitSettings { ShootingBoltFeeder = false };
+        var io = new VirtualIoService(Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
+        io.Initialize();
+        io.SetInput(InputIo.PickupFeederBoltDetected, true);
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new AdcControllerStub();
+        var head = CreateAdcHead(bus, io, FasteningHead.Shooting,
+            new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200);
+        var bolts = new[] { Bolt(1, FasteningHead.Pickup, 10, 20), Bolt(2, FasteningHead.Pickup, 20, 20) };
+        var work = ConveyorStation.CreateBoltFastening(io);
+        var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, new(), work,
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
+            units, new BoltFeederUnit(io, new(), units));
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        await work.SeatAsync(CancellationToken.None);
+        var pickups = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootingHeadVacuumPump)
+            {
+                io.SetInput(InputIo.ShootingHeadVacuumDetected, on);
+                if (on)
+                    pickups++;
+            }
+        };
+        var lost = false;
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (lost || pickups != 2 || !motion.IsMovingHorizontal)
+                return;
+            lost = true;
+            Assert.Equal(settings.SafeZ, z);
+            Assert.Equal(StationCylinderState.Down, station.ShootingHeadPosition);
+            if (loseTable)
+                io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
+            else
+                io.SetInputs((InputIo.ShootingHeadUp, false), (InputIo.ShootingHeadDown, false));
+        };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => station.RunAsync(timeout.Token));
+        Assert.True(lost);
+        Assert.False(motion.IsMoving);
+        Assert.False(station.IsHorizontalMoveAllowed);
+        Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+        Assert.Equal(1, bus.StartWrites);
+        var results = work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults;
+        Assert.Equal(BoltFasteningStage.Preliminary, results[bolts[0].Id].Stage);
+        Assert.False(results.ContainsKey(bolts[1].Id));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task AdcTorqueMonitoringCompletesCarrierWithoutWritingMdcEnableRegister(bool earlierGraphError)
     {
         var settings = new BoltFasteningSettings
@@ -2575,14 +2640,18 @@ public sealed class BoltFasteningTests
         Assert.True(io.GetOutput(OutputIo.ShootingHeadDown));
         Assert.Equal(0, shootingBus.StartWrites);
         var job = work.CurrentJob;
-        var fasteningPosition = motion.Position;
         var clearedBeforeRestart = false;
         var restarted = false;
         motion.PositionChanged += (x, y, z) =>
         {
             if (!restarted)
             {
-                Assert.Equal((fasteningPosition.X, fasteningPosition.Y), (x, y));
+                if (motion.IsMovingHorizontal)
+                {
+                    Assert.True(clearedBeforeRestart);
+                    Assert.Equal(settings.SafeZ, z);
+                    Assert.Equal(StationCylinderState.Down, station.ShootingHeadPosition);
+                }
                 clearedBeforeRestart |= z == settings.SafeZ;
             }
         };
