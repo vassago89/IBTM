@@ -1439,13 +1439,12 @@ public sealed class BoltFasteningStation : AutoUnit
     }
 
     internal async Task MoveToBoltAsync(
-        BoltPoint bolt, CancellationToken cancellationToken = default, bool preliminary = false, AxisPosition? target = null)
+        BoltPoint bolt, CancellationToken cancellationToken = default, AxisPosition? target = null)
     {
-        var position = target ?? _settings.GetBoltPosition(bolt, preliminary);
-        var head = preliminary ? FasteningHead.Shooting : bolt.Head;
+        var position = target ?? _settings.GetBoltPosition(bolt);
         _log?.LogInformation(
             "Automatic bolt move: {HeatSink}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}.",
-            bolt.HeatSink, bolt.Id, head, position.X, position.Y, position.Z);
+            bolt.HeatSink, bolt.Id, bolt.Head, position.X, position.Y, position.Z);
         // Heads must be raised before travelling at the common clearance height.
         var safeZ = _settings.SafeZ;
         var started = Stopwatch.GetTimestamp();
@@ -1467,7 +1466,7 @@ public sealed class BoltFasteningStation : AutoUnit
 
     private async Task MoveWithShootingHeadDownAsync(AxisPosition position, CancellationToken cancellationToken)
     {
-        if (PickupTablePosition != StationCylinderState.Up)
+        if (ShootingHeadPosition != StationCylinderState.Down || PickupTablePosition != StationCylinderState.Up)
             await RaiseCylindersAsync(cancellationToken);
         else if (PickupHeadPosition != StationCylinderState.Up)
             await SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);

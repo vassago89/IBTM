@@ -104,8 +104,15 @@ public sealed class BoltFasteningTests
         var tableChanges = new List<bool>();
         var pickups = 0;
         var descentCount = 0;
+        var shootingHeadChanges = new List<bool>();
         io.OutputChanged += (output, on) =>
         {
+            if (output == OutputIo.ShootingHeadDown)
+            {
+                shootingHeadChanges.Add(on);
+                if (!on)
+                    Assert.Equal(2, starts.Count);
+            }
             if (output == OutputIo.ShootingHeadVacuumPump)
             {
                 io.SetInput(InputIo.ShootingHeadVacuumDetected, on);
@@ -149,7 +156,11 @@ public sealed class BoltFasteningTests
         motion.MovingChanged += moving =>
         {
             if (moving && motion.IsMovingHorizontal && station.ActiveBolt is not null)
+            {
                 Assert.Equal(settings.SafeZ, motion.Position.Z);
+                if (station.ActiveStage == BoltFasteningStage.Preliminary)
+                    Assert.Equal(StationCylinderState.Down, station.ShootingHeadPosition);
+            }
             var pickupRunning = io.GetOutput(OutputIo.PickupBoltStart);
             var shootingRunning = io.GetOutput(OutputIo.ShootingBoltStart);
             if (!pickupRunning && !shootingRunning)
@@ -204,7 +215,8 @@ public sealed class BoltFasteningTests
         Assert.Equal(FasteningHead.Shooting, starts[0].Head);
         Assert.Equal(FasteningHead.Shooting, starts[1].Head);
         Assert.All(starts.Skip(2), row => Assert.Equal(FasteningHead.Pickup, row.Head));
-        Assert.Equal(6, descentCount);
+        Assert.Equal(3, descentCount);
+        Assert.Equal(new[] { true, false }, shootingHeadChanges);
         Assert.Equal(2, pickups);
         Assert.Equal(new[] { true, false }, tableChanges);
         Assert.Equal(4, feeds.Count);
@@ -522,7 +534,7 @@ public sealed class BoltFasteningTests
                     Assert.Equal(retightened, result.PreviousFinalResult is not null);
                 }
             }
-            Assert.Equal(headOrder.Count + pickups - (firstNg ? 1 : 2), loweredHeads);
+            Assert.Equal(headOrder.Count - 3 - (firstNg ? 1 : 2), loweredHeads);
         }
         finally
         {
