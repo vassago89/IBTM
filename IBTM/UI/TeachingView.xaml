@@ -209,6 +209,9 @@
                                             <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPosition}">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
+                                            <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPreliminaryPosition}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>

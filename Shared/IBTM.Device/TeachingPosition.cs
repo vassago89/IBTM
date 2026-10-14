@@ -89,9 +89,9 @@ public enum TeachingTarget
     [Description("Data Matrix Inspection")]
     DataMatrix,
 
-    [Description("Shooting Head Fastening Z")]
+    [Description("Shooting PCB final Z")]
     ShootingHeadFasteningZ,
-    [Description("Pickup Head Fastening Z")]
+    [Description("Pickup IPM final Z")]
     PickupHeadFasteningZ,
 
     [Description("PCB Receive Z")]
@@ -102,6 +102,9 @@ public enum TeachingTarget
 
     [Description("Shooting pre-tightening")]
     BoltPreliminaryPosition,
+
+    [Description("Shooting IPM preliminary Z")]
+    ShootingHeadPreliminaryZ,
 }
 
 // Command metadata only. Teaching values and writes are owned by the teaching UI.

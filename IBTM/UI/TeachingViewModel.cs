@@ -590,6 +590,7 @@ public partial class TeachingViewModel : ObservableObject
             ],
             HardwareArea.BoltFastening => [
                 Point(TeachingTarget.SafeZ, TeachMode.ZOnly),
+                Point(TeachingTarget.ShootingHeadPreliminaryZ, TeachMode.ZOnly),
                 Point(TeachingTarget.ShootingHeadFasteningZ, TeachMode.ZOnly),
                 Point(TeachingTarget.ShootingHeadUpperLeftLocatingPin, TeachMode.XYOnly),
                 Point(TeachingTarget.ShootingHeadLowerRightLocatingPin, TeachMode.XYOnly),
@@ -602,7 +603,7 @@ public partial class TeachingViewModel : ObservableObject
                     .Select(bolt => Point(TeachingTarget.BoltPosition, TeachMode.XYOnly, bolt)),
                 .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
                     .Where(bolt => bolt.HeatSink == SelectedPcb && bolt.Head == FasteningHead.Pickup)
-                    .Select(bolt => Point(TeachingTarget.BoltPreliminaryPosition, TeachMode.Full, bolt)),
+                    .Select(bolt => Point(TeachingTarget.BoltPreliminaryPosition, TeachMode.XYOnly, bolt)),
             ],
             HardwareArea.InspectionGantry => [
                 Point(TeachingTarget.CarrierUpperLeftLocatingPin, TeachMode.XYOnly),

@@ -161,7 +161,7 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    private bool IsPickupMoveActive { get; set; }
+    private bool IsShootingHeadDownMoveActive { get; set; }
 
     public bool IsHorizontalMoveAllowed
     {
@@ -169,7 +169,7 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             return PickupHeadPosition == StationCylinderState.Up
                 && (ShootingHeadPosition == StationCylinderState.Up
-                    || IsPickupMoveActive && ShootingHeadPosition == StationCylinderState.Down
+                    || IsShootingHeadDownMoveActive && ShootingHeadPosition == StationCylinderState.Down
                         && PickupTablePosition == StationCylinderState.Up);
         }
     }
@@ -601,7 +601,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                     throw new MotionInterlockException(
                                         "Head/table clearance was lost after starting supply for the next shooting bolt.");
                             }
-                            else
+                            else if (!isPreliminary)
                             {
                                 if (PickupTablePosition != StationCylinderState.Up)
                                 {
@@ -610,14 +610,10 @@ public sealed class BoltFasteningStation : AutoUnit
                                     await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
                                 }
                                 if (ShootingHeadPosition != StationCylinderState.Up)
-                                {
-                                    if (isPreliminary && Io.GetInput(InputIo.ShootingHeadVacuumDetected))
-                                        await ReturnFromPickupAsync(token);
-                                    else
-                                        await ClearHeadAsync(FasteningHead.Shooting, token);
-                                }
+                                    await ClearHeadAsync(FasteningHead.Shooting, token);
                             }
-                            await RaiseCylindersAsync(token);
+                            if (!isPreliminary)
+                                await RaiseCylindersAsync(token);
 
                             if (isPreliminary)
                             {
@@ -629,7 +625,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                         token.ThrowIfCancellationRequested();
                                         if (feeding)
                                             await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
-                                        await MoveToPickupAsync(_settings.PickupPosition, token);
+                                        await MoveWithShootingHeadDownAsync(_settings.PickupPosition, token);
                                         token.ThrowIfCancellationRequested();
                                         if (feeding)
                                         {
@@ -639,7 +635,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                             Io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
                                             await Task.Delay(_settings.PickupVacuumDelayMilliseconds, token);
                                         }
-                                        await ReturnFromPickupAsync(token);
+                                        await MoveZAsync(_settings.SafeZ, token);
                                         token.ThrowIfCancellationRequested();
                                         if (!feeding || Io.GetInput(InputIo.ShootingHeadVacuumDetected))
                                             break;
@@ -649,7 +645,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                                 $"IPM bolt {bolt.Id}, {bolt.HeatSink}: shooting vacuum not detected after {retry + 1} pickup attempts.");
                                     }
                                 }
-                                await MoveToBoltAsync(bolt, token, preliminary: true, target: fasteningPosition);
+                                await MoveWithShootingHeadDownAsync(fasteningPosition, token);
                             }
                             else if (feeding)
                             {
@@ -769,7 +765,8 @@ public sealed class BoltFasteningStation : AutoUnit
                             {
                                 if (toolHead == FasteningHead.Shooting
                                         && (PickupTablePosition != StationCylinderState.Up
-                                            || PickupHeadPosition != StationCylinderState.Up)
+                                            || PickupHeadPosition != StationCylinderState.Up
+                                            || isPreliminary && ShootingHeadPosition != StationCylinderState.Down)
                                     || toolHead == FasteningHead.Pickup
                                         && (PickupTablePosition != StationCylinderState.Down
                                             || ShootingHeadPosition != StationCylinderState.Up
@@ -800,7 +797,7 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 CheckFasteningFeedback();
-                                if (!continuingFinal)
+                                if (!continuingFinal && !isPreliminary)
                                     await SetHeadDownAsync(toolHead, true, fastening.Token);
                                 var dryRunMilliseconds = !_units.IsBoltFeederEnabled(bolt.Head)
                                     ? _settings.DryRunMilliseconds : 0;
@@ -862,6 +859,12 @@ public sealed class BoltFasteningStation : AutoUnit
                             && stage == BoltFasteningStage.FinalBeforeRetightening
                             && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Retightening)
                             await SetVacuumAsync(toolHead, false, token);
+                        else if (isPreliminary && nextBolt is not null
+                            && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Preliminary)
+                        {
+                            await SetVacuumAsync(toolHead, false, token);
+                            await MoveZAsync(_settings.SafeZ, token);
+                        }
                         else
                         {
                             TraceStep(step, target, job.Id, "head retraction");
@@ -1356,7 +1359,8 @@ public sealed class BoltFasteningStation : AutoUnit
             case { Target: TeachingTarget.BoltPickup }:
                 if (!point.HasPosition)
                     throw new MotionInterlockException("Record the teaching position before moving.");
-                await MoveToPickupAsync(position, cancellationToken);
+                await RaiseCylindersAsync(cancellationToken);
+                await MoveWithShootingHeadDownAsync(position, cancellationToken);
                 break;
             case { Target: TeachingTarget.BoltPosition or TeachingTarget.BoltPreliminaryPosition, Bolt: not null }:
             {
@@ -1461,38 +1465,42 @@ public sealed class BoltFasteningStation : AutoUnit
             bolt.Id, position.Z, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
-    internal async Task MoveToPickupAsync(AxisPosition position, CancellationToken cancellationToken)
+    private async Task MoveWithShootingHeadDownAsync(AxisPosition position, CancellationToken cancellationToken)
     {
-        await RaiseCylindersAsync(cancellationToken);
+        if (PickupTablePosition != StationCylinderState.Up)
+            await RaiseCylindersAsync(cancellationToken);
+        else if (PickupHeadPosition != StationCylinderState.Up)
+            await SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
         await MoveZAsync(_settings.SafeZ, cancellationToken);
         if (PickupTablePosition != StationCylinderState.Up)
             await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
-        await SetHeadDownAsync(FasteningHead.Shooting, true, cancellationToken);
+        if (ShootingHeadPosition != StationCylinderState.Down)
+            await SetHeadDownAsync(FasteningHead.Shooting, true, cancellationToken);
         using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        void CheckPickupClearance()
+        void CheckShootingClearance()
         {
             if (PickupHeadPosition != StationCylinderState.Up
                 || ShootingHeadPosition != StationCylinderState.Down
                 || PickupTablePosition != StationCylinderState.Up)
                 OperationCancellation.CancelIfNotDisposed(move);
         }
-        IsPickupMoveActive = true;
-        Changed += CheckPickupClearance;
+        IsShootingHeadDownMoveActive = true;
+        Changed += CheckShootingClearance;
         try
         {
-            CheckPickupClearance();
+            CheckShootingClearance();
             move.Token.ThrowIfCancellationRequested();
             await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, move.Token);
             await MoveZAsync(position.Z, move.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new MotionInterlockException("Keep the shooting head down, pickup head up and pickup table up while picking up an IPM bolt.");
+            throw new MotionInterlockException("Keep the shooting head down, pickup head up and pickup table up while moving for IPM preliminary fastening.");
         }
         finally
         {
-            Changed -= CheckPickupClearance;
-            IsPickupMoveActive = false;
+            Changed -= CheckShootingClearance;
+            IsShootingHeadDownMoveActive = false;
         }
     }
 

@@ -238,6 +238,7 @@ public static class MachineTestSupport
         // Virtual tube passage takes 200 ms after detection, while the blow output remains on.
         settings.BoltFastening.ShootingArrivalDelaySeconds = 0.5;
         settings.BoltFastening.SafeZ = 0;
+        settings.BoltFastening.ShootingPreliminaryZ = 0;
         settings.BoltFastening.PickupPosition = new()
         {
             X = 100,

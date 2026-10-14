@@ -897,14 +897,25 @@ public sealed class TeachingTests
         if (head == FasteningHead.Pickup)
         {
             var preliminary = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltPreliminaryPosition);
+            Assert.Equal(TeachMode.XYOnly, preliminary.Position.Mode);
             teaching.SelectedPoint = preliminary;
             Assert.False(teaching.IsMoveToPointAllowed);
-            await fastening.MoveZAsync(expectedZ + 2);
+            preliminary.FasteningZOffset = 0.25;
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-            Assert.Equal((expectedX, expectedY, expectedZ + 2),
-                (bolt.PreliminaryFasteningPosition!.X, bolt.PreliminaryFasteningPosition.Y, bolt.PreliminaryFasteningPosition.Z));
+            Assert.Equal((expectedX, expectedY), (bolt.PreliminaryFasteningPosition!.X, bolt.PreliminaryFasteningPosition.Y));
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.ShootingHeadPreliminaryZ);
+            await fastening.MoveZAsync(expectedZ + 2);
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Equal(expectedZ + 2, services.GetRequiredService<MachineStore>()
+                .LoadSettings().Get<BoltFasteningSettings>().ShootingPreliminaryZ);
+            teaching.SelectedPoint = preliminary;
+            Assert.Equal((expectedX, expectedY, expectedZ + 2.25),
+                (preliminary.Coordinates!.X, preliminary.Coordinates.Y, preliminary.Coordinates.Z));
             await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
             await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Equal((expectedX, expectedY, expectedZ + 2.25), fastening.Motion.Feedback.Position);
             Assert.True(fastening.PickupTablePosition == StationCylinderState.Up,
                 $"Target={teaching.SelectedPoint?.Position.Target}, error={teaching.SaveError}, alarm={services.GetRequiredService<MachineState>().AlarmDetail}");
             teaching.SelectedPoint = position;

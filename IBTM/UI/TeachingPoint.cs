@@ -15,12 +15,26 @@ public class TeachingPoint : ObservableObject
 
     public double FasteningZOffset
     {
-        get => _definition.Bolt?.FasteningZOffset ?? 0;
+        get
+        {
+            return _definition.Target == TeachingTarget.BoltPreliminaryPosition
+                ? _definition.Bolt?.PreliminaryFasteningZOffset ?? 0 : _definition.Bolt?.FasteningZOffset ?? 0;
+        }
         set
         {
-            if (_definition.Target != TeachingTarget.BoltPosition || _definition.Bolt is not { } bolt)
+            if (_definition.Bolt is not { } bolt)
                 return;
-            bolt.FasteningZOffset = value;
+            switch (_definition.Target)
+            {
+                case TeachingTarget.BoltPosition:
+                    bolt.FasteningZOffset = value;
+                    break;
+                case TeachingTarget.BoltPreliminaryPosition:
+                    bolt.PreliminaryFasteningZOffset = value;
+                    break;
+                default:
+                    return;
+            }
             OnPropertyChanged();
             Refresh();
         }
@@ -64,6 +78,7 @@ public class TeachingPoint : ObservableObject
                     return _definition.MotionGroup == MotionGroup.PcbSupply
                         ? _settings.PcbSupply : _settings.BoltFastening;
                 case TeachingTarget.BoltPickup
+                    or TeachingTarget.ShootingHeadPreliminaryZ
                     or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
                     or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
                     or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin:
@@ -108,7 +123,13 @@ public class TeachingPoint : ObservableObject
                     return _definition.Bolt is { IsFasteningPositionDefined: true } bolt
                         ? _settings.BoltFastening.GetBoltPosition(bolt) : null;
                 case TeachingTarget.BoltPreliminaryPosition:
-                    return _definition.Bolt!.PreliminaryFasteningPosition;
+                    var preliminaryBolt = _definition.Bolt!;
+                    return preliminaryBolt.PreliminaryFasteningPosition is { } preliminaryPosition
+                        && double.IsFinite(preliminaryPosition.X) && double.IsFinite(preliminaryPosition.Y)
+                        && _settings.BoltFastening.ShootingPreliminaryZ is not null
+                            ? _settings.BoltFastening.GetBoltPosition(preliminaryBolt, preliminary: true) : null;
+                case TeachingTarget.ShootingHeadPreliminaryZ:
+                    return _settings.BoltFastening.ShootingPreliminaryZ is { } preliminaryZ ? new() { Z = preliminaryZ } : null;
                 case TeachingTarget.ShootingHeadFasteningZ:
                     return new() { Z = _settings.BoltFastening.ShootingHead.FasteningZ };
                 case TeachingTarget.PickupHeadFasteningZ:
@@ -203,7 +224,8 @@ public class TeachingPoint : ObservableObject
                         ? TeachingPointGroup.ShootingFastening : TeachingPointGroup.PickupFastening;
                 case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
                     return TeachingPointGroup.CarrierTransfer;
-                case TeachingTarget.SafeZ or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
+                case TeachingTarget.SafeZ or TeachingTarget.ShootingHeadPreliminaryZ
+                    or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
                     or TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin
                     or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
                     or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin:
@@ -222,7 +244,7 @@ public class TeachingPoint : ObservableObject
                 return inspection.PositionLabel;
             if (Coordinates is not { } position)
                 return UiText.Get("Not taught");
-            if (_definition.Target == TeachingTarget.BoltPosition)
+            if (_definition.Target is TeachingTarget.BoltPosition or TeachingTarget.BoltPreliminaryPosition)
                 return $"X {position.X:F3}  Y {position.Y:F3}  Z {position.Z:F3}";
             switch (_definition.Mode)
             {
@@ -293,7 +315,10 @@ public class TeachingPoint : ObservableObject
                 _definition.Bolt.FasteningY = position.Y;
                 break;
             case TeachingTarget.BoltPreliminaryPosition:
-                _definition.Bolt!.PreliminaryFasteningPosition = position;
+                _definition.Bolt!.PreliminaryFasteningPosition = new() { X = position.X, Y = position.Y };
+                break;
+            case TeachingTarget.ShootingHeadPreliminaryZ:
+                _settings.BoltFastening.ShootingPreliminaryZ = position.Z;
                 break;
             case TeachingTarget.ShootingHeadFasteningZ:
                 _settings.BoltFastening.ShootingHead.FasteningZ = position.Z;

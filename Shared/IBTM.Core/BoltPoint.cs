@@ -107,8 +107,20 @@ public sealed class BoltPoint
         }
     } = 1;
 
+    // XY only; Z is the shooting preliminary reference plus the per-bolt offset.
     [JsonPropertyName("FinalFasteningPosition")]
     public AxisPosition? PreliminaryFasteningPosition { get; set; }
+
+    public double PreliminaryFasteningZOffset
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value))
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite Z offset in millimetres.");
+            field = value;
+        }
+    }
 
     [JsonPropertyName("FinalFeedDistance")]
     public double PreliminaryFeedDistance

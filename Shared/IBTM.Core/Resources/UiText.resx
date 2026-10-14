@@ -1572,8 +1572,8 @@ Operation failed Check controller status</value>
   <data name="pickup head down" xml:space="preserve">
     <value>Pickup Head Down</value>
   </data>
-  <data name="pickup head fastening z" xml:space="preserve">
-    <value>Pickup Head Fastening Z</value>
+  <data name="pickup ipm final z" xml:space="preserve">
+    <value>Pickup IPM final Z</value>
   </data>
   <data name="pickup head pin - lower right" xml:space="preserve">
     <value>Pickup Head Pin - Lower Right</value>
@@ -2128,8 +2128,8 @@ Operation failed Check controller status</value>
   <data name="shooting head down" xml:space="preserve">
     <value>Shooting Head Down</value>
   </data>
-  <data name="shooting head fastening z" xml:space="preserve">
-    <value>Shooting Head Fastening Z</value>
+  <data name="shooting pcb final z" xml:space="preserve">
+    <value>Shooting PCB final Z</value>
   </data>
   <data name="shooting head pin - lower right" xml:space="preserve">
     <value>Shooting Head Pin - Lower Right</value>
@@ -3606,4 +3606,5 @@ Supply: PCB 1, travel Z</value>
     <value>IPM → PCB</value>
   </data>
   <data name="retighten first ipm bolt on each pcb" xml:space="preserve"><value>Retighten first IPM bolt on each PCB</value></data>
+  <data name="shooting ipm preliminary z" xml:space="preserve"><value>Shooting IPM preliminary Z</value></data>
 </root>

@@ -163,6 +163,16 @@ public sealed class BoltFasteningSettings : Setting
         }
     } = 3.0;
     public double SafeZ { get; set; }
+    public double? ShootingPreliminaryZ
+    {
+        get;
+        set
+        {
+            if (value is { } z && !double.IsFinite(z))
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite Z position in millimetres.");
+            field = value;
+        }
+    }
     public AxisPosition PickupPosition { get; set; }
     public BoltHeadSettings ShootingHead { get; set; }
     public BoltHeadSettings PickupHead { get; set; }
@@ -205,9 +215,11 @@ public sealed class BoltFasteningSettings : Setting
         if (preliminary)
         {
             if (bolt.PreliminaryFasteningPosition is not { } position
-                || !double.IsFinite(position.X) || !double.IsFinite(position.Y) || !double.IsFinite(position.Z))
-                throw new InvalidOperationException($"Teach shooting preliminary XYZ for {bolt.HeatSink}, bolt {bolt.Id} before moving.");
-            return new() { X = position.X, Y = position.Y, Z = position.Z };
+                || !double.IsFinite(position.X) || !double.IsFinite(position.Y))
+                throw new InvalidOperationException($"Teach shooting preliminary XY for {bolt.HeatSink}, bolt {bolt.Id} before moving.");
+            if (ShootingPreliminaryZ is not { } z)
+                throw new InvalidOperationException("Teach shooting IPM preliminary Z before moving.");
+            return new() { X = position.X, Y = position.Y, Z = z + bolt.PreliminaryFasteningZOffset };
         }
         if (!bolt.IsFasteningPositionDefined)
             throw new InvalidOperationException($"Record fastening XY for {bolt.HeatSink}, bolt {bolt.Id} before moving.");

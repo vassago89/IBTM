@@ -1572,8 +1572,8 @@
   <data name="pickup head down" xml:space="preserve">
     <value>픽업 헤드 하강</value>
   </data>
-  <data name="pickup head fastening z" xml:space="preserve">
-    <value>픽업 헤드 체결 Z</value>
+  <data name="pickup ipm final z" xml:space="preserve">
+    <value>픽업 IPM 본체결 Z</value>
   </data>
   <data name="pickup head pin - lower right" xml:space="preserve">
     <value>픽업 헤드 핀 - 우하단</value>
@@ -2128,8 +2128,8 @@
   <data name="shooting head down" xml:space="preserve">
     <value>슈팅 헤드 하강</value>
   </data>
-  <data name="shooting head fastening z" xml:space="preserve">
-    <value>슈팅 헤드 체결 Z</value>
+  <data name="shooting pcb final z" xml:space="preserve">
+    <value>슈팅 PCB 본체결 Z</value>
   </data>
   <data name="shooting head pin - lower right" xml:space="preserve">
     <value>슈팅 헤드 핀 - 우하단</value>
@@ -3604,4 +3604,5 @@
     <value>IPM → PCB</value>
   </data>
   <data name="retighten first ipm bolt on each pcb" xml:space="preserve"><value>각 PCB 첫 IPM 볼트 추가 본체결</value></data>
+  <data name="shooting ipm preliminary z" xml:space="preserve"><value>슈팅 IPM 가체결 Z</value></data>
 </root>

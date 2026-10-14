@@ -133,7 +133,8 @@ public sealed class RecipeTests
         var first = new BoltPoint
         {
             FeedDistance = 4, FeedSeconds = 0.8,
-            PreliminaryFasteningPosition = new() { X = 10, Y = 20, Z = 30 },
+            PreliminaryFasteningPosition = new() { X = 10, Y = 20 },
+            FasteningZOffset = -0.75, PreliminaryFasteningZOffset = 1.25,
             PreliminaryFeedDistance = 2, PreliminaryFeedSeconds = 0.5,
         };
         var second = new BoltPoint { FeedDistance = 3, FeedSeconds = 1.2 };
@@ -143,8 +144,9 @@ public sealed class RecipeTests
         var loaded = store.LoadRecipe(recipe.Name).Pcb.BoltPoints;
         Assert.Equal(4, loaded[0].FeedDistance);
         Assert.Equal(0.8, loaded[0].FeedSeconds);
-        Assert.Equal((10, 20, 30), (loaded[0].PreliminaryFasteningPosition!.X,
-            loaded[0].PreliminaryFasteningPosition!.Y, loaded[0].PreliminaryFasteningPosition!.Z));
+        Assert.Equal((10, 20), (loaded[0].PreliminaryFasteningPosition!.X, loaded[0].PreliminaryFasteningPosition!.Y));
+        Assert.Equal(-0.75, loaded[0].FasteningZOffset);
+        Assert.Equal(1.25, loaded[0].PreliminaryFasteningZOffset);
         Assert.Equal(2, loaded[0].PreliminaryFeedDistance);
         Assert.Equal(0.5, loaded[0].PreliminaryFeedSeconds);
         Assert.Equal(3, loaded[1].FeedDistance);
@@ -154,6 +156,55 @@ public sealed class RecipeTests
         Assert.Throws<ArgumentOutOfRangeException>(() => first.FeedSeconds = 0);
         Assert.Throws<ArgumentOutOfRangeException>(() => first.PreliminaryFeedDistance = double.NaN);
         Assert.Throws<ArgumentOutOfRangeException>(() => first.PreliminaryFeedSeconds = double.PositiveInfinity);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.PreliminaryFasteningZOffset = double.NaN);
+    }
+
+    [Fact]
+    public void ShootingPreliminaryTeachingSeparatesXyReferenceZAndOffset()
+    {
+        var settings = new MachineSettings();
+        var fastening = settings.BoltFastening;
+        fastening.ShootingHead.FasteningZ = 20;
+        fastening.PickupHead.FasteningZ = 30;
+        var bolt = new BoltPoint
+        {
+            Head = FasteningHead.Pickup, FasteningX = 1, FasteningY = 2, FasteningZOffset = -0.5,
+            PreliminaryFasteningPosition = new() { X = 3, Y = 4, Z = 99 },
+        };
+        var point = VirtualTestSupport.CreateTeachingPoint(
+            new(TeachingTarget.BoltPreliminaryPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = bolt }, settings);
+        var reference = VirtualTestSupport.CreateTeachingPoint(
+            new(TeachingTarget.ShootingHeadPreliminaryZ, MotionGroup.BoltFastening, TeachMode.ZOnly), settings);
+        Assert.Null(reference.Coordinates);
+        Assert.False(point.Position.HasPosition);
+        Assert.Throws<InvalidOperationException>(() => fastening.GetBoltPosition(bolt, preliminary: true));
+        Assert.Throws<MotionInterlockException>(() => point.MovePosition);
+        Assert.Same(fastening, reference.Setting);
+        Assert.Equal(TeachingStorage.Machine, reference.Storage);
+        Assert.Equal(TeachingStorage.Recipe, point.Storage);
+
+        reference.Teach(99, 99, 12.5);
+        point.FasteningZOffset = -0.25;
+        Assert.Equal((3, 4, 12.25), (point.MovePosition.X, point.MovePosition.Y, point.MovePosition.Z));
+        point.Teach(10, 20, 80);
+        Assert.Equal((10, 20, 12.25), (point.MovePosition.X, point.MovePosition.Y, point.MovePosition.Z));
+        Assert.Equal(-0.25, bolt.PreliminaryFasteningZOffset);
+        Assert.Equal(-0.5, bolt.FasteningZOffset);
+        reference.Teach(99, 99, 13.5);
+        Assert.Equal(13.25, point.MovePosition.Z);
+        Assert.Equal(13.25, fastening.GetBoltPosition(bolt, preliminary: true).Z);
+        Assert.Equal(29.5, fastening.GetBoltPosition(bolt).Z);
+        Assert.Equal(20, fastening.ShootingHead.FasteningZ);
+        Assert.Throws<ArgumentOutOfRangeException>(() => fastening.ShootingPreliminaryZ = double.PositiveInfinity);
+
+        var store = VirtualTestSupport.OpenMachineStore();
+        store.SaveSettings([fastening]);
+        var loaded = store.LoadSettings().Get<BoltFasteningSettings>();
+        Assert.Equal(13.5, loaded.ShootingPreliminaryZ);
+        Assert.Equal(13.25, loaded.GetBoltPosition(bolt, preliminary: true).Z);
+        bolt.PreliminaryFasteningPosition = null;
+        Assert.False(point.Position.HasPosition);
+        Assert.Throws<InvalidOperationException>(() => loaded.GetBoltPosition(bolt, preliminary: true));
     }
 
     [Fact]
