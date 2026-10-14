@@ -3605,4 +3605,5 @@ Supply: PCB 1, travel Z</value>
   <data name="ipm → pcb" xml:space="preserve">
     <value>IPM → PCB</value>
   </data>
+  <data name="retighten first ipm bolt on each pcb" xml:space="preserve"><value>Retighten first IPM bolt on each PCB</value></data>
 </root>

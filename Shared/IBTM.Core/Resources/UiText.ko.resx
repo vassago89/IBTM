@@ -3603,4 +3603,5 @@
   <data name="ipm → pcb" xml:space="preserve">
     <value>IPM → PCB</value>
   </data>
+  <data name="retighten first ipm bolt on each pcb" xml:space="preserve"><value>각 PCB 첫 IPM 볼트 추가 본체결</value></data>
 </root>

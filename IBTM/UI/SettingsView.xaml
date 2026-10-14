@@ -346,6 +346,9 @@
                                             ItemsSource="{StaticResource FasteningPresets}"
                                             SelectedItem="{Binding Settings.BoltFastening.ShootingPcbPreset, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
+                                    <CheckBox Content="{ui:Text 'Retighten first IPM bolt on each PCB'}"
+                                        IsChecked="{Binding Settings.BoltFastening.IpmRetighteningEnabled}"
+                                        IsEnabled="{Binding IsSettingsEditAllowed}"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource SettingCard}">

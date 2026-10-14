@@ -87,6 +87,7 @@ public sealed class BoltFasteningSettings : Setting
         }
     } = 1;
 
+    public bool IpmRetighteningEnabled { get; set; }
     public bool MonitorTorqueCurves { get; set; }
     public AdcTorqueCurveSampling TorqueCurveSampling
     {

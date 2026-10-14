@@ -449,11 +449,26 @@ public sealed class BoltFasteningStation : AutoUnit
                         {
                             if (selectedBolts is not null
                                 && Station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == point.HeatSink)
-                                    ?.PickupBoltResults.GetValueOrDefault(point.Id) is { Stage: BoltFasteningStage.Preliminary })
+                                    ?.PickupBoltResults.GetValueOrDefault(point.Id) is { Stage: BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening })
                                 continue;
                             work.Add((point, BoltFasteningStage.Preliminary));
                         }
-                        work.AddRange(group.Reverse().Select(point => (point, BoltFasteningStage.Final)));
+                        foreach (var point in group.Reverse())
+                        {
+                            if (selectedBolts is not null
+                                && Station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == point.HeatSink)
+                                    ?.PickupBoltResults.GetValueOrDefault(point.Id) is { Stage: BoltFasteningStage.FinalBeforeRetightening })
+                            {
+                                work.Add((point, BoltFasteningStage.Retightening));
+                                continue;
+                            }
+                            var retighten = _settings.IpmRetighteningEnabled
+                                && point.Id == recipeBolts.First(bolt => bolt.Head == FasteningHead.Pickup
+                                    && bolt.HeatSink == point.HeatSink).Id;
+                            work.Add((point, retighten ? BoltFasteningStage.FinalBeforeRetightening : BoltFasteningStage.Final));
+                            if (retighten)
+                                work.Add((point, BoltFasteningStage.Retightening));
+                        }
                     }
                     _runBolts = work.ToArray();
                     _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -462,7 +477,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     if (_settings.MonitorTorqueCurves)
                     {
                         if (_units.PickupBoltFeeder && work.Any(item => item.Bolt.Head == FasteningHead.Pickup
-                                && item.Stage == BoltFasteningStage.Final)
+                                && item.Stage is BoltFasteningStage.Final or BoltFasteningStage.FinalBeforeRetightening or BoltFasteningStage.Retightening)
                             && PickupHead.Monitor is { } pickupMonitor)
                             await pickupMonitor.SetTorqueCurveMonitoringAsync(
                                 true, _carrierOperation.Token, _settings.TorqueCurveSampling);
@@ -523,12 +538,15 @@ public sealed class BoltFasteningStation : AutoUnit
                     var bolt = selectedBolt ?? throw new InvalidOperationException("No bolt is selected.");
                     var stage = _runBolts![_boltIndex].Stage;
                     var isPreliminary = stage == BoltFasteningStage.Preliminary;
-                    var toolHead = stage == BoltFasteningStage.Final ? FasteningHead.Pickup : FasteningHead.Shooting;
+                    var isFinal = stage is BoltFasteningStage.Final or BoltFasteningStage.FinalBeforeRetightening
+                        or BoltFasteningStage.Retightening;
+                    var toolHead = isFinal ? FasteningHead.Pickup : FasteningHead.Shooting;
                     var feedDistance = isPreliminary ? bolt.PreliminaryFeedDistance : bolt.FeedDistance;
                     var feedSeconds = isPreliminary ? bolt.PreliminaryFeedSeconds : bolt.FeedSeconds;
                     var assembly = Station.GetAssembly(job, bolt.HeatSink);
                     BoltResult? preliminary = null;
-                    if (stage == BoltFasteningStage.Final)
+                    BoltResult? previousFinal = null;
+                    if (stage is BoltFasteningStage.Final or BoltFasteningStage.FinalBeforeRetightening)
                     {
                         preliminary = assembly.PickupBoltResults.GetValueOrDefault(bolt.Id);
                         if (preliminary is not { Stage: BoltFasteningStage.Preliminary })
@@ -540,11 +558,33 @@ public sealed class BoltFasteningStation : AutoUnit
                             return true;
                         }
                     }
+                    else if (stage == BoltFasteningStage.Retightening)
+                    {
+                        previousFinal = assembly.PickupBoltResults.GetValueOrDefault(bolt.Id);
+                        if (previousFinal is { IsComplete: true })
+                        {
+                            // Preserve a failed preliminary/final result instead of overwriting it.
+                            _boltIndex++;
+                            NotifyChanged();
+                            return true;
+                        }
+                        if (previousFinal is not { Stage: BoltFasteningStage.FinalBeforeRetightening })
+                            throw new InvalidOperationException("Retightening requires the recorded first final-tightening result.");
+                    }
                     var fasteningPosition = _settings.GetBoltPosition(bolt, isPreliminary);
+                    if (stage == BoltFasteningStage.Retightening)
+                    {
+                        fasteningPosition.Z += previousFinal!.ZFeedDistance
+                            ?? throw new InvalidOperationException("The previous final-tightening Z feed distance was not recorded.");
+                        feedDistance = 0;
+                    }
+                    var continuingFinal = stage == BoltFasteningStage.Retightening && _boltIndex > 0
+                        && _runBolts[_boltIndex - 1] is { Stage: BoltFasteningStage.FinalBeforeRetightening, Bolt: var previousBolt }
+                        && previousBolt.Id == bolt.Id;
                     var cycleStarted = Stopwatch.GetTimestamp();
                     _log?.LogInformation("Bolt timing {Job}/{Bolt}: begin, PCB={Pcb}, head={Head}, safe Z={SafeZ}.",
                         job.Id, bolt.Id, bolt.HeatSink, toolHead, _settings.SafeZ);
-                    var feeding = stage != BoltFasteningStage.Final && _units.IsBoltFeederEnabled(bolt.Head);
+                    var feeding = !isFinal && _units.IsBoltFeederEnabled(bolt.Head);
                     switch (toolHead)
                     {
                         case FasteningHead.Shooting:
@@ -656,6 +696,20 @@ public sealed class BoltFasteningStation : AutoUnit
                         }
                         case FasteningHead.Pickup:
                         {
+                            if (continuingFinal)
+                            {
+                                const double PositionToleranceMillimeters = 0.05;
+                                var current = _motion.Position;
+                                if (!MotionServiceBase.IsReadyAndStopped(_motion)
+                                    || PickupHeadPosition != StationCylinderState.Down
+                                    || PickupTablePosition != StationCylinderState.Down
+                                    || ShootingHeadPosition != StationCylinderState.Up
+                                    || !(Math.Abs(current.X - fasteningPosition.X) <= PositionToleranceMillimeters
+                                        && Math.Abs(current.Y - fasteningPosition.Y) <= PositionToleranceMillimeters
+                                        && Math.Abs(current.Z - fasteningPosition.Z) <= PositionToleranceMillimeters))
+                                    throw new MotionInterlockException(UiText.Get("Final tightening position is not ready."));
+                                break;
+                            }
                             await RaiseCylindersAsync(token);
                             if (PickupTablePosition != StationCylinderState.Down)
                             {
@@ -718,7 +772,8 @@ public sealed class BoltFasteningStation : AutoUnit
                                             || PickupHeadPosition != StationCylinderState.Up)
                                     || toolHead == FasteningHead.Pickup
                                         && (PickupTablePosition != StationCylinderState.Down
-                                            || ShootingHeadPosition != StationCylinderState.Up))
+                                            || ShootingHeadPosition != StationCylinderState.Up
+                                            || continuingFinal && PickupHeadPosition != StationCylinderState.Down))
                                     OperationCancellation.CancelIfNotDisposed(fastening);
                             }
 
@@ -745,7 +800,8 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 CheckFasteningFeedback();
-                                await SetHeadDownAsync(toolHead, true, fastening.Token);
+                                if (!continuingFinal)
+                                    await SetHeadDownAsync(toolHead, true, fastening.Token);
                                 var dryRunMilliseconds = !_units.IsBoltFeederEnabled(bolt.Head)
                                     ? _settings.DryRunMilliseconds : 0;
                                 _log?.LogInformation(
@@ -801,13 +857,22 @@ public sealed class BoltFasteningStation : AutoUnit
                         }
 
                         var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1].Bolt : null;
-                        TraceStep(step, target, job.Id, "head retraction");
-                        var nextShootingBolt = toolHead == FasteningHead.Shooting && _units.ShootingBoltFeeder
-                            && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
-                        await ClearHeadAsync(toolHead, token, nextShootingBolt);
-                        if (toolHead == FasteningHead.Pickup
-                            && (_boltIndex + 1 == _runBolts.Length || _runBolts[_boltIndex + 1].Stage != BoltFasteningStage.Final))
-                            await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
+                        if (result is { Success: true, Source: not BoltResultSource.DryRun }
+                            && nextBolt?.Id == bolt.Id
+                            && stage == BoltFasteningStage.FinalBeforeRetightening
+                            && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Retightening)
+                            await SetVacuumAsync(toolHead, false, token);
+                        else
+                        {
+                            TraceStep(step, target, job.Id, "head retraction");
+                            var nextShootingBolt = toolHead == FasteningHead.Shooting && _units.ShootingBoltFeeder
+                                && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
+                            await ClearHeadAsync(toolHead, token, nextShootingBolt);
+                            if (toolHead == FasteningHead.Pickup
+                                && (_boltIndex + 1 == _runBolts.Length || _runBolts[_boltIndex + 1].Stage is not
+                                    (BoltFasteningStage.Final or BoltFasteningStage.FinalBeforeRetightening or BoltFasteningStage.Retightening)))
+                                await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
+                        }
                     }
                     catch (Exception exception)
                     {
@@ -849,6 +914,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                     Stage = stage,
                                     ToolHead = toolHead,
                                     PreliminaryResult = preliminary,
+                                    PreviousFinalResult = previousFinal,
                                     MinimumTurns = minimumTurns,
                                     MaximumTurns = maximumTurns,
                                     TorqueCurve = torqueCurve,

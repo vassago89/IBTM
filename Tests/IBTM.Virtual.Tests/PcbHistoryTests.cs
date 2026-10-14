@@ -73,7 +73,7 @@ public sealed class PcbHistoryTests
         var preliminary = new BoltResult(true, 0.5)
         {
             Stage = BoltFasteningStage.Preliminary,
-            ToolHead = FasteningHead.Pickup,
+            ToolHead = FasteningHead.Shooting,
             ZFeedDistance = 1.25,
             TorqueCurve = preliminaryCurve,
         };
@@ -82,7 +82,7 @@ public sealed class PcbHistoryTests
         var firstFinal = new BoltResult(true, 1)
         {
             Stage = BoltFasteningStage.FinalBeforeRetightening,
-            ToolHead = FasteningHead.Shooting,
+            ToolHead = FasteningHead.Pickup,
             ZFeedDistance = 0.75,
             PreliminaryResult = preliminary,
             TorqueCurve = finalCurve,
@@ -91,7 +91,7 @@ public sealed class PcbHistoryTests
         assembly.RecordBolt(FasteningHead.Pickup, boltId, new(true, 1)
         {
             Stage = BoltFasteningStage.Retightening,
-            ToolHead = FasteningHead.Shooting,
+            ToolHead = FasteningHead.Pickup,
             ZFeedDistance = 0,
             PreviousFinalResult = firstFinal,
             TorqueCurve = retighteningCurve,
@@ -130,8 +130,8 @@ public sealed class PcbHistoryTests
         Assert.Equal(finalCurve.Angles, restored[1].Result.TorqueCurve!.Angles);
         Assert.Equal(retighteningCurve.Angles, restored[2].Result.TorqueCurve!.Angles);
         Assert.Equal(new double?[] { 1.25, 0.75, 0 }, restored.Select(row => row.Result.ZFeedDistance));
-        Assert.Equal(new[] { UiText.Get(FasteningHead.Pickup), UiText.Get(FasteningHead.Shooting),
-            UiText.Get(FasteningHead.Shooting) }, restored.Select(row => row.HeadLabel));
+        Assert.Equal(new[] { UiText.Get(FasteningHead.Shooting), UiText.Get(FasteningHead.Pickup),
+            UiText.Get(FasteningHead.Pickup) }, restored.Select(row => row.HeadLabel));
         Assert.Equal(30, restored[1].Result.TorqueCurve!.SampleMilliseconds);
         Assert.Equal(60, restored[1].Result.TorqueCurve!.FasteningMilliseconds);
         Assert.Equal(0, restored[1].Result.TorqueCurve!.ReceivedAt);
