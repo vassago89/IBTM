@@ -300,10 +300,10 @@
                                                     <TextBlock>
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
-                                                                <Setter Property="Text" Value="{ui:Text 'Shooting → Pickup'}"/>
+                                                                <Setter Property="Text" Value="{ui:Text 'PCB → IPM'}"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding}" Value="{x:Static core:FasteningHead.Pickup}">
-                                                                        <Setter Property="Text" Value="{ui:Text 'Pickup → Shooting'}"/>
+                                                                        <Setter Property="Text" Value="{ui:Text 'IPM → PCB'}"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -318,18 +318,18 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Pickup pre-tightening preset'}" Style="{StaticResource FieldLabelStyle}"
+                                        <TextBlock Text="{ui:Text 'Pickup final tightening preset'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             ItemsSource="{StaticResource FasteningPresets}"
-                                            SelectedItem="{Binding Settings.BoltFastening.PickupPreliminaryPreset, UpdateSourceTrigger=PropertyChanged}"/>
+                                            SelectedItem="{Binding Settings.BoltFastening.PickupFinalPreset, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Shooting IPM final preset'}" Style="{StaticResource FieldLabelStyle}"
+                                        <TextBlock Text="{ui:Text 'Shooting IPM preliminary preset'}" Style="{StaticResource FieldLabelStyle}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}"
                                             ItemsSource="{StaticResource FasteningPresets}"

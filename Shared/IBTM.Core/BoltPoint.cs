@@ -107,9 +107,11 @@ public sealed class BoltPoint
         }
     } = 1;
 
-    public AxisPosition? FinalFasteningPosition { get; set; }
+    [JsonPropertyName("FinalFasteningPosition")]
+    public AxisPosition? PreliminaryFasteningPosition { get; set; }
 
-    public double FinalFeedDistance
+    [JsonPropertyName("FinalFeedDistance")]
+    public double PreliminaryFeedDistance
     {
         get;
         set
@@ -120,7 +122,8 @@ public sealed class BoltPoint
         }
     }
 
-    public double FinalFeedSeconds
+    [JsonPropertyName("FinalFeedSeconds")]
+    public double PreliminaryFeedSeconds
     {
         get;
         set

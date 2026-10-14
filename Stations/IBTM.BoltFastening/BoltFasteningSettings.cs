@@ -53,7 +53,8 @@ public sealed class BoltFasteningSettings : Setting
             field = value;
         }
     }
-    public ushort PickupPreliminaryPreset
+    [JsonPropertyName("PickupPreliminaryPreset")]
+    public ushort PickupFinalPreset
     {
         get;
         set
@@ -62,7 +63,7 @@ public sealed class BoltFasteningSettings : Setting
                 throw new ArgumentOutOfRangeException(nameof(value), "IO bolt presets are 1, 2 and 3.");
             field = value;
         }
-    } = 2;
+    } = 1;
     [JsonPropertyName("PickupFinalPreset")]
     public ushort ShootingIpmPreset
     {
@@ -73,7 +74,7 @@ public sealed class BoltFasteningSettings : Setting
                 throw new ArgumentOutOfRangeException(nameof(value), "IO bolt presets are 1, 2 and 3.");
             field = value;
         }
-    } = 1;
+    } = 2;
 
     public ushort ShootingPcbPreset
     {
@@ -161,26 +162,9 @@ public sealed class BoltFasteningSettings : Setting
         }
     } = 3.0;
     public double SafeZ { get; set; }
-    // Unset uses the existing travel height until the shooting height is taught.
-    public double? ShootingSafeZ
-    {
-        get;
-        set
-        {
-            if (value is { } z && !double.IsFinite(z))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite shooting Safe Z.");
-            field = value;
-        }
-    }
-
     public AxisPosition PickupPosition { get; set; }
     public BoltHeadSettings ShootingHead { get; set; }
     public BoltHeadSettings PickupHead { get; set; }
-
-    public double GetSafeZ(FasteningHead head)
-    {
-        return head == FasteningHead.Shooting ? ShootingSafeZ ?? SafeZ : SafeZ;
-    }
 
     public BoltHeadSettings GetHead(FasteningHead head)
     {
@@ -215,13 +199,13 @@ public sealed class BoltFasteningSettings : Setting
         bolt.FasteningY = position.Y;
     }
 
-    public AxisPosition GetBoltPosition(BoltPoint bolt, bool final = false)
+    public AxisPosition GetBoltPosition(BoltPoint bolt, bool preliminary = false)
     {
-        if (final)
+        if (preliminary)
         {
-            if (bolt.FinalFasteningPosition is not { } position
+            if (bolt.PreliminaryFasteningPosition is not { } position
                 || !double.IsFinite(position.X) || !double.IsFinite(position.Y) || !double.IsFinite(position.Z))
-                throw new InvalidOperationException($"Teach shooting final XYZ for {bolt.HeatSink}, bolt {bolt.Id} before moving.");
+                throw new InvalidOperationException($"Teach shooting preliminary XYZ for {bolt.HeatSink}, bolt {bolt.Id} before moving.");
             return new() { X = position.X, Y = position.Y, Z = position.Z };
         }
         if (!bolt.IsFasteningPositionDefined)

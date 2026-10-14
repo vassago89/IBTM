@@ -748,7 +748,7 @@ public sealed class MachineController : INotifyPropertyChanged
             completed ? new(true, null, BoltResultSource.Manual)
             {
                 RecordedAt = DateTimeOffset.Now,
-                Stage = bolt.Head == FasteningHead.Pickup ? BoltFasteningStage.Retightening : BoltFasteningStage.Single,
+                Stage = bolt.Head == FasteningHead.Pickup ? BoltFasteningStage.Final : BoltFasteningStage.Single,
             } : null);
         station.Restart(job);
         _log?.LogWarning("Operator changed bolt work: job={Job}, bolt={Bolt}, head={Head}, completed={Completed}.",

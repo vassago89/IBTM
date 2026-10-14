@@ -63,7 +63,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.SafeZ:
                     return _definition.MotionGroup == MotionGroup.PcbSupply
                         ? _settings.PcbSupply : _settings.BoltFastening;
-                case TeachingTarget.ShootingSafeZ or TeachingTarget.BoltPickup
+                case TeachingTarget.BoltPickup
                     or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
                     or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
                     or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin:
@@ -88,8 +88,6 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.SafeZ:
                     return new() { Z = _definition.MotionGroup == MotionGroup.PcbSupply
                         ? _settings.PcbSupply.TravelZ : _settings.BoltFastening.SafeZ };
-                case TeachingTarget.ShootingSafeZ:
-                    return new() { Z = _settings.BoltFastening.GetSafeZ(FasteningHead.Shooting) };
                 case TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
                     var pick = _definition.Target == TeachingTarget.SupplyPcb1Pick
                         ? recipe.PcbSupply.Pcb1PickPosition : recipe.PcbSupply.Pcb2PickPosition;
@@ -109,8 +107,8 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.BoltPosition:
                     return _definition.Bolt is { IsFasteningPositionDefined: true } bolt
                         ? _settings.BoltFastening.GetBoltPosition(bolt) : null;
-                case TeachingTarget.BoltFinalPosition:
-                    return _definition.Bolt!.FinalFasteningPosition;
+                case TeachingTarget.BoltPreliminaryPosition:
+                    return _definition.Bolt!.PreliminaryFasteningPosition;
                 case TeachingTarget.ShootingHeadFasteningZ:
                     return new() { Z = _settings.BoltFastening.ShootingHead.FasteningZ };
                 case TeachingTarget.PickupHeadFasteningZ:
@@ -173,10 +171,10 @@ public class TeachingPoint : ObservableObject
                 return inspection.Name;
             if (_definition.Bolt is { } bolt)
             {
-                if (_definition.Target == TeachingTarget.BoltFinalPosition)
-                    return UiText.Format($"{BoltLabel} Shooting final tightening");
+                if (_definition.Target == TeachingTarget.BoltPreliminaryPosition)
+                    return UiText.Format($"{BoltLabel} Shooting pre-tightening");
                 if (_definition.Target == TeachingTarget.BoltPosition && bolt.Head == FasteningHead.Pickup)
-                    return UiText.Format($"{BoltLabel} Pickup pre-tightening");
+                    return UiText.Format($"{BoltLabel} Pickup final tightening");
                 return _definition.Target == TeachingTarget.BoltPosition
                     ? UiText.Format($"{BoltLabel} Fastening · {UiText.Get(bolt.Head)}")
                     : UiText.Format($"{BoltLabel} Inspection");
@@ -198,14 +196,14 @@ public class TeachingPoint : ObservableObject
         {
             switch (_definition.Target)
             {
-                case TeachingTarget.BoltFinalPosition:
+                case TeachingTarget.BoltPreliminaryPosition:
                     return TeachingPointGroup.ShootingFastening;
                 case TeachingTarget.BoltPosition or TeachingTarget.BoltReference:
                     return _definition.Bolt!.Head == FasteningHead.Shooting
                         ? TeachingPointGroup.ShootingFastening : TeachingPointGroup.PickupFastening;
                 case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
                     return TeachingPointGroup.CarrierTransfer;
-                case TeachingTarget.SafeZ or TeachingTarget.ShootingSafeZ or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
+                case TeachingTarget.SafeZ or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
                     or TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin
                     or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
                     or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin:
@@ -265,9 +263,6 @@ public class TeachingPoint : ObservableObject
             case TeachingTarget.SafeZ:
                 _settings.BoltFastening.SafeZ = position.Z;
                 break;
-            case TeachingTarget.ShootingSafeZ:
-                _settings.BoltFastening.ShootingSafeZ = position.Z;
-                break;
             case TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
                 var pick = _definition.Target == TeachingTarget.SupplyPcb1Pick
                     ? _recipes.Current.PcbSupply.Pcb1PickPosition : _recipes.Current.PcbSupply.Pcb2PickPosition;
@@ -297,8 +292,8 @@ public class TeachingPoint : ObservableObject
                 _definition.Bolt!.FasteningX = position.X;
                 _definition.Bolt.FasteningY = position.Y;
                 break;
-            case TeachingTarget.BoltFinalPosition:
-                _definition.Bolt!.FinalFasteningPosition = position;
+            case TeachingTarget.BoltPreliminaryPosition:
+                _definition.Bolt!.PreliminaryFasteningPosition = position;
                 break;
             case TeachingTarget.ShootingHeadFasteningZ:
                 _settings.BoltFastening.ShootingHead.FasteningZ = position.Z;

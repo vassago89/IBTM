@@ -169,7 +169,7 @@ public sealed class TeachingTests
     [InlineData(null)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task TeachingFeederMoveRequiresPickupTableThroughXyAndZ(bool? duringDescent)
+    public async Task TeachingShootingPickupKeepsTableUpThroughXyAndZ(bool? duringDescent)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
@@ -211,7 +211,13 @@ public sealed class TeachingTests
             {
                 Assert.Equal(MachineAlarm.None, state.Alarm);
                 Assert.True(VirtualTestSupport.IsAt(motion, settings.BoltFastening.PickupPosition));
-                Assert.Equal(StationCylinderState.Down, station.PickupTablePosition);
+                Assert.Equal(StationCylinderState.Up, station.PickupTablePosition);
+                Assert.Equal(StationCylinderState.Down, station.ShootingHeadPosition);
+                io.SetInput(InputIo.PickupFeederBoltDetected, true);
+                io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
+                await WaitUntilAsync(() => io.GetInput(InputIo.ShootingHeadVacuumDetected));
+                Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
+                Assert.False(io.GetOutput(OutputIo.ShootBolt));
             }
             else
             {
@@ -890,15 +896,17 @@ public sealed class TeachingTests
         Assert.Equal((expectedX, expectedY, expectedZ), (position.Coordinates!.X, position.Coordinates.Y, position.Coordinates.Z));
         if (head == FasteningHead.Pickup)
         {
-            var final = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltFinalPosition);
-            teaching.SelectedPoint = final;
+            var preliminary = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltPreliminaryPosition);
+            teaching.SelectedPoint = preliminary;
             Assert.False(teaching.IsMoveToPointAllowed);
             await fastening.MoveZAsync(expectedZ + 2);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal((expectedX, expectedY, expectedZ + 2),
-                (bolt.FinalFasteningPosition!.X, bolt.FinalFasteningPosition.Y, bolt.FinalFasteningPosition.Z));
+                (bolt.PreliminaryFasteningPosition!.X, bolt.PreliminaryFasteningPosition.Y, bolt.PreliminaryFasteningPosition.Z));
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
             await teaching.MoveToPointCommand.ExecuteAsync(null);
-            Assert.Equal(StationCylinderState.Up, fastening.PickupTablePosition);
+            Assert.True(fastening.PickupTablePosition == StationCylinderState.Up,
+                $"Target={teaching.SelectedPoint?.Position.Target}, error={teaching.SaveError}, alarm={services.GetRequiredService<MachineState>().AlarmDetail}");
             teaching.SelectedPoint = position;
         }
         await teaching.SaveCommand.ExecuteAsync(null);
@@ -1471,7 +1479,7 @@ public sealed class TeachingTests
     }
 
     [Fact]
-    public async Task ShootingSafeZTeachingPersistsWithoutChangingCommonClearance()
+    public async Task FasteningSafeZTeachingPersists()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
@@ -1485,8 +1493,8 @@ public sealed class TeachingTests
         try
         {
             teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
-            var point = teaching.FilteredPoints.Single(item => item.Position.Target == TeachingTarget.ShootingSafeZ);
-            Assert.Equal(5, point.Coordinates!.Z); // Existing clearance until explicitly taught.
+            var point = teaching.FilteredPoints.Single(item => item.Position.Target == TeachingTarget.SafeZ);
+            Assert.Equal(5, point.Coordinates!.Z);
             Assert.Equal(TeachingStorage.Machine, point.Storage);
             teaching.SelectedPoint = point;
             await station.MoveZAsync(9);
@@ -1494,10 +1502,9 @@ public sealed class TeachingTests
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Null(teaching.SaveError);
             var saved = services.GetRequiredService<MachineStore>().LoadSettings().Get<BoltFasteningSettings>();
-            Assert.Equal(9, saved.ShootingSafeZ);
-            Assert.Equal(5, saved.SafeZ);
+            Assert.Equal(9, saved.SafeZ);
             Assert.Equal(9, point.Coordinates.Z);
-            Assert.Equal(5, settings.BoltFastening.GetSafeZ(FasteningHead.Pickup));
+            Assert.Equal(9, settings.BoltFastening.SafeZ);
         }
         finally
         {

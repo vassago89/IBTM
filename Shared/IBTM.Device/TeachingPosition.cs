@@ -100,11 +100,8 @@ public enum TeachingTarget
     [Description("Gantry Waiting Position")]
     InspectionWaiting,
 
-    [Description("Shooting Safe Z")]
-    ShootingSafeZ,
-
-    [Description("Shooting final tightening")]
-    BoltFinalPosition,
+    [Description("Shooting pre-tightening")]
+    BoltPreliminaryPosition,
 }
 
 // Command metadata only. Teaching values and writes are owned by the teaching UI.

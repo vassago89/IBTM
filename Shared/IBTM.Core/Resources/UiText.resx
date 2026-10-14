@@ -2146,9 +2146,6 @@ Operation failed Check controller status</value>
   <data name="shooting head vacuum pump" xml:space="preserve">
     <value>Shooting Head Vacuum Pump</value>
   </data>
-  <data name="shooting safe z" xml:space="preserve">
-    <value>Shooting safe height</value>
-  </data>
   <data name="shooting tube bolt detected" xml:space="preserve">
     <value>Shooting Tube Bolt Detected</value>
   </data>
@@ -3550,23 +3547,23 @@ Supply: PCB 1, travel Z</value>
   <data name="0 = no movement" xml:space="preserve">
     <value>0 = no movement</value>
   </data>
-  <data name="{0} pickup pre-tightening" xml:space="preserve">
-    <value>{0} Pickup pre-tightening</value>
+  <data name="{0} pickup final tightening" xml:space="preserve">
+    <value>{0} Pickup final tightening</value>
   </data>
   <data name="z feed distance (mm)" xml:space="preserve">
     <value>Z feed distance (mm)</value>
   </data>
-  <data name="shooting final tightening" xml:space="preserve">
-    <value>Shooting final tightening</value>
+  <data name="shooting pre-tightening" xml:space="preserve">
+    <value>Shooting pre-tightening</value>
   </data>
-  <data name="{0} shooting final tightening" xml:space="preserve">
-    <value>{0} Shooting final</value>
+  <data name="{0} shooting pre-tightening" xml:space="preserve">
+    <value>{0} Shooting pre-tightening</value>
   </data>
-  <data name="pickup pre-tightening preset" xml:space="preserve">
-    <value>Pickup pre-tightening preset</value>
+  <data name="pickup final tightening preset" xml:space="preserve">
+    <value>Pickup final tightening preset</value>
   </data>
-  <data name="shooting ipm final preset" xml:space="preserve">
-    <value>Shooting IPM final preset</value>
+  <data name="shooting ipm preliminary preset" xml:space="preserve">
+    <value>Shooting IPM preliminary preset</value>
   </data>
   <data name="shooting pcb final preset" xml:space="preserve">
     <value>Shooting PCB final preset</value>
@@ -3601,5 +3598,11 @@ Supply: PCB 1, travel Z</value>
   <data name="not inspected" xml:space="preserve"><value>Not inspected</value></data>
   <data name="select date" xml:space="preserve">
     <value>Select date</value>
+  </data>
+  <data name="pcb → ipm" xml:space="preserve">
+    <value>PCB → IPM</value>
+  </data>
+  <data name="ipm → pcb" xml:space="preserve">
+    <value>IPM → PCB</value>
   </data>
 </root>

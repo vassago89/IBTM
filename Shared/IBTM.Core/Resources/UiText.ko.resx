@@ -2146,9 +2146,6 @@
   <data name="shooting head vacuum pump" xml:space="preserve">
     <value>슈팅 헤드 진공 펌프</value>
   </data>
-  <data name="shooting safe z" xml:space="preserve">
-    <value>슈팅 안전 높이</value>
-  </data>
   <data name="shooting tube bolt detected" xml:space="preserve">
     <value>슈팅 튜브 볼트 감지</value>
   </data>
@@ -3548,23 +3545,23 @@
   <data name="0 = no movement" xml:space="preserve">
     <value>0 = 이동 안 함</value>
   </data>
-  <data name="{0} pickup pre-tightening" xml:space="preserve">
-    <value>{0} 픽업 가체결</value>
+  <data name="{0} pickup final tightening" xml:space="preserve">
+    <value>{0} 픽업 본체결</value>
   </data>
   <data name="z feed distance (mm)" xml:space="preserve">
     <value>Z 이동 거리 (mm)</value>
   </data>
-  <data name="shooting final tightening" xml:space="preserve">
-    <value>슈팅 본체결</value>
+  <data name="shooting pre-tightening" xml:space="preserve">
+    <value>슈팅 가체결</value>
   </data>
-  <data name="{0} shooting final tightening" xml:space="preserve">
-    <value>{0} 슈팅 본체결</value>
+  <data name="{0} shooting pre-tightening" xml:space="preserve">
+    <value>{0} 슈팅 가체결</value>
   </data>
-  <data name="pickup pre-tightening preset" xml:space="preserve">
-    <value>픽업 가체결 프리셋</value>
+  <data name="pickup final tightening preset" xml:space="preserve">
+    <value>픽업 본체결 프리셋</value>
   </data>
-  <data name="shooting ipm final preset" xml:space="preserve">
-    <value>슈팅 IPM 본체결 프리셋</value>
+  <data name="shooting ipm preliminary preset" xml:space="preserve">
+    <value>슈팅 IPM 가체결 프리셋</value>
   </data>
   <data name="shooting pcb final preset" xml:space="preserve">
     <value>슈팅 PCB 본체결 프리셋</value>
@@ -3599,5 +3596,11 @@
   <data name="not inspected" xml:space="preserve"><value>미검사</value></data>
   <data name="select date" xml:space="preserve">
     <value>날짜 선택</value>
+  </data>
+  <data name="pcb → ipm" xml:space="preserve">
+    <value>PCB → IPM</value>
+  </data>
+  <data name="ipm → pcb" xml:space="preserve">
+    <value>IPM → PCB</value>
   </data>
 </root>

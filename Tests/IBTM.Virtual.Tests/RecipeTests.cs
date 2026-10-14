@@ -128,13 +128,13 @@ public sealed class RecipeTests
     }
 
     [Fact]
-    public void PerBoltFeedAndShootingFinalPositionSurviveRecipeReload()
+    public void PerBoltFeedAndShootingPreliminaryPositionSurviveRecipeReload()
     {
         var first = new BoltPoint
         {
             FeedDistance = 4, FeedSeconds = 0.8,
-            FinalFasteningPosition = new() { X = 10, Y = 20, Z = 30 },
-            FinalFeedDistance = 2, FinalFeedSeconds = 0.5,
+            PreliminaryFasteningPosition = new() { X = 10, Y = 20, Z = 30 },
+            PreliminaryFeedDistance = 2, PreliminaryFeedSeconds = 0.5,
         };
         var second = new BoltPoint { FeedDistance = 3, FeedSeconds = 1.2 };
         var store = VirtualTestSupport.OpenMachineStore();
@@ -143,17 +143,17 @@ public sealed class RecipeTests
         var loaded = store.LoadRecipe(recipe.Name).Pcb.BoltPoints;
         Assert.Equal(4, loaded[0].FeedDistance);
         Assert.Equal(0.8, loaded[0].FeedSeconds);
-        Assert.Equal((10, 20, 30), (loaded[0].FinalFasteningPosition!.X,
-            loaded[0].FinalFasteningPosition!.Y, loaded[0].FinalFasteningPosition!.Z));
-        Assert.Equal(2, loaded[0].FinalFeedDistance);
-        Assert.Equal(0.5, loaded[0].FinalFeedSeconds);
+        Assert.Equal((10, 20, 30), (loaded[0].PreliminaryFasteningPosition!.X,
+            loaded[0].PreliminaryFasteningPosition!.Y, loaded[0].PreliminaryFasteningPosition!.Z));
+        Assert.Equal(2, loaded[0].PreliminaryFeedDistance);
+        Assert.Equal(0.5, loaded[0].PreliminaryFeedSeconds);
         Assert.Equal(3, loaded[1].FeedDistance);
         Assert.Equal(1.2, loaded[1].FeedSeconds);
-        Assert.Null(loaded[1].FinalFasteningPosition);
+        Assert.Null(loaded[1].PreliminaryFasteningPosition);
         Assert.Throws<ArgumentOutOfRangeException>(() => first.FeedDistance = -1);
         Assert.Throws<ArgumentOutOfRangeException>(() => first.FeedSeconds = 0);
-        Assert.Throws<ArgumentOutOfRangeException>(() => first.FinalFeedDistance = double.NaN);
-        Assert.Throws<ArgumentOutOfRangeException>(() => first.FinalFeedSeconds = double.PositiveInfinity);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.PreliminaryFeedDistance = double.NaN);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.PreliminaryFeedSeconds = double.PositiveInfinity);
     }
 
     [Fact]

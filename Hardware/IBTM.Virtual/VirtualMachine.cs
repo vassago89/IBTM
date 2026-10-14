@@ -278,7 +278,7 @@ public sealed class VirtualMachine
             case OutputIo.PickupHeadVacuumPump:
                 {
                     var vacuumVersion = Interlocked.Increment(ref _pickupVacuumVersion);
-                    _ = ApplyPickupVacuumAsync(value, vacuumVersion);
+                    _ = ApplyPickupVacuumAsync(FasteningHead.Pickup, value, vacuumVersion);
                     return;
                 }
             case OutputIo.ShootingHeadVacuumPump:
@@ -287,6 +287,12 @@ public sealed class VirtualMachine
                     if (!value)
                     {
                         _ = ReleaseShootingVacuumAsync(vacuumVersion);
+                    }
+                    else if (!_io.GetOutput(OutputIo.ShootBolt)
+                        && _io.GetInput(InputIo.ShootingHeadDown)
+                        && _io.GetInput(InputIo.PickupTableUp))
+                    {
+                        _ = ApplyPickupVacuumAsync(FasteningHead.Shooting, true, vacuumVersion);
                     }
 
                     return;
@@ -359,20 +365,21 @@ public sealed class VirtualMachine
             });
     }
 
-    private Task ApplyPickupVacuumAsync(bool value, int version)
+    private Task ApplyPickupVacuumAsync(FasteningHead head, bool value, int version)
     {
         var responseVersion = _io.AutoResponseVersion;
         return RespondAsync(
             responseVersion,
             () =>
             {
-                if (_pickupVacuumVersion != version)
+                if ((head == FasteningHead.Pickup ? _pickupVacuumVersion : _shootingVacuumVersion) != version)
                 {
                     return;
                 }
 
                 var loaded = value && _io.GetInput(InputIo.PickupFeederBoltDetected);
-                _io.SetInput(InputIo.PickupHeadVacuumDetected, loaded);
+                _io.SetInput(head == FasteningHead.Pickup
+                    ? InputIo.PickupHeadVacuumDetected : InputIo.ShootingHeadVacuumDetected, loaded);
                 if (!loaded)
                 {
                     return;
