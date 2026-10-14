@@ -51,7 +51,7 @@ public sealed record BoltResult(
     [JsonIgnore]
     public bool IsComplete => Source != BoltResultSource.Interrupted
         && (Stage is not (BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening)
-            || !Success || Source == BoltResultSource.DryRun);
+            || !Success);
     // Keep the bolt's applied criterion with the measurement, independent of later recipe edits.
     public double? MinimumTurns { get; init; }
     public double? MaximumTurns { get; init; }

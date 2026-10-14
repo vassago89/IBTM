@@ -998,7 +998,9 @@ public sealed class BoltFasteningTests
         Assert.Null((restored with { PreliminaryResult = preliminary with { Controller = null } }).TotalTurns);
 
         var firstFinal = restored with { Stage = BoltFasteningStage.FinalBeforeRetightening, MinimumTurns = 13 };
+        Assert.False((preliminary with { Source = BoltResultSource.DryRun }).IsComplete);
         Assert.False(firstFinal.IsComplete);
+        Assert.False((firstFinal with { Source = BoltResultSource.DryRun }).IsComplete);
         Assert.True((firstFinal with { Success = false }).IsComplete);
         Assert.Equal(AssemblyResult.Pending, firstFinal.TurnsResult);
         var assembly = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
@@ -1754,7 +1756,7 @@ public sealed class BoltFasteningTests
                     }
                     await run.WaitAsync(TimeSpan.FromSeconds(2));
                     Assert.Equal(3, bus.StartWrites);
-                    Assert.Equal(0, pickupBus.StartWrites);
+                    Assert.Equal(1, pickupBus.StartWrites);
                     Assert.Equal(new[] { bolts[0].Id, bolts[2].Id }.Order(), results.Keys.Order());
                     Assert.True(work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults[bolts[3].Id].Success);
                     break;
@@ -3013,14 +3015,15 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
-    [InlineData(FasteningHead.Shooting)]
-    [InlineData(FasteningHead.Pickup)]
-    public async Task FasteningKeepsPcbOrderAndPickupTableClearance(FasteningHead firstHead)
+    [InlineData(FasteningHead.Shooting, false)]
+    [InlineData(FasteningHead.Pickup, true)]
+    public async Task FasteningKeepsPcbOrderAndPickupTableClearance(FasteningHead firstHead, bool retighten)
     {
         var settings = new BoltFasteningSettings
         {
             ShootingPreliminaryZ = 12,
             FirstFasteningHead = firstHead,
+            IpmRetighteningEnabled = retighten,
             ShootingArrivalDelaySeconds = 0.05,
             DryRunMilliseconds = 30,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
@@ -3112,8 +3115,8 @@ public sealed class BoltFasteningTests
                     : settings.SafeZ;
                 Assert.Equal(expectedZ, z);
                 Assert.True(station.IsHorizontalMoveAllowed);
-                Assert.Equal(StationCylinderState.Up,
-                    station.PickupTablePosition);
+                Assert.Equal(station.ActiveStage is BoltFasteningStage.Final or BoltFasteningStage.FinalBeforeRetightening
+                    ? StationCylinderState.Down : StationCylinderState.Up, station.PickupTablePosition);
             }
             if (firstHead == FasteningHead.Pickup && startupXyMoved && !work.CarrierSeated)
                 Assert.Equal(0, z);
@@ -3143,15 +3146,27 @@ public sealed class BoltFasteningTests
             var expected = firstHead == FasteningHead.Shooting
                 ? new (byte Head, double X, double Y, double Z)[] {
                     (2, 280, 410, 12), (2, 270, 420, 12), (2, 275, 415, 12), (2, 265, 425, 12),
+                    (1, -15, 225, 16), (1, -25, 235, 16),
                 }
-                : [(2, 275, 415, 12), (2, 265, 425, 12), (2, 280, 410, 12), (2, 270, 420, 12)];
+                : [(2, 275, 415, 12), (2, 265, 425, 12),
+                    (1, -15, 225, 16), (1, -15, 225, 16), (1, -25, 235, 16), (1, -25, 235, 16),
+                    (2, 280, 410, 12), (2, 270, 420, 12)];
             Assert.Equal(expected, starts);
             // Matching preset outputs are retained; each operation still checks current preset/READY feedback.
             Assert.Equal(firstHead == FasteningHead.Shooting
-                ? new (byte, ushort)[] { (2, 1), (2, 2) } : [(2, 2), (2, 1)], presets);
+                ? new (byte, ushort)[] { (2, 1), (2, 2), (1, 1) } : [(2, 2), (1, 1), (2, 1)], presets);
             Assert.Equal(0, pickups); // Feeder OFF preserves pickup travel without vacuum ON.
-            Assert.Equal(0, tableDescents); // Dry-run preliminary results skip final tightening.
-            Assert.All(work.Assemblies, assembly => Assert.Single(assembly.PickupBoltResults));
+            Assert.Equal(1, tableDescents);
+            Assert.All(work.Assemblies, assembly =>
+            {
+                var final = Assert.Single(assembly.PickupBoltResults).Value;
+                Assert.Equal(retighten ? BoltFasteningStage.Retightening : BoltFasteningStage.Final, final.Stage);
+                Assert.Equal(BoltResultSource.DryRun, final.Source);
+                Assert.True(final.IsComplete);
+                var preliminary = (final.PreviousFinalResult ?? final).PreliminaryResult!;
+                Assert.Equal(BoltResultSource.DryRun, preliminary.Source);
+                Assert.False(preliminary.IsComplete);
+            });
             Assert.True(await WaitUntilAsync(
                 () => station.Step is BoltFasteningState.Waiting, TimeSpan.FromSeconds(2)));
             Assert.Equal(standbyPosition, motion.Position);

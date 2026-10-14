@@ -854,7 +854,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         }
 
                         var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1].Bolt : null;
-                        if (result is { Success: true, Source: not BoltResultSource.DryRun }
+                        if (result is { Success: true }
                             && nextBolt?.Id == bolt.Id
                             && stage == BoltFasteningStage.FinalBeforeRetightening
                             && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Retightening)
