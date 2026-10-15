@@ -918,8 +918,8 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Readiness base wait (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
-                                            ToolTip="{ui:Text 'READY wait = base wait × read attempts.'}"
+                                        <TextBlock Text="{ui:Text 'Readiness query timeout base (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
+                                            ToolTip="{ui:Text 'Total readiness query timeout = entered value × read attempts'}"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Hantas.ResponseTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"

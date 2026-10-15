@@ -14,7 +14,6 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
 {
     private FasteningHead _head;
     private int _fasteningVersion;
-    private bool _eventsEnabled;
 
     public AdcControllerStub()
     {
@@ -23,6 +22,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         RunReplies = new();
         TorqueCompensations = new() { [1] = 100, [2] = 80, [3] = 100 };
         RegisterWrites = [];
+        Result = AdcFasteningResult.FromRegisters(ResultRegisters);
     }
 
     public AdcStatusMonitor Monitor { get; }
@@ -31,6 +31,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
 
     public Queue<AdcFasteningResult> ResultReplies { get; }
     public int ResultReads { get; private set; }
+    private AdcFasteningResult Result { get; set; }
     public bool SuppressTorqueCurve { get; set; }
     public List<(ushort Address, ushort Value)> RegisterWrites { get; }
     public (ushort Address, ushort Value, Exception Error)? RegisterWriteFailure { get; set; }
@@ -128,9 +129,6 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     {
         switch ((AdcRemoteRegister)address)
         {
-            case AdcRemoteRegister.RealTimeMonitoring:
-                _eventsEnabled = value != 0;
-                break;
             case AdcRemoteRegister.AlarmReset:
                 ResetWrites++;
                 if (!IgnoreReset)
@@ -171,12 +169,10 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
             return;
         _fasteningVersion++;
         Running = false;
-        var result = ResultReplies.TryDequeue(out var queued)
+        Result = ResultReplies.TryDequeue(out var queued)
             ? queued : AdcFasteningResult.FromRegisters(ResultRegisters);
-        if (result.Status == AdcEventStatus.Error)
-            CurrentAlarm = result.Error;
-        if (_eventsEnabled)
-            Monitor.ReceiveEvent(result);
+        if (Result.Status == AdcEventStatus.Error)
+            CurrentAlarm = Result.Error;
     }
 
     public Task<byte[]> RequestTorqueCurveAsync(byte slaveAddress, CancellationToken cancellationToken = default)
@@ -264,9 +260,9 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                 EventReads++;
                 if (BaselineReadFailure is { } baselineFailure)
                     throw baselineFailure;
-                return [(ushort)StartWrites];
+                return [Result.EventCount];
             case (ushort)AdcResultRegister.EventCount:
-                return ResultRegisters;
+                return Result.Registers!;
         }
         throw new NotSupportedException();
     }
@@ -275,16 +271,12 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         ResultReads++;
-        var received = ResultReplies.TryDequeue(out var queued)
-            ? queued : AdcFasteningResult.FromRegisters(ResultRegisters);
         if (NextResultReadFailure is { } failure)
         {
             NextResultReadFailure = null;
             throw failure;
         }
-        if (received.Status == AdcEventStatus.Error)
-            CurrentAlarm = received.Error;
-        return Task.FromResult(received);
+        return Task.FromResult(Result);
     }
 
     private ushort[] ResultRegisters

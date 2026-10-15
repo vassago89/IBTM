@@ -54,8 +54,8 @@ Operation failed Check controller status</value>
   <data name="adc communication log" xml:space="preserve">
     <value>ADC communication log</value>
   </data>
-  <data name="adc readiness base wait must be greater than 0 s." xml:space="preserve">
-    <value>ADC readiness base wait: enter more than 0 s</value>
+  <data name="adc readiness query timeout base must be greater than 0 s." xml:space="preserve">
+    <value>ADC readiness query timeout base: enter more than 0 s</value>
   </data>
   <data name="adc shutdown failed" xml:space="preserve">
     <value>ADC Shutdown Failed</value>
@@ -1875,8 +1875,8 @@ Operation failed Check controller status</value>
   <data name="response" xml:space="preserve">
     <value>RESPONSE</value>
   </data>
-  <data name="readiness base wait (s)" xml:space="preserve">
-    <value>Readiness base wait (s)</value>
+  <data name="readiness query timeout base (s)" xml:space="preserve">
+    <value>Readiness query timeout base (s)</value>
   </data>
   <data name="restore air pressure, then press reset" xml:space="preserve">
     <value>Restore air pressure, then press RESET</value>
@@ -3448,7 +3448,7 @@ Supply: PCB 1, travel Z</value>
   <data name="sdk completion wait (s)" xml:space="preserve"><value>Communication request timeout (s)</value></data>
   <data name="torque curve result wait (s)" xml:space="preserve"><value>Curve receive wait (s)</value></data>
   <data name="torque curve stop wait (s)" xml:space="preserve"><value>Torque curve stop wait (s)</value></data>
-  <data name="ready wait = base wait × read attempts." xml:space="preserve"><value>Ready wait = base wait × read attempts</value></data>
+  <data name="total readiness query timeout = entered value × read attempts" xml:space="preserve"><value>Total readiness query timeout = entered value × read attempts</value></data>
   <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>SDK timeout disconnects HComm response timeout fixed at 1 s</value></data>
   <data name="final tightening before retightening" xml:space="preserve"><value>Final tightening before retightening</value></data>
   <data name="retightening" xml:space="preserve"><value>Retightening</value></data>

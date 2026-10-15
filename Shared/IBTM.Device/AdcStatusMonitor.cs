@@ -17,9 +17,10 @@ public sealed record AdcEventSample(long ReceivedAt, AdcFasteningResult Result);
 public sealed record AdcStatusSample(
     AdcControllerStatus? Status, Exception? Error, string? Rejection = null);
 
-// One request queue per connection; controller events arrive independently.
+// One request queue per connection, shared by result polling and explicit requests.
 public sealed class AdcStatusMonitor : INotifyPropertyChanged
 {
+    private const int ResultPollMilliseconds = 50;
     private readonly IAdcBus _bus;
     private readonly ILogger<AdcStatusMonitor> _logger;
     private readonly SemaphoreSlim _startGate;
@@ -64,8 +65,6 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 return;
             }
             await _completion.ConfigureAwait(false);
-            await _bus.WriteRegisterAsync(slaveAddress,
-                (ushort)AdcRemoteRegister.RealTimeMonitoring, 1, cancellationToken).ConfigureAwait(false);
             lock (_stateGate)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -232,19 +231,20 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
 
     private async Task RunAsync(CancellationToken token)
     {
-        var renewedAt = Stopwatch.GetTimestamp();
+        var polledAt = Stopwatch.GetTimestamp();
         Task<bool>? requestAvailable = null;
         try
         {
             while (true)
             {
                 token.ThrowIfCancellationRequested();
-                var remaining = TimeSpan.FromSeconds(10) - Stopwatch.GetElapsedTime(renewedAt);
+                var remaining = TimeSpan.FromMilliseconds(ResultPollMilliseconds) - Stopwatch.GetElapsedTime(polledAt);
                 if (remaining <= TimeSpan.Zero)
                 {
-                    await _bus.WriteRegisterAsync(SlaveAddress,
-                        (ushort)AdcRemoteRegister.RealTimeMonitoring, 1, token).ConfigureAwait(false);
-                    renewedAt = Stopwatch.GetTimestamp();
+                    var result = await _bus.ReadFasteningResultAsync(SlaveAddress, token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    ReceiveEvent(result);
+                    polledAt = Stopwatch.GetTimestamp();
                     continue;
                 }
                 requestAvailable ??= _requests.Reader.WaitToReadAsync(token).AsTask();
@@ -263,7 +263,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         catch (Exception exception)
         {
             Publish(new(null, exception));
-            _logger.LogError(exception, "ADC {Port}/{Slave}: automatic event renewal failed.", _bus.PortName, SlaveAddress);
+            _logger.LogError(exception, "ADC {Port}/{Slave}: result polling failed.", _bus.PortName, SlaveAddress);
         }
         finally
         {
@@ -276,6 +276,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
 
     public void ReceiveEvent(AdcFasteningResult result)
     {
+        if (LastEvent?.Result.EventCount == result.EventCount)
+            return;
         var now = Stopwatch.GetTimestamp();
         var received = new AdcEventSample(now, result);
         LastEvent = received;

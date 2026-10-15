@@ -331,13 +331,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             controller.ScrewCount++;
             controller.Running = false;
             controller.Status = status;
-            if (IsOpen && controller.Registers.GetValueOrDefault((ushort)AdcRemoteRegister.RealTimeMonitoring) == 1)
-            {
-                var values = new ushort[AdcFasteningResult.RegisterCount];
-                for (var index = 0; index < values.Length; index++)
-                    values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
-                Monitor.ReceiveEvent(AdcFasteningResult.FromRegisters(values));
-            }
         }
     }
 

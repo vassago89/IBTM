@@ -26,20 +26,26 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task IdleMonitorOnlyRenewsEventsAndReportsRenewalFailure(bool failRenewal)
+    public async Task MonitorPollsResultsWithoutWritesAndPublishesEachEventOnce(bool failRead)
     {
         using var bus = new AdcControllerStub();
         bus.Open("Virtual", 115200);
+        var events = 0;
+        bus.Monitor.EventReceived += sample => events++;
         await bus.Monitor.StartAsync(1, CancellationToken.None);
-        Assert.Equal(new (ushort, ushort)[] { (4002, 1) }, bus.RegisterWrites);
-        if (failRenewal)
-            bus.RegisterWriteFailure = (4002, 1, new IOException("Renewal failed"));
-        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.RegisterWrites.Count == 2,
-            TimeSpan.FromSeconds(12)));
-        Assert.Equal((4002, 1), ((int)bus.RegisterWrites[1].Address, (int)bus.RegisterWrites[1].Value));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.ResultReads >= 3,
+            TimeSpan.FromSeconds(2)));
+        Assert.Equal(1, events);
+        if (failRead)
+        {
+            var failure = new IOException("Result read failed");
+            bus.NextResultReadFailure = failure;
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.Monitor.Sample?.Error == failure,
+                TimeSpan.FromSeconds(2)));
+        }
+        Assert.Empty(bus.RegisterWrites);
         Assert.Equal(0, bus.StatusReads);
-        Assert.Equal(0, bus.ResultReads);
-        Assert.Equal(failRenewal, bus.Monitor.Sample?.Error is not null);
+        Assert.Equal(failRead, bus.Monitor.Sample?.Error is not null);
         bus.Close();
         Assert.NotNull(bus.Monitor.Sample?.Error);
     }
@@ -48,7 +54,7 @@ public sealed class AdcBoltHeadTests
     [InlineData(FasteningHead.Pickup, 1, 15, 100)]
     [InlineData(FasteningHead.Pickup, 2, 30, 80)]
     [InlineData(FasteningHead.Shooting, 3, 45, 95)]
-    public async Task UsesIoControlsAndReceivesResultWithoutPolling(
+    public async Task UsesIoControlsAndPollsResultsWithoutRepeatedStatusReads(
         FasteningHead selected, ushort preset, ushort compensationAddress, ushort compensation)
     {
         using var bus = new VirtualAdcBus();
@@ -74,8 +80,6 @@ public sealed class AdcBoltHeadTests
                 Assert.Equal(0, eventReads);
                 return;
             }
-            if (frame[1] == (byte)AdcFunctionCode.WriteSingleRegister && address == 4002)
-                return;
             Assert.Equal((byte)AdcFunctionCode.ReadInputRegisters, frame[1]);
             if (address == (ushort)AdcResultRegister.EventCount)
             {
@@ -89,7 +93,6 @@ public sealed class AdcBoltHeadTests
                 {
                     Assert.Equal(AdcFasteningResult.RegisterCount, count);
                     resultReads++;
-                    Assert.True(io.GetOutput(start));
                 }
             }
             else
@@ -116,7 +119,7 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(preset, result.Controller.Preset);
         Assert.Equal(1, compensationReads);
         Assert.Equal(1, eventReads); // Pre-START baseline only.
-        Assert.Equal(0, resultReads);
+        Assert.True(resultReads > 0);
         Assert.Equal(2, statusReads); // Preset and one RUN check only.
         Assert.False(io.GetOutput(start));
     }
@@ -202,7 +205,6 @@ public sealed class AdcBoltHeadTests
                     finishFeed.SetResult();
                     Assert.True((await cycle).Success);
                     Assert.False(feedCanceled);
-                    Assert.Equal(0, bus.ResultReads);
                     break;
                 case BeforeFeedFailure.Cancel:
                     stop.Cancel();
@@ -279,7 +281,6 @@ public sealed class AdcBoltHeadTests
         blocked.TrySetResult();
         Assert.False(fed);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal(0, bus.ResultReads);
     }
 
     [Fact]
@@ -309,7 +310,6 @@ public sealed class AdcBoltHeadTests
             Assert.False(result.Success);
             Assert.Same(result, received);
             Assert.Equal((ushort)125, result.Controller!.ErrorCode);
-            Assert.Equal(0, bus.ResultReads);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         }
         finally
@@ -363,7 +363,6 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(1, bus.CompensationReads);
         Assert.Equal(0, bus.EventReads);
         Assert.Equal(0, bus.StartWrites);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -408,7 +407,12 @@ public sealed class AdcBoltHeadTests
         var statusRead = bus.Monitor.ReadStatusAsync(CancellationToken.None);
         Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
         using var cancellation = new CancellationTokenSource();
-        var cancelled = bus.Monitor.EnqueueAsync(token => bus.ReadFasteningResultAsync(1, token), cancellation.Token);
+        var executed = false;
+        var cancelled = bus.Monitor.EnqueueAsync(token =>
+        {
+            executed = true;
+            return bus.ReadFasteningResultAsync(1, token);
+        }, cancellation.Token);
         var next = bus.Monitor.EnqueueAsync(token => bus.ReadRegistersAsync(1, AdcFunctionCode.ReadInputRegisters,
             (ushort)AdcResultRegister.EventCount, 1, token));
         cancellation.Cancel();
@@ -416,7 +420,7 @@ public sealed class AdcBoltHeadTests
         await statusRead;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled.WaitAsync(TimeSpan.FromSeconds(2)));
         await next.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal(0, bus.ResultReads);
+        Assert.False(executed);
         Assert.Equal(1, bus.EventReads);
     }
 
@@ -434,7 +438,6 @@ public sealed class AdcBoltHeadTests
         await Assert.ThrowsAsync<IOException>(() => statusRead);
         await Assert.ThrowsAsync<IOException>(() => first.WaitAsync(TimeSpan.FromSeconds(2)));
         await Assert.ThrowsAsync<IOException>(() => second.WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.Equal(0, bus.ResultReads);
         Assert.Null(bus.Monitor.Sample?.Status);
 
         bus.StatusReadBarrier = null;
@@ -462,7 +465,6 @@ public sealed class AdcBoltHeadTests
             Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
             Assert.True(bus.Running);
             Assert.Equal(1, bus.GraphRequests);
-            Assert.Equal(0, bus.ResultReads);
 
             bus.SuppressCompletion = false;
             var result = await cycle.WaitAsync(TimeSpan.FromSeconds(2));
@@ -494,13 +496,11 @@ public sealed class AdcBoltHeadTests
         Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         bus.SuppressCompletion = false;
         var next = head.TightenAsync();
         Assert.False(next.IsCompleted);
         Assert.Equal((ushort)2, (await next).Controller!.EventCount);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -516,7 +516,6 @@ public sealed class AdcBoltHeadTests
         Assert.Same(failure, await Assert.ThrowsAnyAsync<IOException>(() => head.TightenAsync()));
         Assert.Equal(0, bus.StartWrites);
         Assert.Equal(1, bus.EventReads);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -577,7 +576,6 @@ public sealed class AdcBoltHeadTests
         Assert.Null(completed.Controller);
         Assert.Contains("no fastening event", completed.Error);
         Assert.Equal(1, bus.EventReads);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -592,7 +590,6 @@ public sealed class AdcBoltHeadTests
         var result = await head.TightenAsync();
         Assert.True(result.Success);
         Assert.Equal(ushort.MaxValue, result.Controller!.EventCount);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -610,7 +607,6 @@ public sealed class AdcBoltHeadTests
         Assert.False(next.Success);
         Assert.Null(next.Controller);
         Assert.Equal(2, bus.EventReads); // A fresh baseline for each START.
-        Assert.Equal(0, bus.ResultReads);
         Assert.Equal((ushort)3, (await head.TightenAsync()).Controller!.EventCount);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
@@ -649,7 +645,6 @@ public sealed class AdcBoltHeadTests
             Assert.True(result.Success);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
             Assert.Equal(1, bus.StopWrites);
-            Assert.Equal(0, bus.ResultReads);
             blocked.SetResult();
             if (dryRun)
                 await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
@@ -696,7 +691,6 @@ public sealed class AdcBoltHeadTests
         Assert.Null(result.Controller);
         Assert.Contains("no fastening event", result.Error);
         Assert.Equal(1, bus.EventReads);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.True(bus.Running); // START OFF is not a claim that RUN feedback has stopped.
     }
@@ -764,7 +758,6 @@ public sealed class AdcBoltHeadTests
         }
         Assert.Same(failure, await Assert.ThrowsAsync(failure.GetType(), () => cycle));
         Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -834,7 +827,6 @@ public sealed class AdcBoltHeadTests
             }));
         Assert.True(fed);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal(0, bus.ResultReads);
     }
 
     [Fact]
@@ -845,7 +837,6 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync(
             feedAsync: token => throw new InvalidOperationException("Head output failed")));
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.True((await head.TightenAsync()).Success);
     }
@@ -859,12 +850,28 @@ public sealed class AdcBoltHeadTests
         var result = await head.TightenAsync(dryRunMilliseconds: 30);
         Assert.Equal(BoltResultSource.DryRun, result.Source);
         Assert.Equal(0, bus.CompensationReads);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         using var stop = new CancellationTokenSource();
         var cycle = head.TightenAsync(stop.Token, dryRunMilliseconds: 2000);
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task DryRunAfterReconnectIgnoresThePreviousFasteningResult()
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { PresetSettleMilliseconds = 0 });
+        await head.SelectPresetAsync(1);
+        Assert.True((await head.TightenAsync()).Success);
+        bus.Close();
+        bus.SuppressCompletion = true;
+        await head.SelectPresetAsync(1);
+        var result = await head.TightenAsync(dryRunMilliseconds: 150);
+        Assert.True(result.Success, result.Error);
+        Assert.Equal(BoltResultSource.DryRun, result.Source);
+        Assert.Null(result.Controller);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -907,7 +914,6 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(feedMilliseconds > 600, feedCanceled);
         Assert.True(feedStopped);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal(0, bus.ResultReads);
     }
 
     [Fact]
@@ -1101,7 +1107,6 @@ public sealed class AdcBoltHeadTests
         Assert.Empty(changes);
         Assert.True((await head.TightenAsync(stop.Token)).Success);
         Assert.Equal(2, bus.StartWrites);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(bus.Running);
     }
 

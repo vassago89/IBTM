@@ -543,8 +543,8 @@ public sealed class BoltFasteningTests
         await station.RunAsync(timeout.Token, selectedBolts: [bolt.Id]);
         Assert.True(work.Completed);
         Assert.Equal(2, bus.StartWrites);
-        Assert.Equal(9, bus.RegisterWrites.Count); // One event subscription plus two graph configurations.
-        Assert.All(bus.RegisterWrites.Where(write => write.Address != 4002).Chunk(4), writes =>
+        Assert.Equal(8, bus.RegisterWrites.Count); // Two graph configurations.
+        Assert.All(bus.RegisterWrites.Chunk(4), writes =>
             Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 4), (4103, (ushort)settings.TorqueCurveSampling), (4104, 1) }, writes));
         Assert.True(bus.GraphRequests >= 2);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
@@ -1052,7 +1052,6 @@ public sealed class BoltFasteningTests
             Assert.Equal(InputIo.PickupHeadVacuumDetected, failure.Input);
         }
         Assert.Equal(0, bus.StartWrites);
-        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
         Assert.Same(preliminary, assembly.PickupBoltResults[bolt.Id]);
         Assert.False(work.Completed);
@@ -2144,7 +2143,6 @@ public sealed class BoltFasteningTests
             Assert.False(io.GetOutput(OutputIo.ShootingBoltPreset3));
             if (dryRun)
             {
-                Assert.Equal(0, bus.ResultReads);
                 Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
                 Assert.All(assembly.ShootingBoltResults.Values, result =>
                 {
@@ -2157,7 +2155,6 @@ public sealed class BoltFasteningTests
             }
             if (fasteningNg)
             {
-                Assert.Equal(0, bus.ResultReads);
                 Assert.False(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Success);
                 Assert.Equal(0.8, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Torque);
                 Assert.Equal((ushort)AdcEventStatus.FasteningNg, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Controller!.StatusCode);

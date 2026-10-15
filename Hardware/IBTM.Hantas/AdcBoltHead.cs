@@ -297,13 +297,10 @@ public sealed class AdcBoltHead : IBoltHead
                     throw new InvalidOperationException($"Preset outputs no longer match preset {preset}.");
             }
             await Monitor.StartAsync(_slaveAddress, timeout.Token);
-            if (dryRunMilliseconds == 0)
-            {
-                var baseline = await Monitor.EnqueueAsync(
-                    token => _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,
-                        (ushort)AdcResultRegister.EventCount, 1, token), timeout.Token);
-                initialEvent = baseline[0];
-            }
+            var baseline = await Monitor.EnqueueAsync(
+                token => _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,
+                    (ushort)AdcResultRegister.EventCount, 1, token), timeout.Token);
+            initialEvent = baseline[0];
             _io.SetOutput(_direction, false);
             Monitor.EventReceived += OnEventReceived;
             Monitor.Sampled += OnStatusSampled;

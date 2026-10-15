@@ -98,7 +98,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
     {
         // The existing monitor owns acquisition; do not inject idle Info queries into it.
         communication.AutoRequestInfo = false;
-        // Automatic results can be silent while idle; the 4002 renewal checks the link.
+        // The request loop reports communication failures; HComm must not disconnect independently.
         communication.AutoDisconnect = false;
         communication.ReceivedMsg = OnReceived;
         communication.SendReceiveMsg = OnSendReceive;
@@ -177,7 +177,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
     public async Task<(AdcControllerStatus? Status, string? Rejection)> ReadControllerStatusAsync(
         byte slaveAddress, CancellationToken cancellationToken = default)
     {
-        // Seven status words are distinct from the fourteen-word automatic result.
+        // Seven status words are distinct from the fourteen-word result.
         var response = await ExchangeAsync(slaveAddress, Command.Mor,
             (ushort)AdcStatusRegister.Preset, AdcControllerStatus.RegisterCount, cancellationToken);
         if (response.Rejection is { } rejection && response.ErrorCode is not (0 or 255))
@@ -231,9 +231,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                         accepted = communication.GetState(address, countOrValue);
                         break;
                     case Command.Write:
-                        accepted = address == (ushort)AdcRemoteRegister.RealTimeMonitoring
-                            ? communication.SetRealTime(address, countOrValue)
-                            : communication.SetParam(address, countOrValue);
+                        accepted = communication.SetParam(address, countOrValue);
                         break;
                     case Command.Info:
                         accepted = communication.GetInfo();
@@ -336,9 +334,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     PortName, command, address, values is null ? "null" : string.Join(",", values));
             if (command == Command.Mor && values is { Length: AdcFasteningResult.RegisterCount })
             {
-                Monitor.ReceiveEvent(AdcFasteningResult.FromRegisters(
-                    values.Select(value => checked((ushort)value)).ToArray()));
-                // A manual result read may also use this block. Other requests must
+                // A result read uses this block. Other requests must
                 // keep waiting for their own response, even if HComm removes its entry.
                 if (_pending is null || _command != Command.Mor
                     || _address != (ushort)AdcResultRegister.EventCount

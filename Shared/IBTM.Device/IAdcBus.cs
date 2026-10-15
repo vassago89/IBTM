@@ -96,9 +96,6 @@ public enum AdcRemoteRegister : ushort
     [Description("Reset")]
     AlarmReset = 4000,
 
-    [Description("Automatic event output")]
-    RealTimeMonitoring = 4002,
-
     [Description("Remote Start")]
     RemoteStart = 4003,
 

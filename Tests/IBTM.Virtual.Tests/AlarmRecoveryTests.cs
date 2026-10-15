@@ -726,7 +726,7 @@ public sealed class AlarmRecoveryTests
             var responseTimeout = view.Settings.Hantas.ResponseTimeoutMilliseconds;
             view.Settings.Hantas.ResponseTimeoutMilliseconds = -1;
             await view.SaveSettingsCommand.ExecuteAsync(null);
-            Assert.Contains("ADC readiness base wait", view.DatabaseMessage);
+            Assert.Contains("ADC readiness query timeout base", view.DatabaseMessage);
             VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
             view.Settings.Hantas.ResponseTimeoutMilliseconds = responseTimeout;
             await view.SaveSettingsCommand.ExecuteAsync(null);
