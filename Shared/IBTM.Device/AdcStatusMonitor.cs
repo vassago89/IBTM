@@ -11,16 +11,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IBTM.Device;
 
-// Monotonic timestamps distinguish events from earlier operations.
-public sealed record AdcEventSample(long ReceivedAt, AdcFasteningResult Result);
-
+// Monotonic query timestamps; completion precedes feedback/change notification.
 public sealed record AdcStatusSample(
-    AdcControllerStatus? Status, Exception? Error, string? Rejection = null);
+    long StartedAt, long CompletedAt, AdcControllerStatus? Status, Exception? Error, string? Rejection = null);
 
-// One request queue per connection, shared by result polling and explicit requests.
+// One communication loop per connection. Commands queue here alongside status sampling.
 public sealed class AdcStatusMonitor : INotifyPropertyChanged
 {
-    private const int ResultPollMilliseconds = 50;
     private readonly IAdcBus _bus;
     private readonly ILogger<AdcStatusMonitor> _logger;
     private readonly SemaphoreSlim _startGate;
@@ -44,14 +41,21 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<AdcStatusSample>? Sampled;
     public event Action<AdcTorqueCurve>? TorqueCurveReceived;
-    public event Action<AdcEventSample>? EventReceived;
-    public AdcEventSample? LastEvent { get; private set; }
     public AdcStatusSample? Sample => Volatile.Read(ref _sample);
     // Command ownership only; this does not claim that the controller accepted monitoring.
     public bool IsTorqueCurveMonitoringRequested { get; private set; }
     public string? TorqueCurveError { get; private set; }
     public long TorqueCurveCaptureStartedAt { get; private set; }
     public byte SlaveAddress { get; private set; }
+    public int IntervalMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            field = value;
+        }
+    } = 100;
 
     public async Task StartAsync(byte slaveAddress, CancellationToken cancellationToken)
     {
@@ -74,11 +78,10 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 _lifetime = new();
                 SlaveAddress = slaveAddress;
                 TorqueCurveError = null;
-                LastEvent = null;
-                PropertyChanged?.Invoke(this, new(nameof(LastEvent)));
                 // Open clears the previous connection. Its disconnect sample is not
                 // feedback from this new session; stay unknown until the first reply.
-                Publish(new(null, null));
+                var now = Stopwatch.GetTimestamp();
+                Publish(new(now, now, null, null));
                 var token = _lifetime.Token;
                 _completion = RunAsync(token);
             }
@@ -96,7 +99,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             _lifetime?.Cancel();
             IsTorqueCurveMonitoringRequested = false;
             TorqueCurveCaptureStartedAt = 0;
-            Publish(new(null,
+            var now = Stopwatch.GetTimestamp();
+            Publish(new(now, now, null,
                 new IOException($"ADC {_bus.PortName}/{SlaveAddress} status monitor is disconnected.")));
         }
     }
@@ -153,18 +157,27 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         bool enabled, CancellationToken cancellationToken,
         AdcTorqueCurveSampling sampling = AdcTorqueCurveSampling.Milliseconds30)
     {
+        // ADC has no graph-disable request. Local cleanup must also work after polling stops.
+        if (!enabled)
+        {
+            lock (_stateGate)
+            {
+                IsTorqueCurveMonitoringRequested = false;
+                TorqueCurveCaptureStartedAt = 0;
+                TorqueCurveError = null;
+            }
+            return;
+        }
         if (!Enum.IsDefined(sampling))
             throw new ArgumentOutOfRangeException(nameof(sampling));
         await EnqueueAsync(async token =>
         {
             lock (_stateGate)
             {
-                IsTorqueCurveMonitoringRequested = enabled;
+                IsTorqueCurveMonitoringRequested = true;
                 TorqueCurveCaptureStartedAt = 0;
                 TorqueCurveError = null;
             }
-            if (!enabled)
-                return true;
             // Torque / angle / selected sampling / fastening.
             // ADC retains 200 samples: the sampling interval also determines the time window.
             // ADC requests use GetGraph(4200, 1), not the MDC 4100 enable/disable write.
@@ -231,84 +244,91 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
 
     private async Task RunAsync(CancellationToken token)
     {
-        var polledAt = Stopwatch.GetTimestamp();
+        long? lastStatusAt = null;
+        long? previousStartedAt = null;
         Task<bool>? requestAvailable = null;
         try
         {
             while (true)
             {
                 token.ThrowIfCancellationRequested();
-                var remaining = TimeSpan.FromMilliseconds(ResultPollMilliseconds) - Stopwatch.GetElapsedTime(polledAt);
-                if (remaining <= TimeSpan.Zero)
+                var remaining = lastStatusAt is { } sampledAt
+                    ? TimeSpan.FromMilliseconds(IntervalMilliseconds) - Stopwatch.GetElapsedTime(sampledAt)
+                    : TimeSpan.Zero;
+                if (remaining > TimeSpan.Zero)
                 {
-                    var result = await _bus.ReadFasteningResultAsync(SlaveAddress, token).ConfigureAwait(false);
+                    // Keep one queue wait across idle samples; a polling deadline is not a cancellation.
+                    requestAvailable ??= _requests.Reader.WaitToReadAsync(token).AsTask();
+                    await Task.WhenAny(requestAvailable, Task.Delay(remaining, token)).ConfigureAwait(false);
                     token.ThrowIfCancellationRequested();
-                    ReceiveEvent(result);
-                    polledAt = Stopwatch.GetTimestamp();
-                    continue;
+                    if (requestAvailable.IsCompleted)
+                    {
+                        var canRead = await requestAvailable.ConfigureAwait(false);
+                        requestAvailable = null;
+                        if (canRead && _requests.Reader.TryRead(out var request))
+                        {
+                            // Await the complete exchange before another queued request or status query.
+                            await request(token).ConfigureAwait(false);
+                            continue;
+                        }
+                    }
                 }
-                requestAvailable ??= _requests.Reader.WaitToReadAsync(token).AsTask();
-                await Task.WhenAny(requestAvailable, Task.Delay(remaining, token)).ConfigureAwait(false);
-                token.ThrowIfCancellationRequested();
-                if (requestAvailable.IsCompleted)
+                var startedAt = Stopwatch.GetTimestamp();
+                AdcStatusSample sample;
+                try
                 {
-                    var canRead = await requestAvailable.ConfigureAwait(false);
-                    requestAvailable = null;
-                    if (canRead && _requests.Reader.TryRead(out var request))
-                        await request(token).ConfigureAwait(false);
+                    // Retrieve curves before the carrier and after each result, not while
+                    // waiting for RUN OFF. A graph query is not controller status feedback.
+                    var response = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);
+                    sample = new(startedAt, Stopwatch.GetTimestamp(), response.Status, null, response.Rejection);
                 }
+                catch (Exception exception) when (
+                    exception is not OperationCanceledException || !token.IsCancellationRequested)
+                {
+                    sample = new(startedAt, Stopwatch.GetTimestamp(), null, exception);
+                }
+                lock (_stateGate)
+                {
+                    token.ThrowIfCancellationRequested();
+                    Publish(sample);
+                }
+                var publishedAt = Stopwatch.GetTimestamp();
+                _logger.LogDebug(
+                    "ADC {Port}/{Slave} status timing: start gap={StartGap:F1} ms; "
+                        + "since previous publish={SincePublish:F1} ms; query={Query:F1} ms; "
+                        + "publish={Publish:F1} ms; configured pause after publish={Interval} ms; "
+                        + "READY={Ready}, RUN={Running}, ALARM={Alarm}; rejected={Rejected}; error={ErrorType}.",
+                    _bus.PortName, SlaveAddress,
+                    previousStartedAt is { } previous
+                        ? Stopwatch.GetElapsedTime(previous, startedAt).TotalMilliseconds : (double?)null,
+                    lastStatusAt is { } last
+                        ? Stopwatch.GetElapsedTime(last, startedAt).TotalMilliseconds : (double?)null,
+                    Stopwatch.GetElapsedTime(startedAt, sample.CompletedAt).TotalMilliseconds,
+                    Stopwatch.GetElapsedTime(sample.CompletedAt, publishedAt).TotalMilliseconds,
+                    IntervalMilliseconds, sample.Status?.Ready, sample.Status?.Running, sample.Status?.Alarm,
+                    sample.Rejection is not null, sample.Error?.GetType().Name);
+                previousStartedAt = startedAt;
+                lastStatusAt = publishedAt;
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception exception)
-        {
-            Publish(new(null, exception));
-            _logger.LogError(exception, "ADC {Port}/{Slave}: result polling failed.", _bus.PortName, SlaveAddress);
-        }
         finally
         {
             lock (_stateGate)
                 _lifetime?.Cancel();
+            // Closing a port must finish pending callers without sending their requests.
             while (_requests.Reader.TryRead(out var request))
                 await request(new CancellationToken(canceled: true)).ConfigureAwait(false);
         }
     }
 
-    public void ReceiveEvent(AdcFasteningResult result)
-    {
-        if (LastEvent?.Result.EventCount == result.EventCount)
-            return;
-        var now = Stopwatch.GetTimestamp();
-        var received = new AdcEventSample(now, result);
-        LastEvent = received;
-        // Events contain results, not READY/RUN feedback. Do not retain an old status snapshot.
-        Publish(new(null, null));
-        EventReceived?.Invoke(received);
-        PropertyChanged?.Invoke(this, new(nameof(LastEvent)));
-    }
-
-    public async Task<AdcControllerStatus> ReadStatusAsync(CancellationToken token)
-    {
-        return await EnqueueAsync(async cancellationToken =>
-        {
-            try
-            {
-                var response = await _bus.ReadControllerStatusAsync(SlaveAddress, cancellationToken).ConfigureAwait(false);
-                Publish(new(response.Status, null, response.Rejection));
-                return response.Status ?? throw new IOException(response.Rejection ?? "ADC status is unavailable.");
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                Publish(new(null, exception));
-                throw;
-            }
-        }, token).ConfigureAwait(false);
-    }
-
     public void InvalidateSample(string reason)
     {
         lock (_stateGate)
-            Publish(new(null, null, reason));
+        {
+            var now = Stopwatch.GetTimestamp();
+            Publish(new(now, now, null, null, reason));
+        }
     }
 
     private void Publish(AdcStatusSample sample)
@@ -317,5 +337,34 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         if (previous?.Status != sample.Status || previous?.Error != sample.Error || previous?.Rejection != sample.Rejection)
             PropertyChanged?.Invoke(this, new(nameof(Sample)));
         Sampled?.Invoke(sample);
+    }
+
+    public async Task<AdcControllerStatus> WaitForSampleAsync(long after, CancellationToken token)
+    {
+        var received = new TaskCompletionSource<AdcControllerStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnSampled(AdcStatusSample sample)
+        {
+            if (sample.StartedAt < after)
+                return;
+            if (sample.Error is { } error)
+                received.TrySetException(error);
+            // Rejected replies and retried timeouts carry no feedback.
+            // Exhausted retries and other transport failures still fail above.
+            else if (sample.Rejection is null && sample.Status is { } status)
+                received.TrySetResult(status);
+        }
+        Sampled += OnSampled;
+        try
+        {
+            if (Sample is { } sample)
+                OnSampled(sample);
+            var status = await received.Task.WaitAsync(token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            return status;
+        }
+        finally
+        {
+            Sampled -= OnSampled;
+        }
     }
 }

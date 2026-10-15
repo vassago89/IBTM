@@ -535,20 +535,16 @@ public sealed class AdcProtocolTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ResultReadRecoveryClearsRejectionWithoutRepeatingThePreviousEvent(bool timeout)
+    public async Task StatusReadRecoveryClearsRejection(bool timeout)
     {
         using var transport = new HCommTransportStub(1);
         using var bus = new AdcBus(transport.Communication, 1, new() { ReadAttempts = 2 });
-        var events = 0;
-        bus.Monitor.EventReceived += sample => events++;
         await bus.Monitor.StartAsync(1, CancellationToken.None);
         var frame = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
-            [28, 0, 2, 0, 100, 0, 1, 3, 32, 3, 32, 0, 200, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0]);
+            [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]);
         var request = await transport.NextRequestAsync();
         transport.Receive(frame);
         Assert.Equal(request, await transport.NextRequestAsync());
-        Assert.Equal(1, events);
-        var previous = bus.Monitor.LastEvent;
         if (!timeout)
         {
             var corrupt = (byte[])frame.Clone();
@@ -562,9 +558,7 @@ public sealed class AdcProtocolTests
         Assert.Equal(request, await transport.NextRequestAsync());
         Assert.Null(bus.Monitor.Sample?.Rejection);
         Assert.Null(bus.Monitor.Sample?.Error);
-        Assert.Null(bus.Monitor.Sample?.Status);
-        Assert.Same(previous, bus.Monitor.LastEvent);
-        Assert.Equal(1, events);
+        Assert.True(bus.Monitor.Sample?.Status?.Ready);
         bus.Close();
     }
 
@@ -580,7 +574,6 @@ public sealed class AdcProtocolTests
         var request = await transport.NextRequestAsync();
         transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
             [28, 0, 2, 0, 100, 0, 1, 3, 32, 3, 32, 0, 200, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0]));
-        Assert.Null(bus.Monitor.LastEvent);
         Assert.False(pending.IsCompleted);
         transport.Receive(write ? request : AdcRtuFrame.Build(1, AdcFunctionCode.ReadHoldingRegisters, [2, 0, 100]));
         await pending.WaitAsync(TimeSpan.FromSeconds(2));
@@ -602,7 +595,6 @@ public sealed class AdcProtocolTests
         Assert.False(pending.IsCompleted);
         transport.Receive(combined ? [] : emptyGraph);
         Assert.Equal(emptyGraph, await pending.WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.Null(bus.Monitor.LastEvent);
     }
 
     [Fact]
@@ -618,8 +610,10 @@ public sealed class AdcProtocolTests
         Assert.False(bus.IsOpen);
     }
 
-    [Fact]
-    public async Task HCommReadinessResetAndFasteningUseReadsWithout4002()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HCommReadinessResetAndFasteningUseReadsWithout4002(bool rejectStatus)
     {
         using var transport = new HCommTransportStub(1);
         var settings = new HantasSettings { PresetSettleMilliseconds = 0 };
@@ -629,6 +623,8 @@ public sealed class AdcProtocolTests
         Task<byte[]>? nextRequest = null;
         var feedStarted = false;
         var feedStopped = false;
+        var rejectionSent = false;
+        var resultReads = 0;
         var resetEdges = new List<bool>();
         io.OutputChanged += (output, value) =>
         {
@@ -651,13 +647,26 @@ public sealed class AdcProtocolTests
                 if (address == 3303)
                 {
                     Assert.Equal(7, count);
-                    var running = io.GetOutput(OutputIo.PickupBoltStart);
+                    if (feedStarted && rejectStatus && !rejectionSent)
+                    {
+                        transport.Receive(Convert.FromHexString("0184030301"));
+                        rejectionSent = true;
+                        Assert.False(feedStopped);
+                        Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+                        continue;
+                    }
+                    var running = io.GetOutput(OutputIo.PickupBoltStart) && !feedStarted;
                     words = [1, 0, 0, (ushort)(running ? 0 : 1), (ushort)(running ? 1 : 0), 0, 0];
                 }
                 else
                 {
                     Assert.Equal(3200, address);
                     Assert.True(count is 1 or 14);
+                    if (count == 14)
+                    {
+                        Assert.True(feedStopped); // RUN OFF has already stopped Z before reading the result.
+                        resultReads++;
+                    }
                     words = count == 1 ? [1]
                         : [(ushort)(feedStarted ? 2 : 1), 580, 1, 800, 808, 1000, 360, 0, 0, 1, 0, 0, 1, 0];
                 }
@@ -684,6 +693,8 @@ public sealed class AdcProtocolTests
         var result = await cycle;
         Assert.True(result.Success, result.Error);
         Assert.Equal(8.08, result.Torque);
+        Assert.Equal(1, resultReads);
+        Assert.Equal(rejectStatus, rejectionSent);
         Assert.True(feedStopped);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
@@ -758,7 +769,7 @@ public sealed class AdcProtocolTests
         Assert.Same(failure, await Assert.ThrowsAsync<TimeoutException>(() =>
             bus.Monitor.ReadTorqueCurveAsync(controller, 1, 1_000, CancellationToken.None)));
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var status = await bus.Monitor.ReadStatusAsync(timeout.Token);
+        var status = await bus.Monitor.WaitForSampleAsync(System.Diagnostics.Stopwatch.GetTimestamp(), timeout.Token);
         Assert.True(status.Ready);
         Assert.Null(bus.Monitor.Sample!.Error);
         Assert.Equal(2, bus.GraphRequests);
@@ -827,19 +838,16 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
-    public async Task GraphCleanupAfterResultPollingFailurePreservesTheOriginalError()
+    public async Task GraphCleanupAfterMonitorStopsPreservesTheOriginalError()
     {
         using var bus = new AdcControllerStub();
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
         bus.Monitor.BeginTorqueCurveCapture();
-        var failure = new AdcResponseException(3, "Result request rejected: 0184030301");
-        bus.NextResultReadFailure = failure;
-        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.Monitor.Sample?.Error == failure,
-            TimeSpan.FromSeconds(2)));
-        // Wait until the failed loop has cancelled its lifetime and drained queued work.
-        await Assert.ThrowsAsync<IOException>(() => bus.Monitor.EnqueueAsync(token => Task.FromResult(true)));
+        bus.Monitor.Stop();
+        var failure = bus.Monitor.Sample!.Error;
+        Assert.NotNull(failure);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
         Assert.Same(failure, bus.Monitor.Sample?.Error);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
@@ -877,7 +885,7 @@ public sealed class AdcProtocolTests
         {
             diagnostics.SelectedPort = bus.PortName;
             await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
-            var statusRead = bus.Monitor.ReadStatusAsync(CancellationToken.None);
+            var statusRead = bus.Monitor.WaitForSampleAsync(System.Diagnostics.Stopwatch.GetTimestamp(), CancellationToken.None);
             await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads > 0);
             io.SetOutput(OutputIo.PickupBoltStart, true);
             if (failStop)

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Virtual;
 
 namespace IBTM.Virtual.Tests;
 
@@ -13,7 +14,10 @@ namespace IBTM.Virtual.Tests;
 internal sealed class AdcControllerStub : IAdcBus, IDisposable
 {
     private FasteningHead _head;
-    private int _fasteningVersion;
+    private bool _stopRequested;
+    private bool _resetRequested;
+    private int _runSamples;
+    private int _activeStatusReads;
 
     public AdcControllerStub()
     {
@@ -22,7 +26,6 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         RunReplies = new();
         TorqueCompensations = new() { [1] = 100, [2] = 80, [3] = 100 };
         RegisterWrites = [];
-        Result = AdcFasteningResult.FromRegisters(ResultRegisters);
     }
 
     public AdcStatusMonitor Monitor { get; }
@@ -31,16 +34,18 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
 
     public Queue<AdcFasteningResult> ResultReplies { get; }
     public int ResultReads { get; private set; }
-    private AdcFasteningResult Result { get; set; }
     public bool SuppressTorqueCurve { get; set; }
     public List<(ushort Address, ushort Value)> RegisterWrites { get; }
     public (ushort Address, ushort Value, Exception Error)? RegisterWriteFailure { get; set; }
     public Exception? GraphRequestFailure { get; set; }
     public int GraphRequests { get; private set; }
     public Queue<bool> RunReplies { get; }
+    public bool ResultReadWhileRunning { get; private set; }
     public IOException? StatusReadFailure { get; set; }
     public string? StatusRejection { get; set; }
+    public int StatusReadDelayMilliseconds { get; set; }
     public Task? StatusReadBarrier { get; set; }
+    public bool ConcurrentStatusReadsDetected { get; private set; }
     public int EventReads { get; private set; }
     public int StatusReads { get; private set; }
     public Dictionary<ushort, ushort> TorqueCompensations { get; }
@@ -52,25 +57,17 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public ushort? ReportedPreset { get; set; }
     public ushort CurrentAlarm { get; set; }
     public bool NotReady { get; set; }
-    public bool IgnoreReset { get; init; }
+    public int ResetPollsRemaining { get; set; }
     public int ResetWrites { get; private set; }
     private AdcDirection CurrentDirection { get; set; }
     public ushort? ResultPreset { get; init; }
     public AdcDirection? ResultDirection { get; init; }
-    public bool IgnoreStop { get; init; }
+    public int StopPollsRemaining { get; set; }
     public IOException? StopWriteFailure { get; set; }
     public Exception? NextResultReadFailure { get; set; }
     public IOException? BaselineReadFailure { get; init; }
-    public bool SuppressCompletion
-    {
-        get;
-        set
-        {
-            field = value;
-            if (!value && Running)
-                _ = CompleteAsync(_fasteningVersion);
-        }
-    }
+    public Action? BaselineReading { get; init; }
+    public bool SuppressCompletion { get; set; }
     public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
     public ushort ResultError { get; set; }
     public Action? Started { get; init; }
@@ -131,8 +128,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         {
             case AdcRemoteRegister.AlarmReset:
                 ResetWrites++;
-                if (!IgnoreReset)
-                    CurrentAlarm = 0;
+                _resetRequested = true;
                 break;
             case AdcRemoteRegister.Preset:
                 CurrentPreset = value;
@@ -144,35 +140,20 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                 if (value != 0)
                 {
                     StartWrites++;
+                    _stopRequested = false;
                     Running = true;
-                    var version = ++_fasteningVersion;
+                    _runSamples = 0;
                     Started?.Invoke();
-                    _ = CompleteAsync(version);
                 }
                 else
                 {
                     StopWrites++;
                     if (StopWriteFailure is not null)
                         throw StopWriteFailure;
-                    if (!IgnoreStop)
-                        Running = false;
-                    _fasteningVersion++;
+                    _stopRequested = true;
                 }
                 break;
         }
-    }
-
-    private async Task CompleteAsync(int version)
-    {
-        await Task.Delay(40);
-        if (!IsOpen || version != _fasteningVersion || SuppressCompletion)
-            return;
-        _fasteningVersion++;
-        Running = false;
-        Result = ResultReplies.TryDequeue(out var queued)
-            ? queued : AdcFasteningResult.FromRegisters(ResultRegisters);
-        if (Result.Status == AdcEventStatus.Error)
-            CurrentAlarm = Result.Error;
     }
 
     public Task<byte[]> RequestTorqueCurveAsync(byte slaveAddress, CancellationToken cancellationToken = default)
@@ -200,9 +181,17 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     {
         var pickup = _head == FasteningHead.Pickup;
         if (output == (pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart))
+        {
             ApplyControl((ushort)AdcRemoteRegister.RemoteStart, (ushort)(value ? 1 : 0));
+            if (!value && StopPollsRemaining == 0)
+                Running = false;
+        }
         else if (output == (pickup ? OutputIo.PickupBoltReset : OutputIo.ShootingBoltReset) && value)
+        {
             ApplyControl((ushort)AdcRemoteRegister.AlarmReset, 1);
+            if (ResetPollsRemaining >= 0)
+                CurrentAlarm = 0;
+        }
         else if (output == (pickup ? OutputIo.PickupBoltDirection : OutputIo.ShootingBoltDirection))
             ApplyControl((ushort)AdcRemoteRegister.Direction, (ushort)(value ? 1 : 0));
         else if (value)
@@ -245,24 +234,61 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         switch (address)
         {
             case (ushort)AdcStatusRegister.Preset:
-                StatusReads++;
-                if (StatusReadBarrier is { } barrier)
-                    await barrier.WaitAsync(cancellationToken);
-                if (StatusReadFailure is { } statusFailure)
-                    throw statusFailure;
-                if (Running && RunReplies.TryDequeue(out var running))
-                    Running = running;
-                return [
-                    ReportedPreset ?? CurrentPreset, 0, 0, (ushort)(NotReady || Running || CurrentAlarm != 0 ? 0 : 1),
-                    (ushort)(Running ? 1 : 0), CurrentAlarm, (ushort)CurrentDirection,
-                ];
+                if (Interlocked.Increment(ref _activeStatusReads) > 1)
+                    ConcurrentStatusReadsDetected = true;
+                try
+                {
+                    StatusReads++;
+                    if (StatusReadBarrier is { } barrier)
+                        await barrier.WaitAsync(cancellationToken);
+                    if (StatusReadDelayMilliseconds > 0)
+                        await Task.Delay(StatusReadDelayMilliseconds, cancellationToken);
+                    if (StatusReadFailure is { } statusFailure)
+                        throw statusFailure;
+                    if (StartWrites > 0 && !_stopRequested)
+                    {
+                        if (RunReplies.TryDequeue(out var running))
+                            Running = running;
+                        else if (_runSamples++ > 0 && !SuppressCompletion)
+                            Running = false;
+                    }
+                    if (_stopRequested)
+                    {
+                        if (StopPollsRemaining == 0)
+                        {
+                            Running = false;
+                            _stopRequested = false;
+                        }
+                        else if (StopPollsRemaining > 0)
+                            StopPollsRemaining--;
+                    }
+                    if (_resetRequested)
+                    {
+                        if (ResetPollsRemaining == 0)
+                        {
+                            CurrentAlarm = 0;
+                            _resetRequested = false;
+                        }
+                        else if (ResetPollsRemaining > 0)
+                            ResetPollsRemaining--;
+                    }
+                    return [
+                        ReportedPreset ?? CurrentPreset, 0, 0, (ushort)(NotReady || Running || CurrentAlarm != 0 ? 0 : 1),
+                        (ushort)(Running ? 1 : 0), CurrentAlarm, (ushort)CurrentDirection,
+                    ];
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _activeStatusReads);
+                }
             case (ushort)AdcResultRegister.EventCount when count == 1:
                 EventReads++;
+                BaselineReading?.Invoke();
                 if (BaselineReadFailure is { } baselineFailure)
                     throw baselineFailure;
-                return [Result.EventCount];
+                return [(ushort)StartWrites];
             case (ushort)AdcResultRegister.EventCount:
-                return Result.Registers!;
+                return ResultRegisters;
         }
         throw new NotSupportedException();
     }
@@ -271,12 +297,17 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         ResultReads++;
+        var received = ResultReplies.TryDequeue(out var queued)
+            ? queued : AdcFasteningResult.FromRegisters(ResultRegisters);
+        ResultReadWhileRunning |= Running;
         if (NextResultReadFailure is { } failure)
         {
             NextResultReadFailure = null;
             throw failure;
         }
-        return Task.FromResult(Result);
+        if (received.Status == AdcEventStatus.Error)
+            CurrentAlarm = received.Error;
+        return Task.FromResult(received);
     }
 
     private ushort[] ResultRegisters
