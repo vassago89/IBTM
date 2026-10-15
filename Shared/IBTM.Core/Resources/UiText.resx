@@ -42,6 +42,9 @@ Operation failed Check controller status</value>
   <data name="a background task failed." xml:space="preserve">
     <value>A background task failed</value>
   </data>
+  <data name="ac/tm 목표각도 0 설정" xml:space="preserve">
+    <value>AC/TM target angle set to zero</value>
+  </data>
   <data name="acceleration (s)" xml:space="preserve">
     <value>Acceleration time (s)</value>
   </data>
@@ -53,9 +56,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="actual / min / max" xml:space="preserve">
     <value>ACTUAL / MIN / MAX</value>
-  </data>
-  <data name="ad 매뉴얼 2017-03-21, 27-30쪽 기준. 문서에 없는 코드는 컨트롤러 모델·펌웨어별 확인이 필요합니다." xml:space="preserve">
-    <value>AD manual 2017-03-21 pp 27–30</value>
   </data>
   <data name="adc communication log" xml:space="preserve">
     <value>ADC communication log</value>
@@ -602,6 +602,9 @@ Operation failed Check controller status</value>
   <data name="draw the fov roi before inspecting." xml:space="preserve">
     <value>Inspection ROI not set</value>
   </data>
+  <data name="driver model 설정 확인" xml:space="preserve">
+    <value>Check Driver model setting</value>
+  </data>
   <data name="dry run motor duration (s)" xml:space="preserve">
     <value>Dry run motor duration (s)</value>
   </data>
@@ -661,6 +664,9 @@ Operation failed Check controller status</value>
   </data>
   <data name="error code" xml:space="preserve">
     <value>ERROR CODE</value>
+  </data>
+  <data name="error code list (v1.02.7) · adc 기준" xml:space="preserve">
+    <value>Error code list (v1.02.7) · ADC</value>
   </data>
   <data name="esc · conflict" xml:space="preserve">
     <value>SENSOR CONFLICT</value>
@@ -728,11 +734,20 @@ Operation failed Check controller status</value>
   <data name="forward" xml:space="preserve">
     <value>Forward</value>
   </data>
+  <data name="forward run time limit 설정 확인" xml:space="preserve">
+    <value>Check Forward run time limit setting</value>
+  </data>
   <data name="frame log" xml:space="preserve">
     <value>FRAME LOG</value>
   </data>
   <data name="frame timeout (s)" xml:space="preserve">
     <value>Receive timeout (s)</value>
+  </data>
+  <data name="free speed 구간 토크 발생" xml:space="preserve">
+    <value>Torque up at free speed</value>
+  </data>
+  <data name="free speed 설정 확인" xml:space="preserve">
+    <value>Check Free speed settings</value>
   </data>
   <data name="front 1 · pcb available" xml:space="preserve">
     <value>Front 1 PCB available</value>
@@ -772,6 +787,9 @@ Operation failed Check controller status</value>
   </data>
   <data name="hik" xml:space="preserve">
     <value>HIK</value>
+  </data>
+  <data name="holding time max angle 설정 확인" xml:space="preserve">
+    <value>Check Holding time max angle setting</value>
   </data>
   <data name="home" xml:space="preserve">
     <value>Home</value>
@@ -829,6 +847,9 @@ Operation failed Check controller status</value>
   </data>
   <data name="i/o reset confirmed" xml:space="preserve">
     <value>I/O reset confirmed</value>
+  </data>
+  <data name="i2c 오류 · 드라이버 파라미터 읽기 실패" xml:space="preserve">
+    <value>I2C error: driver parameter read failed</value>
   </data>
   <data name="ibtm error" xml:space="preserve">
     <value>IBTM Error</value>
@@ -1882,9 +1903,6 @@ Operation failed Check controller status</value>
   <data name="reset failed: {0}" xml:space="preserve">
     <value>RESET failed: {0}</value>
   </data>
-  <data name="reset; 반복되면 점검" xml:space="preserve">
-    <value>RESET; inspect if repeated</value>
-  </data>
   <data name="resetting..." xml:space="preserve">
     <value>RESETTING</value>
   </data>
@@ -2302,6 +2320,9 @@ Operation failed Check controller status</value>
   <data name="target" xml:space="preserve">
     <value>TARGET</value>
   </data>
+  <data name="target angle 설정 확인" xml:space="preserve">
+    <value>Check Target angle setting</value>
+  </data>
   <data name="target speed" xml:space="preserve">
     <value>Target Speed</value>
   </data>
@@ -2322,6 +2343,9 @@ Operation failed Check controller status</value>
   </data>
   <data name="teaching values were not saved: {0}" xml:space="preserve">
     <value>Teaching save failed: {0}</value>
+  </data>
+  <data name="thread tap의 max torque 설정 확인" xml:space="preserve">
+    <value>Check Thread tap Max torque setting</value>
   </data>
   <data name="threshold (0–255)" xml:space="preserve">
     <value>Threshold (0–255)</value>
@@ -2434,8 +2458,11 @@ Speed   Configured axis speed</value>
   <data name="updated {0:hh:mm:ss}" xml:space="preserve">
     <value>Updated {0:HH:mm:ss}</value>
   </data>
-  <data name="usb 통신 포트 오류" xml:space="preserve">
-    <value>USB port error</value>
+  <data name="usb 포트 인식 실패" xml:space="preserve">
+    <value>USB port recognition failed</value>
+  </data>
+  <data name="usb 포트·연결 확인" xml:space="preserve">
+    <value>Check USB port and connection</value>
   </data>
   <data name="use 0 to 255." xml:space="preserve">
     <value>Range: 0–255</value>
@@ -2667,12 +2694,6 @@ Speed   Configured axis speed</value>
   <data name="−limit" xml:space="preserve">
     <value>−LIMIT</value>
   </data>
-  <data name="걸림·부하 확인" xml:space="preserve">
-    <value>Check jamming and load</value>
-  </data>
-  <data name="결과 토크 허용범위 이탈" xml:space="preserve">
-    <value>Result torque out of tolerance</value>
-  </data>
   <data name="공장 설정 필요" xml:space="preserve">
     <value>Factory setup required</value>
   </data>
@@ -2682,14 +2703,14 @@ Speed   Configured axis speed</value>
   <data name="과전압" xml:space="preserve">
     <value>Overvoltage</value>
   </data>
-  <data name="누락 확인" xml:space="preserve">
-    <value>Check for missing screws</value>
+  <data name="드라이버 데이터 읽기 실패" xml:space="preserve">
+    <value>Driver data read failed</value>
   </data>
-  <data name="동기화 확인" xml:space="preserve">
-    <value>Check synchronization</value>
+  <data name="드라이버 모델 설정 불일치" xml:space="preserve">
+    <value>Driver model setting mismatch</value>
   </data>
-  <data name="드라이버 인식 실패" xml:space="preserve">
-    <value>Driver identification failed</value>
+  <data name="드라이버 최대 속도 확인" xml:space="preserve">
+    <value>Check driver maximum speed</value>
   </data>
   <data name="드라이브 과열" xml:space="preserve">
     <value>Drive overheat</value>
@@ -2697,11 +2718,11 @@ Speed   Configured axis speed</value>
   <data name="드라이브/스핀들 조합 오류" xml:space="preserve">
     <value>Drive / spindle combination error</value>
   </data>
+  <data name="멀티시퀀스 동작 설정 확인" xml:space="preserve">
+    <value>Check multi-sequence operation settings</value>
+  </data>
   <data name="멀티시퀀스 설정 오류" xml:space="preserve">
     <value>Multi-sequence setting error</value>
-  </data>
-  <data name="메모리·통신 점검" xml:space="preserve">
-    <value>Check memory and communication</value>
   </data>
   <data name="모델 동작 취소" xml:space="preserve">
     <value>Model operation cancelled</value>
@@ -2712,41 +2733,26 @@ Speed   Configured axis speed</value>
   <data name="모델 프로그램 설정 오류" xml:space="preserve">
     <value>Model program setting error</value>
   </data>
-  <data name="모델·엔코더 확인" xml:space="preserve">
-    <value>Check model and encoder</value>
-  </data>
   <data name="모터 배선 단선/단락" xml:space="preserve">
     <value>Motor wiring open / short circuit</value>
   </data>
-  <data name="모터 점검·reset" xml:space="preserve">
-    <value>Check motor; RESET</value>
+  <data name="모터 한계 토크 도달" xml:space="preserve">
+    <value>Motor torque limit reached</value>
   </data>
   <data name="모터 회전 미감지" xml:space="preserve">
     <value>Motor rotation not detected</value>
   </data>
-  <data name="모터·엔코더·드라이브 점검" xml:space="preserve">
-    <value>Check motor, encoder and drive</value>
-  </data>
-  <data name="목표각도 설정 오류" xml:space="preserve">
-    <value>Target angle setting error</value>
-  </data>
-  <data name="목표각도 확인" xml:space="preserve">
-    <value>Check target angle</value>
-  </data>
-  <data name="목표토크 도달 전 정지" xml:space="preserve">
-    <value>Stopped before target torque</value>
+  <data name="모터·케이블 연결 확인 · 반복되면 드라이버 점검" xml:space="preserve">
+    <value>Check motor and cable connections; inspect the driver if the error persists</value>
   </data>
   <data name="문서에 없는 코드. 컨트롤러 모델·펌웨어별 오류표 확인 필요." xml:space="preserve">
     <value>Unlisted code Check the error table for this controller model / firmware</value>
   </data>
-  <data name="문서에 중복 기재; 온도·모델 확인" xml:space="preserve">
-    <value>Manual has duplicate entries; check temperature and model</value>
+  <data name="물림 토크 감지 전 시간·각도 제한 도달" xml:space="preserve">
+    <value>Time or angle limit reached before engaging torque detection</value>
   </data>
-  <data name="물림 조건 확인" xml:space="preserve">
-    <value>Check engagement conditions</value>
-  </data>
-  <data name="물림 토크 미감지" xml:space="preserve">
-    <value>Engagement torque not detected</value>
+  <data name="물림 토크·시간·각도 설정 확인" xml:space="preserve">
+    <value>Check engaging torque, time and angle settings</value>
   </data>
   <data name="배선·모터 점검" xml:space="preserve">
     <value>Check wiring and motor</value>
@@ -2757,14 +2763,8 @@ Speed   Configured axis speed</value>
   <data name="분류" xml:space="preserve">
     <value>Category</value>
   </data>
-  <data name="비트 소켓 트레이 오류" xml:space="preserve">
-    <value>Bit socket tray error</value>
-  </data>
-  <data name="설정 토크 범위 초과" xml:space="preserve">
-    <value>Torque setting out of range</value>
-  </data>
-  <data name="설정 확인·reset" xml:space="preserve">
-    <value>Check settings; RESET</value>
+  <data name="설정 수량·완료 신호 확인" xml:space="preserve">
+    <value>Check screw count setting and completion signal</value>
   </data>
   <data name="소프트웨어 과전류" xml:space="preserve">
     <value>Software overcurrent</value>
@@ -2772,14 +2772,17 @@ Speed   Configured axis speed</value>
   <data name="스크루 수량 부족" xml:space="preserve">
     <value>Insufficient screw count</value>
   </data>
+  <data name="스크루 카운트 time limit 설정 확인" xml:space="preserve">
+    <value>Check screw count Time limit setting</value>
+  </data>
   <data name="스크루 카운트 시간 초과" xml:space="preserve">
     <value>Screw count timeout</value>
   </data>
-  <data name="스핀들 파라미터 읽기 실패" xml:space="preserve">
-    <value>Spindle parameter read failed</value>
+  <data name="스핀들/드라이브 조합 불일치" xml:space="preserve">
+    <value>Spindle / drive mismatch</value>
   </data>
-  <data name="스핀들/드라이브 인식 불일치" xml:space="preserve">
-    <value>Spindle / drive identification mismatch</value>
+  <data name="스핀들·드라이브 모델 확인" xml:space="preserve">
+    <value>Check spindle and drive models</value>
   </data>
   <data name="엔코더 데이터 오류" xml:space="preserve">
     <value>Encoder data error</value>
@@ -2793,8 +2796,8 @@ Speed   Configured axis speed</value>
   <data name="엔코더 통신 오류" xml:space="preserve">
     <value>Encoder communication error</value>
   </data>
-  <data name="연결 확인·전원 재인가" xml:space="preserve">
-    <value>Check connection and power cycle</value>
+  <data name="역방향 운전 시간 초과" xml:space="preserve">
+    <value>Reverse run time limit exceeded</value>
   </data>
   <data name="연속 과부하" xml:space="preserve">
     <value>Continuous overload</value>
@@ -2814,11 +2817,11 @@ Speed   Configured axis speed</value>
   <data name="온도성 과부하" xml:space="preserve">
     <value>Thermal overload</value>
   </data>
-  <data name="온도성 과부하/드라이브 과열" xml:space="preserve">
-    <value>Thermal overload / drive overheat</value>
-  </data>
   <data name="의미" xml:space="preserve">
     <value>Meaning</value>
+  </data>
+  <data name="입력전압·운전 중 전압 강하 확인" xml:space="preserve">
+    <value>Check input voltage and voltage drop during operation</value>
   </data>
   <data name="입력전원 점검" xml:space="preserve">
     <value>Check input power</value>
@@ -2832,11 +2835,20 @@ Speed   Configured axis speed</value>
   <data name="전류 제한 초과" xml:space="preserve">
     <value>Current limit exceeded</value>
   </data>
-  <data name="전원 재인가·점검" xml:space="preserve">
-    <value>Power cycle and inspect</value>
+  <data name="전원 재인가 후 반복되면 드라이버 점검" xml:space="preserve">
+    <value>Power cycle; inspect the driver if the error persists</value>
+  </data>
+  <data name="전원 재인가 후 반복되면 수리 필요" xml:space="preserve">
+    <value>Power cycle; repair if the error persists</value>
+  </data>
+  <data name="전원 재인가 후 반복되면 컨트롤러 점검" xml:space="preserve">
+    <value>Power cycle; inspect the controller if the error persists</value>
   </data>
   <data name="전원·가감속 설정 점검" xml:space="preserve">
     <value>Check power and acceleration / deceleration settings</value>
+  </data>
+  <data name="정방향 운전 시간 초과" xml:space="preserve">
+    <value>Forward run time limit exceeded</value>
   </data>
   <data name="제어전원 이상" xml:space="preserve">
     <value>Control power fault</value>
@@ -2850,23 +2862,23 @@ Speed   Configured axis speed</value>
   <data name="중단 원인 확인" xml:space="preserve">
     <value>Check stop cause</value>
   </data>
+  <data name="착좌 전 동기화 대기시간 확인" xml:space="preserve">
+    <value>Check synchronization wait time before seating</value>
+  </data>
   <data name="착좌 전 동기화 시간 초과" xml:space="preserve">
     <value>Synchronization timeout before seating</value>
+  </data>
+  <data name="착좌 후 동기화 대기시간 확인" xml:space="preserve">
+    <value>Check synchronization wait time after seating</value>
   </data>
   <data name="착좌 후 동기화 시간 초과" xml:space="preserve">
     <value>Synchronization timeout after seating</value>
   </data>
-  <data name="체결 상태·시간 설정 확인" xml:space="preserve">
-    <value>Check fastening and time setting</value>
+  <data name="체결 완료 전 정지" xml:space="preserve">
+    <value>Stopped before fastening completed</value>
   </data>
-  <data name="체결 시간 초과" xml:space="preserve">
-    <value>Fastening timeout</value>
-  </data>
-  <data name="체결·각도 조건 확인" xml:space="preserve">
-    <value>Check fastening and angle limits</value>
-  </data>
-  <data name="체결·토크 조건 확인" xml:space="preserve">
-    <value>Check fastening and torque limits</value>
+  <data name="체결 토크 허용범위 오류" xml:space="preserve">
+    <value>Fastening torque tolerance error</value>
   </data>
   <data name="최대각도 초과" xml:space="preserve">
     <value>Maximum angle exceeded</value>
@@ -2874,50 +2886,68 @@ Speed   Configured axis speed</value>
   <data name="최소각도 미달" xml:space="preserve">
     <value>Below minimum angle</value>
   </data>
+  <data name="최소각도 미달 상태에서 목표토크 도달" xml:space="preserve">
+    <value>Target torque reached below minimum angle</value>
+  </data>
   <data name="취소 원인 확인" xml:space="preserve">
     <value>Check cancellation cause</value>
   </data>
-  <data name="카운트 조건 확인" xml:space="preserve">
-    <value>Check count conditions</value>
+  <data name="컨트롤러·드라이버 모델 불일치" xml:space="preserve">
+    <value>Controller / driver model mismatch</value>
   </data>
-  <data name="컨트롤러 인식 실패" xml:space="preserve">
-    <value>Controller identification failed</value>
+  <data name="케이블 확인 후 전원 재인가 · 반복되면 드라이버·컨트롤러 점검" xml:space="preserve">
+    <value>Check cables and power cycle; inspect driver and controller if the error persists</value>
+  </data>
+  <data name="케이블·드라이버 확인 후 전원 재인가 · 반복되면 드라이버 점검" xml:space="preserve">
+    <value>Check cables and driver, then power cycle; inspect the driver if the error persists</value>
   </data>
   <data name="케이블·모터·부하 점검" xml:space="preserve">
     <value>Check cables, motor and load</value>
   </data>
+  <data name="케이블·모터·센서 확인 · 반복되면 드라이버 점검" xml:space="preserve">
+    <value>Check cables, motor and sensors; inspect the driver if the error persists</value>
+  </data>
   <data name="코드 · 10진수 (16진수)" xml:space="preserve">
     <value>Code decimal (hex)</value>
   </data>
-  <data name="토크 상한 초과" xml:space="preserve">
-    <value>Torque upper limit exceeded</value>
+  <data name="탭 가공 최대토크 초과" xml:space="preserve">
+    <value>Thread tap maximum torque exceeded</value>
   </data>
-  <data name="토크 설정 확인·reset" xml:space="preserve">
-    <value>Check torque setting; RESET</value>
+  <data name="탭 가공 토크 범위 확인 · max torque는 start torque·end torque보다 크게 설정" xml:space="preserve">
+    <value>Check thread tap torque range; Max torque must exceed Start torque and End torque</value>
   </data>
-  <data name="트레이 확인" xml:space="preserve">
-    <value>Check tray</value>
+  <data name="탭 가공 토크 범위·설정 오류" xml:space="preserve">
+    <value>Thread tap torque range / setting error</value>
+  </data>
+  <data name="토크 상승 이상" xml:space="preserve">
+    <value>No Ramp up torque</value>
+  </data>
+  <data name="토크 유지 중 최대각도 초과" xml:space="preserve">
+    <value>Maximum angle exceeded during torque holding</value>
   </data>
   <data name="파라미터 범위 오류" xml:space="preserve">
     <value>Parameter range error</value>
   </data>
+  <data name="파라미터 설정 범위 확인" xml:space="preserve">
+    <value>Check parameter ranges</value>
+  </data>
   <data name="파라미터 읽기 실패" xml:space="preserve">
     <value>Parameter read failed</value>
   </data>
+  <data name="파라미터 읽기·쓰기 실패" xml:space="preserve">
+    <value>Parameter read / write failed</value>
+  </data>
   <data name="파라미터 체크섬 오류" xml:space="preserve">
     <value>Parameter checksum error</value>
-  </data>
-  <data name="풀림 상태·시간 설정 확인" xml:space="preserve">
-    <value>Check loosening and time setting</value>
-  </data>
-  <data name="풀림 시간 초과" xml:space="preserve">
-    <value>Loosening timeout</value>
   </data>
   <data name="풀림 중 모터 스톨" xml:space="preserve">
     <value>Motor stalled during loosening</value>
   </data>
   <data name="하드웨어 과전류" xml:space="preserve">
     <value>Hardware overcurrent</value>
+  </data>
+  <data name="호환되는 컨트롤러·드라이버 조합 확인" xml:space="preserve">
+    <value>Check controller and driver compatibility</value>
   </data>
   <data name="확인 / 조치" xml:space="preserve">
     <value>Action</value>
@@ -3000,6 +3030,9 @@ Speed   Configured axis speed</value>
   <data name="tube bolt detected" xml:space="preserve">
     <value>Tube bolt detected</value>
   </data>
+  <data name="use max torque for loosen 또는 motor stall time limit 설정 확인" xml:space="preserve">
+    <value>Check Use max torque for loosen or Motor stall time limit setting</value>
+  </data>
   <data name="vacuum detected" xml:space="preserve">
     <value>Vacuum detected</value>
   </data>
@@ -3059,6 +3092,9 @@ Speed   Configured axis speed</value>
   </data>
   <data name="ready to rework" xml:space="preserve">
     <value>Ready to rework</value>
+  </data>
+  <data name="torque limit 설정·체결물 상태 확인" xml:space="preserve">
+    <value>Check Torque limit setting and fastener condition</value>
   </data>
   <data name="total" xml:space="preserve">
     <value>Total</value>
@@ -3197,8 +3233,14 @@ COMPLETE: finish</value>
   <data name="supply rotation blocked: current xyz=({0:f3}, {1:f3}, {2:f3}), handoff xyz=({3:f3}, {4:f3}, {5:f3}), tolerance={6:f3} mm." xml:space="preserve">
     <value>Supply rotation blocked: current XYZ=({0:F3}, {1:F3}, {2:F3}), handoff XYZ=({3:F3}, {4:F3}, {5:F3}), tolerance={6:F3} mm</value>
   </data>
+  <data name="min angle 설정 확인" xml:space="preserve">
+    <value>Check Min angle setting</value>
+  </data>
   <data name="min. threshold" xml:space="preserve">
     <value>Min threshold</value>
+  </data>
+  <data name="max angle 설정 확인" xml:space="preserve">
+    <value>Check Max angle setting</value>
   </data>
   <data name="max. threshold" xml:space="preserve">
     <value>Max threshold</value>
@@ -3416,6 +3458,9 @@ Supply: PCB 1, travel Z</value>
   </data>
   <data name="check the seated s1 carrier and the placement records above. resume requires matching records and the backup plate up." xml:space="preserve">
     <value>S1 carrier matches records backup UP</value>
+  </data>
+  <data name="reverse run time limit 설정 확인" xml:space="preserve">
+    <value>Check Reverse run time limit setting</value>
   </data>
   <data name="review carrier and records." xml:space="preserve">
     <value>Check carrier / records</value>

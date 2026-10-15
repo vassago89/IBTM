@@ -94,6 +94,12 @@ alarm/emergency and Servo ON feedback before clearing its software alarm.
 
 Motion STOP checks every `AxmMoveSStop` return code and continues to the remaining
 axes after a failure. HOME results are initialized only at startup, not on STOP.
+The bundled AXL 4.2.0.2 has a repeated-stop rejection path returning 4150 when
+EndStatus bit 11 (deceleration STOP command) and DriveStatus bit 0 are set.
+For this return code, current `AxmStatusReadStop` bit 11 must confirm the stop
+request, with no axis alarm or emergency, before accepting it as already requested.
+Motion cancellation still waits for InMotion OFF and reports a stop timeout;
+missing stop feedback and other SDK errors remain failures.
 Command/read errors remain attached to stop and stop-feedback errors.
 `MotionFailureSurvivesStopAndFeedbackFailures` covers this with the SDK stand-in.
 

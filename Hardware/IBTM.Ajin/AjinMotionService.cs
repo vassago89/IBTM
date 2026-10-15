@@ -20,6 +20,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
     private const int HomeSensorBit = 7;
     private const uint AccelerationInUnitsPerSecondSquared = 0;
     private const uint AbsolutePositionMode = 0;
+    private const uint StopInProgressResult = 4150;
     private static readonly TimeSpan s_statusPollInterval;
 
     private readonly AjinController _controller;
@@ -643,16 +644,18 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
 
     private void StopAxes(IEnumerable<int> axes)
     {
-        List<(int Axis, Exception Error)>? failures = null;
+        List<(int Axis, uint Result, Exception Error)>? failures = null;
         foreach (var axis in axes)
         {
+            var result = 0U;
             try
             {
-                AjinController.Check(CAXM.AxmMoveSStop(axis), $"{nameof(CAXM.AxmMoveSStop)} (axis {axis})");
+                result = CAXM.AxmMoveSStop(axis);
+                AjinController.Check(result, $"{nameof(CAXM.AxmMoveSStop)} (axis {axis})");
             }
             catch (Exception exception)
             {
-                (failures ??= []).Add((axis, exception));
+                (failures ??= []).Add((axis, result, exception));
             }
         }
 
@@ -667,6 +670,15 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
             {
                 var axis = Axes.Single(axis => GetAxis(axis) == failure.Axis);
                 var state = GetAxisState(axis);
+                if (failure.Result == StopInProgressResult && !state.Alarm && !state.Emergency)
+                {
+                    var stopStatus = 0U;
+                    AjinController.Check(CAXM.AxmStatusReadStop(failure.Axis, ref stopStatus),
+                        $"{nameof(CAXM.AxmStatusReadStop)} (axis {failure.Axis})");
+                    // AXL 4.2.0.2 rejects repeated SStop while decelerating. The motion owner still waits for InMotion OFF.
+                    if ((stopStatus & (uint)AXT_MOTION_QIEND_STATUS.QIEND_STATUS_11) != 0)
+                        continue;
+                }
                 errors.Add(new System.IO.IOException(
                     $"AJIN {axis} (axis {failure.Axis}) feedback after STOP: {state}.",
                     failure.Error));
@@ -679,7 +691,8 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
             }
         }
 
-        throw new MotionException("Stop axes", new AggregateException(errors));
+        if (errors.Count > 0)
+            throw new MotionException("Stop axes", new AggregateException(errors));
     }
 
     private double ReadPosition(int axis)

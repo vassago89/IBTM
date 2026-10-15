@@ -557,6 +557,103 @@ public sealed class AjinControllerTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RepeatedDecelerationStopWaitsForMotionToFinish(bool timeout)
+    {
+        using var controller = new AjinController(new());
+        controller.Initialize();
+        var operations = new OperationCancellation();
+        var motion = new AjinMotionService(
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
+            new(), new() { TimeoutMilliseconds = 500 }, operations);
+        foreach (var axis in new[] { 9, 10 })
+        {
+            AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+            AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: axis)] = 0;
+        }
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveStartMultiPos))] = 0;
+        var stopping = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stops = 0;
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmMoveStartMultiPos))
+            {
+                foreach (var axis in new[] { 9, 10 })
+                    AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { InMotion = 1 };
+                motion.Stop();
+                operations.Cancel();
+            }
+            if (call.Operation == nameof(CAXM.AxmMoveSStop))
+            {
+                var axis = call.Axis!.Value;
+                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with
+                {
+                    StopStatus = (uint)AXT_MOTION_QIEND_STATUS.QIEND_STATUS_11,
+                };
+                AjinSdk.Results[call] = ++stops > 2 ? 4150U : 0;
+            }
+            if (call.Operation == nameof(CAXM.AxmStatusReadStop) && call.Axis == 10)
+                stopping.TrySetResult();
+        };
+
+        var moving = motion.MoveToXYAsync(10, 20, 1);
+        try
+        {
+            await stopping.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(moving.IsCompleted);
+            Assert.True(operations.HasActiveOperations);
+            Assert.True(motion.IsMoving);
+            if (timeout)
+            {
+                var error = await Assert.ThrowsAsync<MotionException>(() => moving.WaitAsync(TimeSpan.FromSeconds(2)));
+                Assert.Contains("Motion did not stop within 500 ms", error.ToString());
+            }
+            else
+            {
+                foreach (var axis in new[] { 9, 10 })
+                    AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { InMotion = 0 };
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => moving.WaitAsync(TimeSpan.FromSeconds(2)));
+                Assert.False(motion.IsMoving);
+            }
+            Assert.Equal(4, stops);
+            Assert.False(operations.HasActiveOperations);
+        }
+        finally
+        {
+            foreach (var axis in new[] { 9, 10 })
+                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { InMotion = 0 };
+            await Record.ExceptionAsync(() => moving.WaitAsync(TimeSpan.FromSeconds(2)));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RepeatedStopRejectionRequiresDecelerationFeedback(bool unreadable)
+    {
+        using var controller = new AjinController(new());
+        var motion = new AjinMotionService(
+            controller, new TestMotionHardware(new() { Number = 9 }, new() { Number = 10 }, null),
+            new(), new(), new());
+        AjinSdk.MotionAxes[9] = new(InMotion: 1,
+            StopStatus: unreadable ? (uint)AXT_MOTION_QIEND_STATUS.QIEND_STATUS_11 : 0);
+        AjinSdk.MotionAxes[10] = new();
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = 4150;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 10)] = 0;
+        if (unreadable)
+            AjinSdk.Results[new(nameof(CAXM.AxmStatusReadStop), Axis: 9)] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+
+        var error = Assert.Throws<MotionException>(motion.Stop);
+
+        Assert.Contains("0x00001036", error.ToString());
+        if (unreadable)
+            Assert.Contains("AxmStatusReadStop (axis 9)", error.ToString());
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls.Take(2).Select(call => call.Axis!.Value));
+        Assert.All(AjinSdk.Calls.Take(2), call => Assert.Equal(nameof(CAXM.AxmMoveSStop), call.Operation));
+    }
+
+    [Theory]
     [InlineData(MotionAxis.X, HomeDirection.Positive, HomeSignal.HomeSensor, 4U)]
     [InlineData(MotionAxis.Y, HomeDirection.Negative, HomeSignal.NegativeLimit, 1U)]
     [InlineData(MotionAxis.Z, HomeDirection.Positive, HomeSignal.PositiveLimit, 0U)]

@@ -42,6 +42,9 @@
   <data name="a background task failed." xml:space="preserve">
     <value>백그라운드 작업 실패</value>
   </data>
+  <data name="ac/tm 목표각도 0 설정" xml:space="preserve">
+    <value>AC/TM 목표각도 0 설정</value>
+  </data>
   <data name="acceleration (s)" xml:space="preserve">
     <value>가속 시간 (s)</value>
   </data>
@@ -53,9 +56,6 @@
   </data>
   <data name="actual / min / max" xml:space="preserve">
     <value>측정 / 최소 / 최대</value>
-  </data>
-  <data name="ad 매뉴얼 2017-03-21, 27-30쪽 기준. 문서에 없는 코드는 컨트롤러 모델·펌웨어별 확인이 필요합니다." xml:space="preserve">
-    <value>AD 매뉴얼 2017-03-21 27~30쪽</value>
   </data>
   <data name="adc communication log" xml:space="preserve">
     <value>ADC 통신 로그</value>
@@ -602,6 +602,9 @@
   <data name="draw the fov roi before inspecting." xml:space="preserve">
     <value>검사 ROI 미지정</value>
   </data>
+  <data name="driver model 설정 확인" xml:space="preserve">
+    <value>Driver model 설정 확인</value>
+  </data>
   <data name="dry run motor duration (s)" xml:space="preserve">
     <value>공회전 시간 (s)</value>
   </data>
@@ -661,6 +664,9 @@
   </data>
   <data name="error code" xml:space="preserve">
     <value>오류 코드</value>
+  </data>
+  <data name="error code list (v1.02.7) · adc 기준" xml:space="preserve">
+    <value>Error code list (v1.02.7) · ADC 기준</value>
   </data>
   <data name="esc · conflict" xml:space="preserve">
     <value>센서 동시 감지</value>
@@ -728,11 +734,20 @@
   <data name="forward" xml:space="preserve">
     <value>전진</value>
   </data>
+  <data name="forward run time limit 설정 확인" xml:space="preserve">
+    <value>Forward run time limit 설정 확인</value>
+  </data>
   <data name="frame log" xml:space="preserve">
     <value>통신 로그</value>
   </data>
   <data name="frame timeout (s)" xml:space="preserve">
     <value>수신 제한 시간 (s)</value>
+  </data>
+  <data name="free speed 구간 토크 발생" xml:space="preserve">
+    <value>Free speed 구간 토크 발생</value>
+  </data>
+  <data name="free speed 설정 확인" xml:space="preserve">
+    <value>Free speed 설정 확인</value>
   </data>
   <data name="front 1 · pcb available" xml:space="preserve">
     <value>전단 1 PCB 공급 가능</value>
@@ -772,6 +787,9 @@
   </data>
   <data name="hik" xml:space="preserve">
     <value>HIK</value>
+  </data>
+  <data name="holding time max angle 설정 확인" xml:space="preserve">
+    <value>Holding time max angle 설정 확인</value>
   </data>
   <data name="home" xml:space="preserve">
     <value>원점 복귀</value>
@@ -829,6 +847,9 @@
   </data>
   <data name="i/o reset confirmed" xml:space="preserve">
     <value>I/O 리셋 확인</value>
+  </data>
+  <data name="i2c 오류 · 드라이버 파라미터 읽기 실패" xml:space="preserve">
+    <value>I2C 오류 · 드라이버 파라미터 읽기 실패</value>
   </data>
   <data name="ibtm error" xml:space="preserve">
     <value>IBTM 오류</value>
@@ -1882,9 +1903,6 @@
   <data name="reset failed: {0}" xml:space="preserve">
     <value>리셋 실패: {0}</value>
   </data>
-  <data name="reset; 반복되면 점검" xml:space="preserve">
-    <value>리셋 후에도 반복되면 점검</value>
-  </data>
   <data name="resetting..." xml:space="preserve">
     <value>리셋 중</value>
   </data>
@@ -2302,6 +2320,9 @@
   <data name="target" xml:space="preserve">
     <value>목표</value>
   </data>
+  <data name="target angle 설정 확인" xml:space="preserve">
+    <value>Target angle 설정 확인</value>
+  </data>
   <data name="target speed" xml:space="preserve">
     <value>목표 속도</value>
   </data>
@@ -2322,6 +2343,9 @@
   </data>
   <data name="teaching values were not saved: {0}" xml:space="preserve">
     <value>티칭 저장 실패: {0}</value>
+  </data>
+  <data name="thread tap의 max torque 설정 확인" xml:space="preserve">
+    <value>Thread tap의 Max torque 설정 확인</value>
   </data>
   <data name="threshold (0–255)" xml:space="preserve">
     <value>임계값 (0–255)</value>
@@ -2434,8 +2458,11 @@
   <data name="updated {0:hh:mm:ss}" xml:space="preserve">
     <value>갱신 {0:HH:mm:ss}</value>
   </data>
-  <data name="usb 통신 포트 오류" xml:space="preserve">
-    <value>USB 통신 포트 오류</value>
+  <data name="usb 포트 인식 실패" xml:space="preserve">
+    <value>USB 포트 인식 실패</value>
+  </data>
+  <data name="usb 포트·연결 확인" xml:space="preserve">
+    <value>USB 포트·연결 확인</value>
   </data>
   <data name="use 0 to 255." xml:space="preserve">
     <value>입력 범위: 0–255</value>
@@ -2667,12 +2694,6 @@
   <data name="−limit" xml:space="preserve">
     <value>−리밋</value>
   </data>
-  <data name="걸림·부하 확인" xml:space="preserve">
-    <value>걸림 부하 확인</value>
-  </data>
-  <data name="결과 토크 허용범위 이탈" xml:space="preserve">
-    <value>결과 토크 허용범위 이탈</value>
-  </data>
   <data name="공장 설정 필요" xml:space="preserve">
     <value>공장 설정 필요</value>
   </data>
@@ -2682,14 +2703,14 @@
   <data name="과전압" xml:space="preserve">
     <value>과전압</value>
   </data>
-  <data name="누락 확인" xml:space="preserve">
-    <value>볼트 누락 확인</value>
+  <data name="드라이버 데이터 읽기 실패" xml:space="preserve">
+    <value>드라이버 데이터 읽기 실패</value>
   </data>
-  <data name="동기화 확인" xml:space="preserve">
-    <value>동기화 확인</value>
+  <data name="드라이버 모델 설정 불일치" xml:space="preserve">
+    <value>드라이버 모델 설정 불일치</value>
   </data>
-  <data name="드라이버 인식 실패" xml:space="preserve">
-    <value>드라이버 인식 실패</value>
+  <data name="드라이버 최대 속도 확인" xml:space="preserve">
+    <value>드라이버 최대 속도 확인</value>
   </data>
   <data name="드라이브 과열" xml:space="preserve">
     <value>드라이브 과열</value>
@@ -2697,11 +2718,11 @@
   <data name="드라이브/스핀들 조합 오류" xml:space="preserve">
     <value>드라이브/스핀들 조합 오류</value>
   </data>
+  <data name="멀티시퀀스 동작 설정 확인" xml:space="preserve">
+    <value>멀티시퀀스 동작 설정 확인</value>
+  </data>
   <data name="멀티시퀀스 설정 오류" xml:space="preserve">
     <value>멀티시퀀스 설정 오류</value>
-  </data>
-  <data name="메모리·통신 점검" xml:space="preserve">
-    <value>메모리 통신 점검</value>
   </data>
   <data name="모델 동작 취소" xml:space="preserve">
     <value>모델 동작 취소</value>
@@ -2712,41 +2733,26 @@
   <data name="모델 프로그램 설정 오류" xml:space="preserve">
     <value>모델 프로그램 설정 오류</value>
   </data>
-  <data name="모델·엔코더 확인" xml:space="preserve">
-    <value>모델 엔코더 확인</value>
-  </data>
   <data name="모터 배선 단선/단락" xml:space="preserve">
     <value>모터 배선 단선/단락</value>
   </data>
-  <data name="모터 점검·reset" xml:space="preserve">
-    <value>모터 점검 후 리셋</value>
+  <data name="모터 한계 토크 도달" xml:space="preserve">
+    <value>모터 한계 토크 도달</value>
   </data>
   <data name="모터 회전 미감지" xml:space="preserve">
     <value>모터 회전 미감지</value>
   </data>
-  <data name="모터·엔코더·드라이브 점검" xml:space="preserve">
-    <value>모터 엔코더 드라이브 점검</value>
-  </data>
-  <data name="목표각도 설정 오류" xml:space="preserve">
-    <value>목표 각도 설정 오류</value>
-  </data>
-  <data name="목표각도 확인" xml:space="preserve">
-    <value>목표 각도 확인</value>
-  </data>
-  <data name="목표토크 도달 전 정지" xml:space="preserve">
-    <value>목표 토크 도달 전 정지</value>
+  <data name="모터·케이블 연결 확인 · 반복되면 드라이버 점검" xml:space="preserve">
+    <value>모터·케이블 연결 확인 · 반복되면 드라이버 점검</value>
   </data>
   <data name="문서에 없는 코드. 컨트롤러 모델·펌웨어별 오류표 확인 필요." xml:space="preserve">
     <value>미등재 코드 체결기 모델 펌웨어별 오류표 확인</value>
   </data>
-  <data name="문서에 중복 기재; 온도·모델 확인" xml:space="preserve">
-    <value>매뉴얼에 중복된 코드 온도 모델 확인</value>
+  <data name="물림 토크 감지 전 시간·각도 제한 도달" xml:space="preserve">
+    <value>물림 토크 감지 전 시간·각도 제한 도달</value>
   </data>
-  <data name="물림 조건 확인" xml:space="preserve">
-    <value>물림 조건 확인</value>
-  </data>
-  <data name="물림 토크 미감지" xml:space="preserve">
-    <value>물림 토크 미감지</value>
+  <data name="물림 토크·시간·각도 설정 확인" xml:space="preserve">
+    <value>물림 토크·시간·각도 설정 확인</value>
   </data>
   <data name="배선·모터 점검" xml:space="preserve">
     <value>배선 모터 점검</value>
@@ -2757,14 +2763,8 @@
   <data name="분류" xml:space="preserve">
     <value>분류</value>
   </data>
-  <data name="비트 소켓 트레이 오류" xml:space="preserve">
-    <value>비트 소켓 트레이 오류</value>
-  </data>
-  <data name="설정 토크 범위 초과" xml:space="preserve">
-    <value>설정 토크 범위 초과</value>
-  </data>
-  <data name="설정 확인·reset" xml:space="preserve">
-    <value>설정 확인 후 리셋</value>
+  <data name="설정 수량·완료 신호 확인" xml:space="preserve">
+    <value>설정 수량·완료 신호 확인</value>
   </data>
   <data name="소프트웨어 과전류" xml:space="preserve">
     <value>소프트웨어 과전류</value>
@@ -2772,14 +2772,17 @@
   <data name="스크루 수량 부족" xml:space="preserve">
     <value>나사 수량 부족</value>
   </data>
+  <data name="스크루 카운트 time limit 설정 확인" xml:space="preserve">
+    <value>스크루 카운트 Time limit 설정 확인</value>
+  </data>
   <data name="스크루 카운트 시간 초과" xml:space="preserve">
     <value>나사 수량 확인 시간 초과</value>
   </data>
-  <data name="스핀들 파라미터 읽기 실패" xml:space="preserve">
-    <value>스핀들 파라미터 읽기 실패</value>
+  <data name="스핀들/드라이브 조합 불일치" xml:space="preserve">
+    <value>스핀들/드라이브 조합 불일치</value>
   </data>
-  <data name="스핀들/드라이브 인식 불일치" xml:space="preserve">
-    <value>스핀들/드라이브 인식 불일치</value>
+  <data name="스핀들·드라이브 모델 확인" xml:space="preserve">
+    <value>스핀들·드라이브 모델 확인</value>
   </data>
   <data name="엔코더 데이터 오류" xml:space="preserve">
     <value>엔코더 데이터 오류</value>
@@ -2793,8 +2796,8 @@
   <data name="엔코더 통신 오류" xml:space="preserve">
     <value>엔코더 통신 오류</value>
   </data>
-  <data name="연결 확인·전원 재인가" xml:space="preserve">
-    <value>연결 확인 후 전원 다시 켜기</value>
+  <data name="역방향 운전 시간 초과" xml:space="preserve">
+    <value>역방향 운전 시간 초과</value>
   </data>
   <data name="연속 과부하" xml:space="preserve">
     <value>연속 과부하</value>
@@ -2814,11 +2817,11 @@
   <data name="온도성 과부하" xml:space="preserve">
     <value>열 과부하</value>
   </data>
-  <data name="온도성 과부하/드라이브 과열" xml:space="preserve">
-    <value>열 과부하 / 드라이브 과열</value>
-  </data>
   <data name="의미" xml:space="preserve">
     <value>의미</value>
+  </data>
+  <data name="입력전압·운전 중 전압 강하 확인" xml:space="preserve">
+    <value>입력전압·운전 중 전압 강하 확인</value>
   </data>
   <data name="입력전원 점검" xml:space="preserve">
     <value>입력 전원 점검</value>
@@ -2832,11 +2835,20 @@
   <data name="전류 제한 초과" xml:space="preserve">
     <value>전류 제한 초과</value>
   </data>
-  <data name="전원 재인가·점검" xml:space="preserve">
-    <value>전원을 다시 켠 뒤 점검</value>
+  <data name="전원 재인가 후 반복되면 드라이버 점검" xml:space="preserve">
+    <value>전원 재인가 후 반복되면 드라이버 점검</value>
+  </data>
+  <data name="전원 재인가 후 반복되면 수리 필요" xml:space="preserve">
+    <value>전원 재인가 후 반복되면 수리 필요</value>
+  </data>
+  <data name="전원 재인가 후 반복되면 컨트롤러 점검" xml:space="preserve">
+    <value>전원 재인가 후 반복되면 컨트롤러 점검</value>
   </data>
   <data name="전원·가감속 설정 점검" xml:space="preserve">
     <value>전원 가감속 설정 점검</value>
+  </data>
+  <data name="정방향 운전 시간 초과" xml:space="preserve">
+    <value>정방향 운전 시간 초과</value>
   </data>
   <data name="제어전원 이상" xml:space="preserve">
     <value>제어 전원 이상</value>
@@ -2850,23 +2862,23 @@
   <data name="중단 원인 확인" xml:space="preserve">
     <value>중단 원인 확인</value>
   </data>
+  <data name="착좌 전 동기화 대기시간 확인" xml:space="preserve">
+    <value>착좌 전 동기화 대기시간 확인</value>
+  </data>
   <data name="착좌 전 동기화 시간 초과" xml:space="preserve">
     <value>착좌 전 동기화 시간 초과</value>
+  </data>
+  <data name="착좌 후 동기화 대기시간 확인" xml:space="preserve">
+    <value>착좌 후 동기화 대기시간 확인</value>
   </data>
   <data name="착좌 후 동기화 시간 초과" xml:space="preserve">
     <value>착좌 후 동기화 시간 초과</value>
   </data>
-  <data name="체결 상태·시간 설정 확인" xml:space="preserve">
-    <value>체결 상태 시간 설정 확인</value>
+  <data name="체결 완료 전 정지" xml:space="preserve">
+    <value>체결 완료 전 정지</value>
   </data>
-  <data name="체결 시간 초과" xml:space="preserve">
-    <value>체결 시간 초과</value>
-  </data>
-  <data name="체결·각도 조건 확인" xml:space="preserve">
-    <value>체결 각도 조건 확인</value>
-  </data>
-  <data name="체결·토크 조건 확인" xml:space="preserve">
-    <value>체결 토크 조건 확인</value>
+  <data name="체결 토크 허용범위 오류" xml:space="preserve">
+    <value>체결 토크 허용범위 오류</value>
   </data>
   <data name="최대각도 초과" xml:space="preserve">
     <value>최대 각도 초과</value>
@@ -2874,50 +2886,68 @@
   <data name="최소각도 미달" xml:space="preserve">
     <value>최소 각도 미달</value>
   </data>
+  <data name="최소각도 미달 상태에서 목표토크 도달" xml:space="preserve">
+    <value>최소각도 미달 상태에서 목표토크 도달</value>
+  </data>
   <data name="취소 원인 확인" xml:space="preserve">
     <value>취소 원인 확인</value>
   </data>
-  <data name="카운트 조건 확인" xml:space="preserve">
-    <value>카운트 조건 확인</value>
+  <data name="컨트롤러·드라이버 모델 불일치" xml:space="preserve">
+    <value>컨트롤러·드라이버 모델 불일치</value>
   </data>
-  <data name="컨트롤러 인식 실패" xml:space="preserve">
-    <value>체결기 인식 실패</value>
+  <data name="케이블 확인 후 전원 재인가 · 반복되면 드라이버·컨트롤러 점검" xml:space="preserve">
+    <value>케이블 확인 후 전원 재인가 · 반복되면 드라이버·컨트롤러 점검</value>
+  </data>
+  <data name="케이블·드라이버 확인 후 전원 재인가 · 반복되면 드라이버 점검" xml:space="preserve">
+    <value>케이블·드라이버 확인 후 전원 재인가 · 반복되면 드라이버 점검</value>
   </data>
   <data name="케이블·모터·부하 점검" xml:space="preserve">
     <value>케이블 모터 부하 점검</value>
   </data>
+  <data name="케이블·모터·센서 확인 · 반복되면 드라이버 점검" xml:space="preserve">
+    <value>케이블·모터·센서 확인 · 반복되면 드라이버 점검</value>
+  </data>
   <data name="코드 · 10진수 (16진수)" xml:space="preserve">
     <value>코드 10진수 (16진수)</value>
   </data>
-  <data name="토크 상한 초과" xml:space="preserve">
-    <value>토크 상한 초과</value>
+  <data name="탭 가공 최대토크 초과" xml:space="preserve">
+    <value>탭 가공 최대토크 초과</value>
   </data>
-  <data name="토크 설정 확인·reset" xml:space="preserve">
-    <value>토크 설정 확인 후 리셋</value>
+  <data name="탭 가공 토크 범위 확인 · max torque는 start torque·end torque보다 크게 설정" xml:space="preserve">
+    <value>탭 가공 토크 범위 확인 · Max torque는 Start torque·End torque보다 크게 설정</value>
   </data>
-  <data name="트레이 확인" xml:space="preserve">
-    <value>트레이 확인</value>
+  <data name="탭 가공 토크 범위·설정 오류" xml:space="preserve">
+    <value>탭 가공 토크 범위·설정 오류</value>
+  </data>
+  <data name="토크 상승 이상" xml:space="preserve">
+    <value>토크 상승 이상</value>
+  </data>
+  <data name="토크 유지 중 최대각도 초과" xml:space="preserve">
+    <value>토크 유지 중 최대각도 초과</value>
   </data>
   <data name="파라미터 범위 오류" xml:space="preserve">
     <value>파라미터 범위 오류</value>
   </data>
+  <data name="파라미터 설정 범위 확인" xml:space="preserve">
+    <value>파라미터 설정 범위 확인</value>
+  </data>
   <data name="파라미터 읽기 실패" xml:space="preserve">
     <value>파라미터 읽기 실패</value>
   </data>
+  <data name="파라미터 읽기·쓰기 실패" xml:space="preserve">
+    <value>파라미터 읽기·쓰기 실패</value>
+  </data>
   <data name="파라미터 체크섬 오류" xml:space="preserve">
     <value>파라미터 체크섬 오류</value>
-  </data>
-  <data name="풀림 상태·시간 설정 확인" xml:space="preserve">
-    <value>풀림 상태 시간 설정 확인</value>
-  </data>
-  <data name="풀림 시간 초과" xml:space="preserve">
-    <value>풀림 시간 초과</value>
   </data>
   <data name="풀림 중 모터 스톨" xml:space="preserve">
     <value>풀기 중 모터 회전 멈춤</value>
   </data>
   <data name="하드웨어 과전류" xml:space="preserve">
     <value>하드웨어 과전류</value>
+  </data>
+  <data name="호환되는 컨트롤러·드라이버 조합 확인" xml:space="preserve">
+    <value>호환되는 컨트롤러·드라이버 조합 확인</value>
   </data>
   <data name="확인 / 조치" xml:space="preserve">
     <value>조치</value>
@@ -3000,6 +3030,9 @@
   <data name="tube bolt detected" xml:space="preserve">
     <value>튜브 볼트 감지</value>
   </data>
+  <data name="use max torque for loosen 또는 motor stall time limit 설정 확인" xml:space="preserve">
+    <value>Use max torque for loosen 또는 Motor stall time limit 설정 확인</value>
+  </data>
   <data name="vacuum detected" xml:space="preserve">
     <value>진공 감지</value>
   </data>
@@ -3059,6 +3092,9 @@
   </data>
   <data name="ready to rework" xml:space="preserve">
     <value>재작업 대기</value>
+  </data>
+  <data name="torque limit 설정·체결물 상태 확인" xml:space="preserve">
+    <value>Torque limit 설정·체결물 상태 확인</value>
   </data>
   <data name="total" xml:space="preserve">
     <value>합계</value>
@@ -3195,8 +3231,14 @@
   <data name="supply rotation blocked: current xyz=({0:f3}, {1:f3}, {2:f3}), handoff xyz=({3:f3}, {4:f3}, {5:f3}), tolerance={6:f3} mm." xml:space="preserve">
     <value>공급 회전 불가 XYZ 현재({0:F3}, {1:F3}, {2:F3}) / 인계({3:F3}, {4:F3}, {5:F3}) / 허용 {6:F3} mm</value>
   </data>
+  <data name="min angle 설정 확인" xml:space="preserve">
+    <value>Min angle 설정 확인</value>
+  </data>
   <data name="min. threshold" xml:space="preserve">
     <value>최소 임계값</value>
+  </data>
+  <data name="max angle 설정 확인" xml:space="preserve">
+    <value>Max angle 설정 확인</value>
   </data>
   <data name="max. threshold" xml:space="preserve">
     <value>최대 임계값</value>
@@ -3414,6 +3456,9 @@
   </data>
   <data name="check the seated s1 carrier and the placement records above. resume requires matching records and the backup plate up." xml:space="preserve">
     <value>S1 실물 기록 일치, 백업 상승</value>
+  </data>
+  <data name="reverse run time limit 설정 확인" xml:space="preserve">
+    <value>Reverse run time limit 설정 확인</value>
   </data>
   <data name="review carrier and records." xml:space="preserve">
     <value>캐리어 기록 확인</value>

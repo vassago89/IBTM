@@ -86,7 +86,8 @@ internal static class AjinSdk
             uint InMotion = 0,
             uint AccelerationUnit = 0,
             uint AbsRelMode = 0,
-            uint AlarmReset = 0);
+            uint AlarmReset = 0,
+            uint StopStatus = 0);
 
     internal sealed record HomeMethod(int Direction, uint Signal, uint ZPhase, double ClearTime, double Offset);
 

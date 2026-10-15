@@ -263,23 +263,6 @@
                                                         <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPreliminaryPosition}">
                                                             <Setter Property="Text" Value="{Binding SelectedPoint.Position.Bolt.PreliminaryFeedSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                                         </DataTrigger>
-                                                        <MultiDataTrigger>
-                                                            <MultiDataTrigger.Conditions>
-                                                                <Condition Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPosition}"/>
-                                                                <Condition Binding="{Binding SelectedPoint.Position.Bolt.FeedDistance}" Value="0"/>
-                                                            </MultiDataTrigger.Conditions>
-                                                            <Setter Property="IsEnabled" Value="False"/>
-                                                        </MultiDataTrigger>
-                                                        <MultiDataTrigger>
-                                                            <MultiDataTrigger.Conditions>
-                                                                <Condition Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPreliminaryPosition}"/>
-                                                                <Condition Binding="{Binding SelectedPoint.Position.Bolt.PreliminaryFeedDistance}" Value="0"/>
-                                                            </MultiDataTrigger.Conditions>
-                                                            <Setter Property="IsEnabled" Value="False"/>
-                                                        </MultiDataTrigger>
-                                                        <Trigger Property="Validation.HasError" Value="True">
-                                                            <Setter Property="IsEnabled" Value="True"/>
-                                                        </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBox.Style>

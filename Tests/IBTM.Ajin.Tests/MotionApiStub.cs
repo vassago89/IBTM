@@ -179,6 +179,12 @@ internal static partial class CAXM
         return AjinSdk.Record(new(nameof(AxmStatusReadInMotion), Axis: axis));
     }
 
+    public static uint AxmStatusReadStop(int axis, ref uint value)
+    {
+        value = AjinSdk.MotionAxes[axis].StopStatus;
+        return AjinSdk.Record(new(nameof(AxmStatusReadStop), Axis: axis));
+    }
+
     public static uint AxmHomeGetMethod(
         int axis,
         ref int direction,
