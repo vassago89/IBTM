@@ -234,6 +234,7 @@ public static class MachineTestSupport
         };
         settings.BoltFastening.Motion = FastMotion();
         settings.BoltFastening.DryRunMilliseconds = 30;
+        settings.BoltFastening.ShootingPickupSpinMilliseconds = 0;
         // Virtual tube passage takes 200 ms after detection, while the blow output remains on.
         settings.BoltFastening.ShootingArrivalDelaySeconds = 0.5;
         settings.BoltFastening.SafeZ = 0;

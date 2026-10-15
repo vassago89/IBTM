@@ -111,6 +111,7 @@
                         <Run Text=" "/><Run Text="{Binding RecentFastening.Result.Stage, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                     </TextBlock>
                     <Grid Grid.Row="1" Margin="0,0,0,10">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <TextBlock FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center">
                             <TextBlock.Style>
@@ -149,6 +150,12 @@
                                 FontSize="28" FontWeight="SemiBold" FontFamily="Cascadia Mono, Consolas"
                                 Foreground="{StaticResource TextPrimaryBrush}"/>
                         </StackPanel>
+                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Right" Margin="0,4,0,0"
+                            Foreground="{StaticResource TextMutedBrush}">
+                            <Run Text="{ui:Text 'Z feed distance (mm)'}"/><Run Text="  "/>
+                            <Run Text="{Binding RecentFastening.Result.ZFeedDistance, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
+                                FontWeight="SemiBold" FontFamily="Cascadia Mono, Consolas" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </TextBlock>
                     </Grid>
                     <ui:TorqueCurvePlot Grid.Row="2" Curve="{Binding RecentFastening.Result.TorqueCurve}"
                         TorqueCompensationPercent="{Binding RecentFastening.Result.Controller.TorqueCompensationPercent}"

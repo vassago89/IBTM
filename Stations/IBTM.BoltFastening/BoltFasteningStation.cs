@@ -632,6 +632,15 @@ public sealed class BoltFasteningStation : AutoUnit
                                             throw new MaintenanceStopException(
                                                 $"IPM bolt {bolt.Id}, {bolt.HeatSink}: shooting vacuum not detected after {retry + 1} pickup attempts.");
                                     }
+                                    var spinMilliseconds = _settings.ShootingPickupSpinMilliseconds;
+                                    if (feeding && spinMilliseconds > 0)
+                                    {
+                                        await ShootingHead.SelectPresetAsync(_settings.ShootingIpmPreset, token);
+                                        Io.SetOutput(OutputIo.ShootingBoltDirection, false);
+                                        Io.SetOutput(OutputIo.ShootingBoltStart, true);
+                                        await Task.Delay(spinMilliseconds);
+                                        Io.SetOutput(OutputIo.ShootingBoltStart, false);
+                                    }
                                 }
                                 await MoveWithShootingHeadDownAsync(fasteningPosition, token);
                             }

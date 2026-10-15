@@ -225,6 +225,7 @@
                                 <TextBlock Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource FasteningVerdict}" FontSize="13" TextWrapping="Wrap"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTextColumn Header="{ui:Text 'Torque'}" Binding="{Binding Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="85"/>
+                            <DataGridTextColumn Header="{ui:Text 'Z feed distance (mm)'}" Binding="{Binding Result.ZFeedDistance, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="Auto" MinWidth="110"/>
                             <DataGridTemplateColumn Header="{ui:Text 'VISION'}" Width="62"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                 <TextBlock Text="{Binding VisionVerdict}" Tag="{Binding VisionVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
@@ -305,6 +306,7 @@
                                                     </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                                     <DataGridTextColumn Header="{ui:Text 'Turns'}" Binding="{Binding Result.MeasuredTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
                                                     <DataGridTextColumn Header="{ui:Text 'Torque'}" Binding="{Binding Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
+                                                    <DataGridTextColumn Header="{ui:Text 'Z feed distance (mm)'}" Binding="{Binding Result.ZFeedDistance, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="Auto" MinWidth="110"/>
                                                     <DataGridTextColumn Header="{ui:Text 'Time (ms)'}" Binding="{Binding Result.Controller.FasteningTimeMilliseconds, TargetNullValue='—', FallbackValue='—'}" Width="130"/>
                                                     <DataGridTemplateColumn Header="{ui:Text 'Graph'}" Width="100">
                                                         <DataGridTemplateColumn.CellTemplate>

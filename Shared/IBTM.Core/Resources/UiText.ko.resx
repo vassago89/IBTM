@@ -3532,7 +3532,7 @@
     <value>{0} 픽업 본체결</value>
   </data>
   <data name="z feed distance (mm)" xml:space="preserve">
-    <value>Z 이동 거리 (mm)</value>
+    <value>실제 하강 (mm)</value>
   </data>
   <data name="shooting pre-tightening" xml:space="preserve">
     <value>슈팅 가체결</value>
@@ -3588,4 +3588,7 @@
   </data>
   <data name="retighten first ipm bolt on each pcb" xml:space="preserve"><value>각 PCB 첫 IPM 볼트 추가 본체결</value></data>
   <data name="shooting ipm preliminary z" xml:space="preserve"><value>슈팅 IPM 가체결 Z</value></data>
+  <data name="shooting pickup alignment (s, 0 = off)" xml:space="preserve">
+    <value>슈팅 픽업 후 홈 맞춤 (s, 0 = 끔)</value>
+  </data>
 </root>

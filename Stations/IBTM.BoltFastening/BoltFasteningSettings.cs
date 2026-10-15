@@ -18,6 +18,7 @@ public sealed class BoltFasteningSettings : Setting
         TorqueCurveSampling = AdcTorqueCurveSampling.Milliseconds30;
         TorqueCurveTimeoutMilliseconds = 1_000;
         TorqueCurveStopTimeoutMilliseconds = 3_000;
+        ShootingPickupSpinMilliseconds = 100;
     }
 
     public MotionSettings Motion { get; set; }
@@ -128,6 +129,15 @@ public sealed class BoltFasteningSettings : Setting
             field = value;
         }
     } = 100;
+    public int ShootingPickupSpinMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
     public int PickupRetryCount
     {
         get;

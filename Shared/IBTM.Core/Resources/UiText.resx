@@ -3534,7 +3534,7 @@ Supply: PCB 1, travel Z</value>
     <value>{0} Pickup final tightening</value>
   </data>
   <data name="z feed distance (mm)" xml:space="preserve">
-    <value>Z feed distance (mm)</value>
+    <value>Actual Z travel (mm)</value>
   </data>
   <data name="shooting pre-tightening" xml:space="preserve">
     <value>Shooting pre-tightening</value>
@@ -3590,4 +3590,7 @@ Supply: PCB 1, travel Z</value>
   </data>
   <data name="retighten first ipm bolt on each pcb" xml:space="preserve"><value>Retighten first IPM bolt on each PCB</value></data>
   <data name="shooting ipm preliminary z" xml:space="preserve"><value>Shooting IPM preliminary Z</value></data>
+  <data name="shooting pickup alignment (s, 0 = off)" xml:space="preserve">
+    <value>Shooting pickup alignment (s, 0 = off)</value>
+  </data>
 </root>
