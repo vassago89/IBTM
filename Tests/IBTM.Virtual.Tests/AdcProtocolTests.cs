@@ -535,6 +535,42 @@ public sealed class AdcProtocolTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task ResultReadRecoveryClearsRejectionWithoutRepeatingThePreviousEvent(bool timeout)
+    {
+        using var transport = new HCommTransportStub(1);
+        using var bus = new AdcBus(transport.Communication, 1, new() { ReadAttempts = 2 });
+        var events = 0;
+        bus.Monitor.EventReceived += sample => events++;
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        var frame = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
+            [28, 0, 2, 0, 100, 0, 1, 3, 32, 3, 32, 0, 200, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0]);
+        var request = await transport.NextRequestAsync();
+        transport.Receive(frame);
+        Assert.Equal(request, await transport.NextRequestAsync());
+        Assert.Equal(1, events);
+        var previous = bus.Monitor.LastEvent;
+        if (!timeout)
+        {
+            var corrupt = (byte[])frame.Clone();
+            corrupt[^1] ^= 0xFF;
+            transport.Receive(corrupt);
+        }
+        Assert.Equal(request, await transport.NextRequestAsync());
+        Assert.NotNull(bus.Monitor.Sample?.Rejection);
+        transport.Receive(frame);
+        // The following poll means the successful retry has been processed.
+        Assert.Equal(request, await transport.NextRequestAsync());
+        Assert.Null(bus.Monitor.Sample?.Rejection);
+        Assert.Null(bus.Monitor.Sample?.Error);
+        Assert.Null(bus.Monitor.Sample?.Status);
+        Assert.Same(previous, bus.Monitor.LastEvent);
+        Assert.Equal(1, events);
+        bus.Close();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task HCommUnsolicitedResultCannotConsumePendingRequest(bool write)
     {
         using var transport = new HCommTransportStub(1);
@@ -788,6 +824,28 @@ public sealed class AdcProtocolTests
         Assert.Equal(4, bus.RegisterWrites.Count);
         Assert.Equal(1, bus.GraphRequests);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
+    }
+
+    [Fact]
+    public async Task GraphCleanupAfterResultPollingFailurePreservesTheOriginalError()
+    {
+        using var bus = new AdcControllerStub();
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
+        bus.Monitor.BeginTorqueCurveCapture();
+        var failure = new AdcResponseException(3, "Result request rejected: 0184030301");
+        bus.NextResultReadFailure = failure;
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.Monitor.Sample?.Error == failure,
+            TimeSpan.FromSeconds(2)));
+        // Wait until the failed loop has cancelled its lifetime and drained queued work.
+        await Assert.ThrowsAsync<IOException>(() => bus.Monitor.EnqueueAsync(token => Task.FromResult(true)));
+        await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
+        Assert.Same(failure, bus.Monitor.Sample?.Error);
+        Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
+        Assert.Equal(0, bus.Monitor.TorqueCurveCaptureStartedAt);
+        Assert.Equal(4, bus.RegisterWrites.Count);
+        Assert.Equal(1, bus.GraphRequests);
     }
 
     [Theory]
