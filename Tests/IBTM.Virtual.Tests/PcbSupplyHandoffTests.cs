@@ -5,7 +5,6 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.PcbSupply;
 using IBTM.Storage;
-using IBTM.Virtual;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTestSupport;
 

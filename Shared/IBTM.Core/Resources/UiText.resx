@@ -54,9 +54,6 @@ Operation failed Check controller status</value>
   <data name="active connection: " xml:space="preserve">
     <value>Connected port: </value>
   </data>
-  <data name="actual / min / max" xml:space="preserve">
-    <value>ACTUAL / MIN / MAX</value>
-  </data>
   <data name="adc communication log" xml:space="preserve">
     <value>ADC communication log</value>
   </data>
@@ -278,9 +275,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="bolt · ?" xml:space="preserve">
     <value>BOLT ?</value>
-  </data>
-  <data name="bolts &amp; feeders" xml:space="preserve">
-    <value>Bolts &amp; feeders</value>
   </data>
   <data name="bright {0:p2} · required ≥ {1:p2}" xml:space="preserve">
     <value>Bright area {0:P2} Minimum {1:P2}</value>
@@ -683,12 +677,6 @@ Operation failed Check controller status</value>
   <data name="fasten" xml:space="preserve">
     <value>FASTEN</value>
   </data>
-  <data name="fasten ng" xml:space="preserve">
-    <value>FASTEN NG</value>
-  </data>
-  <data name="fasten ok" xml:space="preserve">
-    <value>FASTEN OK</value>
-  </data>
   <data name="fastening" xml:space="preserve">
     <value>Fastening</value>
   </data>
@@ -986,9 +974,6 @@ Operation failed Check controller status</value>
   <data name="last result: {0}  event {1}&#10;" xml:space="preserve">
     <value>Last result: {0}  Event {1}
 </value>
-  </data>
-  <data name="latest fastening" xml:space="preserve">
-    <value>Latest fastening</value>
   </data>
   <data name="lift lowered" xml:space="preserve">
     <value>Lift lowered</value>
@@ -1295,9 +1280,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="no fastening results recorded" xml:space="preserve">
     <value>No results</value>
-  </data>
-  <data name="no measurement" xml:space="preserve">
-    <value>No measurement</value>
   </data>
   <data name="no pcb" xml:space="preserve">
     <value>No PCB</value>
@@ -1706,10 +1688,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="preset changed" xml:space="preserve">
     <value>Preset Changed</value>
-  </data>
-  <data name="preset {0}  torque {1:f2} / {2:f2}&#10;" xml:space="preserve">
-    <value>Preset {0}  Torque {1:F2} / {2:F2}
-</value>
   </data>
   <data name="press reset to restore servo power" xml:space="preserve">
     <value>Press RESET to restore servo power</value>
@@ -2354,9 +2332,6 @@ Operation failed Check controller status</value>
   <data name="torque" xml:space="preserve">
     <value>TORQUE</value>
   </data>
-  <data name="torque / target" xml:space="preserve">
-    <value>TORQUE / TARGET</value>
-  </data>
   <data name="tower lamp green" xml:space="preserve">
     <value>Tower Lamp Green</value>
   </data>
@@ -2392,9 +2367,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="turns ng" xml:space="preserve">
     <value>TURNS NG</value>
-  </data>
-  <data name="turns ok" xml:space="preserve">
-    <value>TURNS OK</value>
   </data>
   <data name="unit" xml:space="preserve">
     <value>UNIT</value>
@@ -2609,9 +2581,6 @@ Speed   Configured axis speed</value>
     <value>{0}
 
 {1}</value>
-  </data>
-  <data name="{0}  torque {1:f2}" xml:space="preserve">
-    <value>{0}  Torque {1:F2}</value>
   </data>
   <data name="{0} fastening · {1}" xml:space="preserve">
     <value>{0} Fastening {1}</value>
@@ -3087,9 +3056,6 @@ Speed   Configured axis speed</value>
   <data name="total" xml:space="preserve">
     <value>Total</value>
   </data>
-  <data name="fastening method" xml:space="preserve">
-    <value>Method</value>
-  </data>
   <data name="this image belongs to an earlier pcb record." xml:space="preserve">
     <value>Image belongs to a previous PCB record</value>
   </data>
@@ -3169,9 +3135,6 @@ COMPLETE: finish</value>
   </data>
   <data name="final tightening" xml:space="preserve">
     <value>Final tightening</value>
-  </data>
-  <data name="pre-tightening preset" xml:space="preserve">
-    <value>Pre-tightening preset</value>
   </data>
   <data name="final tightening preset" xml:space="preserve">
     <value>Final tightening preset</value>
@@ -3335,9 +3298,6 @@ COMPLETE: finish</value>
   <data name="no matching pcb records" xml:space="preserve">
     <value>No matching records</value>
   </data>
-  <data name="select a pcb" xml:space="preserve">
-    <value>Select a PCB</value>
-  </data>
   <data name="load recipe '{0}' to reinspect." xml:space="preserve">
     <value>Reinspection requires recipe '{0}'</value>
   </data>
@@ -3349,9 +3309,6 @@ COMPLETE: finish</value>
   </data>
   <data name="inspection result" xml:space="preserve">
     <value>Result</value>
-  </data>
-  <data name="load more" xml:space="preserve">
-    <value>Load more</value>
   </data>
   <data name="data matrix threshold minimum must not exceed maximum." xml:space="preserve">
     <value>Data Matrix threshold minimum must not exceed maximum</value>
@@ -3379,12 +3336,6 @@ COMPLETE: finish</value>
   </data>
   <data name="head order" xml:space="preserve">
     <value>Head order</value>
-  </data>
-  <data name="shooting → pickup" xml:space="preserve">
-    <value>Shooting → Pickup</value>
-  </data>
-  <data name="pickup → shooting" xml:space="preserve">
-    <value>Pickup → Shooting</value>
   </data>
   <data name="final tightening position is not ready." xml:space="preserve">
     <value>Final tightening position is not ready</value>
@@ -3511,7 +3462,6 @@ Supply: PCB 1, travel Z</value>
   <data name="final tightening before retightening" xml:space="preserve"><value>Final tightening before retightening</value></data>
   <data name="retightening" xml:space="preserve"><value>Retightening</value></data>
   <data name="retightening pending" xml:space="preserve"><value>Retightening pending</value></data>
-  <data name="pre 1 → pre 2 → final 2 → final 1 → retighten 1 · per pcb" xml:space="preserve"><value>Per PCB: Pre 1→2 Final 2→1 Retighten 1</value></data>
   <data name="exclude data matrix from ng" xml:space="preserve"><value>Exclude Data Matrix NG</value></data>
   <data name="excluded from ng" xml:space="preserve"><value>Excluded from NG</value></data>
   <data name="recognized" xml:space="preserve"><value>Recognized</value></data>

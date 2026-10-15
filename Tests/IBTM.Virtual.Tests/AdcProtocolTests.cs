@@ -10,7 +10,6 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.UI;
-using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

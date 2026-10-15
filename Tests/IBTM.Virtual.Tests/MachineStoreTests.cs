@@ -13,7 +13,6 @@ using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.Storage;
-using IBTM.Virtual;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;

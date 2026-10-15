@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Core;
 using IBTM.Device;
 using IBTM.NgConveyor;
-using IBTM.Virtual;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
-using IBTM.Core;
 using IBTM.Device;
 using Microsoft.Extensions.Logging;
 

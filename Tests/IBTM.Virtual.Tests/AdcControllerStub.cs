@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Virtual;
 
 namespace IBTM.Virtual.Tests;
 

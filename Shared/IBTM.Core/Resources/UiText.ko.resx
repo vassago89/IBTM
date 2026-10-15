@@ -54,9 +54,6 @@
   <data name="active connection: " xml:space="preserve">
     <value>연결 포트: </value>
   </data>
-  <data name="actual / min / max" xml:space="preserve">
-    <value>측정 / 최소 / 최대</value>
-  </data>
   <data name="adc communication log" xml:space="preserve">
     <value>ADC 통신 로그</value>
   </data>
@@ -278,9 +275,6 @@
   </data>
   <data name="bolt · ?" xml:space="preserve">
     <value>볼트 ?</value>
-  </data>
-  <data name="bolts &amp; feeders" xml:space="preserve">
-    <value>볼트 피더</value>
   </data>
   <data name="bright {0:p2} · required ≥ {1:p2}" xml:space="preserve">
     <value>밝은 영역 {0:P2} 최소 {1:P2}</value>
@@ -683,12 +677,6 @@
   <data name="fasten" xml:space="preserve">
     <value>체결</value>
   </data>
-  <data name="fasten ng" xml:space="preserve">
-    <value>체결 NG</value>
-  </data>
-  <data name="fasten ok" xml:space="preserve">
-    <value>체결 OK</value>
-  </data>
   <data name="fastening" xml:space="preserve">
     <value>체결</value>
   </data>
@@ -986,9 +974,6 @@
   <data name="last result: {0}  event {1}&#10;" xml:space="preserve">
     <value>최근 결과: {0}  이벤트 {1}
 </value>
-  </data>
-  <data name="latest fastening" xml:space="preserve">
-    <value>최근 체결</value>
   </data>
   <data name="lift lowered" xml:space="preserve">
     <value>리프트 하강</value>
@@ -1295,9 +1280,6 @@
   </data>
   <data name="no fastening results recorded" xml:space="preserve">
     <value>결과 없음</value>
-  </data>
-  <data name="no measurement" xml:space="preserve">
-    <value>측정값 없음</value>
   </data>
   <data name="no pcb" xml:space="preserve">
     <value>PCB 없음</value>
@@ -1706,10 +1688,6 @@
   </data>
   <data name="preset changed" xml:space="preserve">
     <value>프리셋 변경</value>
-  </data>
-  <data name="preset {0}  torque {1:f2} / {2:f2}&#10;" xml:space="preserve">
-    <value>프리셋 {0}  토크 {1:F2} / {2:F2}
-</value>
   </data>
   <data name="press reset to restore servo power" xml:space="preserve">
     <value>서보 복구: 리셋</value>
@@ -2354,9 +2332,6 @@
   <data name="torque" xml:space="preserve">
     <value>토크</value>
   </data>
-  <data name="torque / target" xml:space="preserve">
-    <value>토크 / 목표</value>
-  </data>
   <data name="tower lamp green" xml:space="preserve">
     <value>타워 램프 녹색</value>
   </data>
@@ -2392,9 +2367,6 @@
   </data>
   <data name="turns ng" xml:space="preserve">
     <value>회전수 NG</value>
-  </data>
-  <data name="turns ok" xml:space="preserve">
-    <value>회전수 OK</value>
   </data>
   <data name="unit" xml:space="preserve">
     <value>유닛</value>
@@ -2609,9 +2581,6 @@
     <value>{0}
 
 {1}</value>
-  </data>
-  <data name="{0}  torque {1:f2}" xml:space="preserve">
-    <value>{0}  토크 {1:F2}</value>
   </data>
   <data name="{0} fastening · {1}" xml:space="preserve">
     <value>{0} 체결 {1}</value>
@@ -3087,9 +3056,6 @@
   <data name="total" xml:space="preserve">
     <value>합계</value>
   </data>
-  <data name="fastening method" xml:space="preserve">
-    <value>방식</value>
-  </data>
   <data name="this image belongs to an earlier pcb record." xml:space="preserve">
     <value>이전 PCB 기록의 이미지</value>
   </data>
@@ -3167,9 +3133,6 @@
   </data>
   <data name="final tightening" xml:space="preserve">
     <value>본체결</value>
-  </data>
-  <data name="pre-tightening preset" xml:space="preserve">
-    <value>가체결 프리셋</value>
   </data>
   <data name="final tightening preset" xml:space="preserve">
     <value>본체결 프리셋</value>
@@ -3333,9 +3296,6 @@
   <data name="no matching pcb records" xml:space="preserve">
     <value>검색 결과 없음</value>
   </data>
-  <data name="select a pcb" xml:space="preserve">
-    <value>PCB 선택</value>
-  </data>
   <data name="load recipe '{0}' to reinspect." xml:space="preserve">
     <value>재검사: 레시피 '{0}' 필요</value>
   </data>
@@ -3347,9 +3307,6 @@
   </data>
   <data name="inspection result" xml:space="preserve">
     <value>판정</value>
-  </data>
-  <data name="load more" xml:space="preserve">
-    <value>더 보기</value>
   </data>
   <data name="data matrix threshold minimum must not exceed maximum." xml:space="preserve">
     <value>최소 임계값은 최대 이하로 입력</value>
@@ -3377,12 +3334,6 @@
   </data>
   <data name="head order" xml:space="preserve">
     <value>체결 순서</value>
-  </data>
-  <data name="shooting → pickup" xml:space="preserve">
-    <value>슈팅 → 픽업</value>
-  </data>
-  <data name="pickup → shooting" xml:space="preserve">
-    <value>픽업 → 슈팅</value>
   </data>
   <data name="final tightening position is not ready." xml:space="preserve">
     <value>본체결 위치 헤드 테이블 확인</value>
@@ -3509,7 +3460,6 @@
   <data name="final tightening before retightening" xml:space="preserve"><value>본체결 추가 체결 전</value></data>
   <data name="retightening" xml:space="preserve"><value>추가 체결</value></data>
   <data name="retightening pending" xml:space="preserve"><value>추가 체결 대기</value></data>
-  <data name="pre 1 → pre 2 → final 2 → final 1 → retighten 1 · per pcb" xml:space="preserve"><value>PCB별 가체결 1→2 본체결 2→1 추가 체결 1</value></data>
   <data name="exclude data matrix from ng" xml:space="preserve"><value>데이터 매트릭스 NG 제외</value></data>
   <data name="excluded from ng" xml:space="preserve"><value>NG 판정 제외</value></data>
   <data name="recognized" xml:space="preserve"><value>인식</value></data>

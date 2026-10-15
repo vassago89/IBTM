@@ -7,7 +7,6 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
-using IBTM.Device;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;

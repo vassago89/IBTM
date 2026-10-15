@@ -15,7 +15,6 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.Storage;
 using IBTM.UI;
-using IBTM.Virtual;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;

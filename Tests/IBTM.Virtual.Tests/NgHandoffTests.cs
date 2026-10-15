@@ -7,7 +7,6 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.Storage;
-using IBTM.Virtual;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTestSupport;
 

@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
-using IBTM.Core;
 using Microsoft.Extensions.Logging;
 using Shared;
 

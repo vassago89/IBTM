@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Ajin;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Tests;

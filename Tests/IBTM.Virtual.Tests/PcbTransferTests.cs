@@ -2,13 +2,11 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
-using IBTM.Virtual;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTestSupport;
 

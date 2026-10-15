@@ -43,7 +43,7 @@ public sealed class AxisDiagnostics : INotifyPropertyChanged
     {
         AxisState? state = null;
         double? position = null;
-        Exception? error = null;
+        Exception? error;
         try
         {
             (state, error) = feedback.ReadDiagnosticState(axis);

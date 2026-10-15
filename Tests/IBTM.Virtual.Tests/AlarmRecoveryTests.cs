@@ -12,7 +12,6 @@ using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.Storage;
 using IBTM.UI;
-using IBTM.Virtual;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

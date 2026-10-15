@@ -17,7 +17,6 @@ using IBTM.PcbSupply;
 using IBTM.Storage;
 using IBTM.UI;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;

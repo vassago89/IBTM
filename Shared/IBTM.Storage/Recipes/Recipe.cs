@@ -6,7 +6,6 @@ using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
-using IBTM.Storage;
 
 namespace IBTM;
 

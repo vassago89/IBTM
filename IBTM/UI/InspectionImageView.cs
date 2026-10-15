@@ -4,7 +4,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using IBTM.Core;
-using IBTM.Inspection;
 
 namespace IBTM.UI;
 

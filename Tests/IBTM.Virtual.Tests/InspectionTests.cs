@@ -9,7 +9,6 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.Storage;
-using IBTM.Virtual;
 using Microsoft.Data.Sqlite;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTestSupport;

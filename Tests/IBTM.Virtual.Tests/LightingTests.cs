@@ -11,7 +11,6 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.Storage;
 using IBTM.UI;
-using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

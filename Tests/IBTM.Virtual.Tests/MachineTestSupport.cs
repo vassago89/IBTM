@@ -7,7 +7,6 @@ using System.Threading;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Hantas;
 using IBTM.Inspection;
 using IBTM.Storage;
 using IBTM.UI;
