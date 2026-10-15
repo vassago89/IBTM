@@ -3446,7 +3446,7 @@
   <data name="sdk completion wait (s)" xml:space="preserve"><value>통신 요청 제한 시간 (s)</value></data>
   <data name="torque curve result wait (s)" xml:space="preserve"><value>그래프 수신 대기 (s)</value></data>
   <data name="torque curve stop wait (s)" xml:space="preserve"><value>그래프 종료 대기 (s)</value></data>
-  <data name="total readiness query timeout = entered value × read attempts" xml:space="preserve"><value>실제 제한시간 = 입력값 × 읽기 시도 횟수</value></data>
+  <data name="total readiness query timeout = entered value × read attempts + status poll interval" xml:space="preserve"><value>실제 제한시간 = 입력값 × 읽기 시도 횟수</value></data>
   <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>SDK 시간 초과 시 연결 종료 통신 응답 제한 1초 고정</value></data>
   <data name="final tightening before retightening" xml:space="preserve"><value>본체결 추가 체결 전</value></data>
   <data name="retightening" xml:space="preserve"><value>추가 체결</value></data>
@@ -3586,4 +3586,6 @@
   <data name="shooting ipm preliminary" xml:space="preserve"><value>슈팅 IPM 가체결</value></data>
   <data name="pickup ipm final" xml:space="preserve"><value>픽업 IPM 본체결</value></data>
   <data name="shooting pcb final" xml:space="preserve"><value>슈팅 PCB 본체결</value></data>
+  <data name="status poll interval (s)" xml:space="preserve"><value>상태 조회 주기 (s)</value></data>
+  <data name="status poll interval must be greater than 0 s." xml:space="preserve"><value>상태 조회 주기는 0초보다 커야 함</value></data>
 </root>

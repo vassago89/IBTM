@@ -184,6 +184,8 @@ public partial class SettingsViewModel : ObservableObject
                     validationError = UiText.Get("Fastening timeout must be greater than 0 s.");
                 else if (Settings.Hantas.ResponseTimeoutMilliseconds <= 0)
                     validationError = UiText.Get("ADC readiness query timeout base must be greater than 0 s.");
+                else if (Settings.Hantas.StatusPollMilliseconds <= 0)
+                    validationError = UiText.Get("Status poll interval must be greater than 0 s.");
                 else if (Settings.Hantas.PickupSlaveAddress > 15 || Settings.Hantas.ShootingSlaveAddress > 15)
                     validationError = UiText.Get("Slave must be 0–15.");
                 else if (Settings.Hantas.PresetSettleMilliseconds < 0)
