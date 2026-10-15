@@ -28,7 +28,7 @@ public sealed class BoltFasteningTests
     [InlineData(true, false)]
     [InlineData(false, false)]
     [InlineData(false, true)]
-    public async Task ShootingFinalRequiresVacuumBeforeLoweringAndStarting(bool vacuumDetected, bool dryRun)
+    public async Task ShootingFinalChecksVacuumAfterLoweringBeforeStarting(bool vacuumDetected, bool dryRun)
     {
         var settings = new BoltFasteningSettings
         {
@@ -66,15 +66,24 @@ public sealed class BoltFasteningTests
             {
                 io.SetInput(InputIo.ShootingTubeBoltDetected, true);
                 io.SetInput(InputIo.ShootingTubeBoltDetected, false);
-                io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
-                io.SetInput(InputIo.ShootingHeadVacuumDetected, vacuumDetected);
+                io.SetInput(InputIo.ShootingHeadVacuumDetected, false);
             }
             if (output == OutputIo.ShootingHeadDown && on)
             {
                 headLowered = true;
-                Assert.True(dryRun || io.GetInput(InputIo.ShootingHeadVacuumDetected));
+                Assert.False(io.GetInput(InputIo.ShootingHeadVacuumDetected));
                 Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
             }
+            if (output == OutputIo.ShootingBoltStart && on)
+            {
+                Assert.True(io.GetInput(InputIo.ShootingHeadDown));
+                Assert.True(dryRun || io.GetInput(InputIo.ShootingHeadVacuumDetected));
+            }
+        };
+        io.InputChanged += (input, on) =>
+        {
+            if (input == InputIo.ShootingHeadDown && on && !dryRun)
+                io.SetInput(InputIo.ShootingHeadVacuumDetected, vacuumDetected);
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var run = station.RunAsync(stop.Token, selectedBolts: [bolt.Id]);
@@ -82,7 +91,7 @@ public sealed class BoltFasteningTests
         {
             var error = await Assert.ThrowsAsync<IoTimeoutException>(() => run);
             Assert.Equal(InputIo.ShootingHeadVacuumDetected, error.Input);
-            Assert.False(headLowered);
+            Assert.True(headLowered);
             Assert.Equal(0, shootingBus.StartWrites);
             Assert.Empty(work.GetAssembly(bolt.HeatSink).ShootingBoltResults);
             Assert.False(work.Completed);
@@ -2751,7 +2760,7 @@ public sealed class BoltFasteningTests
         var started = false;
         bus.Monitor.Sampled += sample =>
         {
-            if (sample.Status is { Ready: true })
+            if (readyAt == 0 && sample.Status is { Ready: true })
                 readyAt = Stopwatch.GetTimestamp();
         };
         io.InputChanged += (input, on) =>

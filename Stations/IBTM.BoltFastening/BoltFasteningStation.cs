@@ -796,11 +796,11 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 CheckFasteningFeedback();
+                                if (!continuingFinal && !isPreliminary)
+                                    await SetHeadDownAsync(toolHead, true, fastening.Token);
                                 if (bolt.Head == FasteningHead.Shooting && feeding)
                                     await Io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected,
                                         true, fastening.Token, requireCurrent: true);
-                                if (!continuingFinal && !isPreliminary)
-                                    await SetHeadDownAsync(toolHead, true, fastening.Token);
                                 var startDelayMilliseconds = bolt.Head == FasteningHead.Shooting
                                     ? _settings.ShootingPcbStartDelayMilliseconds
                                     : isPreliminary ? _settings.ShootingIpmStartDelayMilliseconds
