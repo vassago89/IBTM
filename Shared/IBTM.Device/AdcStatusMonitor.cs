@@ -157,7 +157,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         bool enabled, CancellationToken cancellationToken,
         AdcTorqueCurveSampling sampling = AdcTorqueCurveSampling.Milliseconds30)
     {
-        // ADC has no graph-disable request. Local cleanup must also work after polling stops.
+        // Disabling capture only clears local state, including after communication stops.
         if (!enabled)
         {
             lock (_stateGate)
