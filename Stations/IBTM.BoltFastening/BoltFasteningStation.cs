@@ -796,6 +796,9 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 CheckFasteningFeedback();
+                                if (bolt.Head == FasteningHead.Shooting && feeding)
+                                    await Io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected,
+                                        true, fastening.Token, requireCurrent: true);
                                 if (!continuingFinal && !isPreliminary)
                                     await SetHeadDownAsync(toolHead, true, fastening.Token);
                                 var dryRunMilliseconds = !_units.IsBoltFeederEnabled(bolt.Head)
