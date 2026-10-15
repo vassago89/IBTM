@@ -79,10 +79,10 @@ internal static class VirtualTestSupport
 
     public static BoltFasteningStation CreateFastening(
         IBoltHead shooting, IBoltHead pickup, IIoService io, IXyMotion motion,
-        BoltFasteningSettings settings, CarrierReferenceSettings reference)
+        BoltFasteningSettings settings)
     {
         var units = new UnitSettings();
-        return new(shooting, pickup, io, motion, new(motion), settings, reference,
+        return new(shooting, pickup, io, motion, new(motion), settings,
             ConveyorStation.CreateBoltFastening(io),
             new(OpenMachineStore(), new()), units, new(io, new(), units));
     }

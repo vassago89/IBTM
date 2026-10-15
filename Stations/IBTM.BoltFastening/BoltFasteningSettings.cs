@@ -192,22 +192,31 @@ public sealed class BoltFasteningSettings : Setting
 
     public void InitializeBoltPosition(BoltPoint bolt, CarrierReferenceSettings reference)
     {
-        if (bolt.FasteningX is not null || bolt.FasteningY is not null
-            || bolt is not { X: { } x, Y: { } y }
-            || !double.IsFinite(x) || !double.IsFinite(y))
+        if (bolt.InspectionPosition is not { } inspectionPosition || !reference.IsDefined)
             return;
         var head = GetHead(bolt.Head);
-        if (!reference.IsDefined
-            || !CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin))
-            return;
-        var position = CarrierCoordinates.ToMachine(
-            new AxisPosition { X = x, Y = y },
-            reference.UpperLeftLocatingPin!,
-            reference.LowerRightLocatingPin!,
-            head.UpperLeftLocatingPin!,
-            head.LowerRightLocatingPin!);
-        bolt.FasteningX = position.X;
-        bolt.FasteningY = position.Y;
+        if (bolt.FasteningX is null && bolt.FasteningY is null
+            && CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin))
+        {
+            var position = CarrierCoordinates.ToMachine(
+                inspectionPosition,
+                reference.UpperLeftLocatingPin!,
+                reference.LowerRightLocatingPin!,
+                head.UpperLeftLocatingPin!,
+                head.LowerRightLocatingPin!);
+            bolt.FasteningX = position.X;
+            bolt.FasteningY = position.Y;
+        }
+        if (bolt.Head == FasteningHead.Pickup && bolt.PreliminaryFasteningPosition is null
+            && CarrierCoordinates.IsDefined(ShootingHead.UpperLeftLocatingPin, ShootingHead.LowerRightLocatingPin))
+        {
+            bolt.PreliminaryFasteningPosition = CarrierCoordinates.ToMachine(
+                inspectionPosition,
+                reference.UpperLeftLocatingPin!,
+                reference.LowerRightLocatingPin!,
+                ShootingHead.UpperLeftLocatingPin!,
+                ShootingHead.LowerRightLocatingPin!);
+        }
     }
 
     public AxisPosition GetBoltPosition(BoltPoint bolt, bool preliminary = false)

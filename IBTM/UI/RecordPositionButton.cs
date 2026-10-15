@@ -14,14 +14,14 @@ public sealed class RecordPositionButton : Button
 
         var replacement = point.Position.Mode switch
         {
-            TeachMode.Image => UiText.Get("Replace the recorded X/Y, reference image and light level with the current values."),
+            TeachMode.Image => UiText.Get("Update Image + Light"),
             TeachMode.XYOnly => UiText.Get("Replace the recorded X/Y with the current coordinates."),
             TeachMode.ZOnly => UiText.Get("Replace the recorded Z with the current coordinate."),
             _ => UiText.Get("Replace the recorded X/Y/Z with the current coordinates."),
         };
         var confirmed = WarningDialog.Confirm(
             Window.GetWindow(this),
-            point.Position.Mode == TeachMode.Image ? UiText.Get("Save position and image?") : UiText.Get("Record current position?"),
+            point.Position.Mode == TeachMode.Image ? UiText.Get("Update Image + Light") : UiText.Get("Record current position?"),
             replacement,
             UiText.Format($"Unit      {UiText.Get(teaching.SelectedTeachingUnit)}\nPoint     {point.Name}\nRecorded (mm)  {point.PositionLabel}"),
             Content?.ToString() ?? UiText.Get("Record Position"));

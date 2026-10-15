@@ -194,7 +194,7 @@ public partial class TeachingViewModel : ObservableObject
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync);
         GrabCommand = new AsyncRelayCommand(GrabAsync);
         ApplyLightCommand = new AsyncRelayCommand(ApplyLightAsync);
-        AddBoltPointCommand = new RelayCommand(AddBoltPoint);
+        AddBoltPointCommand = new AsyncRelayCommand(AddBoltPointAsync);
         RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint);
         MoveFasteningEarlierCommand = new RelayCommand(MoveFasteningEarlier);
         MoveFasteningLaterCommand = new RelayCommand(MoveFasteningLater);
@@ -204,6 +204,7 @@ public partial class TeachingViewModel : ObservableObject
         _commands = [
             ToggleLiveViewCommand,
             GrabCommand,
+            AddBoltPointCommand,
             ApplyLightCommand,
             JogCommand,
             HomeCommand,
@@ -246,6 +247,7 @@ public partial class TeachingViewModel : ObservableObject
             return;
         OnPropertyChanged(nameof(IsTeachCurrentPositionAllowed));
         OnPropertyChanged(nameof(IsGrabAllowed));
+        OnPropertyChanged(nameof(IsAddBoltPointAllowed));
     }
 
     [ObservableProperty]
@@ -525,11 +527,12 @@ public partial class TeachingViewModel : ObservableObject
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
         CancelTeaching();
-        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
-            _ = RequestCameraStopAsync();
-        LiveLightLevel = (SelectedBarcode is { } pcb
-            ? Recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel : newValue?.Position.Bolt?.LightLevel)
-            ?? Recipes.Current.BoltInspection.LightLevel;
+        if (!Inspection.IsLiveView)
+        {
+            LiveLightLevel = (SelectedBarcode is { } pcb
+                ? Recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel : newValue?.Position.Bolt?.LightLevel)
+                ?? Recipes.Current.BoltInspection.LightLevel;
+        }
         OnPropertyChanged(nameof(CameraImage));
         OnPropertyChanged(nameof(CameraError));
         RefreshManualControls();
@@ -699,9 +702,9 @@ public partial class TeachingViewModel : ObservableObject
         ShowRecipeImages();
     }
 
-    public IRelayCommand AddBoltPointCommand { get; }
+    public IAsyncRelayCommand AddBoltPointCommand { get; }
 
-    private void AddBoltPoint()
+    private async Task AddBoltPointAsync(CancellationToken cancellationToken)
     {
         if (!IsAddBoltPointAllowed)
             return;
@@ -712,14 +715,24 @@ public partial class TeachingViewModel : ObservableObject
             BrightnessThreshold = Recipes.Current.BoltInspection.BrightnessThreshold,
             MinimumBrightRatio = Recipes.Current.BoltInspection.MinimumBrightRatio,
         };
-        Recipes.Current.Pcb.BoltPoints.Add(bolt);
+        var layout = Recipes.Current.Pcb;
+        layout.BoltPoints.Add(bolt);
         RefreshTeachingPoints();
         SelectedPoint = FilteredPoints.First(
             point => point.Position.Target == TeachingTarget.BoltReference
                 && ReferenceEquals(point.Position.Bolt, bolt));
+        if (!await CaptureTeachingImageAsync(recordPosition: true, cancellationToken))
+        {
+            layout.BoltPoints.Remove(bolt);
+            RefreshTeachingPoints();
+        }
     }
 
-    public bool IsAddBoltPointAllowed => State.SetupEditingEnabled && IsInspectionSelected;
+    public bool IsAddBoltPointAllowed => State.SetupEditingEnabled && IsInspectionSelected
+        && !State.IsRunning
+        && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
+        && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
+        && RecipeEditor.IsSaveAllowed;
 
     public IRelayCommand RemoveBoltPointCommand { get; }
 
@@ -757,7 +770,8 @@ public partial class TeachingViewModel : ObservableObject
         if (SelectedPoint?.Position.Mode == TeachMode.Image)
         {
             if (IsRecordImagePositionAllowed)
-                await CaptureTeachingImageAsync(recordPosition: true, cancellationToken);
+                await CaptureTeachingImageAsync(
+                    recordPosition: IsDataMatrixSelected && SelectedPoint.Inspection?.Position is null, cancellationToken);
             return;
         }
         var viewToken = _viewCancellation.Token;
@@ -1538,22 +1552,23 @@ public partial class TeachingViewModel : ObservableObject
         {
             return Inspection.IsLiveView
                 || IsInspectionSelected && State.ManualMode
-                    && !TeachCurrentPositionCommand.IsRunning && !GrabCommand.IsRunning;
+                    && !TeachCurrentPositionCommand.IsRunning && !GrabCommand.IsRunning && !AddBoltPointCommand.IsRunning;
         }
     }
 
-    private async Task CaptureTeachingImageAsync(bool recordPosition, CancellationToken cancellationToken)
+    private async Task<bool> CaptureTeachingImageAsync(bool recordPosition, CancellationToken cancellationToken)
     {
         var point = SelectedPoint;
         var bolt = point?.Position.Bolt;
         var barcode = SelectedBarcode is not null;
         if (bolt is null && !barcode)
-            return;
+            return false;
         var pcb = SelectedPcb;
         var lightLevel = LiveLightLevel;
         var commandGroup = ActiveMotionGroup;
         var viewToken = _viewCancellation.Token;
         var activeToken = cancellationToken;
+        var saved = false;
         _logger.LogInformation(
             "Teaching capture requested: recipe={Recipe}, PCB={Pcb}, point={Point}, recordPosition={RecordPosition}, live={Live}.",
             RecipeEditor.Name, pcb, point!.Name, recordPosition, Inspection.IsLiveView);
@@ -1567,13 +1582,13 @@ public partial class TeachingViewModel : ObservableObject
             if (operation is null)
             {
                 CameraError = UiText.Get("Recording was not started because another operation is active. Try again after it finishes.");
-                return;
+                return false;
             }
             activeToken = operation.Token;
             if (State.IsRunningFor(includeOperations: false))
             {
                 CameraError = UiText.Get("Recording was not started because the machine is busy. Wait for motion to stop, then record again.");
-                return;
+                return false;
             }
             operation.Token.ThrowIfCancellationRequested();
             await _recipeImageUpdate;
@@ -1581,12 +1596,12 @@ public partial class TeachingViewModel : ObservableObject
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
             {
                 CameraError = UiText.Get("Wait for the saved teaching images to load before capturing.");
-                return;
+                return false;
             }
             if (point.Inspection!.ImageCount > 1)
             {
                 CameraError = UiText.Get("Multiple reference images are linked to this point. Resolve the duplicate before capturing.");
-                return;
+                return false;
             }
             await _cameraStop;
             operation.Token.ThrowIfCancellationRequested();
@@ -1601,8 +1616,8 @@ public partial class TeachingViewModel : ObservableObject
             var previous = index >= 0 ? images[index].Metadata : null;
             if (!recordPosition && previous is null)
             {
-                CameraError = UiText.Get("No reference image. Use Move to Selected Point, then Save X/Y + Image.");
-                return;
+                CameraError = UiText.Get("No reference image");
+                return false;
             }
             var metadata = new CarrierImageTile
             {
@@ -1620,10 +1635,6 @@ public partial class TeachingViewModel : ObservableObject
             else
                 images.Add(replacement);
 
-            var previousX = bolt?.X;
-            var previousY = bolt?.Y;
-            var previousFasteningX = bolt?.FasteningX;
-            var previousFasteningY = bolt?.FasteningY;
             var dataMatrix = barcode ? Recipes.Current.BoltInspection.GetDataMatrix(pcb) : null;
             var previousLight = dataMatrix is not null ? dataMatrix.LightLevel : bolt!.LightLevel;
             if (dataMatrix is not null)
@@ -1639,6 +1650,7 @@ public partial class TeachingViewModel : ObservableObject
             }
             if (await RecipeEditor.SaveAsync(images, operation.Token))
             {
+                saved = true;
                 CarrierImages = images;
                 RefreshPointPositions();
                 var position = Recipes.Current.GetInspectionPosition(metadata);
@@ -1653,13 +1665,6 @@ public partial class TeachingViewModel : ObservableObject
                     dataMatrix.LightLevel = previousLight;
                 else
                     bolt!.LightLevel = previousLight;
-                if (recordPosition && bolt is not null)
-                {
-                    bolt.X = previousX;
-                    bolt.Y = previousY;
-                    bolt.FasteningX = previousFasteningX;
-                    bolt.FasteningY = previousFasteningY;
-                }
                 CameraError = RecipeEditor.Error ?? UiText.Get("Recording cancelled; point not saved. Record again.");
                 _logger.LogInformation("Teaching image was not saved: PCB={Pcb}, point={Point}, reason={Reason}.",
                     pcb, point.Name, CameraError);
@@ -1683,18 +1688,14 @@ public partial class TeachingViewModel : ObservableObject
             if (!activeToken.IsCancellationRequested)
                 CameraError = exception.Message;
         }
+        return saved;
     }
 
     private bool IsRecordImagePositionAllowed
     {
         get
         {
-            return IsInspectionSelected
-                && (SelectedPoint?.Position.Bolt is not null || IsDataMatrixSelected)
-                && !State.IsRunning
-                && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
-                && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
-                && RecipeEditor.IsSaveAllowed;
+            return IsAddBoltPointAllowed && (SelectedPoint?.Position.Bolt is not null || IsDataMatrixSelected);
         }
     }
 

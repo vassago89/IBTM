@@ -194,7 +194,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         }
         catch (Exception exception)
         {
-            await StopAfterFailureAsync(axes, exception).ConfigureAwait(false);
+            await StopAndWaitAsync(axes, exception).ConfigureAwait(false);
             throw;
         }
         finally
@@ -233,7 +233,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         }
         catch (Exception exception)
         {
-            await StopAfterFailureAsync([axisNumber], exception).ConfigureAwait(false);
+            await StopAndWaitAsync([axisNumber], exception).ConfigureAwait(false);
             throw;
         }
         finally
@@ -431,7 +431,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         }
         catch (Exception exception)
         {
-            await StopAfterFailureAsync(axisNumbers, exception).ConfigureAwait(false);
+            await StopAndWaitAsync(axisNumbers, exception).ConfigureAwait(false);
             throw;
         }
         finally
@@ -523,7 +523,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         }
         catch (Exception exception)
         {
-            await StopAfterFailureAsync([axisNumber], exception).ConfigureAwait(false);
+            await StopAndWaitAsync([axisNumber], exception).ConfigureAwait(false);
             throw;
         }
         finally
@@ -548,9 +548,11 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         }
     }
 
-    private async Task StopAfterFailureAsync(int[] axes, Exception failure)
+    private async Task StopAndWaitAsync(int[] axes, Exception cause)
     {
-        List<Exception> failures = [failure];
+        // Cancellation and motion errors both require STOP and hardware acknowledgement.
+        List<Exception> failures = [cause];
+        var requestedAt = Stopwatch.GetTimestamp();
         try
         {
             StopAxes(axes);
@@ -560,15 +562,25 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
             failures.Add(exception);
         }
 
+        var returnedAt = Stopwatch.GetTimestamp();
+        var stopConfirmed = false;
         try
         {
             await WaitForStopAsync(axes).ConfigureAwait(false);
+            stopConfirmed = true;
         }
         catch (Exception exception)
         {
             failures.Add(exception);
         }
 
+        var confirmedAt = Stopwatch.GetTimestamp();
+        _log?.LogInformation(
+            "AJIN axes {Axes}: stop timing; reason={Reason}; stop call={CommandElapsed:F1} ms; "
+                + "feedback wait={FeedbackElapsed:F1} ms; stop confirmed={Confirmed}.",
+            string.Join(",", axes), cause is OperationCanceledException ? "cancellation" : cause.GetType().Name,
+            Stopwatch.GetElapsedTime(requestedAt, returnedAt).TotalMilliseconds,
+            Stopwatch.GetElapsedTime(returnedAt, confirmedAt).TotalMilliseconds, stopConfirmed);
         if (failures.Count > 1)
             throw new MotionException("Stop motion", new AggregateException(failures));
     }

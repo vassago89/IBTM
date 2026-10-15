@@ -830,7 +830,7 @@ public sealed class AdcBoltHeadTests
         bool? startDuringSummary = null;
         ((INotifyCollectionChanged)log.Entries).CollectionChanged += (sender, args) =>
         {
-            if (log.Entries[^1].Message.Contains("completion status timing"))
+            if (log.Entries[^1].Message.Contains("completion observed"))
                 startDuringSummary = io.GetOutput(OutputIo.PickupBoltStart);
         };
         await head.SelectPresetAsync(1);
@@ -872,7 +872,7 @@ public sealed class AdcBoltHeadTests
             Assert.Equal(1, bus.StopWrites);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
             Assert.False(startDuringSummary);
-            Assert.Contains(log.Snapshot(), entry => entry.Message.Contains("completion status timing")
+            Assert.Contains(log.Snapshot(), entry => entry.Message.Contains("completion observed")
                 && entry.Message.Contains($"rejected={rejectionCount}"));
             Assert.Contains(log.Snapshot(), entry => entry.Message.Contains("cycle timing")
                 && entry.Message.Contains("controller fastening=250 ms"));

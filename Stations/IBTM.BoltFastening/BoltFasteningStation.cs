@@ -18,7 +18,6 @@ public sealed class BoltFasteningStation : AutoUnit
     private readonly BoltFeederUnit _feeder;
     private readonly IXyMotion _motion;
     private readonly BoltFasteningSettings _settings;
-    private readonly CarrierReferenceSettings _carrierReference;
     private readonly RecipeManager _recipes;
     private readonly UnitSettings _units;
     private readonly ILogger<BoltFasteningStation>? _log;
@@ -39,7 +38,6 @@ public sealed class BoltFasteningStation : AutoUnit
         [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion motion,
         [FromKeyedServices(MotionGroup.BoltFastening)] MotionStatus motionStatus,
         BoltFasteningSettings settings,
-        CarrierReferenceSettings carrierReference,
         [FromKeyedServices(MotionGroup.BoltFastening)] ConveyorStation station,
         RecipeManager recipes,
         UnitSettings units,
@@ -64,14 +62,11 @@ public sealed class BoltFasteningStation : AutoUnit
         _feeder = feeder;
         _motion = motion;
         _settings = settings;
-        _carrierReference = carrierReference;
         Station = station;
         _recipes = recipes;
         _units = units;
         _log = log;
         Motion = motionStatus;
-        InitializeRecipeBoltPositions();
-        recipes.Changed += InitializeRecipeBoltPositions;
         station.Changed += NotifyChanged;
     }
 
@@ -102,13 +97,6 @@ public sealed class BoltFasteningStation : AutoUnit
             }
             return true;
         }
-    }
-
-    private void InitializeRecipeBoltPositions()
-    {
-        // Older recipes have only inspection XY. Never overwrite independently taught coordinates.
-        foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
-            _settings.InitializeBoltPosition(bolt, _carrierReference);
     }
 
     public MotionStatus Motion { get; }
@@ -787,8 +775,10 @@ public sealed class BoltFasteningStation : AutoUnit
                                 var velocity = feedSeconds < rampSeconds
                                     ? 2 * feedDistance * rampSeconds / (feedSeconds * feedSeconds)
                                     : feedDistance / (feedSeconds - rampSeconds / 2);
-                                _log?.LogInformation("Bolt {Bolt}, {Head}: RUN ON; Z feed +{Distance} mm in {Seconds} s; speed={Speed} mm/s including acceleration/deceleration.",
-                                    bolt.Id, toolHead, feedDistance, feedSeconds, velocity);
+                                _log?.LogInformation(
+                                    "Bolt {Bolt}, {Head}: RUN ON; Z feed +{Distance} mm in {Seconds} s; "
+                                        + "speed={Speed} mm/s; acceleration={Acceleration} s; deceleration={Deceleration} s.",
+                                    bolt.Id, toolHead, feedDistance, feedSeconds, velocity, accelerationSeconds, decelerationSeconds);
                                 return _motion.MoveAxisAsync(MotionAxis.Z, feedStartZ.Value + feedDistance,
                                     velocity, feedToken, accelerationSeconds, decelerationSeconds);
                             }

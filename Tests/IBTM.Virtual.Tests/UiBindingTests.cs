@@ -1263,7 +1263,7 @@ public sealed class UiBindingTests
             reference.LowerRightLocatingPin = new() { X = 1, Y = 1 };
             await services.GetRequiredService<InspectionStation>().HomeHorizontalAsync();
             teaching.RecipeEditor.Name = "ThreadingScan";
-            teaching.AddBoltPointCommand.Execute(null);
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
             var firstBolt = teaching.SelectedPoint!;
             // Device failures are reported at the teaching command boundary.
             light.BeforeOn = () => throw new InvalidOperationException("Scan light ON failed.");
@@ -1313,7 +1313,8 @@ public sealed class UiBindingTests
             var firstImage = VirtualTestSupport.RecordedImage(teaching)!;
             Assert.NotNull(firstImage.Image);
             Assert.True(firstImage.Image.IsFrozen);
-            // Only Record Position replaces the selected point's image, capture XY and bolt coordinates.
+            // Re-registering an image keeps the bolt's original inspection XY.
+            var firstX = firstBolt.Position.Bolt!.X;
             var gantry = services.GetRequiredService<InspectionStation>();
             await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
@@ -1330,17 +1331,16 @@ public sealed class UiBindingTests
             var recordedImage = VirtualTestSupport.RecordedImage(teaching)!;
             Assert.NotSame(firstImage.Image, recordedImage.Image);
             Assert.Equal(firstImage.Metadata.Number, recordedImage.Metadata.Number);
-            Assert.Equal(10, firstBolt.Coordinates!.X);
+            Assert.Equal(firstX, firstBolt.Coordinates!.X);
             Assert.Equal(firstImage.Metadata.Region, recordedImage.Metadata.Region);
-            Assert.Equal(10, firstBolt.Position.Bolt!.X);
+            Assert.Equal(firstX, firstBolt.Position.Bolt!.X);
             var firstMetadata = recordedImage.Metadata;
 
             // The other heat sink and Data Matrix each own one independent image.
             teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
-            teaching.AddBoltPointCommand.Execute(null);
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
             var secondBolt = teaching.SelectedPoint!;
-            Assert.Null(VirtualTestSupport.RecordedImage(teaching));
-            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.NotNull(VirtualTestSupport.RecordedImage(teaching));
             Assert.Equal(2, teaching.CarrierImages.Count);
             Assert.NotNull(firstBolt.Position.Bolt!.InspectionPosition);
             Assert.NotNull(secondBolt.Position.Bolt!.InspectionPosition);
@@ -1356,8 +1356,7 @@ public sealed class UiBindingTests
                 Assert.True(teaching.Inspection.HasBarcodeRegion(heatSink));
             }
             Assert.Equal(4, teaching.CarrierImages.Count);
-            // Selecting another point stops Live before applying its saved light level.
-            Assert.False(teaching.Inspection.IsLiveView);
+            Assert.True(teaching.Inspection.IsLiveView);
 
             var originalName = teaching.RecipeEditor.ActiveName;
             teaching.RecipeEditor.Name = "ThreadingScanCopy";

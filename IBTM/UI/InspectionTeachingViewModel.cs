@@ -197,7 +197,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             var loaded = point.FindImage(_carrierImages);
             Error = loaded?.Error;
             if (loaded is null)
-                Message = UiText.Get("No reference image. Use Move to selected point, then Save X/Y + image.");
+                Message = UiText.Get("No reference image");
             if (loaded?.Image is { } image)
             {
                 var region = point.Metadata!.Region ?? PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight,

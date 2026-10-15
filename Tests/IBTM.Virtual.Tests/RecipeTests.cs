@@ -455,6 +455,45 @@ public sealed class RecipeTests
     }
 
     [Fact]
+    public void IpmPreliminaryCoordinatesUseShootingReferencesWithoutReplacingTaughtPositions()
+    {
+        var reference = new CarrierReferenceSettings
+        {
+            UpperLeftLocatingPin = new() { X = 100, Y = 200 },
+            LowerRightLocatingPin = new() { X = 140, Y = 200 },
+        };
+        var settings = new BoltFasteningSettings
+        {
+            ShootingHead = new()
+            {
+                UpperLeftLocatingPin = new() { X = 300, Y = 400 },
+                LowerRightLocatingPin = new() { X = 300, Y = 440 },
+            },
+        };
+        var bolt = new BoltPoint
+        {
+            Head = FasteningHead.Pickup, X = 110, Y = 220,
+            FasteningX = -30, FasteningY = 240,
+        };
+
+        settings.InitializeBoltPosition(bolt, reference);
+        Assert.NotNull(bolt.PreliminaryFasteningPosition);
+        Assert.Equal((280d, 410d), (bolt.PreliminaryFasteningPosition.X, bolt.PreliminaryFasteningPosition.Y));
+        Assert.Equal((-30d, 240d), (bolt.FasteningX, bolt.FasteningY));
+
+        bolt.PreliminaryFasteningPosition = new() { X = 281, Y = 412 };
+        bolt.X = 999;
+        settings.InitializeBoltPosition(bolt, reference);
+        Assert.Equal((281d, 412d), (bolt.PreliminaryFasteningPosition.X, bolt.PreliminaryFasteningPosition.Y));
+        Assert.Equal((-30d, 240d), (bolt.FasteningX, bolt.FasteningY));
+
+        bolt.PreliminaryFasteningPosition = null;
+        settings.ShootingHead.LowerRightLocatingPin = null;
+        settings.InitializeBoltPosition(bolt, reference);
+        Assert.Null(bolt.PreliminaryFasteningPosition);
+    }
+
+    [Fact]
     public void FasteningRotationRequiresDistinctRecordedReferences()
     {
         var upper = new AxisPosition { X = 100, Y = 200 };

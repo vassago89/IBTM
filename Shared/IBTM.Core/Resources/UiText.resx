@@ -1308,9 +1308,6 @@ Operation failed Check controller status</value>
   <data name="no reference image" xml:space="preserve">
     <value>No reference image</value>
   </data>
-  <data name="no reference image. use move to selected point, then save x/y + image." xml:space="preserve">
-    <value>No reference image</value>
-  </data>
   <data name="no result read" xml:space="preserve">
     <value>No result read</value>
   </data>
@@ -1882,9 +1879,6 @@ Operation failed Check controller status</value>
   <data name="replace the recorded x/y with the current coordinates." xml:space="preserve">
     <value>Overwrite X/Y with current coordinates</value>
   </data>
-  <data name="replace the recorded x/y, reference image and light level with the current values." xml:space="preserve">
-    <value>Overwrite X/Y, image and light level</value>
-  </data>
   <data name="replace the recorded x/y/z with the current coordinates." xml:space="preserve">
     <value>Overwrite X/Y/Z with current coordinates</value>
   </data>
@@ -1986,12 +1980,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="save cancelled; teaching not saved." xml:space="preserve">
     <value>Save cancelled teaching not saved</value>
-  </data>
-  <data name="save position and image?" xml:space="preserve">
-    <value>Record position and image</value>
-  </data>
-  <data name="save x/y + image" xml:space="preserve">
-    <value>Record Position and Image</value>
   </data>
   <data name="saved to recipe '{0}'." xml:space="preserve">
     <value>Recipe '{0}' saved</value>

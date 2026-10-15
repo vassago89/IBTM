@@ -164,8 +164,18 @@
                                     SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"
                                     IsEnabled="{Binding IsAddBoltPointAllowed}" Margin="0,0,0,6"/>
                                 <UniformGrid Columns="2">
-                                    <Button Content="{ui:Text 'Add Bolt'}" Command="{Binding AddBoltPointCommand}" IsEnabled="{Binding IsAddBoltPointAllowed}"
-                                        Style="{StaticResource PrimaryButtonStyle}" Padding="8,6" Margin="0,0,3,0"/>
+                                    <Button Content="{ui:Text 'Add Bolt'}" Command="{Binding AddBoltPointCommand}" Padding="8,6" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="{Binding IsAddBoltPointAllowed}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                     <Button Content="{ui:Text 'Remove Bolt'}" Command="{Binding RemoveBoltPointCommand}" IsEnabled="{Binding IsRemoveBoltPointAllowed}"
                                         Style="{StaticResource DangerButtonStyle}" Padding="8,6" Margin="3,0,0,0"/>
                                 </UniformGrid>
@@ -389,7 +399,7 @@
                                             <Setter Property="Content" Value="{ui:Text 'Record Z'}"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.Image}">
-                                            <Setter Property="Content" Value="{ui:Text 'Save X/Y + Image'}"/>
+                                            <Setter Property="Content" Value="{ui:Text 'Update Image + Light'}"/>
                                         </DataTrigger>
                                         <MultiDataTrigger>
                                             <MultiDataTrigger.Conditions>

@@ -845,15 +845,27 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.SelectedPcb = heatSink;
         teaching.NewFasteningHead = head;
-        teaching.AddBoltPointCommand.Execute(null);
+        await teaching.Inspection.MoveToAsync(new() { X = 110, Y = 220 });
+        await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
+        await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var bolt = teaching.SelectedPoint!.Position.Bolt!;
         Assert.NotEqual(Guid.Empty, bolt.Id);
-        teaching.AddBoltPointCommand.Execute(null);
+        if (head == FasteningHead.Pickup)
+        {
+            Assert.NotNull(bolt.PreliminaryFasteningPosition);
+            Assert.Equal((280d, 410d), (bolt.PreliminaryFasteningPosition.X, bolt.PreliminaryFasteningPosition.Y));
+            var saved = services.GetRequiredService<MachineStore>().LoadRecipe(teaching.RecipeEditor.ActiveName);
+            var savedPosition = Assert.Single(saved.Pcb.BoltPoints).PreliminaryFasteningPosition!;
+            Assert.Equal((280d, 410d), (savedPosition.X, savedPosition.Y));
+        }
+        else
+            Assert.Null(bolt.PreliminaryFasteningPosition);
+        await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var temporaryBolt = teaching.SelectedPoint!.Position.Bolt!;
         Assert.NotEqual(Guid.Empty, temporaryBolt.Id);
         Assert.NotEqual(bolt.Id, temporaryBolt.Id);
         teaching.RemoveBoltPointCommand.Execute(null);
-        teaching.AddBoltPointCommand.Execute(null);
+        await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var replacement = teaching.SelectedPoint!.Position.Bolt!;
         Assert.NotEqual(Guid.Empty, replacement.Id);
         Assert.NotEqual(bolt.Id, replacement.Id);
@@ -861,7 +873,6 @@ public sealed class TeachingTests
         teaching.RemoveBoltPointCommand.Execute(null);
         Assert.Same(bolt, Assert.Single(teaching.Recipes.Current.Pcb.BoltPoints));
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == bolt);
-        await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 110, Y = 220 });
         await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
@@ -879,9 +890,18 @@ public sealed class TeachingTests
         Assert.False(teaching.IsAddBoltPointAllowed);
         Assert.False(teaching.IsRemoveBoltPointAllowed);
 
+        var fastening = services.GetRequiredService<BoltFasteningStation>();
+        if (head == FasteningHead.Pickup)
+        {
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltPreliminaryPosition);
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Equal((280d, 410d, settings.BoltFastening.ShootingPreliminaryZ!.Value), fastening.Motion.Feedback.Position);
+            Assert.Equal(StationCylinderState.Up, fastening.PickupTablePosition);
+            teaching.SelectedPoint = position;
+        }
         await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
         await teaching.MoveToPointCommand.ExecuteAsync(null);
-        var fastening = services.GetRequiredService<BoltFasteningStation>();
         Assert.Equal((expectedX, expectedY, expectedZ), fastening.Motion.Feedback.Position);
 
         expectedX += 0.25;
@@ -900,6 +920,8 @@ public sealed class TeachingTests
             var preliminary = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltPreliminaryPosition);
             Assert.Equal(TeachMode.XYOnly, preliminary.Position.Mode);
             teaching.SelectedPoint = preliminary;
+            Assert.True(preliminary.Position.HasPosition);
+            Assert.Equal((280d, 410d), (preliminary.Coordinates!.X, preliminary.Coordinates.Y));
             Assert.False(teaching.IsMoveToPointAllowed);
             preliminary.FasteningZOffset = 0.25;
             await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
@@ -956,17 +978,17 @@ public sealed class TeachingTests
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.CarrierImages = await services.GetRequiredService<InspectionImageLoader>().LoadRecipeAsync(recipes.Current);
         var previousImage = RecordedImage(teaching);
-        settings.CarrierReference.UpperLeftLocatingPin = null;
-        settings.CarrierReference.LowerRightLocatingPin = null;
+        var previousPreliminary = JsonSerializer.Serialize(teaching.SelectedPoint!.Position.Bolt!.PreliminaryFasteningPosition);
         await teaching.Inspection.MoveToAsync(new() { X = 120, Y = 230 });
         await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
         Assert.NotSame(previousImage, RecordedImage(teaching));
         var rerecorded = teaching.SelectedPoint!.Position.Bolt!;
-        Assert.Equal((120d, 230d), (rerecorded.X, rerecorded.Y));
+        Assert.Equal((110d, 220d), (rerecorded.X, rerecorded.Y));
         Assert.Equal((expectedX, expectedY), (rerecorded.FasteningX, rerecorded.FasteningY));
         Assert.Equal(-0.75, rerecorded.FasteningZOffset);
+        Assert.Equal(previousPreliminary, JsonSerializer.Serialize(rerecorded.PreliminaryFasteningPosition));
         await recipes.LoadAsync(teaching.RecipeEditor.ActiveName);
         teaching.SelectedPcb = heatSink;
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
@@ -985,6 +1007,116 @@ public sealed class TeachingTests
         await machine.ShutdownAsync();
     }
 
+    [Fact]
+    public async Task AddingAndDeletingInspectionBoltsKeepsImagesAndCoordinatesLinked()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var camera = services.GetRequiredService<VirtualCamera>();
+        var store = services.GetRequiredService<MachineStore>();
+        camera.SourceImage = new(2, 2, 6, Enumerable.Repeat((byte)11, 12).ToArray());
+        await teaching.Inspection.MoveToAsync(new() { X = 17, Y = 29 });
+        await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
+        teaching.LiveLightLevel = 67;
+        await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+        try
+        {
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
+            var first = teaching.SelectedPoint!.Position.Bolt!;
+            Assert.True(teaching.Inspection.IsLiveView);
+            Assert.Equal(67, teaching.LiveLightLevel);
+            Assert.NotNull(RecordedImage(teaching));
+            Assert.Equal((17d, 29d), (first.X, first.Y));
+            Assert.Equal(67, first.LightLevel);
+            var firstImage = RecordedImage(teaching)!;
+            var firstPng = store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, firstImage.Metadata.Number);
+
+            camera.SourceImage = new(2, 2, 6, Enumerable.Repeat((byte)22, 12).ToArray());
+            await teaching.Inspection.MoveToAsync(new() { X = 41, Y = 53 });
+            await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
+            var second = teaching.SelectedPoint!.Position.Bolt!;
+            var secondImage = RecordedImage(teaching)!;
+            Assert.NotSame(first, second);
+            Assert.Equal((41d, 53d), (second.X, second.Y));
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == first);
+            Assert.Same(firstImage, RecordedImage(teaching));
+            Assert.True(teaching.Inspection.IsLiveView);
+            Assert.Equal(67, teaching.LiveLightLevel);
+
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+            Assert.True(teaching.Inspection.IsLiveView);
+            Assert.Equal(67, teaching.LiveLightLevel);
+            camera.SourceImage = new(2, 2, 6, Enumerable.Repeat((byte)33, 12).ToArray());
+            await teaching.Inspection.MoveToAsync(new() { X = 65, Y = 77 });
+            await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
+            var third = teaching.SelectedPoint!.Position.Bolt!;
+            var thirdImage = RecordedImage(teaching)!;
+            var thirdPng = store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, thirdImage.Metadata.Number);
+
+            // Delete the middle image; the other PCB and first bolt keep their own pixels and XY.
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink1;
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == second);
+            teaching.RemoveBoltPointCommand.Execute(null);
+            await teaching.SaveCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            Assert.DoesNotContain(teaching.CarrierImages, image => image.Metadata.BoltId == second.Id);
+            Assert.Equal(firstPng, store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, firstImage.Metadata.Number));
+            Assert.Equal(thirdPng, store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, thirdImage.Metadata.Number));
+            Assert.Throws<FileNotFoundException>(() => store.LoadRecipeImage(
+                teaching.RecipeEditor.ActiveName, secondImage.Metadata.Number));
+            Assert.Equal((17d, 29d), (first.X, first.Y));
+            Assert.Equal((65d, 77d), (third.X, third.Y));
+
+            // Reusing a deleted image number must still capture new pixels and assign a new bolt ID.
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == third);
+            Assert.Same(thirdImage, RecordedImage(teaching));
+            teaching.RemoveBoltPointCommand.Execute(null);
+            camera.SourceImage = new(2, 2, 6, Enumerable.Repeat((byte)44, 12).ToArray());
+            await teaching.Inspection.MoveToAsync(new() { X = 81, Y = 93 });
+            await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
+            var replacement = teaching.SelectedPoint!.Position.Bolt!;
+            var replacementImage = RecordedImage(teaching)!;
+            Assert.Equal(secondImage.Metadata.Number, replacementImage.Metadata.Number);
+            Assert.NotEqual(second.Id, replacement.Id);
+            Assert.NotEqual(third.Id, replacement.Id);
+            Assert.Equal((81d, 93d), (replacement.X, replacement.Y));
+            Assert.True(teaching.Inspection.IsLiveView);
+
+            await teaching.RecipeEditor.LoadCommand.ExecuteAsync(teaching.RecipeEditor.ActiveName);
+            Assert.Null(teaching.RecipeEditor.Error);
+            var saved = teaching.Recipes.Current;
+            Assert.Equal(new[] { first.Id, replacement.Id }, saved.Pcb.BoltPoints.Select(bolt => bolt.Id));
+            Assert.Equal(2, saved.CarrierImages.Count);
+            teaching.CarrierImages = await services.GetRequiredService<InspectionImageLoader>().LoadRecipeAsync(saved);
+            foreach (var (bolt, pixels) in new[] { (first, (byte)11), (replacement, (byte)44) })
+            {
+                teaching.SelectedPcb = bolt.HeatSink;
+                teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt?.Id == bolt.Id);
+                Assert.Equal((bolt.X, bolt.Y), (teaching.SelectedPoint.Position.Bolt!.X, teaching.SelectedPoint.Position.Bolt.Y));
+                Assert.Equal(pixels, Assert.Single(InspectionPreviewViewModel.CreateFrame(RecordedImage(teaching)!.Image!).Pixels.Distinct()));
+            }
+            Assert.Throws<FileNotFoundException>(() => store.LoadRecipeImage(saved.Name, thirdImage.Metadata.Number));
+
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+            await WaitUntilAsync(() => !teaching.Inspection.IsLiveView);
+        }
+        finally
+        {
+            await teaching.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -997,14 +1129,19 @@ public sealed class TeachingTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
-        if (barcode)
-            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
-        else
-            teaching.AddBoltPointCommand.Execute(null);
-        Assert.False(teaching.IsGrabAllowed);
         await teaching.Inspection.MoveToAsync(new() { X = 17, Y = 29 });
-        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
-        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
+        if (barcode)
+        {
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
+            Assert.False(teaching.IsGrabAllowed);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        }
+        else
+        {
+            teaching.NewFasteningHead = FasteningHead.Pickup;
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
+        }
         var original = RecordedImage(teaching)!;
         var editor = services.GetRequiredService<InspectionTeachingViewModel>();
         await editor.RefreshImagesCommand.ExecuteAsync(null);
@@ -1016,6 +1153,8 @@ public sealed class TeachingTests
         editor.SelectedPoint!.Metadata!.Region = region;
         var bolt = teaching.SelectedPoint!.Position.Bolt;
         var originalBoltPosition = (bolt?.X, bolt?.Y);
+        var originalFasteningPosition = (bolt?.FasteningX, bolt?.FasteningY);
+        var originalPreliminaryPosition = JsonSerializer.Serialize(bolt?.PreliminaryFasteningPosition);
         await teaching.Inspection.MoveToAsync(new() { X = 41, Y = 53 });
         var recipeBeforePreview = JsonSerializer.Serialize(teaching.Recipes.Current);
         teaching.LiveLightLevel = 67;
@@ -1024,6 +1163,7 @@ public sealed class TeachingTests
 
         await WaitUntilAsync(() => teaching.IsGrabAllowed);
         await teaching.GrabCommand.ExecuteAsync(null);
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
 
         Assert.Null(teaching.CameraError);
         Assert.Null(teaching.RecipeEditor.Error);
@@ -1032,6 +1172,8 @@ public sealed class TeachingTests
         Assert.NotSame(original.Image, captured.Image);
         Assert.Equal((17d, 29d), (teaching.SelectedPoint!.Coordinates!.X, teaching.SelectedPoint.Coordinates.Y));
         Assert.Equal(originalBoltPosition, (bolt?.X, bolt?.Y));
+        Assert.Equal(originalFasteningPosition, (bolt?.FasteningX, bolt?.FasteningY));
+        Assert.Equal(originalPreliminaryPosition, JsonSerializer.Serialize(bolt?.PreliminaryFasteningPosition));
         Assert.Equal(region, captured.Metadata.Region);
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
         Assert.Same(captured.Image, teaching.CameraImage);
@@ -1058,6 +1200,9 @@ public sealed class TeachingTests
     public async Task InspectionTeachingReordersFasteningWithinEachHeadAndSavesWithoutChangingInspectionOrder()
     {
         await using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
         var recipes = services.GetRequiredService<RecipeManager>();
         var shooting1 = new BoltPoint();
         var pickup1 = new BoltPoint { Head = FasteningHead.Pickup };
@@ -1151,21 +1296,23 @@ public sealed class TeachingTests
         teaching.RemoveBoltPointCommand.Execute(null);
         Assert.DoesNotContain(shooting1.Id, recipes.Current.Pcb.FasteningOrder);
         teaching.NewFasteningHead = FasteningHead.Shooting;
-        teaching.AddBoltPointCommand.Execute(null);
+        await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var addedId = teaching.SelectedPoint!.Position.Bolt!.Id;
         Assert.NotEqual(shooting1.Id, addedId);
-        Assert.False(teaching.SelectedPoint.Position.Bolt!.IsFasteningPositionDefined);
+        Assert.True(teaching.SelectedPoint.Position.Bolt!.IsFasteningPositionDefined);
         teaching.NewFasteningHead = FasteningHead.Pickup;
-        teaching.AddBoltPointCommand.Execute(null);
+        await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var addedPickupId = teaching.SelectedPoint!.Position.Bolt!.Id;
         var expectedOrder = new[] { shooting2.Id, addedId, pickup2.Id, pickup1.Id, addedPickupId };
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         Assert.Equal(addedPickupId, teaching.SelectedPoint!.Position.Bolt!.Id);
-        Assert.Equal(expectedOrder, teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
+        Assert.Equal(expectedOrder, teaching.FilteredPoints
+            .Where(point => point.Position.Target == TeachingTarget.BoltPosition).Select(point => point.Position.Bolt!.Id));
         Assert.True(await teaching.RecipeEditor.SaveAsync());
         await teaching.RecipeEditor.LoadCommand.ExecuteAsync(name);
         Assert.Null(teaching.RecipeEditor.Error);
-        Assert.Equal(expectedOrder, teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
+        Assert.Equal(expectedOrder, teaching.FilteredPoints
+            .Where(point => point.Position.Target == TeachingTarget.BoltPosition).Select(point => point.Position.Bolt!.Id));
         Assert.DoesNotContain(shooting1.Id, recipes.Current.Pcb.FasteningOrder);
         Assert.Equal(new[] { pickup1.Id, shooting2.Id, pickup2.Id, addedId, addedPickupId },
             recipes.Current.Pcb.BoltPoints.Where(point => point.HeatSink == HeatSinkSlot.HeatSink1).Select(bolt => bolt.Id));
@@ -1188,7 +1335,7 @@ public sealed class TeachingTests
         Assert.Null(teaching.RecipeEditor.Error);
         Assert.Empty(recipes.Current.Pcb.BoltPoints);
         Assert.Empty(recipes.Current.Pcb.FasteningOrder);
-        teaching.AddBoltPointCommand.Execute(null);
+        await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var recreated = Assert.Single(teaching.FilteredPoints, point => point.Position.Bolt is not null);
         Assert.DoesNotContain(recreated.Position.Bolt!.Id, expectedOrder);
         Assert.Same(recreated, teaching.SelectedPoint);
@@ -1205,18 +1352,20 @@ public sealed class TeachingTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.BoltFastening.ShootingHead.LowerRightLocatingPin = null;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
-        teaching.AddBoltPointCommand.Execute(null);
-        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
-        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        teaching.NewFasteningHead = FasteningHead.Pickup;
+        await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
+        await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var original = RecordedImage(teaching)!;
         var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
         var store = services.GetRequiredService<MachineStore>();
         var imageBefore = store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number);
+        settings.BoltFastening.ShootingHead.LowerRightLocatingPin = new() { X = 100, Y = 100 };
         await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 17, Y = 29 });
         using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
         connection.Open();
@@ -1232,6 +1381,12 @@ public sealed class TeachingTests
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe(teaching.RecipeEditor.ActiveName)));
         Assert.Equal(imageBefore, store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number));
+        await teaching.AddBoltPointCommand.ExecuteAsync(null);
+        Assert.Contains("bolt image write failed", teaching.CameraError);
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe(teaching.RecipeEditor.ActiveName)));
+        Assert.Same(original, Assert.Single(teaching.CarrierImages));
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt is not null);
         command.CommandText = "DROP TRIGGER FailBoltImage";
         command.ExecuteNonQuery();
 
@@ -1240,21 +1395,30 @@ public sealed class TeachingTests
         {
             cancelled = true;
             teaching.TeachCurrentPositionCommand.Cancel();
+            teaching.AddBoltPointCommand.Cancel();
         }
         teaching.Inspection.LiveViewChanged += CancelRecording;
         try
         {
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
         }
         finally
         {
             teaching.Inspection.LiveViewChanged -= CancelRecording;
         }
         Assert.True(cancelled);
-        Assert.Same(original, RecordedImage(teaching));
+        Assert.Same(original, Assert.Single(teaching.CarrierImages));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe(teaching.RecipeEditor.ActiveName)));
         Assert.Equal(imageBefore, store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number));
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt is not null);
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        Assert.Null(teaching.CameraError);
+        Assert.Equal((0d, 0d), (teaching.SelectedPoint!.Position.Bolt!.X, teaching.SelectedPoint.Position.Bolt.Y));
+        Assert.Null(teaching.SelectedPoint.Position.Bolt.PreliminaryFasteningPosition);
+        await teaching.RecipeEditor.LoadCommand.ExecuteAsync(teaching.RecipeEditor.ActiveName);
+        Assert.Null(Assert.Single(teaching.Recipes.Current.Pcb.BoltPoints).PreliminaryFasteningPosition);
         await machine.ShutdownAsync();
     }
 
@@ -1397,7 +1561,7 @@ public sealed class TeachingTests
         await using var services = CreateServices(FlowSettings());
         var recipes = services.GetRequiredService<RecipeManager>();
         _ = services.GetRequiredService<BoltFasteningStation>();
-        var untaughtBolt = new BoltPoint { X = 15, Y = 25 };
+        var untaughtBolt = new BoltPoint { Head = FasteningHead.Pickup, X = 15, Y = 25 };
         Assert.Null(untaughtBolt.FasteningX);
         Assert.Null(untaughtBolt.FasteningY);
         Assert.Equal(0, untaughtBolt.FasteningZOffset);
@@ -1431,14 +1595,18 @@ public sealed class TeachingTests
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
         Assert.Same(recipes.Current.CarrierImages[0], inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1));
         var loadedBolt = Assert.Single(recipes.Current.Pcb.BoltPoints);
-        Assert.Equal((15d, 25d), (loadedBolt.FasteningX, loadedBolt.FasteningY));
+        Assert.Null(loadedBolt.FasteningX);
+        Assert.Null(loadedBolt.FasteningY);
+        Assert.Null(loadedBolt.PreliminaryFasteningPosition);
         Assert.Equal(0, loadedBolt.FasteningZOffset);
         loadedBolt.FasteningX = 17;
+        loadedBolt.FasteningY = 25;
         loadedBolt.FasteningZOffset = 0.5;
         await recipes.SaveAsync(saved.Name);
         await recipes.LoadAsync(saved.Name);
         loadedBolt = Assert.Single(recipes.Current.Pcb.BoltPoints);
         Assert.Equal((17d, 25d), (loadedBolt.FasteningX, loadedBolt.FasteningY));
+        Assert.Null(loadedBolt.PreliminaryFasteningPosition);
         Assert.Equal(0.5, loadedBolt.FasteningZOffset);
     }
 

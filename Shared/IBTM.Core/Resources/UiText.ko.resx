@@ -1308,9 +1308,6 @@
   <data name="no reference image" xml:space="preserve">
     <value>기준 이미지 없음</value>
   </data>
-  <data name="no reference image. use move to selected point, then save x/y + image." xml:space="preserve">
-    <value>기준 이미지 없음</value>
-  </data>
   <data name="no result read" xml:space="preserve">
     <value>조회된 결과 없음</value>
   </data>
@@ -1882,9 +1879,6 @@
   <data name="replace the recorded x/y with the current coordinates." xml:space="preserve">
     <value>현재 X/Y 좌표로 덮어쓰기</value>
   </data>
-  <data name="replace the recorded x/y, reference image and light level with the current values." xml:space="preserve">
-    <value>현재 X/Y 이미지 조명 값으로 덮어쓰기</value>
-  </data>
   <data name="replace the recorded x/y/z with the current coordinates." xml:space="preserve">
     <value>현재 X/Y/Z 좌표로 덮어쓰기</value>
   </data>
@@ -1986,12 +1980,6 @@
   </data>
   <data name="save cancelled; teaching not saved." xml:space="preserve">
     <value>저장 취소 티칭 미저장</value>
-  </data>
-  <data name="save position and image?" xml:space="preserve">
-    <value>위치 이미지 기록</value>
-  </data>
-  <data name="save x/y + image" xml:space="preserve">
-    <value>위치 이미지 기록</value>
   </data>
   <data name="saved to recipe '{0}'." xml:space="preserve">
     <value>레시피 '{0}' 저장됨</value>
