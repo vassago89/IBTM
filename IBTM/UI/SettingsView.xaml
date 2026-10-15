@@ -353,6 +353,41 @@
                             </Border>
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
+                                    <TextBlock Text="{ui:Text 'Fastening start delay (s)'}" Style="{StaticResource SettingSectionTitle}"/>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Shooting IPM preliminary'}" Style="{StaticResource FieldLabelStyle}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}" VerticalAlignment="Center"
+                                            Text="{Binding Settings.BoltFastening.ShootingIpmStartDelayMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8" MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Pickup IPM final'}" Style="{StaticResource FieldLabelStyle}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}" VerticalAlignment="Center"
+                                            Text="{Binding Settings.BoltFastening.PickupFinalStartDelayMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    </Grid>
+                                    <Grid MinHeight="34">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{ui:Text 'Shooting PCB final'}" Style="{StaticResource FieldLabelStyle}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" IsEnabled="{Binding IsSettingsEditAllowed}" VerticalAlignment="Center"
+                                            Text="{Binding Settings.BoltFastening.ShootingPcbStartDelayMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SettingCard}">
+                                <StackPanel>
                                     <TextBlock Text="{ui:Text 'Fastening Z feed'}" Style="{StaticResource SettingSectionTitle}"/>
                                     <CheckBox Content="{ui:Text 'Stop Z feed when fastening completes'}"
                                         IsChecked="{Binding Settings.BoltFastening.StopZFeedOnCompletion}"
@@ -884,7 +919,7 @@
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{ui:Text 'Readiness base wait (s)'}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,12,0"
-                                            ToolTip="{ui:Text 'READY wait = base wait × read attempts + status poll interval.'}"
+                                            ToolTip="{ui:Text 'READY wait = base wait × read attempts.'}"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Hantas.ResponseTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
@@ -910,17 +945,6 @@
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Hantas.ReadAttempts, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"/>
-                                    </Grid>
-                                    <Grid Margin="0,0,0,8" MinHeight="34">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="140"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{ui:Text 'Status poll interval (s)'}" Style="{StaticResource FieldLabelStyle}"
-                                            Margin="0,0,12,0" VerticalAlignment="Center"/>
-                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding Settings.Hantas.StatusPollMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
                                 </StackPanel>

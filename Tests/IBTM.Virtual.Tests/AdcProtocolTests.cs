@@ -80,7 +80,7 @@ public sealed class AdcProtocolTests
         status = bus.ReadControllerStatusAsync(0);
         await transport.NextRequestAsync();
         transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters,
-            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+            [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]));
         Assert.True((await status).Status?.Ready);
     }
 
@@ -94,7 +94,7 @@ public sealed class AdcProtocolTests
         // HcSerial reports raw bytes before its first valid frame establishes the connection.
         // HComm attaches its raw callback during that connection notification.
         transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
-            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]),
             rawBeforeConnection: true);
         var response = await status;
         Assert.Null(response.Rejection);
@@ -117,7 +117,7 @@ public sealed class AdcProtocolTests
         // The remaining block arrives with a status reply in the same serial read.
         var last = GraphBlock(2, 2, [1000, 10, 20, 0, 0, 2, 0, -25, 50, 120]);
         var statusFrame = AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters,
-            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]);
         transport.Receive([.. last, .. statusFrame]);
         Assert.False(status.IsCompleted);
         transport.Receive([]);
@@ -176,7 +176,7 @@ public sealed class AdcProtocolTests
         var status = bus.ReadControllerStatusAsync(1);
         Assert.Equal((byte)AdcFunctionCode.ReadInputRegisters, (await transport.NextRequestAsync())[1]);
         transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
-            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+            [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]));
         Assert.True((await status).Status?.Ready);
     }
 
@@ -434,7 +434,7 @@ public sealed class AdcProtocolTests
         await transport.NextRequestAsync();
         transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.RequestTorqueCurve, [2, 0, 0]));
         transport.Receive(AdcRtuFrame.Build(0, AdcFunctionCode.ReadInputRegisters,
-            [28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+            [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]));
         Assert.True((await status).Status?.Ready);
         Assert.Null(bus.Monitor.TorqueCurveError);
     }
@@ -532,20 +532,64 @@ public sealed class AdcProtocolTests
         Assert.Null(bus.Monitor.Sample?.Status);
     }
 
-    [Fact]
-    public async Task HCommStatusTimeoutThenEquipmentRejectionDoesNotStopTheBoltBeforeItsResult()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HCommAutomaticResultCannotConsumePendingRequest(bool write)
     {
         using var transport = new HCommTransportStub(1);
-        var settings = new HantasSettings { ReadAttempts = 3, StatusPollMilliseconds = 100, PresetSettleMilliseconds = 0 };
+        using var bus = new AdcBus(transport.Communication, 1);
+        Task pending = write ? bus.WriteRegisterAsync(1, 4002, 1)
+            : bus.ReadRegistersAsync(1, AdcFunctionCode.ReadHoldingRegisters, 15, 1);
+        var request = await transport.NextRequestAsync();
+        transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
+            [28, 0, 2, 0, 100, 0, 1, 3, 32, 3, 32, 0, 200, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0]));
+        Assert.Equal((ushort)2, bus.Monitor.LastEvent?.Result.EventCount);
+        Assert.False(pending.IsCompleted);
+        transport.Receive(write ? request : AdcRtuFrame.Build(1, AdcFunctionCode.ReadHoldingRegisters, [2, 0, 100]));
+        await pending.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AutomaticResultDoesNotContaminateThePendingEmptyGraphReply(bool combined)
+    {
+        using var transport = new HCommTransportStub(1);
+        using var bus = new AdcBus(transport.Communication, 1);
+        var pending = bus.RequestTorqueCurveAsync(1);
+        await transport.NextRequestAsync();
+        var result = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
+            [28, 0, 2, 0, 100, 0, 1, 3, 32, 3, 32, 0, 200, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0]);
+        var emptyGraph = Convert.FromHexString("01C8010081B6");
+        transport.Receive(combined ? [.. result, .. emptyGraph] : result);
+        Assert.False(pending.IsCompleted);
+        transport.Receive(combined ? [] : emptyGraph);
+        Assert.Equal(emptyGraph, await pending.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal((ushort)2, bus.Monitor.LastEvent?.Result.EventCount);
+    }
+
+    [Fact]
+    public async Task AutomaticResultCannotRemoveOurRequestTimeout()
+    {
+        using var transport = new HCommTransportStub(1);
+        using var bus = new AdcBus(transport.Communication, 1, new() { SdkCompletionTimeoutMilliseconds = 200 });
+        var pending = bus.WriteRegisterAsync(1, 4002, 1);
+        await transport.NextRequestAsync();
+        transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters,
+            [28, 0, 2, 0, 100, 0, 1, 3, 32, 3, 32, 0, 200, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0]));
+        await Assert.ThrowsAsync<TimeoutException>(() => pending.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.False(bus.IsOpen);
+    }
+
+    [Fact]
+    public async Task HCommAutomaticCompletionStopsZWithoutStatusOrResultPolling()
+    {
+        using var transport = new HCommTransportStub(1);
+        var settings = new HantasSettings { PresetSettleMilliseconds = 0 };
         using var bus = new AdcBus(transport.Communication, 1, settings);
         var io = new VirtualIoService(VirtualTestSupport.Outputs(), new());
         var head = new AdcBoltHead(bus, io, FasteningHead.Pickup, settings, 1, string.Empty, 0);
-        var starts = 0;
-        io.OutputChanged += (output, on) =>
-        {
-            if (output == OutputIo.PickupBoltStart && on)
-                starts++;
-        };
         void Reply(params ushort[] words)
         {
             var payload = new byte[1 + words.Length * 2];
@@ -554,61 +598,36 @@ public sealed class AdcProtocolTests
                 BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(1 + index * 2), words[index]);
             transport.Receive(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, payload));
         }
-        ushort[] ready = [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0];
-        var statusRequest = Convert.FromHexString("01040CE4000E32A9");
         var selecting = head.SelectPresetAsync(1);
-        Assert.Equal(statusRequest, await transport.NextRequestAsync());
-        Reply(ready);
+        var enable = await transport.NextRequestAsync();
+        Assert.Equal((ushort)4002, BinaryPrimitives.ReadUInt16BigEndian(enable.AsSpan(2)));
+        transport.Receive(enable);
+        var statusRequest = await transport.NextRequestAsync();
+        Assert.Equal((ushort)3303, BinaryPrimitives.ReadUInt16BigEndian(statusRequest.AsSpan(2)));
+        Reply(1, 0, 0, 1, 0, 0, 0);
         await selecting.WaitAsync(TimeSpan.FromSeconds(2));
-
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-        var cycle = head.TightenAsync(stop.Token);
-        try
+        var feedStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var feedStopped = false;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var cycle = head.TightenAsync(stop.Token, async token =>
         {
-            var request = await transport.NextRequestAsync();
-            while (BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(2)) == 3300)
-            {
-                Reply(ready);
-                request = await transport.NextRequestAsync();
-            }
-            Assert.Equal(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [0x0C, 0x80, 0, 1]), request);
-            Reply(1); // A fresh result-event baseline before START.
-            Assert.Equal(statusRequest, await transport.NextRequestAsync());
-            Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
-            Reply(447, 302, 1810, 1, 0, 0, 0, 1, 0, 0, 1, 9, 8, 2526);
-
-            Assert.Equal(statusRequest, await transport.NextRequestAsync());
-            // Replay the equipment's one-second silence, then its 0x03 rejection.
-            Assert.Equal(statusRequest, await transport.NextRequestAsync());
-            Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
-            Assert.Null(bus.Monitor.Sample?.Status);
-            Assert.Null(bus.Monitor.Sample?.Error);
-            Assert.Contains("timeout", bus.Monitor.Sample?.Rejection);
-            Assert.False(cycle.IsCompleted);
-            transport.Receive(Convert.FromHexString("0184030301"));
-            Assert.Equal(statusRequest, await transport.NextRequestAsync());
-            Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
-            Assert.Null(bus.Monitor.Sample?.Status);
-            Assert.Contains("0x03", bus.Monitor.Sample?.Rejection);
-            Assert.False(cycle.IsCompleted);
-            Reply(ready); // Only this actual RUN OFF can authorize the result read.
-
-            request = await transport.NextRequestAsync();
-            Assert.Equal(AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [0x0C, 0x80, 0, 14]), request);
-            Reply(2, 580, 1, 800, 808, 1000, 360, 0, 0, 1, 0, 0, 1, 0);
-            var result = await cycle.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.True(result.Success, result.Error);
-            Assert.Equal((ushort)2, result.Controller?.EventCount);
-            Assert.Equal(1, starts);
-            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        }
-        finally
-        {
-            stop.Cancel();
-            bus.Close();
-            await ((Task)cycle).ConfigureAwait(
-                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
-        }
+            feedStarted.SetResult();
+            try { await Task.Delay(Timeout.Infinite, token); }
+            finally { feedStopped = true; }
+        });
+        var baseline = await transport.NextRequestAsync();
+        Assert.Equal((ushort)3200, BinaryPrimitives.ReadUInt16BigEndian(baseline.AsSpan(2)));
+        Reply(1);
+        Assert.Equal(statusRequest, await transport.NextRequestAsync());
+        Reply(1, 0, 0, 0, 1, 0, 0);
+        await feedStarted.Task.WaitAsync(stop.Token);
+        Reply(2, 580, 1, 800, 808, 1000, 360, 0, 0, 1, 0, 0, 1, 0);
+        var result = await cycle;
+        Assert.True(result.Success, result.Error);
+        Assert.Equal(8.08, result.Torque);
+        Assert.True(feedStopped);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.Equal(0, transport.Communication.QueueCount);
     }
 
     [Theory]
@@ -646,7 +665,7 @@ public sealed class AdcProtocolTests
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(true, CancellationToken.None);
-        Assert.Equal(new (ushort, ushort)[] { (4101, 1), (4102, 4), (4103, 4), (4104, 1) }, bus.RegisterWrites);
+        Assert.Equal(new (ushort, ushort)[] { (4002, 1), (4101, 1), (4102, 4), (4103, 4), (4104, 1) }, bus.RegisterWrites);
         Assert.Equal(1, bus.GraphRequests);
         Assert.Null(bus.Monitor.TorqueCurveError);
         var controller = new BoltControllerData("Virtual", 1, 2, 250, 1, 1, 1000, 0, 0, 0, 2, 0, 0, 1, 0, null);
@@ -664,7 +683,7 @@ public sealed class AdcProtocolTests
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
         Assert.Equal(requests, bus.GraphRequests);
         Assert.Equal(2, requests);
-        Assert.Equal(4, bus.RegisterWrites.Count);
+        Assert.Equal(5, bus.RegisterWrites.Count);
         Assert.Null(bus.Monitor.TorqueCurveError);
     }
 
@@ -681,7 +700,7 @@ public sealed class AdcProtocolTests
         Assert.Same(failure, await Assert.ThrowsAsync<TimeoutException>(() =>
             bus.Monitor.ReadTorqueCurveAsync(controller, 1, 1_000, CancellationToken.None)));
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var status = await bus.Monitor.WaitForSampleAsync(System.Diagnostics.Stopwatch.GetTimestamp(), timeout.Token);
+        var status = await bus.Monitor.ReadStatusAsync(timeout.Token);
         Assert.True(status.Ready);
         Assert.Null(bus.Monitor.Sample!.Error);
         Assert.Equal(2, bus.GraphRequests);
@@ -744,7 +763,7 @@ public sealed class AdcProtocolTests
         Assert.Null(bus.Monitor.TorqueCurveError);
         Assert.True(bus.Monitor.IsTorqueCurveMonitoringRequested);
         await bus.Monitor.SetTorqueCurveMonitoringAsync(false, CancellationToken.None);
-        Assert.Equal(4, bus.RegisterWrites.Count);
+        Assert.Equal(5, bus.RegisterWrites.Count);
         Assert.Equal(1, bus.GraphRequests);
         Assert.False(bus.Monitor.IsTorqueCurveMonitoringRequested);
     }
@@ -778,6 +797,7 @@ public sealed class AdcProtocolTests
         {
             diagnostics.SelectedPort = bus.PortName;
             await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
+            var statusRead = bus.Monitor.ReadStatusAsync(CancellationToken.None);
             await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads > 0);
             io.SetOutput(OutputIo.PickupBoltStart, true);
             if (failStop)
@@ -793,6 +813,7 @@ public sealed class AdcProtocolTests
                 SynchronizationContext.SetSynchronizationContext(previous);
             }
             status.SetResult();
+            await statusRead;
             await VirtualTestSupport.WaitUntilAsync(() => context.HasPending);
             stopping = diagnostics.StopCommand.ExecuteAsync(null);
             var closing = diagnostics.TryCloseAsync();
@@ -847,7 +868,7 @@ public sealed class AdcProtocolTests
             diagnostics.SlaveText = "256";
             await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
             Assert.False(pickup.IsOpen);
-            Assert.Equal("Slave must be 0–15.", diagnostics.ConnectionStatus);
+            Assert.Equal(UiText.Get("Slave must be 0–15."), diagnostics.ConnectionStatus);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
 
             diagnostics.SlaveText = "1";
@@ -928,7 +949,6 @@ public sealed class AdcProtocolTests
         Assert.Empty(settings.ShootingPortName);
         Assert.Equal((byte)2, settings.PickupSlaveAddress);
         Assert.Equal((byte)3, settings.ShootingSlaveAddress);
-        Assert.Equal(100, settings.StatusPollMilliseconds);
         Assert.Equal(1_000, settings.ResponseTimeoutMilliseconds);
         Assert.Equal(3_000, settings.SdkCompletionTimeoutMilliseconds);
         Assert.Equal(200, settings.PresetSettleMilliseconds);
@@ -936,7 +956,6 @@ public sealed class AdcProtocolTests
         settings.ShootingPortName = "COM5";
         settings.ShootingBaudRate = 38400;
         settings.ShootingSlaveAddress = 2;
-        settings.StatusPollMilliseconds = 75;
         settings.ResponseTimeoutMilliseconds = 250;
         settings.SdkCompletionTimeoutMilliseconds = 4_000;
         settings.PresetSettleMilliseconds = 400;
@@ -949,14 +968,12 @@ public sealed class AdcProtocolTests
         Assert.Equal("COM5", reloaded.ShootingPortName);
         Assert.Equal(38400, reloaded.ShootingBaudRate);
         Assert.Equal(reloaded.PickupSlaveAddress, reloaded.ShootingSlaveAddress);
-        Assert.Equal(75, reloaded.StatusPollMilliseconds);
         Assert.Equal(250, reloaded.ResponseTimeoutMilliseconds);
         Assert.Equal(4_000, reloaded.SdkCompletionTimeoutMilliseconds);
         Assert.Equal(400, reloaded.PresetSettleMilliseconds);
         settings.PresetSettleMilliseconds = 0;
         Assert.Equal(0, JsonSerializer.Deserialize<HantasSettings>(JsonSerializer.Serialize(settings))!.PresetSettleMilliseconds);
         Assert.Equal(2, reloaded.ReadAttempts);
-        Assert.Throws<ArgumentOutOfRangeException>(() => settings.StatusPollMilliseconds = 0);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.ReadAttempts = 0);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.SdkCompletionTimeoutMilliseconds = 0);
     }

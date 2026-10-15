@@ -24,9 +24,6 @@ Operation failed Check controller status</value>
   <data name="  preset " xml:space="preserve">
     <value>  Preset </value>
   </data>
-  <data name="  run " xml:space="preserve">
-    <value>  Run </value>
-  </data>
   <data name=" · bolt {0}" xml:space="preserve">
     <value> Bolt {0}</value>
   </data>
@@ -1752,9 +1749,6 @@ Operation failed Check controller status</value>
   <data name="ready" xml:space="preserve">
     <value>Ready</value>
   </data>
-  <data name="ready " xml:space="preserve">
-    <value>Ready </value>
-  </data>
   <data name="ready from rear" xml:space="preserve">
     <value>Ready From Rear</value>
   </data>
@@ -2201,9 +2195,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="status" xml:space="preserve">
     <value>Status</value>
-  </data>
-  <data name="status poll interval (s)" xml:space="preserve">
-    <value>Status poll interval (s)</value>
   </data>
   <data name="status unavailable" xml:space="preserve">
     <value>Status Unavailable</value>
@@ -3457,7 +3448,7 @@ Supply: PCB 1, travel Z</value>
   <data name="sdk completion wait (s)" xml:space="preserve"><value>Communication request timeout (s)</value></data>
   <data name="torque curve result wait (s)" xml:space="preserve"><value>Curve receive wait (s)</value></data>
   <data name="torque curve stop wait (s)" xml:space="preserve"><value>Torque curve stop wait (s)</value></data>
-  <data name="ready wait = base wait × read attempts + status poll interval." xml:space="preserve"><value>Ready wait = base wait × read attempts + status poll interval</value></data>
+  <data name="ready wait = base wait × read attempts." xml:space="preserve"><value>Ready wait = base wait × read attempts</value></data>
   <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>SDK timeout disconnects HComm response timeout fixed at 1 s</value></data>
   <data name="final tightening before retightening" xml:space="preserve"><value>Final tightening before retightening</value></data>
   <data name="retightening" xml:space="preserve"><value>Retightening</value></data>
@@ -3593,4 +3584,8 @@ Supply: PCB 1, travel Z</value>
   <data name="shooting pickup alignment (s, 0 = off)" xml:space="preserve">
     <value>Shooting pickup alignment (s, 0 = off)</value>
   </data>
+  <data name="fastening start delay (s)" xml:space="preserve"><value>Fastening start delay (s)</value></data>
+  <data name="shooting ipm preliminary" xml:space="preserve"><value>Shooting IPM preliminary</value></data>
+  <data name="pickup ipm final" xml:space="preserve"><value>Pickup IPM final</value></data>
+  <data name="shooting pcb final" xml:space="preserve"><value>Shooting PCB final</value></data>
 </root>

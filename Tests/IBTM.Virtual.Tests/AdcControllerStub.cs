@@ -13,10 +13,8 @@ namespace IBTM.Virtual.Tests;
 internal sealed class AdcControllerStub : IAdcBus, IDisposable
 {
     private FasteningHead _head;
-    private bool _stopRequested;
-    private bool _resetRequested;
-    private int _runSamples;
-    private int _activeStatusReads;
+    private int _fasteningVersion;
+    private bool _eventsEnabled;
 
     public AdcControllerStub()
     {
@@ -39,12 +37,9 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public Exception? GraphRequestFailure { get; set; }
     public int GraphRequests { get; private set; }
     public Queue<bool> RunReplies { get; }
-    public bool ResultReadWhileRunning { get; private set; }
     public IOException? StatusReadFailure { get; set; }
     public string? StatusRejection { get; set; }
-    public int StatusReadDelayMilliseconds { get; set; }
     public Task? StatusReadBarrier { get; set; }
-    public bool ConcurrentStatusReadsDetected { get; private set; }
     public int EventReads { get; private set; }
     public int StatusReads { get; private set; }
     public Dictionary<ushort, ushort> TorqueCompensations { get; }
@@ -56,17 +51,25 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public ushort? ReportedPreset { get; set; }
     public ushort CurrentAlarm { get; set; }
     public bool NotReady { get; set; }
-    public int ResetPollsRemaining { get; set; }
+    public bool IgnoreReset { get; init; }
     public int ResetWrites { get; private set; }
     private AdcDirection CurrentDirection { get; set; }
     public ushort? ResultPreset { get; init; }
     public AdcDirection? ResultDirection { get; init; }
-    public int StopPollsRemaining { get; set; }
+    public bool IgnoreStop { get; init; }
     public IOException? StopWriteFailure { get; set; }
     public Exception? NextResultReadFailure { get; set; }
     public IOException? BaselineReadFailure { get; init; }
-    public Action? BaselineReading { get; init; }
-    public bool SuppressCompletion { get; set; }
+    public bool SuppressCompletion
+    {
+        get;
+        set
+        {
+            field = value;
+            if (!value && Running)
+                _ = CompleteAsync(_fasteningVersion);
+        }
+    }
     public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
     public ushort ResultError { get; set; }
     public Action? Started { get; init; }
@@ -125,9 +128,13 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     {
         switch ((AdcRemoteRegister)address)
         {
+            case AdcRemoteRegister.RealTimeMonitoring:
+                _eventsEnabled = value != 0;
+                break;
             case AdcRemoteRegister.AlarmReset:
                 ResetWrites++;
-                _resetRequested = true;
+                if (!IgnoreReset)
+                    CurrentAlarm = 0;
                 break;
             case AdcRemoteRegister.Preset:
                 CurrentPreset = value;
@@ -139,20 +146,37 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                 if (value != 0)
                 {
                     StartWrites++;
-                    _stopRequested = false;
                     Running = true;
-                    _runSamples = 0;
+                    var version = ++_fasteningVersion;
                     Started?.Invoke();
+                    _ = CompleteAsync(version);
                 }
                 else
                 {
                     StopWrites++;
                     if (StopWriteFailure is not null)
                         throw StopWriteFailure;
-                    _stopRequested = true;
+                    if (!IgnoreStop)
+                        Running = false;
+                    _fasteningVersion++;
                 }
                 break;
         }
+    }
+
+    private async Task CompleteAsync(int version)
+    {
+        await Task.Delay(40);
+        if (!IsOpen || version != _fasteningVersion || SuppressCompletion)
+            return;
+        _fasteningVersion++;
+        Running = false;
+        var result = ResultReplies.TryDequeue(out var queued)
+            ? queued : AdcFasteningResult.FromRegisters(ResultRegisters);
+        if (result.Status == AdcEventStatus.Error)
+            CurrentAlarm = result.Error;
+        if (_eventsEnabled)
+            Monitor.ReceiveEvent(result);
     }
 
     public Task<byte[]> RequestTorqueCurveAsync(byte slaveAddress, CancellationToken cancellationToken = default)
@@ -180,17 +204,9 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     {
         var pickup = _head == FasteningHead.Pickup;
         if (output == (pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart))
-        {
             ApplyControl((ushort)AdcRemoteRegister.RemoteStart, (ushort)(value ? 1 : 0));
-            if (!value && StopPollsRemaining == 0)
-                Running = false;
-        }
         else if (output == (pickup ? OutputIo.PickupBoltReset : OutputIo.ShootingBoltReset) && value)
-        {
             ApplyControl((ushort)AdcRemoteRegister.AlarmReset, 1);
-            if (ResetPollsRemaining >= 0)
-                CurrentAlarm = 0;
-        }
         else if (output == (pickup ? OutputIo.PickupBoltDirection : OutputIo.ShootingBoltDirection))
             ApplyControl((ushort)AdcRemoteRegister.Direction, (ushort)(value ? 1 : 0));
         else if (value)
@@ -233,56 +249,19 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         switch (address)
         {
             case (ushort)AdcStatusRegister.Preset:
-                if (Interlocked.Increment(ref _activeStatusReads) > 1)
-                    ConcurrentStatusReadsDetected = true;
-                try
-                {
-                    StatusReads++;
-                    if (StatusReadBarrier is { } barrier)
-                        await barrier.WaitAsync(cancellationToken);
-                    if (StatusReadDelayMilliseconds > 0)
-                        await Task.Delay(StatusReadDelayMilliseconds, cancellationToken);
-                    if (StatusReadFailure is { } statusFailure)
-                        throw statusFailure;
-                    if (StartWrites > 0 && !_stopRequested)
-                    {
-                        if (RunReplies.TryDequeue(out var running))
-                            Running = running;
-                        else if (_runSamples++ > 0 && !SuppressCompletion)
-                            Running = false;
-                    }
-                    if (_stopRequested)
-                    {
-                        if (StopPollsRemaining == 0)
-                        {
-                            Running = false;
-                            _stopRequested = false;
-                        }
-                        else if (StopPollsRemaining > 0)
-                            StopPollsRemaining--;
-                    }
-                    if (_resetRequested)
-                    {
-                        if (ResetPollsRemaining == 0)
-                        {
-                            CurrentAlarm = 0;
-                            _resetRequested = false;
-                        }
-                        else if (ResetPollsRemaining > 0)
-                            ResetPollsRemaining--;
-                    }
-                    return [
-                        ReportedPreset ?? CurrentPreset, 0, 0, (ushort)(NotReady || Running || CurrentAlarm != 0 ? 0 : 1),
-                        (ushort)(Running ? 1 : 0), CurrentAlarm, (ushort)CurrentDirection,
-                    ];
-                }
-                finally
-                {
-                    Interlocked.Decrement(ref _activeStatusReads);
-                }
+                StatusReads++;
+                if (StatusReadBarrier is { } barrier)
+                    await barrier.WaitAsync(cancellationToken);
+                if (StatusReadFailure is { } statusFailure)
+                    throw statusFailure;
+                if (Running && RunReplies.TryDequeue(out var running))
+                    Running = running;
+                return [
+                    ReportedPreset ?? CurrentPreset, 0, 0, (ushort)(NotReady || Running || CurrentAlarm != 0 ? 0 : 1),
+                    (ushort)(Running ? 1 : 0), CurrentAlarm, (ushort)CurrentDirection,
+                ];
             case (ushort)AdcResultRegister.EventCount when count == 1:
                 EventReads++;
-                BaselineReading?.Invoke();
                 if (BaselineReadFailure is { } baselineFailure)
                     throw baselineFailure;
                 return [(ushort)StartWrites];
@@ -298,7 +277,6 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         ResultReads++;
         var received = ResultReplies.TryDequeue(out var queued)
             ? queued : AdcFasteningResult.FromRegisters(ResultRegisters);
-        ResultReadWhileRunning |= Running;
         if (NextResultReadFailure is { } failure)
         {
             NextResultReadFailure = null;

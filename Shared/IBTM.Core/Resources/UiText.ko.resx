@@ -24,9 +24,6 @@
   <data name="  preset " xml:space="preserve">
     <value>  프리셋 </value>
   </data>
-  <data name="  run " xml:space="preserve">
-    <value>  가동 </value>
-  </data>
   <data name=" · bolt {0}" xml:space="preserve">
     <value> 볼트 {0}</value>
   </data>
@@ -1752,9 +1749,6 @@
   <data name="ready" xml:space="preserve">
     <value>준비</value>
   </data>
-  <data name="ready " xml:space="preserve">
-    <value>준비 </value>
-  </data>
   <data name="ready from rear" xml:space="preserve">
     <value>후단 수신 가능</value>
   </data>
@@ -2201,9 +2195,6 @@
   </data>
   <data name="status" xml:space="preserve">
     <value>상태</value>
-  </data>
-  <data name="status poll interval (s)" xml:space="preserve">
-    <value>상태 조회 주기 (s)</value>
   </data>
   <data name="status unavailable" xml:space="preserve">
     <value>상태 미확인</value>
@@ -3455,7 +3446,7 @@
   <data name="sdk completion wait (s)" xml:space="preserve"><value>통신 요청 제한 시간 (s)</value></data>
   <data name="torque curve result wait (s)" xml:space="preserve"><value>그래프 수신 대기 (s)</value></data>
   <data name="torque curve stop wait (s)" xml:space="preserve"><value>그래프 종료 대기 (s)</value></data>
-  <data name="ready wait = base wait × read attempts + status poll interval." xml:space="preserve"><value>준비 대기 = 기본 대기 × 읽기 시도 횟수 + 상태 조회 주기</value></data>
+  <data name="ready wait = base wait × read attempts." xml:space="preserve"><value>준비 대기 = 기본 대기 × 읽기 시도 횟수</value></data>
   <data name="closes the connection if the sdk does not finish a request. does not change the fixed hcomm response timeout." xml:space="preserve"><value>SDK 시간 초과 시 연결 종료 통신 응답 제한 1초 고정</value></data>
   <data name="final tightening before retightening" xml:space="preserve"><value>본체결 추가 체결 전</value></data>
   <data name="retightening" xml:space="preserve"><value>추가 체결</value></data>
@@ -3591,4 +3582,8 @@
   <data name="shooting pickup alignment (s, 0 = off)" xml:space="preserve">
     <value>슈팅 픽업 후 홈 맞춤 (s, 0 = 끔)</value>
   </data>
+  <data name="fastening start delay (s)" xml:space="preserve"><value>체결 시작 대기 (s)</value></data>
+  <data name="shooting ipm preliminary" xml:space="preserve"><value>슈팅 IPM 가체결</value></data>
+  <data name="pickup ipm final" xml:space="preserve"><value>픽업 IPM 본체결</value></data>
+  <data name="shooting pcb final" xml:space="preserve"><value>슈팅 PCB 본체결</value></data>
 </root>

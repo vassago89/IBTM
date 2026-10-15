@@ -1,8 +1,10 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using HComm.Common;
@@ -96,6 +98,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
     {
         // The existing monitor owns acquisition; do not inject idle Info queries into it.
         communication.AutoRequestInfo = false;
+        // Automatic results can be silent while idle; the 4002 renewal checks the link.
+        communication.AutoDisconnect = false;
         communication.ReceivedMsg = OnReceived;
         communication.SendReceiveMsg = OnSendReceive;
         communication.ChangedConnection = OnConnectionChanged;
@@ -173,12 +177,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
     public async Task<(AdcControllerStatus? Status, string? Rejection)> ReadControllerStatusAsync(
         byte slaveAddress, CancellationToken cancellationToken = default)
     {
-        // Read HComm's complete default status block (3300..3313).
-        var response = await ExchangeAsync(slaveAddress, Command.Mor, 3300, 14, cancellationToken);
+        // Seven status words are distinct from the fourteen-word automatic result.
+        var response = await ExchangeAsync(slaveAddress, Command.Mor,
+            (ushort)AdcStatusRegister.Preset, AdcControllerStatus.RegisterCount, cancellationToken);
         if (response.Rejection is { } rejection && response.ErrorCode is not (0 or 255))
             return (null, rejection);
-        var values = response.RequireSuccess().Skip((ushort)AdcStatusRegister.Preset - 3300)
-            .Take(AdcControllerStatus.RegisterCount).Select(value => checked((ushort)value)).ToArray();
+        var values = response.RequireSuccess().Select(value => checked((ushort)value)).ToArray();
         return (AdcControllerStatus.FromRegisters(values), null);
     }
 
@@ -227,7 +231,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
                         accepted = communication.GetState(address, countOrValue);
                         break;
                     case Command.Write:
-                        accepted = communication.SetParam(address, countOrValue);
+                        accepted = address == (ushort)AdcRemoteRegister.RealTimeMonitoring
+                            ? communication.SetRealTime(address, countOrValue)
+                            : communication.SetParam(address, countOrValue);
                         break;
                     case Command.Info:
                         accepted = communication.GetInfo();
@@ -241,8 +247,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 if (!accepted)
                     throw new IOException($"HComm did not queue {command}, address={address}, data={countOrValue}.");
 
-                // HComm owns its 1 s response timeout. Finish an accepted request before
-                // cancellation releases the bus, so a late reply cannot reach the next caller.
+                // An automatic event can remove HComm's queue entry. Our pending request
+                // still owns the reply and timeout; no next request is sent before it ends.
                 try
                 {
                     response = await pending.Task.WaitAsync(
@@ -328,6 +334,29 @@ public sealed class AdcBus : IAdcBus, IDisposable
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("ADC [{Port}] HComm decoded {Command}, address={Address}, values={Values}.",
                     PortName, command, address, values is null ? "null" : string.Join(",", values));
+            if (command == Command.Mor && values is { Length: AdcFasteningResult.RegisterCount })
+            {
+                Monitor.ReceiveEvent(AdcFasteningResult.FromRegisters(
+                    values.Select(value => checked((ushort)value)).ToArray()));
+                // A manual result read may also use this block. Other requests must
+                // keep waiting for their own response, even if HComm removes its entry.
+                if (_pending is null || _command != Command.Mor
+                    || _address != (ushort)AdcResultRegister.EventCount
+                    || _countOrValue != AdcFasteningResult.RegisterCount)
+                {
+                    // Keep unsolicited data out of the pending request's raw reply,
+                    // including when event and graph frames share one serial read.
+                    var payload = new byte[1 + values.Length * 2];
+                    payload[0] = (byte)(values.Length * 2);
+                    for (var index = 0; index < values.Length; index++)
+                        BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(1 + index * 2), (ushort)values[index]);
+                    var eventFrame = AdcRtuFrame.Build(_slaveAddress, AdcFunctionCode.ReadInputRegisters, payload);
+                    var offset = CollectionsMarshal.AsSpan(_received).IndexOf(eventFrame);
+                    if (offset >= 0)
+                        _received.RemoveRange(offset, eventFrame.Length);
+                    return;
+                }
+            }
             if (command == Command.GraphAd)
             {
                 // ADC returns C8 / length 1 / 00 when no curve is available. HComm validates

@@ -30,10 +30,6 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="AdcSignalStateStyle" TargetType="TextBlock" BasedOn="{StaticResource SmemaSignalStateStyle}">
-            <Setter Property="TextAlignment" Value="Center"/>
-            <Setter Property="FontSize" Value="14"/>
-        </Style>
         <Style x:Key="AdcAlarmStateStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
             <Setter Property="FontSize" Value="14"/>
@@ -145,20 +141,20 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock Text="{ui:Text 'Controller'}" Margin="8,0,0,0" TextAlignment="Left" Foreground="{StaticResource TextMutedBrush}"/>
-                <TextBlock Grid.Column="1" Text="{ui:Text 'READY'}" Foreground="{StaticResource TextMutedBrush}"/>
-                <TextBlock Grid.Column="2" Text="{ui:Text 'RUN'}" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Text="{ui:Text 'Last result'}" Margin="8,0,0,0" TextAlignment="Left" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Grid.Column="1" Text="{ui:Text 'Preset'}" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Grid.Column="2" Text="{ui:Text 'Result'}" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBlock Grid.Column="3" Text="{ui:Text 'ALARM'}" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBlock Grid.Row="1" Text="{ui:Text 'Pickup'}" Margin="8,0,0,0" TextAlignment="Left" FontWeight="SemiBold"/>
-                <TextBlock Grid.Row="1" Grid.Column="1" Tag="{Binding Fastening.PickupHead.Monitor.Sample.Status.Ready}" Style="{StaticResource AdcSignalStateStyle}"/>
-                <TextBlock Grid.Row="1" Grid.Column="2" Tag="{Binding Fastening.PickupHead.Monitor.Sample.Status.Running}" Style="{StaticResource AdcSignalStateStyle}"/>
-                <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding Fastening.PickupHead.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"
-                    Tag="{Binding Fastening.PickupHead.Monitor.Sample.Status.Alarm}" Style="{StaticResource AdcAlarmStateStyle}"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Fastening.PickupHead.Monitor.LastEvent.Result.Preset, TargetNullValue=—, FallbackValue=—}"/>
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Fastening.PickupHead.Monitor.LastEvent.Result.Status, Converter={StaticResource UiTextConverter}, TargetNullValue=—, FallbackValue=—}"/>
+                <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding Fastening.PickupHead.Monitor.LastEvent.Result.Error, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"
+                    Tag="{Binding Fastening.PickupHead.Monitor.LastEvent.Result.Error}" Style="{StaticResource AdcAlarmStateStyle}"/>
                 <TextBlock Grid.Row="2" Text="{ui:Text 'Shooting'}" Margin="8,0,0,0" TextAlignment="Left" FontWeight="SemiBold"/>
-                <TextBlock Grid.Row="2" Grid.Column="1" Tag="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Ready}" Style="{StaticResource AdcSignalStateStyle}"/>
-                <TextBlock Grid.Row="2" Grid.Column="2" Tag="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Running}" Style="{StaticResource AdcSignalStateStyle}"/>
-                <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"
-                    Tag="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Alarm}" Style="{StaticResource AdcAlarmStateStyle}"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Fastening.ShootingHead.Monitor.LastEvent.Result.Preset, TargetNullValue=—, FallbackValue=—}"/>
+                <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Fastening.ShootingHead.Monitor.LastEvent.Result.Status, Converter={StaticResource UiTextConverter}, TargetNullValue=—, FallbackValue=—}"/>
+                <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding Fastening.ShootingHead.Monitor.LastEvent.Result.Error, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"
+                    Tag="{Binding Fastening.ShootingHead.Monitor.LastEvent.Result.Error}" Style="{StaticResource AdcAlarmStateStyle}"/>
             </Grid>
 
             <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="342"

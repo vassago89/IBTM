@@ -88,6 +88,34 @@ public sealed class BoltFasteningSettings : Setting
         }
     } = 1;
 
+    public int ShootingIpmStartDelayMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
+    public int PickupFinalStartDelayMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
+    public int ShootingPcbStartDelayMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
+
     public bool IpmRetighteningEnabled { get; set; }
     public bool MonitorTorqueCurves { get; set; }
     public AdcTorqueCurveSampling TorqueCurveSampling

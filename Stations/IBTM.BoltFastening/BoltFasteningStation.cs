@@ -801,6 +801,12 @@ public sealed class BoltFasteningStation : AutoUnit
                                         true, fastening.Token, requireCurrent: true);
                                 if (!continuingFinal && !isPreliminary)
                                     await SetHeadDownAsync(toolHead, true, fastening.Token);
+                                var startDelayMilliseconds = bolt.Head == FasteningHead.Shooting
+                                    ? _settings.ShootingPcbStartDelayMilliseconds
+                                    : isPreliminary ? _settings.ShootingIpmStartDelayMilliseconds
+                                        : _settings.PickupFinalStartDelayMilliseconds;
+                                if (startDelayMilliseconds > 0)
+                                    await Task.Delay(startDelayMilliseconds, fastening.Token);
                                 var dryRunMilliseconds = !_units.IsBoltFeederEnabled(bolt.Head)
                                     ? _settings.DryRunMilliseconds : 0;
                                 _log?.LogInformation(

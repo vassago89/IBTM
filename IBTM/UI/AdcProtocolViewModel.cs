@@ -285,7 +285,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var baudRate = SelectedBaudRate;
             await Task.Run(() => Bus.Open(portName, baudRate, slave), operation.Token);
             _connectedHead = null;
-            Bus.Monitor.IntervalMilliseconds = _settings.StatusPollMilliseconds;
             await Bus.Monitor.StartAsync(slave, operation.Token);
             ConnectionStatus = $"{portName} | {baudRate}";
             AppendLog($"CONNECT  {Bus.PortName} | {Bus.BaudRate}");
