@@ -93,22 +93,15 @@ public abstract class HardwareSettings : Setting
     }
 }
 
-public abstract class InputHardwareSettings : HardwareSettings
-{
-    protected InputHardwareSettings()
-    {
-        Inputs = [];
-    }
-
-    public virtual Dictionary<InputIo, int> Inputs { get; set; }
-}
-
-public abstract class IoHardwareSettings : InputHardwareSettings
+public abstract class IoHardwareSettings : HardwareSettings
 {
     protected IoHardwareSettings()
     {
+        Inputs = [];
         Outputs = [];
     }
+
+    public virtual Dictionary<InputIo, int> Inputs { get; set; }
 
     public Dictionary<OutputIo, OutputHardware> Outputs
     {

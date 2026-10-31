@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Conveyor;
+using IBTM.BackupPlate;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.PcbPlacement;
@@ -1157,7 +1157,7 @@ public sealed class PcbPlacementStateSafetyTests
                 ReceiveZ = 12,
             };
             Position = new() { X = 70, Y = 20, Z = 10 };
-            Io = new(Outputs(new PcbPlacementHandlerHardwareSettings(), new ConveyorHardwareSettings()), new() { TimeoutMilliseconds = vacuumTimeout });
+            Io = new(Outputs(new PcbPlacementHandlerHardwareSettings(), new PcbPlacementStationHardwareSettings()), new() { TimeoutMilliseconds = vacuumTimeout });
             Motion = new(Settings.Motion, operations ?? new());
 
             Supply = new() { Handoff = PcbSupplyHandoff.Holding };
@@ -1169,7 +1169,7 @@ public sealed class PcbPlacementStateSafetyTests
                 InputProbe = (IoTests.OutputReadProbe)io;
                 InputProbe.Io = Io;
             }
-            Work = ConveyorStation.CreatePcbPlacement(io);
+            Work = BackupPlateStation.CreatePcbPlacement(io);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition = Position;
             IMotionFeedback feedback = Motion;
@@ -1197,7 +1197,7 @@ public sealed class PcbPlacementStateSafetyTests
         public PcbPlacementHandlerSettings Settings { get; }
         public VirtualIoService Io { get; }
         public VirtualMotionService Motion { get; }
-        public ConveyorStation Work { get; }
+        public BackupPlateStation Work { get; }
         public PcbPlacer Placer { get; }
         public IoTests.OutputReadProbe? InputProbe { get; }
         public MachineTestSupport.ScopedMotionProbe? FeedbackProbe { get; }

@@ -6,5 +6,6 @@
   </Configurations>
   <Project Path="IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj" />
   <Project Path="IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj" />
+  <Project Path="IBTM.Fastech.Tests/IBTM.Fastech.Tests.csproj" />
   <Project Path="IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj" />
 </Solution>

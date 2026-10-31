@@ -17,6 +17,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Hardware\IBTM.Ajin\IBTM.Ajin.csproj" />
     <ProjectReference Include="..\Hardware\IBTM.AlphaMotion\IBTM.AlphaMotion.csproj" />
+    <ProjectReference Include="..\Hardware\IBTM.Fastech\IBTM.Fastech.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.BackupPlate\IBTM.BackupPlate.csproj" />
     <ProjectReference Include="..\Stations\IBTM.BoltFastening\IBTM.BoltFastening.csproj" />
     <ProjectReference Include="..\Stations\IBTM.BoltFeeder\IBTM.BoltFeeder.csproj" />
     <ProjectReference Include="..\Stations\IBTM.Conveyor\IBTM.Conveyor.csproj" />

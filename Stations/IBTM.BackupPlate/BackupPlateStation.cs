@@ -2,26 +2,14 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Device;
 
-namespace IBTM.Device;
+namespace IBTM.BackupPlate;
 
-public enum StationCylinderState
-{
-    [Description("Up")]
-    Up,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Down")]
-    Down,
-}
-
-public sealed class ConveyorStation : INotifyPropertyChanged
+public sealed class BackupPlateStation : INotifyPropertyChanged
 {
     private readonly IIoService _io;
     private readonly InputIo _backupPlateUp;
@@ -35,7 +23,7 @@ public sealed class ConveyorStation : INotifyPropertyChanged
     private static readonly Lock s_jobGate;
     private volatile Job _job;
 
-    private ConveyorStation(
+    private BackupPlateStation(
         IIoService io,
         InputIo backupPlateUp,
         InputIo backupPlateDown,
@@ -59,7 +47,7 @@ public sealed class ConveyorStation : INotifyPropertyChanged
         io.InputChanged += OnInputChanged;
     }
 
-    static ConveyorStation()
+    static BackupPlateStation()
     {
         s_jobGate = new();
     }
@@ -112,7 +100,7 @@ public sealed class ConveyorStation : INotifyPropertyChanged
         }
     }
 
-    public static ConveyorStation CreatePcbPlacement(IIoService io)
+    public static BackupPlateStation CreatePcbPlacement(IIoService io)
     {
         return new(
             io,
@@ -126,7 +114,7 @@ public sealed class ConveyorStation : INotifyPropertyChanged
             OutputIo.PcbPlacementStopperUp);
     }
 
-    public static ConveyorStation CreateBoltFastening(IIoService io)
+    public static BackupPlateStation CreateBoltFastening(IIoService io)
     {
         return new(
             io,
@@ -140,7 +128,7 @@ public sealed class ConveyorStation : INotifyPropertyChanged
             OutputIo.BoltFasteningStopperUp);
     }
 
-    public static ConveyorStation CreateInspection(IIoService io)
+    public static BackupPlateStation CreateInspection(IIoService io)
     {
         return new(
             io,
@@ -162,26 +150,36 @@ public sealed class ConveyorStation : INotifyPropertyChanged
     public Task PrepareToReceiveAsync(CancellationToken cancellationToken)
     {
         return Task.WhenAll(
-            _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken),
-            _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken));
+            SetStopperUpAsync(true, cancellationToken),
+            SetBackupPlateUpAsync(false, cancellationToken));
     }
 
     public Task ReleaseAsync(CancellationToken cancellationToken)
     {
         return Task.WhenAll(
-            _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken),
-            _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken));
+            SetStopperUpAsync(false, cancellationToken),
+            SetBackupPlateUpAsync(false, cancellationToken));
     }
 
     public async Task SeatAsync(CancellationToken cancellationToken)
     {
-        await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
-        await _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken);
+        await SetStopperUpAsync(true, cancellationToken);
+        await SetBackupPlateUpAsync(true, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (!CarrierPresent)
             throw new MotionInterlockException(UiText.Format(
                 $"{UiText.Get(_backupPlateUp)}: carrier not detected after raising the backup plate."));
-        await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
+        await SetStopperUpAsync(false, cancellationToken);
+    }
+
+    public Task SetBackupPlateUpAsync(bool up, CancellationToken cancellationToken)
+    {
+        return _io.SetOutputAndWaitAsync(_backupPlate, up, cancellationToken);
+    }
+
+    public Task SetStopperUpAsync(bool up, CancellationToken cancellationToken)
+    {
+        return _io.SetOutputAndWaitAsync(_stopper, up, cancellationToken);
     }
 
     private void OnInputChanged(InputIo input, bool value)
@@ -208,8 +206,6 @@ public sealed class ConveyorStation : INotifyPropertyChanged
     public bool IsRestartAllowed => CarrierPresent && _job.RestartAllowed;
 
     public IEnumerable<HeatSinkAssembly> Assemblies => _job.Assemblies.Values;
-
-    public bool HasNg => Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
 
     public HeatSinkAssembly GetAssembly(HeatSinkSlot heatSink)
     {
@@ -249,7 +245,7 @@ public sealed class ConveyorStation : INotifyPropertyChanged
                 $"Carrier work changed from {job.Id} to {_job.Id}; the previous work cannot update this carrier.");
     }
 
-    public void TransferAssembliesTo(ConveyorStation destination, Job job, Job arrivingJob)
+    public void TransferAssembliesTo(BackupPlateStation destination, Job job, Job arrivingJob)
     {
         lock (s_jobGate)
         {

@@ -1140,12 +1140,21 @@
             </TabItem>
             <TabItem Header="{ui:Text 'I/O mapping'}">
                 <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="12"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Style="{StaticResource SettingCard}" Margin="0">
+                    <ComboBox x:Name="IoAreaSelector" Grid.ColumnSpan="3"
+                        ItemsSource="{Binding MappingAreas}"
+                        SelectedItem="{Binding SelectedMappingArea, Mode=TwoWay, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
+                        DisplayMemberPath="Value" AutomationProperties.Name="{ui:Text 'Device'}"
+                        Width="240" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+                    <Border Grid.Row="1" Style="{StaticResource SettingCard}" Margin="0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -1166,7 +1175,7 @@
                                 Padding="0" ScrollViewer.VerticalScrollBarVisibility="Visible"
                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.GroupStyle>
-                                    <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
+                                    <GroupStyle ContainerStyle="{StaticResource IoFilteredGroupItemStyle}"
                                         HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
                                     <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
                                         HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
@@ -1189,7 +1198,7 @@
                             </ListBox>
                         </Grid>
                     </Border>
-                    <Border Style="{StaticResource SettingCard}" Margin="0" Grid.Column="2">
+                    <Border Grid.Row="1" Style="{StaticResource SettingCard}" Margin="0" Grid.Column="2">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -1212,7 +1221,7 @@
                                 Padding="0" ScrollViewer.VerticalScrollBarVisibility="Visible"
                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.GroupStyle>
-                                    <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
+                                    <GroupStyle ContainerStyle="{StaticResource IoFilteredGroupItemStyle}"
                                         HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
                                     <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
                                         HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>

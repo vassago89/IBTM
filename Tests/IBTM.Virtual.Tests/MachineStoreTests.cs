@@ -223,27 +223,65 @@ public sealed class MachineStoreTests
     }
 
     [Fact]
-    public void OldConveyorNamesUseCurrentDefinitionsAndKeepEditedAddresses()
+    public async Task OldConveyorNamesUseCurrentDefinitionsAndKeepEditedAddresses()
     {
         var hardware = JsonSerializer.Deserialize<ConveyorHardwareSettings>("""
-            {"Inputs":{"MainConveyorAutoMode":153},"Outputs":{
+            {"Inputs":{"MainConveyorAutoMode":153,
+                "PcbPlacementStopperUp":158,"PcbPlacementStopperDown":157,
+                "PcbPlacementBackupPlateUp":159,"PcbPlacementBackupPlateDown":160,
+                "BoltFasteningStopperUp":165,"BoltFasteningStopperDown":164,
+                "BoltFasteningBackupPlateUp":166,"BoltFasteningBackupPlateDown":167,
+                "InspectionStopperUp":172,"InspectionStopperDown":171,
+                "InspectionBackupPlateUp":173,"InspectionBackupPlateDown":174},"Outputs":{
                 "PcbPlacementStopperDown":{"Number":125,"OffNumber":126,"Feedback":{"OnInput":"PcbPlacementStopperDown","OffInput":"PcbPlacementStopperUp"}},
-                "PcbPlacementBackupPlateDown":{"Number":127,"OffNumber":128,"Feedback":{"OnInput":"PcbPlacementBackupPlateDown","OffInput":"PcbPlacementBackupPlateUp"}}
+                "PcbPlacementBackupPlateDown":{"Number":127,"OffNumber":128,"Feedback":{"OnInput":"PcbPlacementBackupPlateDown","OffInput":"PcbPlacementBackupPlateUp"}},
+                "BoltFasteningStopperUp":{"Number":152,"OffNumber":153},
+                "BoltFasteningBackupPlateUp":{"Number":154,"OffNumber":155},
+                "InspectionStopperUp":{"Number":156,"OffNumber":157},
+                "InspectionBackupPlateUp":{"Number":158,"OffNumber":159}
             }}
             """)!;
         Assert.Equal(153, hardware.Inputs[InputIo.MainConveyorManualMode]);
-        Assert.Equal(3, hardware.Outputs.Count); // Only the new Normal Speed output is added.
+        Assert.Equal(7, hardware.Outputs.Count); // Only the new Normal Speed output is added.
         Assert.Equal(62, hardware.Outputs[OutputIo.MainConveyorNormalSpeed].Number);
-        var stopper = hardware.Outputs[OutputIo.PcbPlacementStopperUp];
+        var store = VirtualTestSupport.OpenMachineStore();
+        store.SaveSettings([hardware]);
+        var loaded = await MachineSettings.LoadAsync(store);
+        var stopper = loaded.PcbPlacementStationHardware.Outputs[OutputIo.PcbPlacementStopperUp];
         Assert.Equal(125, stopper.Number);
         Assert.Equal(126, stopper.OffNumber);
         Assert.Equal(InputIo.PcbPlacementStopperUp, stopper.Feedback!.OnInput);
         Assert.Equal(InputIo.PcbPlacementStopperDown, stopper.Feedback.OffInput);
-        var plate = hardware.Outputs[OutputIo.PcbPlacementBackupPlateUp];
+        var plate = loaded.PcbPlacementStationHardware.Outputs[OutputIo.PcbPlacementBackupPlateUp];
         Assert.Equal(127, plate.Number);
         Assert.Equal(128, plate.OffNumber);
         Assert.Equal(InputIo.PcbPlacementBackupPlateUp, plate.Feedback!.OnInput);
         Assert.Equal(InputIo.PcbPlacementBackupPlateDown, plate.Feedback.OffInput);
+
+        Assert.Single(loaded.ConveyorHardware.Inputs);
+        Assert.Single(loaded.ConveyorHardware.Outputs);
+        IoHardwareSettings[] stations = [loaded.PcbPlacementStationHardware,
+            loaded.BoltFasteningStationHardware, loaded.InspectionStationHardware];
+        foreach (var station in stations)
+        {
+            foreach (var (output, expected) in hardware.Outputs.Where(pair => pair.Key != OutputIo.MainConveyorNormalSpeed))
+            {
+                if (!station.Outputs.TryGetValue(output, out var actual))
+                    continue;
+                Assert.Equal((expected.Number, expected.OffNumber), (actual.Number, actual.OffNumber));
+                Assert.NotNull(actual.Feedback);
+                Assert.Equal(hardware.Inputs[actual.Feedback.OnInput], station.Inputs[actual.Feedback.OnInput]);
+                Assert.Equal(hardware.Inputs[actual.Feedback.OffInput!.Value], station.Inputs[actual.Feedback.OffInput.Value]);
+            }
+        }
+        store.SaveSettings(loaded.Sections);
+        var reopened = await MachineSettings.LoadAsync(store);
+        foreach (var station in stations)
+        {
+            var savedStation = reopened.HardwareSections.OfType<IoHardwareSettings>()
+                .Single(section => section.Area == station.Area);
+            Assert.Equal(JsonSerializer.Serialize(station), JsonSerializer.Serialize(savedStation));
+        }
 
         var ng = JsonSerializer.Deserialize<NgConveyorHardwareSettings>("""
             {"Outputs":{"NgConveyorRun":{"Number":172}}}
@@ -309,10 +347,10 @@ public sealed class MachineStoreTests
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 91;
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorReadyFromRear] = 92;
         settings.Conveyor.RearSmemaOffDelaySeconds = 0.8;
-        settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp] = 57;
-        settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown] = 58;
-        settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp].Number = 96;
-        settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp].OffNumber = 97;
+        settings.PcbPlacementStationHardware.Inputs[InputIo.PcbPlacementStopperUp] = 57;
+        settings.PcbPlacementStationHardware.Inputs[InputIo.PcbPlacementStopperDown] = 58;
+        settings.PcbPlacementStationHardware.Outputs[OutputIo.PcbPlacementStopperUp].Number = 96;
+        settings.PcbPlacementStationHardware.Outputs[OutputIo.PcbPlacementStopperUp].OffNumber = 97;
         settings.NgConveyorHardware.Inputs.Remove(InputIo.NgConveyorStopperUp);
         settings.NgConveyorHardware.Inputs.Remove(InputIo.NgConveyorStopperDown);
         settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink1Present] = 61;

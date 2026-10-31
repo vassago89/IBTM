@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
@@ -611,7 +612,8 @@ public sealed class NgHandoffTests
         NgCarrierConveyor Conveyor)> CreateAsync(UnitSettings? units = null)
     {
         var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(),
-            new NgShuttleHardwareSettings(), new NgConveyorHardwareSettings(), new ConveyorHardwareSettings()), new());
+            new NgShuttleHardwareSettings(), new NgConveyorHardwareSettings(),
+            new InspectionStationHardwareSettings(), new ConveyorHardwareSettings()), new());
         io.Initialize();
         units ??= new UnitSettings { MainConveyor = false };
         var settings = new NgCarrierTransferSettings
@@ -626,7 +628,7 @@ public sealed class NgHandoffTests
         motion.Initialize();
         await motion.HomeAsync(MotionAxis.X, 1_000);
         await motion.HomeAsync(MotionAxis.Y, 1_000);
-        var work = ConveyorStation.CreateInspection(io);
+        var work = BackupPlateStation.CreateInspection(io);
         var conveyor = new NgCarrierConveyor(io, new(), units);
         var recipes = new RecipeManager(OpenMachineStore(), new());
         var inspection = new InspectionStation(

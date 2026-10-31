@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.PcbPlacement;
@@ -565,12 +566,12 @@ public sealed class PcbTransferTests
         IIoService io,
         PcbPlacementHandlerSettings settings,
         PcbPlacementRecipe? recipe = null,
-        ConveyorStation? work = null,
+        BackupPlateStation? work = null,
         UnitSettings? units = null)
     {
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.PcbPlacement = recipe ?? new();
-        return new(motion, new(motion), io, settings, supply, work ?? ConveyorStation.CreatePcbPlacement(io), recipes, units ?? new());
+        return new(motion, new(motion), io, settings, supply, work ?? BackupPlateStation.CreatePcbPlacement(io), recipes, units ?? new());
     }
 
     private static MotionSettings FastMotion()

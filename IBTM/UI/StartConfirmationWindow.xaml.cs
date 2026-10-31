@@ -57,6 +57,9 @@ public partial class StartConfirmationWindow : Window
     {
         if (e.PropertyName == nameof(OperationViewModel.SelectedStartArea))
             ReviewTabs.SelectedIndex = 0;
+        else if (e.PropertyName == nameof(OperationViewModel.SelectedFasteningResumeBolt)
+            && _viewModel.SelectedFasteningResumeBolt is { } row)
+            FasteningHeatSinkSelector.SelectedValue = row.HeatSink;
     }
 
     private void OnInterruptedBoltClick(object sender, RoutedEventArgs e)
@@ -73,10 +76,12 @@ public partial class StartConfirmationWindow : Window
         if (!IsLoaded)
             return;
         var view = ((CollectionViewSource)Resources["FasteningRows"]).View;
+        var selected = _viewModel.SelectedFasteningResumeBolt;
         view.Refresh();
-        _viewModel.SelectedFasteningResumeBolt = view.Cast<FasteningResumeRow>()
-            .FirstOrDefault(row => row.Result?.Source == BoltResultSource.Interrupted)
-            ?? view.Cast<FasteningResumeRow>().FirstOrDefault();
+        _viewModel.SelectedFasteningResumeBolt = selected is not null && view.Contains(selected)
+            ? selected
+            : view.Cast<FasteningResumeRow>().FirstOrDefault(row => row.Result?.Source == BoltResultSource.Interrupted)
+                ?? view.Cast<FasteningResumeRow>().FirstOrDefault();
     }
 
     private static void OnAutomaticRunningChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)

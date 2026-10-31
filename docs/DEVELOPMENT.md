@@ -43,7 +43,7 @@ Data Matrix 판독 옵션(TryHarder, TryInverted, AutoRotate, PureBarcode)과 �
 | 프로퍼티 | 현재 값·상태와 인자 없는 조건 | `CarrierPresent`, `BackupPlate`, `CurrentJob`, `Step`, `ActiveBolt` |
 | `Get...()` | 인자를 받는 조회 또는 다음 작업 선택 | `GetAssembly(job, slot)`, `GetNextStep(...)` |
 | `Is...()` | 인자를 받는 조건 확인 | `IsHeatSinkPresent(slot)`, `IsSupportReady(destination)` |
-| `Create...()` | 객체 생성 | `ConveyorStation.CreateInspection(io)` |
+| `Create...()` | 객체 생성 | `BackupPlateStation.CreateInspection(io)` |
 | 동사 + `Async()` | 장치 동작 또는 비동기 대기 | `RunAsync()`, `MoveToCarrierAsync()`, `WaitForChangeAsync()` |
 
 각 유닛의 기본 클래스 파일에서 `RunAsync()` → 다음 상태 선택 → `ExecuteStepAsync()`를 따라간다.
@@ -112,7 +112,7 @@ START 화면의 소재 확인 결과는 여전히 명시적인 확인/START 시�
   기존 DB에는 테이블만 추가하며, 이전 버전의 메모리 수량이나 과거 PCB 결과를 소급 집계하지 않는다.
 - `MainConveyor`는 이송 우선순위를 결정하고, 하나의 이송 메서드가 출발지 하강부터 목적지 도착까지 맡는다.
   NG 배출 여부도 컨베이어가 검사 결과와 유닛 설정으로 판단한다. DI에는 객체 연결만 둔다.
-- `ConveyorStation`은 현재 캐리어의 작업·결과 소유권을 관리한다. 위치와 착좌 여부는 현재 I/O로 판단한다.
+- `BackupPlateStation`은 현재 캐리어의 작업·결과 소유권을 관리한다. 위치와 착좌 여부는 현재 I/O로 판단한다.
   사용 설정, 실행 중 명령, 결과 소유권을 물리 위치나 완료 피드백으로 대신하지 않는다.
 - `PcbHistoryWriter`는 PCB 결과 객체가 만들어질 때 기존 `Machine.db`의 `PcbCounter`를 증가시켜 번호를 발급한다.
   결과는 Settings → Data & logs → PCB result database의 폴더에 `PCB-yyyy-MM.db`로 저장한다.
@@ -158,7 +158,7 @@ START 화면의 소재 확인 결과는 여전히 명시적인 확인/START 시�
 | 표준 로거 연결·파일 저장·최근 로그 수신 | `Shared/IBTM.Core/ApplicationLog.cs`, `IBTM/ApplicationTraceListener.cs` |
 | 메인 컨베이어 이송·감지 후 밀착 시간 | `Stations/IBTM.Conveyor/MainConveyor.cs`, `ConveyorSettings.cs` |
 | 메인 컨베이어 수동 운전·모터·정지·SMEMA 출력 | `Stations/IBTM.Conveyor/MainConveyor.cs` |
-| 백업 플레이트·스토퍼 | `Shared/IBTM.Device/ConveyorStation.cs` |
+| 백업 플레이트·스토퍼 | `Stations/IBTM.BackupPlate/BackupPlateStation.cs` |
 | 볼트 상태·피드백·의존성 | `Stations/IBTM.BoltFastening/BoltFasteningStation.cs` |
 | 볼트 공급·체결 순서·결과 | `Stations/IBTM.BoltFastening/BoltFasteningStation.cs` |
 | 볼트 모션·티칭 이동·헤드/테이블 I/O | `Stations/IBTM.BoltFastening/BoltFasteningStation.cs` |
@@ -347,7 +347,7 @@ ROI·대상·촬영 좌표의 화면용 복사본을 추가하지 않는다.
   확인한 뒤 정상 상태에서만 현재 SDK 준비 상태를 읽는다. SDK 대신 캐시로 운전을 허용하지 않는다.
 - `MainConveyor.PrepareEmptyStationsAsync`: START 준비에서 빈 스테이션만 내린다. 루프마다 반복하지 않는다.
   캐리어 또는 NG 픽업의 지지 상태는 유지하고, 실제 이송의 Release 단계가 하강을 소유한다.
-- `ConveyorStation.CurrentJob` / `Complete(job)`: 결과와 완료의 작업 주인이다. 캐리어 교체 후 이전 작업의
+- `BackupPlateStation.CurrentJob` / `Complete(job)`: 결과와 완료의 작업 주인이다. 캐리어 교체 후 이전 작업의
   완료는 거부한다. `TransferAsync`의 지역 변수 `departingJob`이 출발 결과를 잡아 새 캐리어와 섞이지 않게 한다.
 - `AutoUnit.TraceStep`: 이미 선택한 실행 단계를 로그에 남긴다. 같은 단계·대상·작업·대기 이유가
   유지되는 동안 로그를 반복하지 않는다. 실제 위치·완료 판단에 이 기록을 사용하지 않는다.
@@ -496,7 +496,7 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 검사와 NG 이송은 갠트리를 공유하므로 `InspectionStation.RunAsync` 한 경로에서 실행한다.
 `InspectionStation.cs`가 이동·촬영·판정도 직접 실행한다.
 피더는 `BoltFeederUnit` 하나가 픽업·슈팅을 함께 감시한다. NG 셔틀과 벨트는 `NgCarrierConveyor`에서 동작과 현재 입력을 함께 읽는다.
-캐리어별 Job·결과·완료 정보는 각 스테이션의 `ConveyorStation`에 보관한다. 별도의 Work 클래스는 없고, 공정 조건·검사 요청·NG 인계 인터록은 해당 실행 스테이션이 관리한다.
+캐리어별 Job·결과·완료 정보는 각 스테이션의 `BackupPlateStation`에 보관한다. 별도의 Work 클래스는 없고, 공정 조건·검사 요청·NG 인계 인터록은 해당 실행 스테이션이 관리한다.
 Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고, Placement 확보 확인과 이탈 대기는 유지한다.
 공급·안착 유닛은 자기 피드백만으로 상태를 계산하며 전체 시퀀스 enum은 각 프로젝트에 둔다. 두 루프는 Core의 `IPcbSupplyHandoff` / `IPcbPlacementHandoff`를 통해 `Handoff`와 변경 알림만 공유한다. 공급은 `Holding`/`Released`, 안착은 `Holding`/`Clear`를 내보내며 그 외에는 `Unavailable`이다. 상대 내부 작업 단계나 핸들러를 참조하지 않는다. Placement는 Supply 인계를 DI로 받고, MachineController는 Supply 실행 시 Placement 인계를 전달한다. 상대 변경은 대기를 깨우기만 하고 다시 전달하지 않는다.
 안착 상태 판단과 실행 좌표는 모두 `RecipeManager.Current.PcbPlacement`에서 읽으며 호출자가 별도 레시피를 넘기지 않는다.
@@ -723,8 +723,8 @@ DI·DO·모션의 상시 감시는 모두 `MachineFeedbackMonitor.StartAsync`에
 두 공급자의 스캔을 모두 읽은 뒤 입력 캐시를 반영하고 변경 이벤트를 발행한다.
 복구 초기화도 `PublishInputScan`에서 마지막 정상 입력과 비교해 바뀐 DI를 알린다.
 읽기가 중간에 실패하면 마지막 정상 캐시를 보존하므로 다음 복구에서 변화가 누락되지 않는다.
-최초 실행의 입력 상태는 새 버튼 입력으로 알리지 않는다. 복구 중 새로 확인된 캐리어 입고는
-`ConveyorStation.CarrierChanged`를 통해 이전 작업 완료·결과를 초기화한다.
+최초 실행의 입력 상태는 새 버튼 입력으로 알리지 않는다. `BackupPlateStation`은 입력이
+복구되어도 작업·결과를 유지하며, 빈 스테이션의 명시적인 `ClearJob` 또는 이송에서 작업을 교체한다.
 Virtual 입력은 시뮬레이터의 상태 변경 시 이미 반영되므로 `RefreshInputs`에서 SDK를 읽지 않는다.
 화면 갱신 루프와 전체 `MachineDisplay` 스냅샷은 없다.
 `IoSignals`·`MotionStatus`가 실제 값의 변경을 알리고, `MachineState`는 수집된 준비 상태와

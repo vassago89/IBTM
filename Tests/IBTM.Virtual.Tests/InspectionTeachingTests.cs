@@ -682,6 +682,11 @@ public sealed class InspectionTeachingTests
         Assert.Same(selectedImage.Record, editor.SelectedHistoryImage!.Record);
         Assert.Same(selectedImage.Image, editor.Preview.Image);
         Assert.Same(imageLoad, editor.LoadRecordCommand.ExecutionTask);
+        await editor.Results.RefreshHistoryCommand.ExecuteAsync(null);
+        Assert.Equal(InspectionImageMode.Recorded, editor.ImageMode);
+        Assert.Same(selectedImage.Record, editor.SelectedHistoryImage!.Record);
+        Assert.Same(selectedImage.Image, editor.Preview.Image);
+        Assert.Same(imageLoad, editor.LoadRecordCommand.ExecutionTask);
         editor.Preview.BrightnessThreshold = 0;
         editor.Preview.MinimumBrightPercent = 0;
         await editor.InspectCommand.ExecuteAsync(null);

@@ -7,10 +7,12 @@
   <Folder Name="/Hardware/">
     <Project Path="Hardware/IBTM.Ajin/IBTM.Ajin.csproj" />
     <Project Path="Hardware/IBTM.AlphaMotion/IBTM.AlphaMotion.csproj" />
+    <Project Path="Hardware/IBTM.Fastech/IBTM.Fastech.csproj" />
     <Project Path="Hardware/IBTM.Hantas/IBTM.Hantas.csproj" />
     <Project Path="Hardware/IBTM.Hik/IBTM.Hik.csproj" />
   </Folder>
   <Folder Name="/Stations/">
+    <Project Path="Stations/IBTM.BackupPlate/IBTM.BackupPlate.csproj" />
     <Project Path="Stations/IBTM.BoltFastening/IBTM.BoltFastening.csproj" />
     <Project Path="Stations/IBTM.BoltFeeder/IBTM.BoltFeeder.csproj" />
     <Project Path="Stations/IBTM.Conveyor/IBTM.Conveyor.csproj" />

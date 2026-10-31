@@ -7,13 +7,12 @@ namespace IBTM.UI;
 public sealed class TeachingIoGroup
 {
     public TeachingIoGroup(
-        InputHardwareSettings hardware,
-        IEnumerable<OutputIo> outputs,
+        IoHardwareSettings hardware,
         IoSignals io,
         MachineController machine)
     {
         Area = hardware.Area;
-        var signals = outputs.Select(output => io.Outputs[output]).OrderBy(row => row.Signal).ToArray();
+        var signals = hardware.Outputs.Keys.Select(output => io.Outputs[output]).OrderBy(row => row.Signal).ToArray();
         Sensors = hardware.Inputs.Keys.Select(input => io.Inputs[input])
             .Except(signals.SelectMany(row => row.Feedback))
             .OrderBy(row => row.Signal)

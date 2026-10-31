@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
@@ -26,7 +27,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         IIoService io,
         PcbPlacementHandlerSettings settings,
         IPcbSupplyHandoff supply,
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] ConveyorStation station,
+        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] BackupPlateStation station,
         RecipeManager recipes,
         UnitSettings units)
         : base(io, [
@@ -51,7 +52,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         StepChanged += NotifyChanged;
     }
 
-    public ConveyorStation Station { get; }
+    public BackupPlateStation Station { get; }
 
     public MotionStatus Motion { get; }
 

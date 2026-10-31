@@ -137,12 +137,12 @@ NG 운반 중처럼 캐리어를 잡고 있으면 기존 NG 이송 동작이 우
 - `MainConveyor`: 메인 벨트, S1·S2 착좌·각 스테이션 지지 해제, SMEMA, 물류 우선순위와 S3 검사·착좌 요청.
 - `PcbPlacer`, `BoltFasteningStation`, `InspectionStation`: 각 공정 실행과 현재 캐리어의 완료 판단.
 - `InspectionStation`: 바코드·볼트 검사, 검사 후 복귀, S3 상승 전 픽업 위치 이동, NG 집기·운반.
-- `ConveyorStation`: S1/S2/S3의 현재 감지·지지대 상태와 캐리어 Job·결과·완료 소유권.
+- `BackupPlateStation`: S1/S2/S3의 현재 감지·지지대 상태와 캐리어 Job·결과·완료 소유권.
 - `InspectionStation.cs`: 검사·착좌 요청, 현재 검사 위치와 NG 픽업 인터록 상태.
 - 참조 방향은 `IBTM.Conveyor → IBTM.Inspection → IBTM.NgConveyor`다.
   메인 컨베이어는 `InspectionStation`의 상태와 요청 API를 사용하며 실행 루프를 호출하지 않는다.
 
-메인 컨베이어는 S1/S2의 `ConveyorStation`과 S3의 `InspectionStation`을 직접 참조한다.
+메인 컨베이어는 S1/S2의 `BackupPlateStation`과 S3의 `InspectionStation`을 직접 참조한다.
 공정별 Work 클래스와 중복 DI 객체는 없다. 결과 저장과 UI도 각 스테이션의 `Station`을 사용한다.
 검사 스테이션의 픽업 상승·미완료 인계 없음은 `InspectionStation.IsClear`에서 읽는다.
 작업 시작 시 선택한 대상, 미수집 결과의 Job, 실행 중인 이송 명령은 각각 다른 수명을 가진
@@ -152,7 +152,7 @@ NG 운반 중처럼 캐리어를 잡고 있으면 기존 NG 이송 동작이 우
 처음부터 착좌된 캐리어의 완료가 첫 이송 선택에 반영되도록 작업 루프를 컨베이어보다 먼저 시작한다.
 각 스테이션은 Enabled가 false이면 작업 장치를 구동하지 않고 완료 처리한다. 안착은 잡고 있는 PCB나 불확실한 그립이 있으면 캐리어를 완료 처리하지 않는다.
 작업 수행과 건너뛰기는 모두 같은 완료값을 사용하며, 별도 스킵 상태는 두지 않는다.
-`ConveyorStation`은 스테이션이 기록한 완료를 보관하며, 센서나 Enabled만으로 완료를 만들어내지 않는다.
+`BackupPlateStation`은 스테이션이 기록한 완료를 보관하며, 센서나 Enabled만으로 완료를 만들어내지 않는다.
 Enabled를 바꿔도 현재 캐리어의 완료는 유지되며, 새 캐리어에는 이전 완료가 승계되지 않는다.
 메인 컨베이어는 이 결과와 현재 물리 조건으로 이송 여부를 판단한다.
 

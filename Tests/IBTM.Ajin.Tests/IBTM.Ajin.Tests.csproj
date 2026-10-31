@@ -12,6 +12,7 @@
     </PackageReference>
     <ProjectReference Include="../../Shared/IBTM.Core/IBTM.Core.csproj" />
     <ProjectReference Include="../../Shared/IBTM.Device/IBTM.Device.csproj" />
+    <ProjectReference Include="../../Stations/IBTM.BackupPlate/IBTM.BackupPlate.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Test the production controller without compiling or loading any native SDK declarations. -->

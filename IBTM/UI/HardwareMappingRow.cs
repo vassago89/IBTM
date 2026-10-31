@@ -22,8 +22,8 @@ public sealed class HardwareMappingRow
 
     public int Number
     {
-        get => ((InputHardwareSettings)Hardware).Inputs[(InputIo)Signal];
-        set => ((InputHardwareSettings)Hardware).Inputs[(InputIo)Signal] = value;
+        get => ((IoHardwareSettings)Hardware).Inputs[(InputIo)Signal];
+        set => ((IoHardwareSettings)Hardware).Inputs[(InputIo)Signal] = value;
     }
 
     public OutputHardware? Output { get; init; }

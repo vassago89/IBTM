@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Tests;
@@ -267,7 +268,7 @@ public sealed class AjinControllerTests
         };
         using var io = new PhysicalIoService(
             alpha, ajin, inputs, new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>(), new());
-        var work = ConveyorStation.CreateInspection(io);
+        var work = BackupPlateStation.CreateInspection(io);
         AjinSdk.Inputs[0] = 0b111;
         io.Initialize();
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);

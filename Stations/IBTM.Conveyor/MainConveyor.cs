@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
@@ -14,8 +15,8 @@ public sealed class MainConveyor : AutoUnit
 {
     private readonly ConveyorSettings _settings;
     private readonly OperationCancellation _operations;
-    private readonly ConveyorStation _placement;
-    private readonly ConveyorStation _fastening;
+    private readonly BackupPlateStation _placement;
+    private readonly BackupPlateStation _fastening;
     private readonly InspectionStation _inspection;
     private readonly UnitSettings _units;
     private OperationCancellation.Operation? _runCancellation;
@@ -27,8 +28,8 @@ public sealed class MainConveyor : AutoUnit
         IIoService io,
         ConveyorSettings settings,
         OperationCancellation operations,
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] ConveyorStation placement,
-        [FromKeyedServices(MotionGroup.BoltFastening)] ConveyorStation fastening,
+        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] BackupPlateStation placement,
+        [FromKeyedServices(MotionGroup.BoltFastening)] BackupPlateStation fastening,
         InspectionStation inspection,
         UnitSettings units)
         : base(io, [
@@ -150,8 +151,8 @@ public sealed class MainConveyor : AutoUnit
                     case MainConveyorState.PreparingInspectionCarrier:
                         EnterStep(state);
                         var inspectionJob = _inspection.Station.CurrentJob;
-                        await Io.SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true, cancellationToken);
-                        await Io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
+                        await _inspection.Station.SetStopperUpAsync(true, cancellationToken);
+                        await _inspection.Station.SetBackupPlateUpAsync(false, cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
                         if (!_inspection.InspectionRequested
                             && NextTransfer is MainConveyorState.DischargingInspectionCarrier
@@ -429,27 +430,24 @@ public sealed class MainConveyor : AutoUnit
         // Keep Station 3 supported while an NG transfer has not released its grip.
         var preparation = new List<Task>(3);
         if (!_placement.CarrierPresent && _placement.BackupPlate != StationCylinderState.Down)
-            preparation.Add(Io.SetOutputAndWaitAsync(
-                OutputIo.PcbPlacementBackupPlateUp, false, cancellationToken));
+            preparation.Add(_placement.SetBackupPlateUpAsync(false, cancellationToken));
         if (!_fastening.CarrierPresent && _fastening.BackupPlate != StationCylinderState.Down)
-            preparation.Add(Io.SetOutputAndWaitAsync(
-                OutputIo.BoltFasteningBackupPlateUp, false, cancellationToken));
+            preparation.Add(_fastening.SetBackupPlateUpAsync(false, cancellationToken));
         if (_inspection.IsReceiveAllowed && _inspection.Station.BackupPlate != StationCylinderState.Down)
-            preparation.Add(Io.SetOutputAndWaitAsync(
-                OutputIo.InspectionBackupPlateUp, false, cancellationToken));
+            preparation.Add(_inspection.Station.SetBackupPlateUpAsync(false, cancellationToken));
         return Task.WhenAll(preparation);
     }
 
     private async Task TransferAsync(
-        ConveyorStation? source,
-        ConveyorStation destination,
+        BackupPlateStation? source,
+        BackupPlateStation destination,
         CancellationToken cancellationToken)
     {
         var departingJob = source?.CurrentJob;
         var receiving = source is null;
         var timeout = TimeSpan.FromSeconds(_settings.TransferTimeoutSeconds);
         var timeoutMilliseconds = (int)timeout.TotalMilliseconds;
-        var arrived = new TaskCompletionSource<ConveyorStation.Job>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var arrived = new TaskCompletionSource<BackupPlateStation.Job>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var transfer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void ObserveEntry(InputIo input, bool value)
@@ -610,7 +608,7 @@ public sealed class MainConveyor : AutoUnit
             SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false, cancellationToken);
     }
 
-    private static void RequireSeatingPushPosition(ConveyorStation destination)
+    private static void RequireSeatingPushPosition(BackupPlateStation destination)
     {
         if (destination.BackupPlate != StationCylinderState.Down
             || destination.Stopper != StationCylinderState.Up)

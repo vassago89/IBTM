@@ -59,7 +59,7 @@ public partial class SettingsViewModel : ObservableObject
         _motions = settings.MotionSections.ToDictionary(section => section.Hardware.Group);
         MotionGroups = _motions.Keys.ToArray();
         var hardware = settings.HardwareSections;
-        var inputMappings = hardware.OfType<InputHardwareSettings>()
+        var inputMappings = hardware.OfType<IoHardwareSettings>()
             .SelectMany(
                 section => section.Inputs.Select(
                     mapping => new HardwareMappingRow(section, mapping.Key)))
@@ -80,10 +80,22 @@ public partial class SettingsViewModel : ObservableObject
             .ToArray();
         InputMappingView = GroupMappings(inputMappings);
         OutputMappingView = GroupMappings(outputMappings);
+        MappingAreas = [
+            new(null, UiText.Get("All devices")),
+            .. hardware.OfType<IoHardwareSettings>()
+                .Select(section => section.Area).Distinct().Order()
+                .Select(area => new KeyValuePair<HardwareArea?, string>(area, UiText.Get(area))),
+        ];
+        InputMappingView.Filter = IsMappingVisible;
+        OutputMappingView.Filter = IsMappingVisible;
+        SelectedMappingArea = MappingAreas[0];
     }
 
     [ObservableProperty]
     public partial string? DatabaseMessage { get; set; }
+
+    [ObservableProperty]
+    public partial KeyValuePair<HardwareArea?, string> SelectedMappingArea { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentMotionSettings))]
@@ -100,6 +112,8 @@ public partial class SettingsViewModel : ObservableObject
     public ICollectionView InputMappingView { get; }
 
     public ICollectionView OutputMappingView { get; }
+
+    public KeyValuePair<HardwareArea?, string>[] MappingAreas { get; }
 
     public MotionGroup[] MotionGroups { get; }
 
@@ -251,6 +265,18 @@ public partial class SettingsViewModel : ObservableObject
 
         if (failure is not null)
             ExceptionDispatchInfo.Throw(failure);
+    }
+
+    private bool IsMappingVisible(object item)
+    {
+        return SelectedMappingArea.Key is not { } area
+            || ((HardwareMappingRow)item).Hardware.Area == area;
+    }
+
+    partial void OnSelectedMappingAreaChanged(KeyValuePair<HardwareArea?, string> value)
+    {
+        InputMappingView.Refresh();
+        OutputMappingView.Refresh();
     }
 
     private static ICollectionView GroupMappings(IEnumerable<HardwareMappingRow> mappings)

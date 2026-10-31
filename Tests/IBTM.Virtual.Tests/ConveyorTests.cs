@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
@@ -22,10 +23,10 @@ public sealed class ConveyorTests
     {
         var io = CreateIo();
         io.Initialize();
-        var placement = ConveyorStation.CreatePcbPlacement(io);
+        var placement = BackupPlateStation.CreatePcbPlacement(io);
         var units = new UnitSettings();
         var conveyor = new MainConveyor(io, new(), new(), placement,
-            ConveyorStation.CreateBoltFastening(io), CreateInspectionStation(io, units), units);
+            BackupPlateStation.CreateBoltFastening(io), CreateInspectionStation(io, units), units);
         var job = placement.CurrentJob;
         var assembly = placement.GetAssembly(HeatSinkSlot.HeatSink1);
         using var stop = new CancellationTokenSource();
@@ -54,8 +55,8 @@ public sealed class ConveyorTests
     {
         var io = CreateIo();
         io.Initialize();
-        var placement = ConveyorStation.CreatePcbPlacement(io);
-        var boltStation = ConveyorStation.CreateBoltFastening(io);
+        var placement = BackupPlateStation.CreatePcbPlacement(io);
+        var boltStation = BackupPlateStation.CreateBoltFastening(io);
         var units = new UnitSettings();
         var conveyor = new MainConveyor(io, new(), new(), placement, boltStation,
             CreateInspectionStation(io, units), units);
@@ -166,8 +167,8 @@ public sealed class ConveyorTests
         var io = CreateIo();
         var units = new UnitSettings();
         var inspection = CreateInspectionStation(io, units);
-        var conveyor = new MainConveyor(io, new(), new(), ConveyorStation.CreatePcbPlacement(io),
-            ConveyorStation.CreateBoltFastening(io), inspection, units);
+        var conveyor = new MainConveyor(io, new(), new(), BackupPlateStation.CreatePcbPlacement(io),
+            BackupPlateStation.CreateBoltFastening(io), inspection, units);
         io.Initialize();
         var motion = (IXyMotion)inspection.Motion.Feedback;
         await motion.HomeAsync(MotionAxis.X, 20_000);
@@ -515,88 +516,6 @@ public sealed class ConveyorTests
         }
     }
 
-    [Theory]
-    [InlineData(OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp,
-            InputIo.PcbPlacementBackupPlateUp, InputIo.PcbPlacementBackupPlateDown, 50, 57)]
-    [InlineData(OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp,
-            InputIo.BoltFasteningBackupPlateUp, InputIo.BoltFasteningBackupPlateDown, 54, 64)]
-    [InlineData(OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp,
-            InputIo.InspectionBackupPlateUp, InputIo.InspectionBackupPlateDown, 58, 71)]
-    public async Task StationCylindersOnRaisesAndOffLowers(
-        OutputIo output,
-        OutputIo stopper,
-        InputIo up,
-        InputIo down,
-        int channel,
-        int stopperDownInput)
-    {
-        var io = CreateIo();
-        io.Initialize();
-        var station = output switch
-        {
-            OutputIo.PcbPlacementBackupPlateUp => ConveyorStation.CreatePcbPlacement(io),
-            OutputIo.BoltFasteningBackupPlateUp => ConveyorStation.CreateBoltFastening(io),
-            _ => ConveyorStation.CreateInspection(io),
-        };
-        var settings = new ConveyorHardwareSettings();
-        var hardware = settings.Outputs[output];
-        Assert.Equal(channel, hardware.Number);
-        Assert.Equal(channel + 1, hardware.OffNumber);
-        Assert.Equal(up, hardware.Feedback!.OnInput);
-        Assert.Equal(down, hardware.Feedback.OffInput);
-        var stopperHardware = settings.Outputs[stopper];
-        Assert.Equal(channel - 2, stopperHardware.Number);
-        Assert.Equal(channel - 1, stopperHardware.OffNumber);
-        Assert.Equal(stopperDownInput + 1, settings.Inputs[stopperHardware.Feedback!.OnInput]);
-        Assert.Equal(stopperDownInput, settings.Inputs[stopperHardware.Feedback.OffInput!.Value]);
-
-        await station.PrepareToReceiveAsync(CancellationToken.None);
-        Assert.False(io.GetOutput(output));
-        Assert.Equal(StationCylinderState.Down, station.BackupPlate);
-        Assert.True(io.GetOutput(stopper));
-        Assert.Equal(StationCylinderState.Up, station.Stopper);
-
-        var carrier = output switch
-        {
-            OutputIo.PcbPlacementBackupPlateUp => InputIo.PcbPlacementHeatSink1Present,
-            OutputIo.BoltFasteningBackupPlateUp => InputIo.BoltFasteningHeatSink1Present,
-            _ => InputIo.InspectionHeatSink1Present,
-        };
-        io.SetInput(carrier, true);
-        Assert.False(station.CarrierSeated);
-        await ((IIoService)io).SetOutputAndWaitAsync(output, true);
-        Assert.Equal(StationCylinderState.Up, station.Stopper);
-        Assert.True(station.CarrierSeated);
-
-        await station.SeatAsync(CancellationToken.None);
-        Assert.True(io.GetOutput(output));
-        Assert.Equal(StationCylinderState.Up, station.BackupPlate);
-        Assert.False(io.GetOutput(stopper));
-        Assert.Equal(StationCylinderState.Down, station.Stopper);
-
-        await station.ReleaseAsync(CancellationToken.None);
-        Assert.False(io.GetOutput(output));
-        Assert.Equal(StationCylinderState.Down, station.BackupPlate);
-        Assert.False(io.GetOutput(stopper));
-        Assert.Equal(StationCylinderState.Down, station.Stopper);
-
-        await station.PrepareToReceiveAsync(CancellationToken.None);
-        io.OutputChanged += (changedOutput, value) =>
-        {
-            Assert.True(changedOutput == output || changedOutput == stopper);
-            if (changedOutput == stopper && !value)
-            {
-                Assert.Equal(StationCylinderState.Up, station.BackupPlate);
-            }
-        };
-
-        await station.SeatAsync(CancellationToken.None);
-        Assert.True(io.GetOutput(output));
-        Assert.Equal(StationCylinderState.Up, station.BackupPlate);
-        Assert.False(io.GetOutput(stopper));
-        Assert.Equal(StationCylinderState.Down, station.Stopper);
-    }
-
     [Fact]
     public async Task AutomaticConveyorClearsOutputsBeforeReportingStoppedOnFailure()
     {
@@ -788,8 +707,8 @@ public sealed class ConveyorTests
             BoltFastening = boltFasteningEnabled,
             Inspection = inspectionEnabled,
         };
-        var placement = ConveyorStation.CreatePcbPlacement(io);
-        var fastening = ConveyorStation.CreateBoltFastening(io);
+        var placement = BackupPlateStation.CreatePcbPlacement(io);
+        var fastening = BackupPlateStation.CreateBoltFastening(io);
         var inspection = CreateInspectionStation(io, units);
         // Conveyor-only tests supply the completion normally reported by each station loop.
         foreach (var (station, enabled) in new[] { (placement, units.PcbPlacement), (fastening, units.BoltFastening), (inspection.Station, units.Inspection) })
@@ -829,7 +748,9 @@ public sealed class ConveyorTests
     private static VirtualIoService CreateIo(int timeoutMilliseconds = 3_000)
     {
         var io = new VirtualIoService(
-            Outputs(new ConveyorHardwareSettings(), new NgCarrierTransferHardwareSettings()),
+            Outputs(new ConveyorHardwareSettings(), new NgCarrierTransferHardwareSettings(),
+                new PcbPlacementStationHardwareSettings(), new BoltFasteningStationHardwareSettings(),
+                new InspectionStationHardwareSettings()),
             new MachineOptions { TimeoutMilliseconds = timeoutMilliseconds });
         io.SetInput(InputIo.AutoMode, false);
         return io;
@@ -853,133 +774,10 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public void FirstPresenceNotificationAfterIoStartupKeepsTheExistingCarrierResults()
-    {
-        var io = CreateIo();
-        io.IsReady = false;
-        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
-        var station = ConveyorStation.CreatePcbPlacement(io);
-        io.IsReady = true;
-        var job = station.CurrentJob;
-        var assembly = station.GetAssembly(HeatSinkSlot.HeatSink1);
-        station.Complete(job);
-
-        // Physical I/O's initial scan has no arrival notification. A later
-        // second sensor change must not replace the carrier already being worked.
-        io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
-
-        Assert.Same(job, station.CurrentJob);
-        Assert.Same(assembly, Assert.Single(station.Assemblies));
-        Assert.True(station.Completed);
-    }
-
-    [Fact]
-    public void TransferRejectsReplacedDestinationWithoutChangingEitherJob()
-    {
-        var io = CreateIo();
-        var source = ConveyorStation.CreateBoltFastening(io);
-        var destination = ConveyorStation.CreateInspection(io);
-        io.Initialize();
-        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        var departing = source.CurrentJob;
-        var original = source.GetAssembly(departing, HeatSinkSlot.HeatSink1);
-        original.RecordBolt(FasteningHead.Shooting, VirtualTestSupport.BoltId(1), new(false, 1.25));
-        SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        var arrived = destination.CurrentJob;
-
-        SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-        destination.ClearJob();
-        SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        var replacementJob = destination.CurrentJob;
-        var replacement = destination.GetAssembly(HeatSinkSlot.HeatSink2);
-        destination.Complete(replacementJob);
-        Assert.Throws<InvalidOperationException>(() =>
-            source.TransferAssembliesTo(destination, departing, arrived));
-
-        Assert.Same(departing, source.CurrentJob);
-        Assert.Same(original, Assert.Single(source.Assemblies));
-        Assert.Same(replacementJob, destination.CurrentJob);
-        Assert.Same(replacement, Assert.Single(destination.Assemblies));
-        Assert.True(destination.Completed);
-    }
-
-    [Theory]
-    [InlineData(InputIo.PcbPlacementHeatSink1Present, InputIo.PcbPlacementHeatSink2Present)]
-    [InlineData(InputIo.BoltFasteningHeatSink1Present, InputIo.BoltFasteningHeatSink2Present)]
-    [InlineData(InputIo.InspectionHeatSink1Present, InputIo.InspectionHeatSink2Present)]
-    public void CarrierPresenceChangesPreserveJobUntilExplicitClear(InputIo heatSink1, InputIo heatSink2)
-    {
-        var io = CreateIo();
-        var station = heatSink1 switch
-        {
-            InputIo.PcbPlacementHeatSink1Present => ConveyorStation.CreatePcbPlacement(io),
-            InputIo.BoltFasteningHeatSink1Present => ConveyorStation.CreateBoltFastening(io),
-            _ => ConveyorStation.CreateInspection(io),
-        };
-        Assert.False(station.CarrierPresent);
-        io.SetInputs((heatSink1, true), (heatSink2, true));
-        Assert.True(station.CarrierPresent);
-        var job = station.CurrentJob;
-        station.Complete(job);
-
-        io.SetInput(heatSink1, false);
-        Assert.True(station.CarrierPresent);
-        Assert.Same(job, station.CurrentJob);
-        Assert.True(station.Completed);
-        io.SetInputs((heatSink1, true), (heatSink2, false));
-        Assert.True(station.CarrierPresent);
-        Assert.Same(job, station.CurrentJob);
-        Assert.True(station.Completed);
-
-        io.SetInput(heatSink1, false);
-        Assert.False(station.CarrierPresent);
-        io.SetInput(heatSink2, true);
-        Assert.True(station.CarrierPresent);
-        Assert.Same(job, station.CurrentJob);
-        Assert.True(station.Completed);
-        Assert.Throws<InvalidOperationException>(station.ClearJob);
-        io.SetInput(heatSink2, false);
-        station.ClearJob();
-        Assert.NotSame(job, station.CurrentJob);
-        Assert.False(station.Completed);
-    }
-
-    [Fact]
-    public void DepartedWorkCannotCompleteNewCarrierAndTransferKeepsOriginalLoad()
-    {
-        var io = CreateIo();
-        var source = ConveyorStation.CreateBoltFastening(io);
-        var destination = CreateInspectionStation(io);
-        io.Initialize();
-        VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        var departing = source.CurrentJob;
-        var original = source.GetAssembly(departing, HeatSinkSlot.HeatSink1);
-        original.RecordBolt(FasteningHead.Shooting, VirtualTestSupport.BoltId(1), new BoltResult(false, 1.25));
-        source.Complete(departing);
-
-        VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-        source.ClearJob();
-        VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        var replacement = source.GetAssembly(HeatSinkSlot.HeatSink2);
-        Assert.Throws<InvalidOperationException>(() => source.Complete(departing));
-        Assert.Throws<InvalidOperationException>(() => source.GetAssembly(departing, HeatSinkSlot.HeatSink1));
-        Assert.False(source.Completed);
-
-        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        source.TransferAssembliesTo(destination.Station, departing, destination.Station.CurrentJob);
-        Assert.Equal(departing.Id, destination.Station.CurrentJob.Id);
-        Assert.NotSame(departing, destination.Station.CurrentJob);
-        Assert.Same(original, Assert.Single(destination.Station.Assemblies));
-        Assert.True(destination.HasNg);
-        Assert.False(destination.Station.Completed);
-        Assert.Same(replacement, Assert.Single(source.Assemblies));
-    }
-
-    [Fact]
     public void HeatSinkInputChangesDoNotEraseCompletionOrTransferredNg()
     {
         var io = CreateIo();
-        var source = ConveyorStation.CreateBoltFastening(io);
+        var source = BackupPlateStation.CreateBoltFastening(io);
         var destination = CreateInspectionStation(io);
         io.Initialize();
         VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
@@ -995,7 +793,7 @@ public sealed class ConveyorTests
 
         Assert.Equal(2, changes);
         Assert.True(source.Completed);
-        Assert.True(source.HasNg);
+        Assert.Equal(AssemblyResult.Ng, Assert.Single(source.Assemblies).Result);
         Assert.Same(result, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)]);
 
         VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
@@ -1025,8 +823,8 @@ public sealed class ConveyorTests
     {
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
-        var placementWork = ConveyorStation.CreatePcbPlacement(io);
-        var boltWork = ConveyorStation.CreateBoltFastening(io);
+        var placementWork = BackupPlateStation.CreatePcbPlacement(io);
+        var boltWork = BackupPlateStation.CreateBoltFastening(io);
         _ = new MainConveyor(
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
@@ -1042,39 +840,6 @@ public sealed class ConveyorTests
 
         Assert.Same(assembly, Assert.Single(placementWork.Assemblies));
         Assert.Empty(boltWork.Assemblies);
-    }
-
-    [Fact]
-    public void StationCompletionSurvivesSensorEdgesUntilEmptyWorkIsCleared()
-    {
-        var virtualIo = CreateIo();
-        IIoService io = virtualIo;
-        var placementWork = ConveyorStation.CreatePcbPlacement(io);
-
-        io.Initialize();
-        Assert.False(placementWork.Completed);
-        VirtualTestSupport.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, true);
-        virtualIo.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
-
-        Assert.False(placementWork.Completed);
-        virtualIo.SetInput(InputIo.PcbPlacementBackupPlateDown, false);
-        virtualIo.SetInput(InputIo.PcbPlacementBackupPlateUp, true);
-        Assert.False(placementWork.Completed); // Physical seating alone does not complete station work.
-        placementWork.Complete(placementWork.CurrentJob);
-        Assert.True(placementWork.Completed);
-
-        virtualIo.SetInput(InputIo.PcbPlacementBackupPlateDown, true);
-        Assert.False(placementWork.CarrierSeated);
-        Assert.True(placementWork.Completed); // Position changes do not erase the owned result.
-        virtualIo.SetInput(InputIo.PcbPlacementBackupPlateDown, false);
-        VirtualTestSupport.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, false);
-        Assert.False(placementWork.Completed);
-        VirtualTestSupport.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, true);
-        Assert.True(placementWork.Completed);
-        VirtualTestSupport.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, false);
-        placementWork.ClearJob();
-        VirtualTestSupport.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, true);
-        Assert.False(placementWork.Completed);
     }
 
     [Fact]
@@ -1435,11 +1200,11 @@ public sealed class ConveyorTests
     public async Task StoppedInspectionArrivalRetainsFasteningNg(bool stopAtArrival)
     {
         var io = CreateIo();
-        var source = ConveyorStation.CreateBoltFastening(io);
+        var source = BackupPlateStation.CreateBoltFastening(io);
         var destination = CreateInspectionStation(io);
         var conveyor = new MainConveyor(
             io, new ConveyorSettings { CarrierStopDelaySeconds = 30 }, new OperationCancellation(),
-            ConveyorStation.CreatePcbPlacement(io), source, destination,
+            BackupPlateStation.CreatePcbPlacement(io), source, destination,
             new UnitSettings { Inspection = true });
         io.Initialize();
         await SetSeatedCarrierAsync(
@@ -1496,11 +1261,11 @@ public sealed class ConveyorTests
     public async Task TemporarySensorLossDuringSeatingKeepsDepartingResults()
     {
         var io = CreateIo();
-        var source = ConveyorStation.CreateBoltFastening(io);
+        var source = BackupPlateStation.CreateBoltFastening(io);
         var destination = CreateInspectionStation(io);
         var conveyor = new MainConveyor(
             io, new ConveyorSettings { CarrierStopDelaySeconds = 0.2 }, new OperationCancellation(),
-            ConveyorStation.CreatePcbPlacement(io), source, destination,
+            BackupPlateStation.CreatePcbPlacement(io), source, destination,
             new UnitSettings { Inspection = true });
         io.Initialize();
         await SetSeatedCarrierAsync(
@@ -1542,11 +1307,11 @@ public sealed class ConveyorTests
     {
         var io = CreateIo();
         IIoService signals = io;
-        var source = ConveyorStation.CreateBoltFastening(io);
+        var source = BackupPlateStation.CreateBoltFastening(io);
         var destination = CreateInspectionStation(io);
         var conveyor = new MainConveyor(
             io, new ConveyorSettings { CarrierStopDelaySeconds = 0 }, new OperationCancellation(),
-            ConveyorStation.CreatePcbPlacement(io), source, destination,
+            BackupPlateStation.CreatePcbPlacement(io), source, destination,
             new UnitSettings { Inspection = false });
         io.Initialize();
         await SetSeatedCarrierAsync(
@@ -1603,11 +1368,11 @@ public sealed class ConveyorTests
     public async Task TransferOwnsSourceLoweringThroughInspectionArrival()
     {
         var io = CreateIo();
-        var source = ConveyorStation.CreateBoltFastening(io);
+        var source = BackupPlateStation.CreateBoltFastening(io);
         var destination = CreateInspectionStation(io);
         var conveyor = new MainConveyor(
             io, new ConveyorSettings { CarrierStopDelaySeconds = 0 }, new OperationCancellation(),
-            ConveyorStation.CreatePcbPlacement(io), source, destination,
+            BackupPlateStation.CreatePcbPlacement(io), source, destination,
             new UnitSettings { Inspection = false });
         io.Initialize();
         await SetSeatedCarrierAsync(
@@ -1811,11 +1576,11 @@ public sealed class ConveyorTests
     public async Task InterruptedTransferKeepsPendingResultsWithoutMovingThemOnLaterInput()
     {
         var io = CreateIo();
-        var source = ConveyorStation.CreateBoltFastening(io);
+        var source = BackupPlateStation.CreateBoltFastening(io);
         var destination = CreateInspectionStation(io);
         var conveyor = new MainConveyor(
             io, new ConveyorSettings { CarrierStopDelaySeconds = 0 }, new OperationCancellation(),
-            ConveyorStation.CreatePcbPlacement(io), source, destination,
+            BackupPlateStation.CreatePcbPlacement(io), source, destination,
             new UnitSettings { Inspection = false });
         io.Initialize();
         await SetSeatedCarrierAsync(io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
@@ -1862,8 +1627,8 @@ public sealed class ConveyorTests
     public async Task DetectedCarriersSeatIndependentlyAndReleaseOnlyCompletedWork(bool twoCarriers)
     {
         var io = CreateIo();
-        var placement = ConveyorStation.CreatePcbPlacement(io);
-        var fastening = ConveyorStation.CreateBoltFastening(io);
+        var placement = BackupPlateStation.CreatePcbPlacement(io);
+        var fastening = BackupPlateStation.CreateBoltFastening(io);
         var conveyor = new MainConveyor(
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
@@ -1937,8 +1702,8 @@ public sealed class ConveyorTests
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
         _ = new VirtualMachine(virtualIo, []);
-        var placementWork = ConveyorStation.CreatePcbPlacement(io);
-        var boltWork = ConveyorStation.CreateBoltFastening(io);
+        var placementWork = BackupPlateStation.CreatePcbPlacement(io);
+        var boltWork = BackupPlateStation.CreateBoltFastening(io);
         var inspectionWork = CreateInspectionStation(io);
         var conveyor = new MainConveyor(
             io,
@@ -2001,8 +1766,8 @@ public sealed class ConveyorTests
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
             new OperationCancellation(),
-            ConveyorStation.CreatePcbPlacement(io),
-            ConveyorStation.CreateBoltFastening(io),
+            BackupPlateStation.CreatePcbPlacement(io),
+            BackupPlateStation.CreateBoltFastening(io),
             inspectionWork,
             units);
         var discharged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

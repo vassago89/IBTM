@@ -13,17 +13,8 @@ public enum IoSection
     [Description("Interface & Drive")]
     MainConveyorInterfaceDrive,
 
-    [Description("Station 1")]
-    MainConveyorStation1,
-
-    [Description("Station 2")]
-    MainConveyorStation2,
-
-    [Description("Station 3")]
-    MainConveyorStation3,
-
     [Description("Pickup Head")]
-    BoltFasteningPickupHead,
+    BoltFasteningPickupHead = 6,
 
     [Description("Shooting Head")]
     BoltFasteningShootingHead,

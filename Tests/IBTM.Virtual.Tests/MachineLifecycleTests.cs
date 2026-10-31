@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.BoltFastening;
 using IBTM.BoltFeeder;
 using IBTM.Conveyor;
@@ -4443,7 +4444,7 @@ public sealed class MachineLifecycleTests
             {
                 review.SelectStartAreaCommand.Execute(area);
                 var command = review.StartOutputs.Single(row => row.Io.Signal == output).ToggleOutputCommand;
-                var station = Assert.IsType<ConveyorStation>(review.StartStation);
+                var station = Assert.IsType<BackupPlateStation>(review.StartStation);
                 var job = station.CurrentJob;
                 await command.ExecuteAsync(null);
                 Assert.Equal(StationCylinderState.Up, stopper ? station.Stopper : station.BackupPlate);
@@ -5475,7 +5476,7 @@ public sealed class MachineLifecycleTests
                 (InputIo.NgConveyorPosition1Occupied, true),
                 (InputIo.PickupFeederBoltDetected, true),
                 (InputIo.ShootingFeederBoltDetected, true));
-            ConveyorStation[] stations = [services.GetRequiredService<PcbPlacer>().Station,
+            BackupPlateStation[] stations = [services.GetRequiredService<PcbPlacer>().Station,
                 services.GetRequiredService<BoltFasteningStation>().Station,
                 services.GetRequiredService<InspectionStation>().Station];
             foreach (var station in stations)

@@ -59,6 +59,25 @@
         </Setter>
     </Style>
 
+    <Style x:Key="IoFilteredGroupItemStyle" TargetType="GroupItem">
+        <Setter Property="Margin" Value="0,0,0,10"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="GroupItem">
+                    <StackPanel>
+                        <ContentPresenter x:Name="Header" Visibility="Collapsed"/>
+                        <ItemsPresenter/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding SelectedIndex, ElementName=IoAreaSelector}" Value="0">
+                            <Setter TargetName="Header" Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <DataTemplate x:Key="IoSectionGroupHeaderTemplate" DataType="{x:Type CollectionViewGroup}">
         <Border x:Name="Header" Padding="12,7" Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}"
             BorderThickness="0,0,0,1">
@@ -93,8 +112,14 @@
         <Setter Property="Padding" Value="0"/>
     </Style>
 
-    <Style x:Key="IoToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-        <Setter Property="Padding" Value="10,4"/>
+    <Style x:Key="EmptyIoListMessageStyle" TargetType="TextBlock">
+        <Setter Property="Text" Value="{ui:Text 'No matching items'}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="12"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Visibility" Value="Collapsed"/>
     </Style>
 
     <Style x:Key="IoInputLedStyle" TargetType="Ellipse">
@@ -220,7 +245,28 @@
                 </Grid>
                 <Border x:Name="Feedback" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,6,0,0"
                     Padding="0,4,0,0">
-                    <ItemsControl ItemsSource="{Binding Io.Feedback}" ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
+                    <ItemsControl ItemsSource="{Binding Io.Feedback}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type device:IoInputStatus}">
+                                <Grid Margin="0,0,8,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Signal, Converter={StaticResource UiTextConverter}}"
+                                        Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                                        TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                    <TextBlock Grid.Column="1" Tag="{Binding IsOn}"
+                                        Text="{Binding IsOn, Converter={StaticResource SignalTextConverter}}"
+                                        Style="{StaticResource IoInputStateStyle}" FontSize="12"
+                                        MinWidth="28" MinHeight="24" Padding="2,3"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </Border>
             </StackPanel>
         </Border>
@@ -237,11 +283,19 @@
 
     <DataTemplate x:Key="TeachingIoGroupTemplate" DataType="{x:Type ui:TeachingIoGroup}">
         <StackPanel Margin="0,0,10,18">
-            <TextBlock Text="{Binding Area, Converter={StaticResource UiTextConverter}}"
-                FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+            <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="{Binding Area, Converter={StaticResource UiTextConverter}}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Outputs[0].Io.Section}" Value="{x:Static device:IoSection.BoltPickupController}">
+                                <Setter Property="Text" Value="{ui:Text 'Fastening controllers'}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <StackPanel x:Name="Inputs" Margin="0,0,0,10">
-                <TextBlock Text="{ui:Text 'Inputs'}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
-                    Margin="0,0,0,4"/>
                 <ItemsControl ItemsSource="{Binding Sensors}" ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
             </StackPanel>
             <ItemsControl ItemsSource="{Binding Outputs}" ItemTemplate="{StaticResource TeachingOutputTemplate}"/>
@@ -257,7 +311,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <ui:IoGroupItemsControl ItemsSource="{Binding TeachingIoGroups}" ItemTemplate="{StaticResource TeachingIoGroupTemplate}">
                 <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
+                    <ItemsPanelTemplate><ui:IoGroupPanel/></ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
             </ui:IoGroupItemsControl>
         </ScrollViewer>

@@ -13,6 +13,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.BackupPlate;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
@@ -601,7 +602,7 @@ public sealed class UiBindingTests
         operationView.Arrange(new Rect(0, 0, 1600, 900));
         operationView.UpdateLayout();
 
-        foreach (var (diagram, station) in new (UserControl, ConveyorStation)[]
+        foreach (var (diagram, station) in new (UserControl, BackupPlateStation)[]
         {
             (new PcbTransferDiagram(), operation.Placement.Station),
             (new BoltFasteningDiagram(), operation.Fastening.Station),

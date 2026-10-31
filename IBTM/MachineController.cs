@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.BoltFastening;
 using IBTM.BoltFeeder;
 using IBTM.Conveyor;
@@ -678,7 +679,7 @@ public sealed class MachineController : INotifyPropertyChanged
     }
 
     public StartBlockReason GetStartMaterialBlock(
-        ConveyorStation.Job? resumeFastening = null, ConveyorStation.Job? resumePlacement = null)
+        BackupPlateStation.Job? resumeFastening = null, BackupPlateStation.Job? resumePlacement = null)
     {
         var checks = StartChecks;
         if (checks.Values.Contains(StartCheckState.Unknown))
@@ -696,7 +697,7 @@ public sealed class MachineController : INotifyPropertyChanged
         return StartBlockReason.None;
     }
 
-    public bool IsPlacementResumeAllowed(ConveyorStation.Job job)
+    public bool IsPlacementResumeAllowed(BackupPlateStation.Job job)
     {
         return _units.PcbPlacement && _io.IsReady
             && ReferenceEquals(job, _pcbPlacement.Station.CurrentJob)
@@ -707,7 +708,7 @@ public sealed class MachineController : INotifyPropertyChanged
     }
 
     public void CompletePlacement(
-        ConveyorStation.Job job, HeatSinkSlot heatSink, CancellationToken cancellationToken = default)
+        BackupPlateStation.Job job, HeatSinkSlot heatSink, CancellationToken cancellationToken = default)
     {
         using var operation = _operations.TryBegin(cancellationToken)
             ?? throw new InvalidOperationException("Stop the machine before changing carrier work.");
@@ -730,7 +731,7 @@ public sealed class MachineController : INotifyPropertyChanged
     }
 
     public void ChangeBoltWork(
-        ConveyorStation.Job job, Guid boltId, bool completed, CancellationToken cancellationToken = default)
+        BackupPlateStation.Job job, Guid boltId, bool completed, CancellationToken cancellationToken = default)
     {
         using var operation = _operations.TryBegin(cancellationToken)
             ?? throw new InvalidOperationException("Stop the machine before changing carrier work.");
@@ -757,7 +758,7 @@ public sealed class MachineController : INotifyPropertyChanged
     }
 
     public void ChangeCarrierWork(
-        StartArea area, ConveyorStation.Job job, CarrierWorkAction action, CancellationToken cancellationToken = default)
+        StartArea area, BackupPlateStation.Job job, CarrierWorkAction action, CancellationToken cancellationToken = default)
     {
         using var operation = _operations.TryBegin(cancellationToken)
             ?? throw new InvalidOperationException("Stop the machine before changing carrier work.");
@@ -837,7 +838,7 @@ public sealed class MachineController : INotifyPropertyChanged
         return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
     }
 
-    public bool IsFasteningResumeAllowed(ConveyorStation.Job job)
+    public bool IsFasteningResumeAllowed(BackupPlateStation.Job job)
     {
         return _units.BoltFastening
             && ReferenceEquals(job, _fasteningStation.Station.CurrentJob)
@@ -847,8 +848,8 @@ public sealed class MachineController : INotifyPropertyChanged
     }
 
     public async Task StartAsync(
-        CancellationToken cancellationToken = default, ConveyorStation.Job? resumeFastening = null,
-        ConveyorStation.Job? resumePlacement = null)
+        CancellationToken cancellationToken = default, BackupPlateStation.Job? resumeFastening = null,
+        BackupPlateStation.Job? resumePlacement = null)
     {
         await Task.Run(async () =>
         {
@@ -1067,7 +1068,7 @@ public sealed class MachineController : INotifyPropertyChanged
     }
 
     private async Task RunAutomaticUnitsAsync(
-        CancellationTokenSource cycle, ConveyorStation.Job? resumeFastening = null)
+        CancellationTokenSource cycle, BackupPlateStation.Job? resumeFastening = null)
     {
         var runningUnits = new List<Task>();
         AutoUnit[] workUnits = [_conveyor, _pcbSupply, _pcbPlacement,
@@ -2487,11 +2488,11 @@ public sealed class MachineController : INotifyPropertyChanged
                     await RaiseStartToolingAsync(area, activeToken);
                     break;
                 case StartPreparationAction.ToggleCarrierSupport or StartPreparationAction.ToggleStopper:
-                    var (station, plate, stopper) = area switch
+                    var station = area switch
                     {
-                        StartArea.Station1 => (_pcbPlacement.Station, OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp),
-                        StartArea.Station2 => (_fasteningStation.Station, OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp),
-                        StartArea.Station3 => (_inspectionStation.Station, OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp),
+                        StartArea.Station1 => _pcbPlacement.Station,
+                        StartArea.Station2 => _fasteningStation.Station,
+                        StartArea.Station3 => _inspectionStation.Station,
                         _ => throw new ArgumentOutOfRangeException(nameof(area)),
                     };
                     await RaiseStartToolingAsync(area, activeToken);
@@ -2501,9 +2502,9 @@ public sealed class MachineController : INotifyPropertyChanged
                         throw new InvalidOperationException("Confirm the selected support or stopper Up/Down sensors before operating it.");
                     var up = position == StationCylinderState.Down;
                     if (support)
-                        await _io.SetOutputAndWaitAsync(plate, up, activeToken);
+                        await station.SetBackupPlateUpAsync(up, activeToken);
                     else
-                        await _io.SetOutputAndWaitAsync(stopper, up, activeToken);
+                        await station.SetStopperUpAsync(up, activeToken);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(action));
@@ -2665,7 +2666,8 @@ public sealed class MachineController : INotifyPropertyChanged
         {
             ReportManualFailure(output.Area switch
             {
-                HardwareArea.MainConveyor => MachineAlarm.MainConveyor,
+                HardwareArea.MainConveyor or HardwareArea.PcbPlacementStation
+                    or HardwareArea.BoltFasteningStation or HardwareArea.InspectionStation => MachineAlarm.MainConveyor,
                 HardwareArea.PcbSupply => MachineAlarm.PcbSupply,
                 HardwareArea.PcbPlacementHandler => MachineAlarm.PcbPlacement,
                 HardwareArea.BoltFastening => MachineAlarm.BoltFastening,

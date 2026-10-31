@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.AlphaMotion;
+using IBTM.BackupPlate;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
@@ -688,13 +689,13 @@ public sealed class AlarmRecoveryTests
             var runningInputs = services.GetRequiredService<IReadOnlyDictionary<InputIo, int>>();
             var originalInput = runningInputs[InputIo.PcbPlacementStopperUp];
             input.Number = 63;
-            Assert.Equal(63, view.Settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
+            Assert.Equal(63, view.Settings.PcbPlacementStationHardware.Inputs[InputIo.PcbPlacementStopperUp]);
             Assert.Equal(originalInput, runningInputs[InputIo.PcbPlacementStopperUp]);
             var output = view.OutputMappingView.Cast<HardwareMappingRow>().Single(
                 row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
             var axis = view.AxisMappings.Single(
                 row => row.Signal.Equals(MachineAxis.InspectionGantryX)).Axis!;
-            Assert.Same(view.Settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp], output);
+            Assert.Same(view.Settings.PcbPlacementStationHardware.Outputs[OutputIo.PcbPlacementStopperUp], output);
             Assert.Same(view.Settings.InspectionGantryHardware.Axes[MachineAxis.InspectionGantryX], axis);
             var runningOutput = services.GetRequiredService<IReadOnlyDictionary<OutputIo, OutputHardware>>()
                 [OutputIo.PcbPlacementStopperUp];
@@ -712,7 +713,7 @@ public sealed class AlarmRecoveryTests
             VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
             motion.HorizontalSpeed = double.NaN;
             await view.SaveSettingsCommand.ExecuteAsync(null);
-            Assert.StartsWith("Settings not saved:", view.DatabaseMessage);
+            Assert.StartsWith(UiText.Format($"Settings not saved: {string.Empty}"), view.DatabaseMessage);
             VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
             Assert.True(view.IsSettingsEditAllowed);
 
@@ -720,13 +721,13 @@ public sealed class AlarmRecoveryTests
             var fasteningTimeout = view.Settings.Hantas.FasteningTimeoutMilliseconds;
             view.Settings.Hantas.FasteningTimeoutMilliseconds = -1;
             await view.SaveSettingsCommand.ExecuteAsync(null);
-            Assert.Contains("Fastening timeout", view.DatabaseMessage);
+            Assert.Contains(UiText.Get("Fastening timeout must be greater than 0 s."), view.DatabaseMessage);
             VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
             view.Settings.Hantas.FasteningTimeoutMilliseconds = fasteningTimeout;
             var responseTimeout = view.Settings.Hantas.ResponseTimeoutMilliseconds;
             view.Settings.Hantas.ResponseTimeoutMilliseconds = -1;
             await view.SaveSettingsCommand.ExecuteAsync(null);
-            Assert.Contains("ADC readiness query timeout base", view.DatabaseMessage);
+            Assert.Contains(UiText.Get("ADC readiness query timeout base must be greater than 0 s."), view.DatabaseMessage);
             VirtualTestSupport.AssertNoSavedConfiguration(services.GetRequiredService<MachineStore>());
             view.Settings.Hantas.ResponseTimeoutMilliseconds = responseTimeout;
             await view.SaveSettingsCommand.ExecuteAsync(null);
@@ -738,9 +739,9 @@ public sealed class AlarmRecoveryTests
                     .Get<AlphaMotionSettings>()
                     .ControllerNumber);
             var saved = services.GetRequiredService<MachineStore>().LoadSettings();
-            Assert.Equal(63, saved.Get<ConveyorHardwareSettings>().Inputs[InputIo.PcbPlacementStopperUp]);
+            Assert.Equal(63, saved.Get<PcbPlacementStationHardwareSettings>().Inputs[InputIo.PcbPlacementStopperUp]);
             Assert.Equal(originalInput, runningInputs[InputIo.PcbPlacementStopperUp]);
-            var savedOutput = saved.Get<ConveyorHardwareSettings>().Outputs[OutputIo.PcbPlacementStopperUp];
+            var savedOutput = saved.Get<PcbPlacementStationHardwareSettings>().Outputs[OutputIo.PcbPlacementStopperUp];
             var savedAxis = saved.Get<InspectionGantryHardwareSettings>().Axes[MachineAxis.InspectionGantryX];
             Assert.Equal((80, (int?)81, InputIo.PcbPlacementStopperUp),
                 (savedOutput.Number, savedOutput.OffNumber, savedOutput.Feedback!.OnInput));
@@ -801,9 +802,9 @@ public sealed class AlarmRecoveryTests
             Assert.Equal(UiText.Get("Settings saved."), view.DatabaseMessage);
             Assert.True(view.IsSettingsEditAllowed);
             var loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
-            Assert.Equal(57, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
-            Assert.Equal(58, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown]);
-            var savedOutput = loaded.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp];
+            Assert.Equal(57, loaded.PcbPlacementStationHardware.Inputs[InputIo.PcbPlacementStopperUp]);
+            Assert.Equal(58, loaded.PcbPlacementStationHardware.Inputs[InputIo.PcbPlacementStopperDown]);
+            var savedOutput = loaded.PcbPlacementStationHardware.Outputs[OutputIo.PcbPlacementStopperUp];
             Assert.Equal(96, savedOutput.Number);
             Assert.Equal(97, savedOutput.OffNumber);
             Assert.Equal("", loaded.Lighting.Connection);

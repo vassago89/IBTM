@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
@@ -807,7 +808,7 @@ public sealed class NgConveyorTests
         var operations = new OperationCancellation();
         var motionSettings = new InspectionGantrySettings();
         var motion = new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);
-        var work = ConveyorStation.CreateInspection(io);
+        var work = BackupPlateStation.CreateInspection(io);
         var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings
         {
             AlarmCarrierCount = alarmCarrierCount,

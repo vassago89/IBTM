@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
+using IBTM.BackupPlate;
 using IBTM.BoltFastening;
 using IBTM.BoltFeeder;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Fastech;
 using IBTM.Hantas;
 using IBTM.Hik;
 using IBTM.Inspection;
@@ -40,7 +42,7 @@ public static class DependencyInjection
             .AddSingleton<IEnumerable<HardwareSettings>>(hardware)
             .AddSingleton<IoSignals>()
             .AddSingleton<IReadOnlyDictionary<InputIo, int>>(
-                hardware.OfType<InputHardwareSettings>()
+                hardware.OfType<IoHardwareSettings>()
                     .SelectMany(section => section.Inputs)
                     .ToDictionary())
             .AddSingleton<IReadOnlyDictionary<OutputIo, OutputHardware>>(
@@ -80,12 +82,12 @@ public static class DependencyInjection
             .AddKeyedSingleton<IBoltHead, AdcBoltHead>(FasteningHead.Pickup);
 
         services
-            .AddKeyedSingleton<ConveyorStation>(MotionGroup.PcbPlacementHandler,
-                (provider, _) => ConveyorStation.CreatePcbPlacement(provider.GetRequiredService<IIoService>()))
-            .AddKeyedSingleton<ConveyorStation>(MotionGroup.BoltFastening,
-                (provider, _) => ConveyorStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()))
-            .AddKeyedSingleton<ConveyorStation>(MotionGroup.InspectionGantry,
-                (provider, _) => ConveyorStation.CreateInspection(provider.GetRequiredService<IIoService>()))
+            .AddKeyedSingleton<BackupPlateStation>(MotionGroup.PcbPlacementHandler,
+                (provider, _) => BackupPlateStation.CreatePcbPlacement(provider.GetRequiredService<IIoService>()))
+            .AddKeyedSingleton<BackupPlateStation>(MotionGroup.BoltFastening,
+                (provider, _) => BackupPlateStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()))
+            .AddKeyedSingleton<BackupPlateStation>(MotionGroup.InspectionGantry,
+                (provider, _) => BackupPlateStation.CreateInspection(provider.GetRequiredService<IIoService>()))
             .AddSingleton<PcbSupplier>()
             .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
             .AddSingleton<PcbPlacer>()
@@ -139,8 +141,10 @@ public static class DependencyInjection
         services
             .AddSingleton(settings.Ajin)
             .AddSingleton(settings.AlphaMotion)
+            .AddSingleton(settings.Fastech)
             .AddSingleton<AjinController>()
             .AddSingleton<AlphaMotionController>()
+            .AddSingleton<FastechController>()
             .AddSingleton<IIoService, PhysicalIoService>()
             .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Pickup)
             .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Shooting)

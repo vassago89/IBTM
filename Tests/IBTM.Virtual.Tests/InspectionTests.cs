@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
@@ -42,7 +43,7 @@ public sealed class InspectionTests
             SourceImage = new(20, 20, 60, Enumerable.Repeat(boltPresent ? (byte)255 : (byte)0, 1200).ToArray()),
         };
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
-        var work = ConveyorStation.CreateInspection(io);
+        var work = BackupPlateStation.CreateInspection(io);
         var station = new InspectionStation(work, motion, new(motion), new NgCarrierConveyor(io, new(), units),
             settings, new() { WaitingPosition = new(), CarrierPickupPosition = new() }, io, units,
             camera, new VirtualLightController(), new() { StabilizationDelayMilliseconds = 0 }, recipes);
@@ -135,7 +136,8 @@ public sealed class InspectionTests
     [Fact]
     public async Task ConveyorRunFeedbackCancelsInFlightInspectionBeforeRecording()
     {
-        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new ConveyorHardwareSettings()), new());
+        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(),
+            new InspectionStationHardwareSettings(), new ConveyorHardwareSettings()), new());
         io.Initialize();
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.Pcb.BoltPoints = [new() { Id = VirtualTestSupport.BoltId(1), X = 0, Y = 0 }];
@@ -146,7 +148,7 @@ public sealed class InspectionTests
         using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
-        var carrier = ConveyorStation.CreateInspection(io);
+        var carrier = BackupPlateStation.CreateInspection(io);
         var station = new InspectionStation(carrier, motion, new(motion), new NgCarrierConveyor(io, new(), units),
             settings, transfer, io, units,
             new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes);
@@ -199,7 +201,7 @@ public sealed class InspectionTests
         using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
-        var work = ConveyorStation.CreateInspection(io);
+        var work = BackupPlateStation.CreateInspection(io);
         var station = new InspectionStation(
             work,
             motion,
@@ -337,7 +339,7 @@ public sealed class InspectionTests
         using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
-        var carrier = ConveyorStation.CreateInspection(io);
+        var carrier = BackupPlateStation.CreateInspection(io);
         var station = new InspectionStation(carrier, motion, new(motion), new NgCarrierConveyor(io, new(), units),
             settings, new() { WaitingPosition = new(), CarrierPickupPosition = new() }, io, units,
             new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes);
@@ -393,7 +395,7 @@ public sealed class InspectionTests
         using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
-        var work = ConveyorStation.CreateInspection(io);
+        var work = BackupPlateStation.CreateInspection(io);
         var conveyor = new NgCarrierConveyor(io, new(), units);
         var station = new InspectionStation(
             work,
@@ -541,7 +543,7 @@ public sealed class InspectionTests
         {
             Current = { BoltInspection = recipe, CarrierImages = [fov] },
         };
-        var work = ConveyorStation.CreateInspection(io);
+        var work = BackupPlateStation.CreateInspection(io);
         var inspector = new InspectionStation(
             work,
             motion,
@@ -647,7 +649,7 @@ public sealed class InspectionTests
         var transferSettings = new NgCarrierTransferSettings { CarrierPickupPosition = new(), WaitingPosition = new() };
         var units = new UnitSettings { MainConveyor = false };
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        var work = ConveyorStation.CreateInspection(io);
+        var work = BackupPlateStation.CreateInspection(io);
         BoltPoint[] bolts = [
             new() { Id = VirtualTestSupport.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 9 },
             new() { Id = VirtualTestSupport.BoltId(2), HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 21 },
@@ -796,7 +798,7 @@ public sealed class InspectionTests
             Y = position.Y,
         };
         var transferUnits = new UnitSettings();
-        var transferWork = ConveyorStation.CreateInspection(io);
+        var transferWork = BackupPlateStation.CreateInspection(io);
         var transferStation = new InspectionStation(
             transferWork,
             motion,

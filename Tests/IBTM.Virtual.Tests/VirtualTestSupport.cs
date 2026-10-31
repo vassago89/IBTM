@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
@@ -74,7 +75,7 @@ internal static class VirtualTestSupport
     {
         var units = new UnitSettings();
         return new(motion, new(motion), io, settings, new UnavailableSupply(),
-            ConveyorStation.CreatePcbPlacement(io), new(OpenMachineStore(), new()), units);
+            BackupPlateStation.CreatePcbPlacement(io), new(OpenMachineStore(), new()), units);
     }
 
     public static BoltFasteningStation CreateFastening(
@@ -83,7 +84,7 @@ internal static class VirtualTestSupport
     {
         var units = new UnitSettings();
         return new(shooting, pickup, io, motion, new(motion), settings,
-            ConveyorStation.CreateBoltFastening(io),
+            BackupPlateStation.CreateBoltFastening(io),
             new(OpenMachineStore(), new()), units, new(io, new(), units));
     }
 
@@ -97,7 +98,7 @@ internal static class VirtualTestSupport
         motion ??= new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);
         settings ??= new();
         units ??= new();
-        var work = ConveyorStation.CreateInspection(io);
+        var work = BackupPlateStation.CreateInspection(io);
         var conveyor = new NgCarrierConveyor(io, new(), units);
         return new(work, motion, new(motion), conveyor, motionSettings, settings, io, units,
             new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(),

@@ -322,7 +322,12 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private void OnResultsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(ResultsViewModel.SelectedRecord))
+        if (_shuttingDown || !Results.IsIdle
+            || e.PropertyName is not (nameof(ResultsViewModel.SelectedRecord) or nameof(ResultsViewModel.IsIdle)))
+            return;
+        if (LoadedRecord is { } loaded && Results.SelectedRecord is { } selected
+            && loaded.Number == selected.Number && loaded.DatabaseFile == selected.DatabaseFile
+            && loaded.UpdatedAt == selected.UpdatedAt)
             return;
         LoadRecordCommand.Cancel();
         LoadedRecord = null;
@@ -330,7 +335,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         SelectedHistoryImage = null;
         Error = null;
         Message = null;
-        if (_shuttingDown || ImageMode != InspectionImageMode.Recorded)
+        if (ImageMode != InspectionImageMode.Recorded)
             return;
         if (Results.SelectedRecord is null)
             ImageMode = InspectionImageMode.Reference;

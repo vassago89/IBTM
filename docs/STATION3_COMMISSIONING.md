@@ -127,7 +127,7 @@ OUTPUTS의 Normal Speed 버튼은 ON 고정, 안착 핸들러 회전 버튼은 O
 - Inspection과 NG Transfer의 Enabled는 하나다. 꺼져 있으면 검사 NG로 취급하며
   후방 SMEMA로 배출한다. 비활성 갠트리의 대기 위치 이동은 요구하지 않는다.
 
-관련 코드: `MainConveyor.cs`, `ConveyorStation.cs`, `InspectionStation.cs`.
+관련 코드: `MainConveyor.cs`, `BackupPlateStation.cs`, `InspectionStation.cs`.
 
 ## 검사와 NG 인계
 

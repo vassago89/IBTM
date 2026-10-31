@@ -49,8 +49,8 @@
                     Text="{Binding Filter.SearchText, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <StackPanel Grid.Column="2">
-                <TextBlock Text="{ui:Text 'Unit'}" Style="{StaticResource SectionHeaderStyle}"/>
-                <ComboBox Margin="0,6,0,0"
+                <TextBlock Text="{ui:Text 'Device'}" Style="{StaticResource SectionHeaderStyle}"/>
+                <ComboBox x:Name="IoAreaSelector" Margin="0,6,0,0"
                     ItemsSource="{Binding Filter.Areas}"
                     ItemTemplate="{x:Null}" DisplayMemberPath="Value"
                     SelectedItem="{Binding Filter.SelectedArea, Mode=TwoWay}"/>
@@ -66,11 +66,11 @@
             <TextBlock Grid.Column="1" Text="{ui:Text 'State'}" Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
 
-        <ListBox Grid.Row="3"
+        <ListBox x:Name="SignalsList" Grid.Row="3"
             ItemsSource="{Binding Filter.FilteredRows}"
             Style="{StaticResource IoListStyle}" ItemContainerStyle="{StaticResource IoListItemStyle}">
             <ListBox.GroupStyle>
-                <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}" HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                <GroupStyle ContainerStyle="{StaticResource IoFilteredGroupItemStyle}" HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
                 <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
                     HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
             </ListBox.GroupStyle>
@@ -111,5 +111,16 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+        <TextBlock Grid.Row="3">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyIoListMessageStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasItems, ElementName=SignalsList}" Value="False">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
     </Grid>
 </Window>

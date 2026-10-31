@@ -105,9 +105,6 @@ Operation failed Check controller status</value>
   <data name="alarm / e-stop" xml:space="preserve">
     <value>Alarm / E-stop</value>
   </data>
-  <data name="all units" xml:space="preserve">
-    <value>All Units</value>
-  </data>
   <data name="alphamotion · tmc-ae16dioe" xml:space="preserve">
     <value>AlphaMotion TMC-AE16DIOe</value>
   </data>
@@ -223,7 +220,7 @@ Operation failed Check controller status</value>
     <value>Fastening Heat Sink 2 Present</value>
   </data>
   <data name="bolt fastening station" xml:space="preserve">
-    <value>Fastening Station</value>
+    <value>Fastening backup</value>
   </data>
   <data name="bolt fastening stopper down" xml:space="preserve">
     <value>Fastening Stopper Down</value>
@@ -232,7 +229,7 @@ Operation failed Check controller status</value>
     <value>Fastening Stopper Up</value>
   </data>
   <data name="bolt fastening unit" xml:space="preserve">
-    <value>Fastening Unit</value>
+    <value>Fastening heads</value>
   </data>
   <data name="bolt fastening x" xml:space="preserve">
     <value>Bolt Fastening X</value>
@@ -927,7 +924,7 @@ Operation failed Check controller status</value>
     <value>Inspection light channel: enter 1–9</value>
   </data>
   <data name="inspection s3 support" xml:space="preserve">
-    <value>Inspection S3 Support</value>
+    <value>Inspection backup</value>
   </data>
   <data name="inspection station" xml:space="preserve">
     <value>Inspection Station</value>
@@ -1007,9 +1004,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="load older" xml:space="preserve">
     <value>Older results</value>
-  </data>
-  <data name="loading..." xml:space="preserve">
-    <value>Loading</value>
   </data>
   <data name="log folder" xml:space="preserve">
     <value>Log folder</value>
@@ -1444,16 +1438,16 @@ Operation failed Check controller status</value>
     <value>Placement Backup Plate Up</value>
   </data>
   <data name="pcb placement handler" xml:space="preserve">
-    <value>PCB Placement Handler</value>
+    <value>Placement head</value>
   </data>
   <data name="pcb placement handler x" xml:space="preserve">
-    <value>PCB Placement Handler X</value>
+    <value>Placement head X</value>
   </data>
   <data name="pcb placement handler y" xml:space="preserve">
-    <value>PCB Placement Handler Y</value>
+    <value>Placement head Y</value>
   </data>
   <data name="pcb placement handler z" xml:space="preserve">
-    <value>PCB Placement Handler Z</value>
+    <value>Placement head Z</value>
   </data>
   <data name="pcb placement heat sink 1 present" xml:space="preserve">
     <value>Placement Heat Sink 1 Present</value>
@@ -1462,7 +1456,7 @@ Operation failed Check controller status</value>
     <value>Placement Heat Sink 2 Present</value>
   </data>
   <data name="pcb placement station" xml:space="preserve">
-    <value>Placement Station</value>
+    <value>Placement backup</value>
   </data>
   <data name="pcb placement stopper down" xml:space="preserve">
     <value>Placement Stopper Down</value>
@@ -1603,25 +1597,25 @@ Operation failed Check controller status</value>
     <value>PLACEMENT</value>
   </data>
   <data name="placement handler" xml:space="preserve">
-    <value>Placement Handler</value>
+    <value>Placement head</value>
   </data>
   <data name="placement handler down" xml:space="preserve">
-    <value>Placement Handler Down</value>
+    <value>Placement head down</value>
   </data>
   <data name="placement handler pcb detected" xml:space="preserve">
-    <value>Placement Handler PCB Detected</value>
+    <value>Placement head PCB detected</value>
   </data>
   <data name="placement handler rotate" xml:space="preserve">
-    <value>Placement Handler Rotate</value>
+    <value>Placement head rotate</value>
   </data>
   <data name="placement handler rotated" xml:space="preserve">
-    <value>Placement Handler Rotated</value>
+    <value>Placement head rotated</value>
   </data>
   <data name="placement handler unrotated" xml:space="preserve">
-    <value>Placement Handler Unrotated</value>
+    <value>Placement head unrotated</value>
   </data>
   <data name="placement handler up" xml:space="preserve">
-    <value>Placement Handler Up</value>
+    <value>Placement head up</value>
   </data>
   <data name="placement ipm down" xml:space="preserve">
     <value>Placement IPM Down</value>
@@ -1711,10 +1705,10 @@ Operation failed Check controller status</value>
     <value>Raise placement cylinders</value>
   </data>
   <data name="raise placement handler" xml:space="preserve">
-    <value>Raise placement handler</value>
+    <value>Raise placement head</value>
   </data>
   <data name="raise placement handler and ipm lift" xml:space="preserve">
-    <value>Raise placement handler and IPM lift</value>
+    <value>Raise placement head and IPM lift</value>
   </data>
   <data name="raising / leaving handoff" xml:space="preserve">
     <value>Raising / clearing handoff</value>
@@ -3417,7 +3411,7 @@ Supply: PCB 1, travel Z</value>
     <value>Open gripper</value>
   </data>
   <data name="raise handler / ipm" xml:space="preserve">
-    <value>Raise handler / IPM</value>
+    <value>Raise head / IPM</value>
   </data>
   <data name="raise pickup head / table" xml:space="preserve">
     <value>Raise head / table</value>
@@ -3590,4 +3584,14 @@ Supply: PCB 1, travel Z</value>
   <data name="shooting pcb final" xml:space="preserve"><value>Shooting PCB final</value></data>
   <data name="status poll interval (s)" xml:space="preserve"><value>Status poll interval (s)</value></data>
   <data name="status poll interval must be greater than 0 s." xml:space="preserve"><value>Status poll interval must be greater than 0 s.</value></data>
+  <data name="device" xml:space="preserve">
+    <value>Device</value>
+  </data>
+  <data name="all devices" xml:space="preserve">
+    <value>All devices</value>
+  </data>
+  <data name="fastening controllers" xml:space="preserve">
+    <value>Fastening controllers</value>
+  </data>
+  <data name="no matching items" xml:space="preserve"><value>No matching items</value></data>
 </root>

@@ -104,7 +104,7 @@
             <TextBlock Grid.Column="9" Text="{ui:Text 'Alarm'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
             <TextBlock Grid.Column="10" Text="{ui:Text 'Manual'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
         </Grid>
-        <ListBox Grid.Row="3" ItemsSource="{Binding View}" Style="{StaticResource IoListStyle}">
+        <ListBox x:Name="AxesList" Grid.Row="3" ItemsSource="{Binding View}" Style="{StaticResource IoListStyle}">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource FlatListItemStyle}">
                     <Setter Property="Padding" Value="12,4"/>
@@ -198,5 +198,16 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+        <TextBlock Grid.Row="3">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyIoListMessageStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasItems, ElementName=AxesList}" Value="False">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
     </Grid>
 </Window>

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.BoltFeeder;
 using IBTM.Core;
 using IBTM.Device;
@@ -26,7 +27,7 @@ public sealed class BoltFasteningStation : AutoUnit
     private (BoltPoint Bolt, BoltFasteningStage Stage)[]? _runBolts;
     private int _boltIndex;
     private long _cycleStartedAt;
-    private ConveyorStation.Job? _runJob;
+    private BackupPlateStation.Job? _runJob;
     private CancellationTokenSource? _carrierOperation;
     // A supply operation for the next selected bolt, owned only by the current carrier run.
     private (Guid BoltId, CancellationTokenSource Cancellation, Task Completion)? _shootingFeed;
@@ -38,7 +39,7 @@ public sealed class BoltFasteningStation : AutoUnit
         [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion motion,
         [FromKeyedServices(MotionGroup.BoltFastening)] MotionStatus motionStatus,
         BoltFasteningSettings settings,
-        [FromKeyedServices(MotionGroup.BoltFastening)] ConveyorStation station,
+        [FromKeyedServices(MotionGroup.BoltFastening)] BackupPlateStation station,
         RecipeManager recipes,
         UnitSettings units,
         BoltFeederUnit feeder,
@@ -74,7 +75,7 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public IBoltHead PickupHead { get; }
 
-    public ConveyorStation Station { get; }
+    public BackupPlateStation Station { get; }
 
     private bool IsReadyToFasten => Station.CarrierSeated && !Station.Completed;
 

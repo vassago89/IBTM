@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.BackupPlate;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Core;
@@ -57,8 +58,8 @@ public partial class OperationViewModel : ObservableObject
     private string _pcbHistoryDirectory;
     private int _pcbHistoryLimit;
     private bool _pcbHistoryLoaded;
-    private ConveyorStation.Job? _reviewedFasteningJob;
-    private ConveyorStation.Job? _reviewedPlacementJob;
+    private BackupPlateStation.Job? _reviewedFasteningJob;
+    private BackupPlateStation.Job? _reviewedPlacementJob;
 
     public OperationViewModel(
         MachineState state,
@@ -228,7 +229,7 @@ public partial class OperationViewModel : ObservableObject
     [ObservableProperty]
     public partial string? StartActionMessage { get; private set; }
 
-    public ConveyorStation? StartStation => SelectedStartArea switch
+    public BackupPlateStation? StartStation => SelectedStartArea switch
     {
         StartArea.Station1 => Placement.Station,
         StartArea.Station2 => Fastening.Station,
@@ -927,7 +928,7 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    private static AssemblyResult GetAssemblyResult(ConveyorStation station, HeatSinkSlot heatSink, bool inspection)
+    private static AssemblyResult GetAssemblyResult(BackupPlateStation station, HeatSinkSlot heatSink, bool inspection)
     {
         var assembly = station.Assemblies.FirstOrDefault(item => item.HeatSink == heatSink);
         if (assembly is null)

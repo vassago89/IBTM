@@ -2221,7 +2221,8 @@ public sealed class TeachingTests
         Assert.False(machine.IsManualMotionReady(MotionGroup.PcbSupply));
         await WaitUntilAsync(() => placementPlate.IsToggleOutputAllowed);
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => !placementPlate.IsToggleOutputAllowed);
+        Assert.True(state.AutoMode);
+        Assert.True(placementPlate.IsToggleOutputAllowed);
         io.SetInput(InputIo.AutoMode, true);
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;

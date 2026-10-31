@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.NgConveyor;
@@ -30,11 +31,11 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     private (HeatSinkSlot Pcb, BoltPoint? Bolt)[]? _runPoints;
     private int _pointIndex;
     private long _cycleStartedAt;
-    private ConveyorStation.Job? _runJob;
+    private BackupPlateStation.Job? _runJob;
     private CancellationTokenSource? _inspectionOperation;
     // Scheduling ownership for this job only; never a physical position or restart checkpoint.
-    private volatile ConveyorStation.Job? _inspectionRequestedJob;
-    private volatile ConveyorStation.Job? _carrierSeatingRequestedJob;
+    private volatile BackupPlateStation.Job? _inspectionRequestedJob;
+    private volatile BackupPlateStation.Job? _carrierSeatingRequestedJob;
     private readonly ICamera _camera;
     private readonly ILightController _light;
     private readonly LightingSettings _lightingSettings;
@@ -43,7 +44,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     private int? _lightChannel;
 
     public InspectionStation(
-        [FromKeyedServices(MotionGroup.InspectionGantry)] ConveyorStation station,
+        [FromKeyedServices(MotionGroup.InspectionGantry)] BackupPlateStation station,
         [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion motion,
         [FromKeyedServices(MotionGroup.InspectionGantry)] MotionStatus motionStatus,
         NgCarrierConveyor ngConveyor,
@@ -99,7 +100,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         }
     }
 
-    public ConveyorStation Station { get; }
+    public BackupPlateStation Station { get; }
 
     public StationCylinderState Lift
     {
@@ -188,7 +189,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         {
             if (!Station.CarrierPresent)
                 return false;
-            if (Station.HasNg)
+            if (Station.Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng))
                 return true;
             if (!Station.Completed)
                 return false;
@@ -233,7 +234,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         }
     }
 
-    public void RequestInspection(ConveyorStation.Job job)
+    public void RequestInspection(BackupPlateStation.Job job)
     {
         Station.RequireCurrentJob(job);
         if (!IsAtInspectionPosition || !IsClear)
@@ -249,7 +250,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         NotifyChanged();
     }
 
-    public void RequestCarrierSeating(ConveyorStation.Job job)
+    public void RequestCarrierSeating(BackupPlateStation.Job job)
     {
         Station.RequireCurrentJob(job);
         if (CarrierSeatingRequested)
@@ -554,7 +555,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                 await SetGripperOpenAsync(false, cancellationToken);
                 await SetLiftUpAsync(true, cancellationToken);
                 // The raised pickup now supports the carrier; lower S3 before travelling to the shuttle.
-                await Io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
+                await Station.SetBackupPlateUpAsync(false, cancellationToken);
                 break;
             }
             case InspectionStationState.PlacingCarrier:

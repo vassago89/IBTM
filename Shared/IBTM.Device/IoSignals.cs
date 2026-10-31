@@ -17,7 +17,7 @@ public sealed class IoSignals : INotifyPropertyChanged
         _io = io;
         _inputsAvailable = io.IsReady ? 1 : 0;
         var sections = hardware.ToArray();
-        Inputs = sections.OfType<InputHardwareSettings>()
+        Inputs = sections.OfType<IoHardwareSettings>()
             .SelectMany(
                 section =>
                     section.Inputs.Select(

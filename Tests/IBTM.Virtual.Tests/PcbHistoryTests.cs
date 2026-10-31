@@ -897,6 +897,42 @@ public sealed class PcbHistoryTests
         Assert.Equal(130, results.Records.Count);
         Assert.Same(Assert.Single(results.Records, results.IsRecordVisible), results.SelectedRecord);
         Assert.Equal(1, results.SelectedRecord!.Number);
+
+        var context = new VirtualTestSupport.PausedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        Task refresh;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            refresh = results.RefreshHistoryCommand.ExecuteAsync(null);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+        try
+        {
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => context.HasPending, TimeSpan.FromSeconds(2)));
+            Assert.Equal(130, results.Records.Count);
+            results.HistorySearch = " pcb-002 ";
+            results.SelectedRecord = Assert.Single(results.Records, results.IsRecordVisible);
+            context.Release();
+            await refresh.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(2, results.SelectedRecord!.Number);
+            Assert.Same(Assert.Single(results.Records, results.IsRecordVisible), results.SelectedRecord);
+        }
+        finally
+        {
+            context.Release();
+            await refresh.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        var selected = results.SelectedRecord;
+        File.WriteAllText(Path.Combine(results.HistoryDirectory, "PCB-2026-11.db"), "invalid database");
+        await results.RefreshHistoryCommand.ExecuteAsync(null);
+        Assert.NotNull(results.Error);
+        Assert.Equal(130, results.Records.Count);
+        Assert.Same(selected, results.SelectedRecord);
         await results.ShutdownAsync();
     }
 

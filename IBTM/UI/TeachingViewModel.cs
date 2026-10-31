@@ -125,35 +125,22 @@ public partial class TeachingViewModel : ObservableObject
         _teachingIoGroups = new Dictionary<HardwareArea, TeachingIoGroup[]>
         {
             [HardwareArea.PcbSupply] = [
-                new(settings.PcbSupplyHardware, settings.PcbSupplyHardware.Outputs.Keys,
-                    io, machine),
+                new(settings.PcbSupplyHardware, io, machine),
             ],
             [HardwareArea.PcbPlacementHandler] = [
-                new(settings.PcbPlacementStationHardware,
-                    [OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp],
-                    io, machine),
-                new(settings.PcbPlacementHandlerHardware, settings.PcbPlacementHandlerHardware.Outputs.Keys,
-                    io, machine),
+                new(settings.PcbPlacementStationHardware, io, machine),
+                new(settings.PcbPlacementHandlerHardware, io, machine),
             ],
             [HardwareArea.BoltFastening] = [
-                new(settings.BoltFasteningStationHardware,
-                    [OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp],
-                    io, machine),
-                new(settings.BoltFasteningHardware, settings.BoltFasteningHardware.Outputs.Keys,
-                    io, machine),
-                new(settings.IoBoltHardware, settings.IoBoltHardware.Outputs.Keys,
-                    io, machine),
-                new(settings.BoltFeederHardware, settings.BoltFeederHardware.Outputs.Keys,
-                    io, machine),
+                new(settings.BoltFasteningStationHardware, io, machine),
+                new(settings.BoltFasteningHardware, io, machine),
+                new(settings.IoBoltHardware, io, machine),
+                new(settings.BoltFeederHardware, io, machine),
             ],
             [HardwareArea.InspectionGantry] = [
-                new(settings.InspectionStationHardware,
-                    [OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp],
-                    io, machine),
-                new(settings.NgCarrierTransferHardware, settings.NgCarrierTransferHardware.Outputs.Keys,
-                    io, machine),
-                new(settings.NgShuttleHardware, settings.NgShuttleHardware.Outputs.Keys,
-                    io, machine),
+                new(settings.InspectionStationHardware, io, machine),
+                new(settings.NgCarrierTransferHardware, io, machine),
+                new(settings.NgShuttleHardware, io, machine),
             ],
         };
         foreach (var unit in _teachingIoGroups)

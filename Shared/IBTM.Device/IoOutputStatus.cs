@@ -39,16 +39,19 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
 
     public bool HasConflict => Feedback.Length == 2 && Feedback[0].IsOn == true && Feedback[1].IsOn == true;
 
-    public bool IsMatched
+    public bool? IsMatched
     {
         get
         {
-            if (IsOn is not { } on || !HasFeedback || HasConflict)
+            if (!HasFeedback)
                 return false;
-            return Feedback.Length == 1
-                ? Feedback[0].IsOn == on
-                : Feedback[on ? 0 : 1].IsOn == true
-                    && Feedback[on ? 1 : 0].IsOn == false;
+            if (IsOn is not { } on || Feedback[0].IsOn is not { } onFeedback)
+                return null;
+            if (Feedback.Length == 1)
+                return onFeedback == on;
+            if (Feedback[1].IsOn is not { } offFeedback)
+                return null;
+            return on ? onFeedback && !offFeedback : offFeedback && !onFeedback;
         }
     }
 

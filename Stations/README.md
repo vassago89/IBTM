@@ -153,8 +153,14 @@ STOP 시 전단 AVAILABLE이 남아 있으면 READY를 유지하고, 피드백 �
 | 검사 / NG Transfer | 픽업 승강·그리퍼, S3 착좌 인계 |
 | NG 컨베이어 | 셔틀·벨트·스토퍼·배출/완료 버튼 램프 |
 
-별도 `StationWork` 계층은 두지 않는다. `ConveyorStation.cs`가 기존 S1/S2/S3
-지지대 객체에 Job 식별, 결과, 완료 여부와 결과 인계를 보관한다. 센서 변화는 Job을 지우거나
+`IBTM.BackupPlate` 프로젝트의 `BackupPlateStation.cs`가 S1/S2/S3의 백업·스토퍼 제어와
+캐리어 작업 상태를 담당한다. `IBTM.Device`의 공통 I/O 인터페이스를 사용하며
+공정 스테이션과 메인 컨베이어가 이 프로젝트를 참조한다. 별도 `StationWork` 계층은 두지 않는다.
+개별 백업·스토퍼 조작은 `SetBackupPlateUpAsync`·`SetStopperUpAsync`를 사용한다.
+세 스테이션의 캐리어 감지·백업·스토퍼 I/O 설정도 이 프로젝트에 둔다.
+기존 컨베이어 설정에 저장한 백업·스토퍼 주소는 설정을 불러올 때 각 스테이션으로 옮긴다.
+티칭 화면은 각 설정의 입력·출력 목록을 사용하며 별도 출력 목록을 중복 관리하지 않는다.
+각 지지대 객체에 Job 식별, 결과, 완료 여부와 결과 인계를 보관한다. 센서 변화는 Job을 지우거나
 완료를 해제하지 않는다. START 확인에서 미완료 캐리어가 남아 있으면 차단하고, 빈 스테이션만
 승인된 START에서 정리한다. 완료 캐리어는 완료 상태를 유지해 다음 스테이션으로 이송한다.
 자동 이송은 빈 목적지를 준비할 때 Job을 새로 만들며, 이전 Job의 결과 쓰기와 완료 요청은 거부한다.
@@ -163,7 +169,7 @@ STOP 시 전단 AVAILABLE이 남아 있으면 READY를 유지하고, 피드백 �
 
 Enabled와 공정 준비 조건은 `PcbPlacer`, `BoltFasteningStation`, `InspectionStation`이 판단한다.
 검사 요청·착좌 요청·NG 인계 소유권·공유 축 및 픽업 인터록은 `InspectionStation`에 있다.
-메인 컨베이어는 S1/S2의 `ConveyorStation`과 `InspectionStation`을 직접 참조한다.
+메인 컨베이어는 S1/S2의 `BackupPlateStation`과 `InspectionStation`을 직접 참조한다.
 UI와 결과 저장도 각 스테이션의 `Station`을 사용하며 별도의 Work DI 등록이나 표시용 복사본은 없다.
 티칭 화면의 I/O 목록은 하드웨어 설정과 공유 `IoSignals`로 구성한다.
 목록을 만들기 위해 스테이션을 생성하거나, 지지대 객체에 화면 구성 함수를 두지 않는다.

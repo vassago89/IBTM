@@ -121,8 +121,6 @@ public partial class ResultsViewModel : ObservableObject
     {
         if (_shuttingDown)
             return;
-        var selected = SelectedRecord;
-        ClearHistory();
         Error = null;
         var directory = HistoryDirectory;
         try
@@ -130,11 +128,12 @@ public partial class ResultsViewModel : ObservableObject
             var records = await Task.Run(() => _store.LoadPcbs(directory), token);
             if (token.IsCancellationRequested)
                 return;
+            var selected = SelectedRecord;
+            Records.Clear();
             foreach (var record in records)
                 Records.Add(record);
-            if (selected is not null)
-                SelectedRecord = Records.FirstOrDefault(record => record.Number == selected.Number
-                    && record.DatabaseFile == selected.DatabaseFile && IsRecordVisible(record));
+            SelectedRecord = selected is null ? null : Records.FirstOrDefault(record => record.Number == selected.Number
+                && record.DatabaseFile == selected.DatabaseFile && IsRecordVisible(record));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)

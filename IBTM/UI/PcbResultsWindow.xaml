@@ -293,21 +293,10 @@
                                         <StackPanel Margin="0,8,0,0">
                                             <DataGrid ItemsSource="{Binding BoltStages}" SelectedItem="{Binding SelectedBoltStage, Mode=TwoWay}" IsSynchronizedWithCurrentItem="False"
                                                 AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"
+                                                ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                                 CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False" RowHeight="38">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="{ui:Text 'Stage'}" Binding="{Binding Result.Stage, Converter={StaticResource UiTextConverter}}" Width="*" MinWidth="100"/>
-                                                    <DataGridTextColumn Header="{ui:Text 'Preset'}" Binding="{Binding Result.Controller.Preset, TargetNullValue='—', FallbackValue='—'}" Width="75"/>
-                                                    <DataGridTemplateColumn Header="{ui:Text 'Result'}" Width="110"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                                        <TextBlock Text="{Binding StageVerdict}" Tag="{Binding Result.Success}">
-                                                            <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}"><Style.Triggers>
-                                                                <DataTrigger Binding="{Binding Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
-                                                            </Style.Triggers></Style></TextBlock.Style>
-                                                        </TextBlock>
-                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                                    <DataGridTextColumn Header="{ui:Text 'Turns'}" Binding="{Binding Result.MeasuredTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
-                                                    <DataGridTextColumn Header="{ui:Text 'Torque'}" Binding="{Binding Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
-                                                    <DataGridTextColumn Header="{ui:Text 'Z feed distance (mm)'}" Binding="{Binding Result.ZFeedDistance, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="Auto" MinWidth="110"/>
-                                                    <DataGridTextColumn Header="{ui:Text 'Time (ms)'}" Binding="{Binding Result.Controller.FasteningTimeMilliseconds, TargetNullValue='—', FallbackValue='—'}" Width="130"/>
+                                                    <DataGridTextColumn Header="{ui:Text 'Stage'}" Binding="{Binding Result.Stage, Converter={StaticResource UiTextConverter}}" Width="Auto" MinWidth="160"/>
                                                     <DataGridTemplateColumn Header="{ui:Text 'Graph'}" Width="100">
                                                         <DataGridTemplateColumn.CellTemplate>
                                                             <DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
@@ -327,6 +316,18 @@
                                                             </DataTemplate>
                                                         </DataGridTemplateColumn.CellTemplate>
                                                     </DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="{ui:Text 'Result'}" Width="110"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
+                                                        <TextBlock Text="{Binding StageVerdict}" Tag="{Binding Result.Success}">
+                                                            <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}"><Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
+                                                            </Style.Triggers></Style></TextBlock.Style>
+                                                        </TextBlock>
+                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTextColumn Header="{ui:Text 'Torque'}" Binding="{Binding Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
+                                                    <DataGridTextColumn Header="{ui:Text 'Turns'}" Binding="{Binding Result.MeasuredTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="95"/>
+                                                    <DataGridTextColumn Header="{ui:Text 'Z feed distance (mm)'}" Binding="{Binding Result.ZFeedDistance, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="Auto" MinWidth="110"/>
+                                                    <DataGridTextColumn Header="{ui:Text 'Time (ms)'}" Binding="{Binding Result.Controller.FasteningTimeMilliseconds, TargetNullValue='—', FallbackValue='—'}" Width="130"/>
+                                                    <DataGridTextColumn Header="{ui:Text 'Preset'}" Binding="{Binding Result.Controller.Preset, TargetNullValue='—', FallbackValue='—'}" Width="75"/>
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                             <TextBlock Text="{Binding SelectedBoltStage.Result.TorqueCurveError}"

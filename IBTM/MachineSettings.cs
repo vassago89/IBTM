@@ -3,11 +3,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
+using IBTM.BackupPlate;
 using IBTM.BoltFastening;
 using IBTM.BoltFeeder;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Fastech;
 using IBTM.Hantas;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
@@ -33,6 +35,7 @@ public sealed class MachineSettings
         CarrierReference = values.Get<CarrierReferenceSettings>();
         Ajin = values.Get<AjinSettings>();
         AlphaMotion = values.Get<AlphaMotionSettings>();
+        Fastech = values.Get<FastechSettings>();
         Hantas = values.Get<HantasSettings>();
         InspectionCamera = values.Get<InspectionCameraSettings>();
         Lighting = values.Get<LightingSettings>();
@@ -58,6 +61,25 @@ public sealed class MachineSettings
         NgCarrierTransferHardware = values.Get<NgCarrierTransferHardwareSettings>();
         NgShuttleHardware = values.Get<NgShuttleHardwareSettings>();
         NgConveyorHardware = values.Get<NgConveyorHardwareSettings>();
+
+        // Move saved conveyor support addresses into their station settings.
+        IoHardwareSettings[] stations = [PcbPlacementStationHardware, BoltFasteningStationHardware, InspectionStationHardware];
+        foreach (var station in stations)
+        {
+            foreach (var (output, hardware) in station.Outputs)
+            {
+                var feedback = hardware.Feedback!;
+                if (ConveyorHardware.Inputs.Remove(feedback.OnInput, out var onAddress))
+                    station.Inputs[feedback.OnInput] = onAddress;
+                if (ConveyorHardware.Inputs.Remove(feedback.OffInput!.Value, out var offAddress))
+                    station.Inputs[feedback.OffInput.Value] = offAddress;
+                if (ConveyorHardware.Outputs.Remove(output, out var saved))
+                {
+                    hardware.Number = saved.Number;
+                    hardware.OffNumber = saved.OffNumber;
+                }
+            }
+        }
     }
 
     public UnitSettings Units { get; set; }
@@ -68,6 +90,7 @@ public sealed class MachineSettings
     public CarrierReferenceSettings CarrierReference { get; set; }
     public AjinSettings Ajin { get; set; }
     public AlphaMotionSettings AlphaMotion { get; set; }
+    public FastechSettings Fastech { get; set; }
     public HantasSettings Hantas { get; set; }
     public InspectionCameraSettings InspectionCamera { get; set; }
     public LightingSettings Lighting { get; set; }
@@ -146,6 +169,7 @@ public sealed class MachineSettings
                 CarrierReference,
                 Ajin,
                 AlphaMotion,
+                Fastech,
                 InspectionCamera,
                 Lighting,
                 Hantas,

@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Core;
@@ -144,7 +145,7 @@ public sealed class IoTests
             (MotionGroup.InspectionGantry, inspection.Station),
         })
         {
-            Assert.Same(services.GetRequiredKeyedService<ConveyorStation>(group), station);
+            Assert.Same(services.GetRequiredKeyedService<BackupPlateStation>(group), station);
             conveyorChanged = false;
             station.ClearJob();
             Assert.True(conveyorChanged);
@@ -178,7 +179,7 @@ public sealed class IoTests
     public void ConfirmedIoMapHasOneSignalPerInputAndNoSeparateP3Sensor()
     {
         var settings = new MachineSettings();
-        var hardware = settings.HardwareSections.OfType<InputHardwareSettings>().ToArray();
+        var hardware = settings.HardwareSections.OfType<IoHardwareSettings>().ToArray();
         var inputs = hardware.SelectMany(section => section.Inputs)
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         InputIo[] retiredInputs =
@@ -215,7 +216,7 @@ public sealed class IoTests
         Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber);
         Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback);
 
-        var outputs = hardware.OfType<IoHardwareSettings>().SelectMany(section => section.Outputs).ToArray();
+        var outputs = hardware.SelectMany(section => section.Outputs).ToArray();
         Assert.Equal(Enum.GetValues<OutputIo>().Except([OutputIo.Unused3]).Order(), outputs.Select(pair => pair.Key).Order());
         var channels = outputs.SelectMany(
             pair =>
@@ -249,6 +250,18 @@ public sealed class IoTests
 
         var allOutputs = outputs.ToDictionary(pair => pair.Key, pair => pair.Value);
         var allSignals = new IoSignals(hardware, new VirtualIoService(allOutputs, new()));
+        foreach (var (station, plate, stopper) in new[]
+        {
+            (HardwareArea.PcbPlacementStation, OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp),
+            (HardwareArea.BoltFasteningStation, OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp),
+            (HardwareArea.InspectionStation, OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp),
+        })
+        {
+            Assert.Equal(station, allSignals.Outputs[plate].Area);
+            Assert.Equal(station, allSignals.Outputs[stopper].Area);
+            Assert.DoesNotContain(plate, settings.ConveyorHardware.Outputs.Keys);
+            Assert.DoesNotContain(stopper, settings.ConveyorHardware.Outputs.Keys);
+        }
         var table = allSignals.Outputs[OutputIo.PickupTableDown];
         Assert.Equal(IoSection.BoltFasteningPickupHead, table.Section);
         Assert.Equal(new[] { InputIo.PickupTableDown, InputIo.PickupTableUp },
@@ -289,6 +302,7 @@ public sealed class IoTests
             Assert.Equal(hardware.Inputs[row.Signal], row.Number);
         });
         Assert.Null(output.IsOn);
+        Assert.Null(output.IsMatched);
         Assert.Equal(0, probe.Reads);
         signals.RefreshOutputs();
         Assert.False(output.IsOn);
@@ -305,7 +319,7 @@ public sealed class IoTests
         var filter = new IoListViewModel<IoOutputStatus, OutputIo>(signals.Outputs.Values.ToArray(), row => row);
         filter.SearchText = output.Signal.ToString();
         Assert.Same(output, Assert.Single(filter.FilteredRows.Cast<IoOutputStatus>()));
-        filter.SearchText = UiText.Get(output.Feedback[1].Signal);
+        filter.SearchText = $"  {UiText.Get(output.Feedback[1].Signal)}  ";
         Assert.Same(output, Assert.Single(filter.FilteredRows.Cast<IoOutputStatus>()));
         filter.SearchText = UiText.Get(sensor.Signal);
         Assert.Empty(filter.FilteredRows.Cast<IoOutputStatus>());
@@ -345,7 +359,7 @@ public sealed class IoTests
         probe.Error = error;
         Assert.Same(error, Assert.Throws<IOException>(signals.RefreshOutputs));
         Assert.Null(output.IsOn);
-        Assert.False(output.IsMatched);
+        Assert.Null(output.IsMatched);
 
         probe.Error = null;
         signals.RefreshOutputs();
@@ -373,7 +387,7 @@ public sealed class IoTests
         var incompleteSignals = new IoSignals([hardware], io);
         incompleteSignals.RefreshOutputs();
         Assert.Null(incompleteSignals.Inputs[InputIo.NgShuttleUp].IsOn);
-        Assert.False(incompleteSignals.Outputs[OutputIo.NgShuttleDown].IsMatched);
+        Assert.Null(incompleteSignals.Outputs[OutputIo.NgShuttleDown].IsMatched);
     }
 
     [Fact]

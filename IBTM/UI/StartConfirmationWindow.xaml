@@ -378,7 +378,7 @@
                         </TabItem>
                         <TabItem Header="{ui:Text 'Individual I/O'}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
-                                <ItemsControl ItemsSource="{Binding StartOutputs}" ItemTemplate="{StaticResource TeachingOutputTemplate}"/>
+                                <ui:IoGroupItemsControl ItemsSource="{Binding StartOutputs}" ItemTemplate="{StaticResource TeachingOutputTemplate}"/>
                             </ScrollViewer>
                         </TabItem>
                     </TabControl>
