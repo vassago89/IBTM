@@ -32,9 +32,10 @@ public sealed class MachineController : INotifyPropertyChanged
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
     private readonly BoltFasteningSettings _fasteningSettings;
+    private readonly BackupPlateSettings _backupSettings;
     private readonly RecipeManager _recipes;
     private readonly IIoService _io;
-    private readonly IReadOnlyDictionary<MotionGroup, IXyMotion> _motions;
+    private readonly IReadOnlyDictionary<MotionGroup, IAxisMotion> _motions;
     private readonly MainConveyor _conveyor;
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly PcbSupplier _pcbSupply;
@@ -74,6 +75,7 @@ public sealed class MachineController : INotifyPropertyChanged
         MachineOptions options,
         UnitSettings units,
         BoltFasteningSettings fasteningSettings,
+        BackupPlateSettings backupSettings,
         RecipeManager recipes,
         IIoService io,
         MainConveyor conveyor,
@@ -84,7 +86,7 @@ public sealed class MachineController : INotifyPropertyChanged
         InspectionStation inspectionStation,
         BoltFeederUnit boltFeeder,
         PcbHistoryWriter pcbHistory,
-        IReadOnlyDictionary<MotionGroup, IXyMotion> motions,
+        IReadOnlyDictionary<MotionGroup, IAxisMotion> motions,
         ILogger<MachineController>? log = null)
     {
         _resetGate = new();
@@ -97,6 +99,7 @@ public sealed class MachineController : INotifyPropertyChanged
         _options = options;
         _units = units;
         _fasteningSettings = fasteningSettings;
+        _backupSettings = backupSettings;
         _recipes = recipes;
         _io = io;
         _motions = motions;
@@ -157,6 +160,7 @@ public sealed class MachineController : INotifyPropertyChanged
             _motions[MotionGroup.PcbPlacementHandler].Stop,
             _motions[MotionGroup.BoltFastening].Stop,
             _motions[MotionGroup.InspectionGantry].Stop,
+            _motions[MotionGroup.BoltFasteningBackup].Stop,
         ];
         foreach (var stop in stops)
         {
@@ -581,6 +585,12 @@ public sealed class MachineController : INotifyPropertyChanged
             {
                 _log?.LogInformation("Inspection motion initialization started.");
                 _motions[MotionGroup.InspectionGantry].Initialize();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            if (_units.IsMotionEnabled(MotionGroup.BoltFasteningBackup))
+            {
+                _log?.LogInformation("S2 backup motion initialization started.");
+                _motions[MotionGroup.BoltFasteningBackup].Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
             }
             _log?.LogInformation("Motion initialization completed.");
@@ -1352,8 +1362,14 @@ public sealed class MachineController : INotifyPropertyChanged
                 || _pcbPlacement.IpmLift != StationCylinderState.Up))
             return HomeBlockReason.PlacementNotRaised;
         if (requireRaised
-            && (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
+            && (group is MotionGroup.BoltFastening or MotionGroup.BoltFasteningBackup
+                || group is null && _units.IsMotionEnabled(MotionGroup.BoltFasteningBackup))
             && !_fasteningStation.IsHorizontalMoveAllowed)
+            return HomeBlockReason.FasteningNotRaised;
+        if (requireRaised
+            && (group == MotionGroup.BoltFasteningBackup
+                || group is null && _units.IsMotionEnabled(MotionGroup.BoltFasteningBackup))
+            && _fasteningStation.PickupTablePosition != StationCylinderState.Up)
             return HomeBlockReason.FasteningNotRaised;
         if (requireRaised
             && (group == MotionGroup.InspectionGantry || group is null && _units.Inspection)
@@ -1405,6 +1421,8 @@ public sealed class MachineController : INotifyPropertyChanged
                 try
                 {
                     await RaiseCylindersAsync(operation, group);
+                    if (group == MotionGroup.BoltFasteningBackup)
+                        await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, operation.Token);
                     homingAxes = true;
                     if (!IsHomeAxisReady(group, axis, requireRaised: true))
                         return;
@@ -1430,6 +1448,10 @@ public sealed class MachineController : INotifyPropertyChanged
                             homed = axis is { } selectedAxis
                                 ? await _inspectionStation.HomeAxisAsync(selectedAxis, operation.Token)
                                 : await _inspectionStation.HomeHorizontalAsync(operation.Token);
+                            break;
+                        case MotionGroup.BoltFasteningBackup:
+                            homed = await _motions[group].HomeAsync(
+                                MotionAxis.Z, _backupSettings.Motion.ZHome.SearchSpeed, operation.Token);
                             break;
                         default:
                             throw new ArgumentOutOfRangeException(nameof(group));
@@ -1491,7 +1513,8 @@ public sealed class MachineController : INotifyPropertyChanged
                 await ObserveRaiseAsync(
                     _pcbPlacement.SetIpmDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
         }
-        if (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
+        if (group is MotionGroup.BoltFastening or MotionGroup.BoltFasteningBackup
+            || group is null && _units.IsMotionEnabled(MotionGroup.BoltFasteningBackup))
             await ObserveRaiseAsync(_fasteningStation.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening);
         if (group == MotionGroup.InspectionGantry || group is null && _units.Inspection)
             await ObserveRaiseAsync(
@@ -1579,6 +1602,8 @@ public sealed class MachineController : INotifyPropertyChanged
                     failureAlarm = MachineAlarm.HomeFailed;
                     _state.IsHoming = true;
                     await RaiseCylindersAsync(operation);
+                    if (_units.IsMotionEnabled(MotionGroup.BoltFasteningBackup))
+                        await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
                     homingAxes = true;
                     StopWhenHomeBecomesUnavailable();
                     cancellationToken.ThrowIfCancellationRequested();
@@ -1625,6 +1650,9 @@ public sealed class MachineController : INotifyPropertyChanged
                         _units.Inspection
                             ? CheckHomeAsync(_inspectionStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
                             : Task.CompletedTask);
+                    if (_units.IsMotionEnabled(MotionGroup.BoltFasteningBackup))
+                        await CheckHomeAsync(_motions[MotionGroup.BoltFasteningBackup].HomeAsync(
+                            MotionAxis.Z, _backupSettings.Motion.ZHome.SearchSpeed, cancellationToken), cancellationToken);
                 }
                 finally
                 {
@@ -1697,7 +1725,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 return MachineAlarm.PcbSupply;
             case MotionGroup.PcbPlacementHandler:
                 return MachineAlarm.PcbPlacement;
-            case MotionGroup.BoltFastening:
+            case MotionGroup.BoltFastening or MotionGroup.BoltFasteningBackup:
                 return MachineAlarm.BoltFastening;
             case MotionGroup.InspectionGantry:
                 return MachineAlarm.Inspection;
@@ -2293,7 +2321,8 @@ public sealed class MachineController : INotifyPropertyChanged
     public async Task<bool> MoveToStandbyAsync(CancellationToken cancellationToken, MotionGroup? selectedGroup = null)
     {
         var groups = Enum.GetValues<MotionGroup>()
-            .Where(group => _units.IsMotionEnabled(group) && (selectedGroup is null || selectedGroup == group)).ToArray();
+            .Where(group => group != MotionGroup.BoltFasteningBackup
+                && _units.IsMotionEnabled(group) && (selectedGroup is null || selectedGroup == group)).ToArray();
         var activeToken = cancellationToken;
         var alarm = MachineAlarm.MotionUnavailable;
         string? materialBlock = null;
@@ -2415,6 +2444,7 @@ public sealed class MachineController : INotifyPropertyChanged
             return await MoveToStandbyAsync(cancellationToken, group);
         }
         var movesSupply = action == StartPreparationAction.MoveToRotationPosition;
+        var movesBackup = action is StartPreparationAction.MoveBackupToTransfer or StartPreparationAction.MoveBackupToFastening;
         var motion = area switch
         {
             StartArea.Supply => _pcbSupply.Motion.Feedback,
@@ -2432,14 +2462,19 @@ public sealed class MachineController : INotifyPropertyChanged
                         ? area == StartArea.Supply && IsSetupMotionReady(MotionGroup.PcbSupply)
                             && !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
                             && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
-                        : !_state.IsRunningFor(includeOperations: false)
+                        : movesBackup
+                            ? area == StartArea.Station2 && IsSetupMotionReady(MotionGroup.BoltFasteningBackup)
+                                && !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
+                                && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
+                                && motion.IsReady && motion.Axes.All(axis => !motion.GetAxisState(axis).InMotion)
+                            : !_state.IsRunningFor(includeOperations: false)
                             && motion.IsReady && motion.Axes.All(axis => !motion.GetAxisState(axis).InMotion)),
                 cancellationToken);
             if (operation is null)
                 return false;
             activeToken = operation.Token;
             activeToken.ThrowIfCancellationRequested();
-            if (movesSupply && _state.IsRunningFor(includeOperations: false))
+            if ((movesSupply || movesBackup) && _state.IsRunningFor(includeOperations: false))
                 return false;
             _log?.LogInformation("START preparation: {Area}, {Action} started.", area, action);
             switch (action)
@@ -2487,6 +2522,13 @@ public sealed class MachineController : INotifyPropertyChanged
                 case StartPreparationAction.RaiseTooling:
                     await RaiseStartToolingAsync(area, activeToken);
                     break;
+                case StartPreparationAction.MoveBackupToTransfer or StartPreparationAction.MoveBackupToFastening:
+                    if (area != StartArea.Station2)
+                        throw new ArgumentOutOfRangeException(nameof(area));
+                    await RaiseStartToolingAsync(area, activeToken);
+                    await _fasteningStation.Station.SetBackupPlateUpAsync(
+                        action == StartPreparationAction.MoveBackupToFastening, activeToken);
+                    break;
                 case StartPreparationAction.ToggleCarrierSupport or StartPreparationAction.ToggleStopper:
                     var station = area switch
                     {
@@ -2498,6 +2540,8 @@ public sealed class MachineController : INotifyPropertyChanged
                     await RaiseStartToolingAsync(area, activeToken);
                     var support = action == StartPreparationAction.ToggleCarrierSupport;
                     var position = support ? station.BackupPlate : station.Stopper;
+                    if (support && area == StartArea.Station2)
+                        throw new InvalidOperationException("Select the S2 backup target height.");
                     if (position == StationCylinderState.Between)
                         throw new InvalidOperationException("Confirm the selected support or stopper Up/Down sensors before operating it.");
                     var up = position == StationCylinderState.Down;
@@ -2572,7 +2616,7 @@ public sealed class MachineController : INotifyPropertyChanged
             or OutputIo.PcbPlacementStopperUp or OutputIo.PcbPlacementBackupPlateUp
             or OutputIo.PickupHeadDown or OutputIo.PickupTableDown or OutputIo.ShootingHeadDown
             or OutputIo.PickupHeadVacuumPump or OutputIo.ShootingHeadVacuumPump or OutputIo.ShootBolt
-            or OutputIo.BoltFasteningStopperUp or OutputIo.BoltFasteningBackupPlateUp
+            or OutputIo.BoltFasteningStopperUp
             or OutputIo.NgCarrierPickupDown or OutputIo.NgCarrierGripperClose or OutputIo.NgShuttleDown
             or OutputIo.InspectionStopperUp or OutputIo.InspectionBackupPlateUp;
     }
@@ -2648,7 +2692,7 @@ public sealed class MachineController : INotifyPropertyChanged
                     await _ngConveyor.SetShuttleDownAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbSupplyGripperClosed
-                    or OutputIo.PickupTableDown or OutputIo.PcbPlacementBackupPlateUp or OutputIo.BoltFasteningBackupPlateUp
+                    or OutputIo.PickupTableDown or OutputIo.PcbPlacementBackupPlateUp
                     or OutputIo.InspectionBackupPlateUp or OutputIo.PcbPlacementStopperUp or OutputIo.BoltFasteningStopperUp
                     or OutputIo.InspectionStopperUp:
                     await _io.SetOutputAndWaitAsync(output.Signal, value, operation.Token);

@@ -271,7 +271,7 @@ public sealed class MotionStatusTests
     public async Task StationsAndMonitorUseTheRegisteredMotionAndStatusInstances()
     {
         await using var services = MachineTestSupport.CreateDiagnosticServices();
-        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>();
         var statuses = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>();
         var monitor = services.GetRequiredService<MachineFeedbackMonitor>();
         Assert.Same(statuses, monitor.Motions);

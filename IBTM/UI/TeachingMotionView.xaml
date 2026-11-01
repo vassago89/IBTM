@@ -5,10 +5,18 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
     Foreground="{StaticResource TextPrimaryBrush}"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:TeachingViewModel, IsDesignTimeCreatable=False}">
     <UserControl.Resources>
+        <Style x:Key="GantryOnlyStyle" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <x:Array x:Key="JogSpeeds" Type="{x:Type sys:Double}">
             <sys:Double>0.1</sys:Double>
             <sys:Double>1</sys:Double>
@@ -53,10 +61,21 @@
     <StackPanel>
         <DockPanel Margin="0,0,0,4">
             <TextBlock Text="mm" DockPanel.Dock="Right" Foreground="{StaticResource TextMutedBrush}"/>
-            <TextBlock Text="{ui:Text 'Current axis position'}" FontWeight="SemiBold"/>
+            <TextBlock FontWeight="SemiBold">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="{ui:Text 'Current axis position'}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                                <Setter Property="Text" Value="{ui:Text 'S2 Backup'}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </DockPanel>
         <UniformGrid Columns="3" Margin="0,2,0,0">
-            <StackPanel>
+            <StackPanel Style="{StaticResource GantryOnlyStyle}">
                 <TextBlock Text="X" Foreground="{StaticResource TextMutedBrush}"/>
                 <TextBlock Text="{Binding Motion.Position.X, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
                     FontFamily="Consolas" FontSize="15"/>
@@ -141,7 +160,7 @@
                         Command="{Binding StepCommand}" IsEnabled="{Binding IsStepYPlusAllowed}"
                         CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
                 </Grid>
-                <Grid Grid.Row="1" Margin="2">
+                <Grid Grid.Row="1" Margin="2" Style="{StaticResource GantryOnlyStyle}">
                     <ui:HoldButton Content="{ui:Text '← X−'}" Style="{StaticResource JogDirectionStyle}"
                         PressCommand="{Binding JogCommand}"
                         ReleaseCommand="{Binding JogStopCommand}"
@@ -152,7 +171,7 @@
                 </Grid>
                 <Button Grid.Row="1" Grid.Column="1" Content="{ui:Text 'STOP'}" Margin="2" Height="40"
                     Command="{Binding JogStopCommand}" Style="{StaticResource JogStopButtonStyle}"/>
-                <Grid Grid.Row="1" Grid.Column="2" Margin="2">
+                <Grid Grid.Row="1" Grid.Column="2" Margin="2" Style="{StaticResource GantryOnlyStyle}">
                     <ui:HoldButton Content="{ui:Text 'X+ →'}" Style="{StaticResource JogDirectionStyle}"
                         PressCommand="{Binding JogCommand}"
                         ReleaseCommand="{Binding JogStopCommand}"
@@ -175,30 +194,84 @@
             <StackPanel Grid.Column="1" Width="68" Margin="12,0,0,0"
                 Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}">
                 <Grid Margin="2">
-                    <ui:HoldButton Content="{ui:Text '↑ Z−'}" Style="{StaticResource JogZDirectionStyle}"
+                    <ui:HoldButton
                         PressCommand="{Binding JogCommand}"
                         ReleaseCommand="{Binding JogStopCommand}"
-                        CommandParameter="{x:Static ui:TeachingDirection.ZMinus}"/>
-                    <Button Content="{ui:Text '↑ Z−'}" Style="{StaticResource StepDirectionStyle}"
+                        CommandParameter="{x:Static ui:TeachingDirection.ZMinus}">
+                        <ui:HoldButton.Style>
+                            <Style TargetType="ui:HoldButton" BasedOn="{StaticResource JogZDirectionStyle}">
+                                <Setter Property="Content" Value="{ui:Text '↑ Z−'}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                                        <Setter Property="Content" Value="Z−"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:HoldButton.Style>
+                    </ui:HoldButton>
+                    <Button
                         Command="{Binding StepCommand}" IsEnabled="{Binding IsStepZMinusAllowed}"
-                        CommandParameter="{x:Static ui:TeachingDirection.ZMinus}"/>
+                        CommandParameter="{x:Static ui:TeachingDirection.ZMinus}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource StepDirectionStyle}">
+                                <Setter Property="Content" Value="{ui:Text '↑ Z−'}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                                        <Setter Property="Content" Value="Z−"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </Grid>
                 <TextBlock Text="Z" Height="44" TextAlignment="Center" Padding="0,12,0,0"
                     FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"/>
                 <Grid Margin="2">
-                    <ui:HoldButton Content="{ui:Text '↓ Z+'}" Style="{StaticResource JogZDirectionStyle}"
+                    <ui:HoldButton
                         PressCommand="{Binding JogCommand}"
                         ReleaseCommand="{Binding JogStopCommand}"
-                        CommandParameter="{x:Static ui:TeachingDirection.ZPlus}"/>
-                    <Button Content="{ui:Text '↓ Z+'}" Style="{StaticResource StepDirectionStyle}"
+                        CommandParameter="{x:Static ui:TeachingDirection.ZPlus}">
+                        <ui:HoldButton.Style>
+                            <Style TargetType="ui:HoldButton" BasedOn="{StaticResource JogZDirectionStyle}">
+                                <Setter Property="Content" Value="{ui:Text '↓ Z+'}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                                        <Setter Property="Content" Value="Z+"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:HoldButton.Style>
+                    </ui:HoldButton>
+                    <Button
                         Command="{Binding StepCommand}" IsEnabled="{Binding IsStepZPlusAllowed}"
-                        CommandParameter="{x:Static ui:TeachingDirection.ZPlus}"/>
+                        CommandParameter="{x:Static ui:TeachingDirection.ZPlus}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource StepDirectionStyle}">
+                                <Setter Property="Content" Value="{ui:Text '↓ Z+'}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                                        <Setter Property="Content" Value="Z+"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </Grid>
             </StackPanel>
         </Grid>
         <Button Content="{ui:Text 'Home Selected Unit'}" Command="{Binding HomeCommand}" IsEnabled="{Binding IsHomeAllowed}" Margin="0,8,0,0"/>
         <Button Content="{Binding MoveToHorizontalZLabel}"
-            Command="{Binding MoveToHorizontalZCommand}" IsEnabled="{Binding IsMoveToHorizontalZAllowed}" Margin="0,6,0,0"
-            Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}"/>
+            Command="{Binding MoveToHorizontalZCommand}" IsEnabled="{Binding IsMoveToHorizontalZAllowed}" Margin="0,6,0,0">
+            <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                    <Setter Property="Visibility" Value="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
     </StackPanel>
 </UserControl>

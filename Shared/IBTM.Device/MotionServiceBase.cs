@@ -28,19 +28,15 @@ public abstract class MotionServiceBase : IXyMotion
         MotionSettings settings,
         OperationCancellation operationCancellation,
         bool hasY = true,
-        bool hasZ = true)
+        bool hasZ = true,
+        bool hasX = true)
     {
         Settings = settings;
         Operations = operationCancellation;
         HasY = hasY;
         HasZ = hasZ;
-        Axes = (hasY, hasZ) switch
-        {
-            (true, true) => new[] { MotionAxis.X, MotionAxis.Y, MotionAxis.Z },
-            (true, false) => new[] { MotionAxis.X, MotionAxis.Y },
-            (false, true) => new[] { MotionAxis.X, MotionAxis.Z },
-            _ => new[] { MotionAxis.X },
-        };
+        Axes = Enum.GetValues<MotionAxis>()
+            .Where(axis => axis == MotionAxis.X ? hasX : axis == MotionAxis.Y ? hasY : hasZ).ToArray();
     }
 
     public event Action<double, double, double>? PositionChanged;

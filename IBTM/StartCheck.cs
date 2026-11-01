@@ -60,6 +60,10 @@ public enum StartPreparationAction
     RaiseTooling,
     [Description("Raise/lower carrier support")]
     ToggleCarrierSupport,
+    [Description("Transfer height")]
+    MoveBackupToTransfer,
+    [Description("Fastening height")]
+    MoveBackupToFastening,
     [Description("Raise/lower stopper")]
     ToggleStopper,
 

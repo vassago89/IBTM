@@ -29,7 +29,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
     {
         get
         {
-            return Axes[MotionAxis.X].State is { Homed: true }
+            return Axes.TryGetValue(MotionAxis.X, out var x) && x.State is { Homed: true }
                 && (!Feedback.HasY || Axes[MotionAxis.Y].State is { Homed: true });
         }
     }
@@ -40,7 +40,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
         {
             // The axis samples own the coordinates; this is not a second position cache.
             return new(
-                MonitorAxes[MotionAxis.X].Sample.Position,
+                MonitorAxes.GetValueOrDefault(MotionAxis.X)?.Sample.Position,
                 Feedback.HasY ? MonitorAxes[MotionAxis.Y].Sample.Position : null,
                 Feedback.HasZ ? MonitorAxes[MotionAxis.Z].Sample.Position : null);
         }

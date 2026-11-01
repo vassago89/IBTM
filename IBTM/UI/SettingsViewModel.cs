@@ -192,7 +192,13 @@ public partial class SettingsViewModel : ObservableObject
             }
             if (validationError is null)
             {
-                if (Settings.Lighting.InspectionChannel is < 1 or > 9)
+                var backup = Settings.BoltFasteningBackup;
+                if (backup.Motion.GetValidationError(hasZ: true) is { } backupMotionError)
+                    validationError = backupMotionError;
+                else if (backup.TransferHeight is not null && backup.FasteningHeight is not null
+                    && backup.ValidationError is { } backupError)
+                    validationError = backupError;
+                else if (Settings.Lighting.InspectionChannel is < 1 or > 9)
                     validationError = UiText.Get("Inspection light channel must be from 1 to 9.");
                 else if (Settings.Hantas.FasteningTimeoutMilliseconds <= 0)
                     validationError = UiText.Get("Fastening timeout must be greater than 0 s.");

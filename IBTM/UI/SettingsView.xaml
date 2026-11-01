@@ -608,6 +608,70 @@
                     </Grid>
                 </ScrollViewer>
             </TabItem>
+            <TabItem Header="{ui:Text 'S2 Backup'}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <UniformGrid Columns="2" VerticalAlignment="Top" IsEnabled="{Binding IsSettingsEditAllowed}">
+                        <Border Style="{StaticResource SettingCard}" Margin="0,0,12,0" VerticalAlignment="Top"><StackPanel>
+                            <TextBlock Text="{ui:Text 'Position / motion'}" Style="{StaticResource SettingSectionTitle}"/>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Transfer height (mm)'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.BoltFasteningBackup.TransferHeight, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Fastening height (mm)'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.BoltFasteningBackup.FasteningHeight, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Position tolerance (mm)'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.BoltFasteningBackup.PositionTolerance, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Speed (mm/s)'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.BoltFasteningBackup.Motion.ZSpeed, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Acceleration (s)'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.BoltFasteningBackup.Motion.AccelerationSeconds, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Deceleration (s)'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.BoltFasteningBackup.Motion.DecelerationSeconds, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                        </StackPanel></Border>
+                        <Border Style="{StaticResource SettingCard}" Margin="0,0,12,0" VerticalAlignment="Top"><StackPanel>
+                            <TextBlock Text="{ui:Text 'FASTECH'}" Style="{StaticResource SettingSectionTitle}"/>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'COM port'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.Fastech.PortName, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Baud rate'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.Fastech.BaudRate, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Slave'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.Fastech.BackupAxis.SlaveNumber, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Pulses / mm'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.Fastech.BackupAxis.PulsesPerMillimeter, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Home speed (mm/s)'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.BoltFasteningBackup.Motion.ZHome.SearchSpeed, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Home detection speed (mm/s)'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.BoltFasteningBackup.Motion.ZHome.DetectionSpeed, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:Text 'Home acceleration (s)'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.BoltFasteningBackup.Motion.ZHome.SearchAccelerationSeconds, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                            </Grid>
+                        </StackPanel></Border>
+                    </UniformGrid>
+                </ScrollViewer>
+            </TabItem>
             <TabItem Header="{ui:Text 'Motion'}">
                 <Grid>
                     <Grid.RowDefinitions>

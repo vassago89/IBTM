@@ -6,33 +6,59 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.BackupPlate;
 
 public sealed class BackupPlateStation : INotifyPropertyChanged
 {
     private readonly IIoService _io;
-    private readonly InputIo _backupPlateUp;
-    private readonly InputIo _backupPlateDown;
+    private readonly InputIo? _backupPlateUp;
+    private readonly InputIo? _backupPlateDown;
     private readonly InputIo _stopperUp;
     private readonly InputIo _stopperDown;
     private readonly InputIo _heatSink1;
-    private readonly OutputIo _backupPlate;
+    private readonly OutputIo? _backupPlate;
+    private readonly BackupPlateSettings? _settings;
+    private readonly IAxisMotion? _motion;
     private readonly OutputIo _stopper;
     // Protect only result ownership changes, never device calls or notifications.
     private static readonly Lock s_jobGate;
     private volatile Job _job;
 
+    public BackupPlateStation(
+        IIoService io,
+        [FromKeyedServices(MotionGroup.BoltFasteningBackup)] IAxisMotion motion,
+        [FromKeyedServices(MotionGroup.BoltFasteningBackup)] MotionStatus status,
+        BackupPlateSettings settings)
+        : this(
+            io,
+            null,
+            null,
+            InputIo.BoltFasteningStopperUp,
+            InputIo.BoltFasteningStopperDown,
+            InputIo.BoltFasteningHeatSink1Present,
+            InputIo.BoltFasteningHeatSink2Present,
+            null,
+            OutputIo.BoltFasteningStopperUp,
+            status,
+            settings)
+    {
+        _motion = motion;
+    }
+
     private BackupPlateStation(
         IIoService io,
-        InputIo backupPlateUp,
-        InputIo backupPlateDown,
+        InputIo? backupPlateUp,
+        InputIo? backupPlateDown,
         InputIo stopperUp,
         InputIo stopperDown,
         InputIo heatSink1,
         InputIo heatSink2,
-        OutputIo backupPlate,
-        OutputIo stopper)
+        OutputIo? backupPlate,
+        OutputIo stopper,
+        MotionStatus? motion = null,
+        BackupPlateSettings? settings = null)
     {
         _job = new();
         _io = io;
@@ -44,6 +70,13 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
         HeatSink2Input = heatSink2;
         _backupPlate = backupPlate;
         _stopper = stopper;
+        Motion = motion;
+        _settings = settings;
+        if (motion is not null)
+        {
+            motion.PropertyChanged += OnMotionChanged;
+            motion.Axes[MotionAxis.Z].PropertyChanged += OnMotionChanged;
+        }
         io.InputChanged += OnInputChanged;
     }
 
@@ -53,6 +86,7 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
     }
 
     public InputIo HeatSink2Input { get; }
+    public MotionStatus? Motion { get; }
 
     public event Action? Changed;
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -63,7 +97,20 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
     {
         get
         {
-            switch ((_io.GetInput(_backupPlateUp), _io.GetInput(_backupPlateDown)))
+            if (Motion is { } motion)
+            {
+                if (_settings!.ValidationError is not null
+                    || motion.Axes[MotionAxis.Z].State is not
+                        { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true }
+                    || motion.Position.Z is not { } position || !double.IsFinite(position))
+                    return StationCylinderState.Between;
+                if (Math.Abs(position - _settings.FasteningHeight!.Value) <= _settings.PositionTolerance)
+                    return StationCylinderState.Up;
+                if (Math.Abs(position - _settings.TransferHeight!.Value) <= _settings.PositionTolerance)
+                    return StationCylinderState.Down;
+                return StationCylinderState.Between;
+            }
+            switch ((_io.GetInput(_backupPlateUp!.Value), _io.GetInput(_backupPlateDown!.Value)))
             {
                 case (true, false):
                     return StationCylinderState.Up;
@@ -114,20 +161,6 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
             OutputIo.PcbPlacementStopperUp);
     }
 
-    public static BackupPlateStation CreateBoltFastening(IIoService io)
-    {
-        return new(
-            io,
-            InputIo.BoltFasteningBackupPlateUp,
-            InputIo.BoltFasteningBackupPlateDown,
-            InputIo.BoltFasteningStopperUp,
-            InputIo.BoltFasteningStopperDown,
-            InputIo.BoltFasteningHeatSink1Present,
-            InputIo.BoltFasteningHeatSink2Present,
-            OutputIo.BoltFasteningBackupPlateUp,
-            OutputIo.BoltFasteningStopperUp);
-    }
-
     public static BackupPlateStation CreateInspection(IIoService io)
     {
         return new(
@@ -168,13 +201,34 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
         cancellationToken.ThrowIfCancellationRequested();
         if (!CarrierPresent)
             throw new MotionInterlockException(UiText.Format(
-                $"{UiText.Get(_backupPlateUp)}: carrier not detected after raising the backup plate."));
+                $"{UiText.Get("Backup")}: carrier not detected after raising the backup plate."));
         await SetStopperUpAsync(false, cancellationToken);
     }
 
-    public Task SetBackupPlateUpAsync(bool up, CancellationToken cancellationToken)
+    public async Task SetBackupPlateUpAsync(bool up, CancellationToken cancellationToken)
     {
-        return _io.SetOutputAndWaitAsync(_backupPlate, up, cancellationToken);
+        if (_motion is not { } motion)
+        {
+            await _io.SetOutputAndWaitAsync(_backupPlate!.Value, up, cancellationToken);
+            return;
+        }
+        if (_settings!.ValidationError is { } error)
+            throw new InvalidOperationException(error);
+        if (!MotionServiceBase.IsReadyAndStopped(motion))
+            throw new MotionInterlockException(UiText.Get("S2 backup motion is not ready"));
+        var target = up ? _settings.FasteningHeight!.Value : _settings.TransferHeight!.Value;
+        await motion.MoveAxisAsync(MotionAxis.Z, target, _settings.Motion.ZSpeed, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var status = Motion!;
+        status.RefreshMonitorFeedback();
+        status.RefreshControlFeedback();
+        if (BackupPlate != (up ? StationCylinderState.Up : StationCylinderState.Down))
+            throw new MotionInterlockException(UiText.Get("S2 backup did not reach the target height"));
+    }
+
+    private void OnMotionChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        Changed?.Invoke();
     }
 
     public Task SetStopperUpAsync(bool up, CancellationToken cancellationToken)

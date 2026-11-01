@@ -105,6 +105,11 @@ public enum TeachingTarget
 
     [Description("Shooting IPM preliminary Z")]
     ShootingHeadPreliminaryZ,
+
+    [Description("Transfer height")]
+    BackupTransferHeight,
+    [Description("Fastening height")]
+    BackupFasteningHeight,
 }
 
 // Command metadata only. Teaching values and writes are owned by the teaching UI.

@@ -38,6 +38,8 @@ public sealed class UnitSettings : Setting
                 return PcbPlacement;
             case MotionGroup.BoltFastening:
                 return BoltFastening;
+            case MotionGroup.BoltFasteningBackup:
+                return MainConveyor || BoltFastening;
             // Inspection and NG transfer use the same physical XY gantry.
             case MotionGroup.InspectionGantry:
                 return Inspection;

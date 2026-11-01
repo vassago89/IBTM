@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BackupPlate;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
@@ -25,6 +26,151 @@ namespace IBTM.Virtual.Tests;
 [Collection("Machine integration")]
 public sealed class TeachingTests
 {
+    [Fact]
+    public async Task BackupTeachingUsesItsOwnAxisAndPersistsBothHeights()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var backup = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.BoltFasteningBackup);
+        var gantry = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
+        settings.BoltFasteningBackup.TransferHeight = null;
+        settings.BoltFasteningBackup.FasteningHeight = null;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+            teaching.Activate();
+            var transfer = teaching.FilteredPoints[^2];
+            var fastening = teaching.FilteredPoints[^1];
+            Assert.Equal(TeachingTarget.BackupTransferHeight, transfer.Position.Target);
+            Assert.Equal(TeachingTarget.BackupFasteningHeight, fastening.Position.Target);
+            Assert.Null(transfer.Coordinates);
+            Assert.Null(fastening.Coordinates);
+            var gantryPosition = gantry.Position;
+
+            teaching.SelectedPoint = transfer;
+            Assert.Same(backup, teaching.Motion.Feedback);
+            Assert.False(teaching.IsJogXAllowed);
+            Assert.False(teaching.IsJogYAllowed);
+            Assert.False(teaching.IsMoveToPointAllowed);
+            Assert.False(teaching.IsMoveToHorizontalZAllowed);
+            SetBackupPosition(services, 1.25);
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            Assert.Equal(1.25, transfer.Coordinates!.Z);
+
+            teaching.SelectedPoint = fastening;
+            SetBackupPosition(services, 4.75);
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            var saved = services.GetRequiredService<MachineStore>().LoadSettings().Get<BackupPlateSettings>();
+            Assert.Equal(1.25, saved.TransferHeight);
+            Assert.Equal(4.75, saved.FasteningHeight);
+
+            teaching.StepDistance = 0.25;
+            await WaitUntilAsync(() => teaching.IsStepZPlusAllowed);
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.ZPlus);
+            Assert.Equal(5, backup.Position.Z, 3);
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Equal(4.75, backup.Position.Z, 3);
+            Assert.Equal(gantryPosition, gantry.Position);
+
+            // Rebuilding the list while a backup point is selected must not reassign the gantry points.
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+            Assert.Equal(MotionGroup.BoltFasteningBackup, teaching.ActiveMotionGroup);
+            Assert.All(teaching.FilteredPoints.SkipLast(2),
+                point => Assert.Equal(MotionGroup.BoltFastening, point.Position.MotionGroup));
+            teaching.JogSpeed = 1;
+            await WaitUntilAsync(() => teaching.IsJogZAllowed);
+            var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.ZPlus);
+            try
+            {
+                await WaitUntilAsync(() => backup.IsMoving);
+                teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SafeZ);
+                await jog.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(backup.IsMoving);
+                Assert.Same(gantry, teaching.Motion.Feedback);
+                Assert.Equal(gantryPosition, gantry.Position);
+            }
+            finally
+            {
+                teaching.JogStopCommand.Execute(null);
+                await jog;
+            }
+            Assert.False(services.GetRequiredService<MachineState>().IsError);
+        }
+        finally
+        {
+            teaching.Deactivate();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task BackupTeachingRequiresHomeAndRaisedTooling()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var backup = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.BoltFasteningBackup);
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.BackupFasteningHeight);
+            Assert.False(teaching.IsJogZAllowed);
+            Assert.False(teaching.IsTeachCurrentPositionAllowed);
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.ZPlus);
+            Assert.Equal(0, backup.Position.Z);
+
+            await teaching.HomeCommand.ExecuteAsync(null);
+            Assert.True(backup.GetAxisState(MotionAxis.Z).Homed);
+            Assert.False(services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening)
+                .GetAxisState(MotionAxis.Z).Homed);
+            await WaitUntilAsync(() => teaching.IsJogZAllowed);
+
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, default);
+            Assert.False(teaching.IsJogZAllowed);
+            Assert.False(teaching.IsMoveToPointAllowed);
+            Assert.Equal(TeachingMotionHint.RaiseFasteningTooling, teaching.MotionHint);
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.ZPlus);
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Equal(0, backup.Position.Z);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, default);
+
+            await WaitUntilAsync(() => teaching.IsJogZAllowed);
+            var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.ZPlus);
+            try
+            {
+                await WaitUntilAsync(() => backup.IsMoving);
+                io.SetInput(InputIo.ShootingHeadUp, false);
+                await jog.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(backup.IsMoving);
+            }
+            finally
+            {
+                teaching.JogStopCommand.Execute(null);
+                await jog;
+            }
+            Assert.False(services.GetRequiredService<MachineState>().IsError);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(MotionGroup.PcbSupply, HardwareArea.PcbSupply, MachineUnit.PcbSupply)]
     [InlineData(MotionGroup.PcbPlacementHandler, HardwareArea.PcbPlacementHandler, MachineUnit.PcbPlacement)]
@@ -2167,12 +2313,6 @@ public sealed class TeachingTests
                 InputIo.PcbPlacementBackupPlateUp,
                 InputIo.PcbPlacementBackupPlateDown,
                 OutputIo.PcbPlacementBackupPlateUp),
-            (
-                HardwareArea.BoltFastening,
-                TeachingTarget.ShootingHeadUpperLeftLocatingPin,
-                InputIo.BoltFasteningBackupPlateUp,
-                InputIo.BoltFasteningBackupPlateDown,
-                OutputIo.BoltFasteningBackupPlateUp),
             (
                 HardwareArea.InspectionGantry,
                 TeachingTarget.CarrierUpperLeftLocatingPin,

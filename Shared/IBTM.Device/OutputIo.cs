@@ -61,7 +61,8 @@ public enum OutputIo
     [JsonStringEnumMemberName("BoltFasteningStopperDown")]
     BoltFasteningStopperUp = 15,
 
-    [Description("Bolt Fastening Backup Plate Up")]
+    // Retired ID is kept only to remove it from saved I/O maps.
+    [Description("Unused")]
     [JsonStringEnumMemberName("BoltFasteningBackupPlateDown")]
     BoltFasteningBackupPlateUp = 16,
 

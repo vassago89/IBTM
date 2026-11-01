@@ -15,4 +15,7 @@ public enum MotionGroup
 
     [Description("Inspection Station")]
     InspectionGantry,
+
+    [Description("S2 Backup")]
+    BoltFasteningBackup,
 }

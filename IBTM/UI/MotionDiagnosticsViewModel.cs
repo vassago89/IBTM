@@ -47,6 +47,9 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
                             machine,
                             state,
                             settings.Units)))
+            .Append(new MotionAxisViewModel(
+                MotionGroup.BoltFasteningBackup, MotionAxis.Z, settings.Fastech.BackupAxis.SlaveNumber,
+                machine, state, settings.Units))
             .ToArray();
         View = new ListCollectionView(Axes) { IsLiveFiltering = true };
         View.LiveFilteringProperties.Add(nameof(MotionAxisViewModel.Enabled));

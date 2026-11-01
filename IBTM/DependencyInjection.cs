@@ -68,6 +68,7 @@ public static class DependencyInjection
             .AddSingleton(settings.PcbPlacementHandler)
             .AddSingleton(settings.BoltFeeder)
             .AddSingleton(settings.BoltFastening)
+            .AddSingleton(settings.BoltFasteningBackup)
             .AddSingleton(settings.InspectionGantry)
             .AddSingleton(settings.InspectionCamera)
             .AddSingleton(settings.Lighting)
@@ -84,8 +85,7 @@ public static class DependencyInjection
         services
             .AddKeyedSingleton<BackupPlateStation>(MotionGroup.PcbPlacementHandler,
                 (provider, _) => BackupPlateStation.CreatePcbPlacement(provider.GetRequiredService<IIoService>()))
-            .AddKeyedSingleton<BackupPlateStation>(MotionGroup.BoltFastening,
-                (provider, _) => BackupPlateStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()))
+            .AddKeyedSingleton<BackupPlateStation>(MotionGroup.BoltFastening)
             .AddKeyedSingleton<BackupPlateStation>(MotionGroup.InspectionGantry,
                 (provider, _) => BackupPlateStation.CreateInspection(provider.GetRequiredService<IIoService>()))
             .AddSingleton<PcbSupplier>()
@@ -99,8 +99,11 @@ public static class DependencyInjection
 
         foreach (var group in Enum.GetValues<MotionGroup>())
         {
+            if (group != MotionGroup.BoltFasteningBackup)
+                services.AddKeyedSingleton<IAxisMotion>(group,
+                    (provider, _) => provider.GetRequiredKeyedService<IXyMotion>(group));
             services.AddKeyedSingleton<MotionStatus>(group,
-                (provider, _) => new MotionStatus(provider.GetRequiredKeyedService<IXyMotion>(group)));
+                (provider, _) => new MotionStatus(provider.GetRequiredKeyedService<IAxisMotion>(group)));
         }
 
         services
@@ -109,9 +112,9 @@ public static class DependencyInjection
             .AddSingleton<PcbHistoryWriter>()
             .AddSingleton<InspectionImageLoader>()
             .AddSingleton<PcbResultsViewModel>()
-            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+            .AddSingleton<IReadOnlyDictionary<MotionGroup, IAxisMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(
-                    group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group)))
+                    group => group, group => provider.GetRequiredKeyedService<IAxisMotion>(group)))
             .AddSingleton<IReadOnlyDictionary<MotionGroup, MotionStatus>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(
                     group => group, group => provider.GetRequiredKeyedService<MotionStatus>(group)))
@@ -145,6 +148,9 @@ public static class DependencyInjection
             .AddSingleton<AjinController>()
             .AddSingleton<AlphaMotionController>()
             .AddSingleton<FastechController>()
+            .AddKeyedSingleton(MotionGroup.BoltFasteningBackup, settings.Fastech.BackupAxis)
+            .AddKeyedSingleton(MotionGroup.BoltFasteningBackup, settings.BoltFasteningBackup.Motion)
+            .AddKeyedSingleton<IAxisMotion, FastechZMotion>(MotionGroup.BoltFasteningBackup)
             .AddSingleton<IIoService, PhysicalIoService>()
             .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Pickup)
             .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Shooting)

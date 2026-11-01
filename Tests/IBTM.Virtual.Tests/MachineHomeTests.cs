@@ -31,6 +31,51 @@ public sealed class MachineHomeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task BackupHomeRaisesPickupTableBeforeAxisStarts(bool allUnits)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(allUnits ? MachineUnit.MainConveyor : MachineUnit.BoltFastening);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<IIoService>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var backup = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.BoltFasteningBackup);
+        await machine.InitializeAsync();
+        try
+        {
+            await io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, default);
+            var observedHome = false;
+            backup.MovingChanged += moving =>
+            {
+                if (!moving)
+                    return;
+                Assert.True(io.GetInput(InputIo.PickupTableUp));
+                Assert.False(io.GetInput(InputIo.PickupTableDown));
+                observedHome = true;
+            };
+            if (allUnits)
+                await machine.HomeAsync(CancellationToken.None);
+            else
+            {
+                teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+                teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                    point => point.Position.Target == TeachingTarget.BackupTransferHeight);
+                await teaching.HomeCommand.ExecuteAsync(null);
+            }
+            Assert.True(observedHome, state.AlarmDetail);
+            Assert.True(backup.GetAxisState(MotionAxis.Z).Homed);
+            Assert.False(state.IsError, state.AlarmDetail);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PlacementHomeReportsHorizontalFailureBeforeFollowingAxes(bool allUnits)
     {
         var settings = FlowSettings();
@@ -58,7 +103,7 @@ public sealed class MachineHomeTests
             Assert.False(motion.GetAxisState(MotionAxis.Y).Homed);
             if (allUnits)
             {
-                foreach (var (group, other) in services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>())
+                foreach (var (group, other) in services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>())
                 {
                     if (group != MotionGroup.PcbPlacementHandler)
                         Assert.All(other.Axes, axis => Assert.False(other.GetAxisState(axis).Homed));
@@ -116,7 +161,7 @@ public sealed class MachineHomeTests
         await machine.InitializeAsync();
         var outputs = new ConcurrentQueue<OutputIo>();
         services.GetRequiredService<VirtualIoService>().OutputChanged += (output, _) => outputs.Enqueue(output);
-        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>();
         var placement = motions[MotionGroup.PcbPlacementHandler];
         var placementStarts = new ConcurrentQueue<bool>();
         placement.MovingChanged += moving =>
@@ -183,7 +228,7 @@ public sealed class MachineHomeTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var operations = services.GetRequiredService<OperationCancellation>();
-        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>();
         var placement = motions[MotionGroup.PcbPlacementHandler];
         await machine.InitializeAsync();
         var starts = new ConcurrentQueue<MotionGroup>();

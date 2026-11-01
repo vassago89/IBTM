@@ -73,10 +73,11 @@ public enum InputIo
     [Description("Bolt Fastening Heat Sink 1 Present")]
     BoltFasteningHeatSink1Present = 20,
 
-    [Description("Bolt Fastening Backup Plate Up")]
+    // Retired IDs are kept only to remove them from saved I/O maps.
+    [Description("Unused")]
     BoltFasteningBackupPlateUp = 21,
 
-    [Description("Bolt Fastening Backup Plate Down")]
+    [Description("Unused")]
     BoltFasteningBackupPlateDown = 22,
 
     [Description("Bolt Fastening Heat Sink 2 Present")]

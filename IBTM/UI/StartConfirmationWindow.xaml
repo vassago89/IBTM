@@ -355,8 +355,39 @@
                                         <Button x:Name="ToggleCarrierSupportButton"
                                             Tag="{Binding StartStation.BackupPlate}"
                                             Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ToggleCarrierSupport}"
-                                            Style="{StaticResource CarrierCylinderButton}" MinHeight="40" Padding="8,7" Margin="0,0,4,6">
+                                            MinHeight="40" Padding="8,7" Margin="0,0,4,6">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource CarrierCylinderButton}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
                                             <TextBlock Text="{ui:Text 'Raise/lower carrier support'}" TextWrapping="Wrap" TextAlignment="Center"/>
+                                        </Button>
+                                        <Button Content="{ui:Text 'Transfer height'}" Command="{Binding PrepareStartAreaCommand}"
+                                            CommandParameter="{x:Static app:StartPreparationAction.MoveBackupToTransfer}" Margin="0,0,4,6" MinHeight="40">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding StartStation.BackupPlate}" Value="{x:Static device:StationCylinderState.Down}"><Setter Property="Background" Value="{StaticResource PrimaryButtonBackgroundBrush}"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <Button Content="{ui:Text 'Fastening height'}" Command="{Binding PrepareStartAreaCommand}"
+                                            CommandParameter="{x:Static app:StartPreparationAction.MoveBackupToFastening}" Margin="0,0,4,6" MinHeight="40">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding StartStation.BackupPlate}" Value="{x:Static device:StationCylinderState.Up}"><Setter Property="Background" Value="{StaticResource PrimaryButtonBackgroundBrush}"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
                                         </Button>
                                         <Button x:Name="ToggleStopperButton"
                                             Tag="{Binding StartStation.Stopper}"
@@ -365,6 +396,18 @@
                                             <TextBlock Text="{ui:Text 'Raise/lower stopper'}" TextWrapping="Wrap" TextAlignment="Center"/>
                                         </Button>
                                     </UniformGrid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="{ui:Text 'Backup height (mm)'}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,12,0"/>
+                                        <TextBlock Text="{Binding StartStation.Motion.Position.Z, StringFormat=F3, TargetNullValue=—}"/>
+                                    </StackPanel>
                                 </StackPanel>
                                 <StackPanel Grid.Row="2" Margin="0,12,0,0">
                                     <TextBlock Text="{ui:Text 'Position (mm)'}" FontWeight="SemiBold" Margin="0,0,0,8"/>
@@ -844,8 +887,8 @@
                                                     <Condition Binding="{Binding Fastening.Station.BackupPlate}" Value="{x:Static device:StationCylinderState.Down}"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
-                                                <Setter Property="Text" Value="{ui:Text 'Raise carrier support.'}"/>
-                                                <Setter Property="ToolTip" Value="{ui:Text 'S2 backup plate is DOWN. Check the carrier and head clearance, then select Raise/lower carrier support. After UP feedback, check resume again.'}"/>
+                                                <Setter Property="Text" Value="{ui:Text 'Move backup to fastening height'}"/>
+                                                <Setter Property="ToolTip" Value="{x:Null}"/>
                                             </MultiDataTrigger>
                                             <MultiDataTrigger>
                                                 <MultiDataTrigger.Conditions>
@@ -856,7 +899,7 @@
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                                 <Setter Property="Text" Value="{ui:Text 'Backup plate position unknown'}"/>
-                                                <Setter Property="ToolTip" Value="{ui:Text 'Cannot confirm S2 backup plate position. Check the actual position and the UP/DOWN sensors. Resume requires UP ON and DOWN OFF.'}"/>
+                                                <Setter Property="ToolTip" Value="{x:Null}"/>
                                             </MultiDataTrigger>
                                             <MultiDataTrigger>
                                                 <MultiDataTrigger.Conditions>

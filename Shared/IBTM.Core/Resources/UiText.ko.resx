@@ -207,12 +207,6 @@
   <data name="bolt fastening" xml:space="preserve">
     <value>볼트 체결</value>
   </data>
-  <data name="bolt fastening backup plate down" xml:space="preserve">
-    <value>체결 백업 하강</value>
-  </data>
-  <data name="bolt fastening backup plate up" xml:space="preserve">
-    <value>체결 백업 상승</value>
-  </data>
   <data name="bolt fastening heat sink 1 present" xml:space="preserve">
     <value>체결 히트싱크 1 감지</value>
   </data>
@@ -3200,12 +3194,6 @@
   <data name="turns unavailable" xml:space="preserve">
     <value>회전수 확인 불가</value>
   </data>
-  <data name="s2 backup plate is down. check the carrier and head clearance, then select raise/lower carrier support. after up feedback, check resume again." xml:space="preserve">
-    <value>캐리어 헤드 간섭 확인 후 S2 백업 상승</value>
-  </data>
-  <data name="cannot confirm s2 backup plate position. check the actual position and the up/down sensors. resume requires up on and down off." xml:space="preserve">
-    <value>S2 백업 위치 미확인 상승 하강 센서 확인</value>
-  </data>
   <data name="close doors before starting." xml:space="preserve">
     <value>도어 닫은 후 시작</value>
   </data>
@@ -3386,9 +3374,6 @@
   </data>
   <data name="review carrier and records." xml:space="preserve">
     <value>캐리어 기록 확인</value>
-  </data>
-  <data name="raise carrier support." xml:space="preserve">
-    <value>백업 상승 필요</value>
   </data>
   <data name="carrier not detected." xml:space="preserve">
     <value>캐리어 미감지</value>
@@ -3592,4 +3577,22 @@
     <value>체결기</value>
   </data>
   <data name="no matching items" xml:space="preserve"><value>표시할 항목 없음</value></data>
+  <data name="position tolerance (mm)" xml:space="preserve"><value>도착 허용 오차 (mm)</value></data>
+  <data name="position / motion" xml:space="preserve"><value>위치 · 이동</value></data>
+  <data name="fastening height (mm)" xml:space="preserve"><value>체결 높이 (mm)</value></data>
+  <data name="s2 backup" xml:space="preserve"><value>S2 백업</value></data>
+  <data name="set the s2 backup transfer and fastening heights" xml:space="preserve"><value>S2 백업 이송·체결 높이를 설정하세요</value></data>
+  <data name="s2 backup motion is not ready" xml:space="preserve"><value>S2 백업 모션 준비 필요</value></data>
+  <data name="home detection speed (mm/s)" xml:space="preserve"><value>원점 검출 속도 (mm/s)</value></data>
+  <data name="transfer height (mm)" xml:space="preserve"><value>이송 높이 (mm)</value></data>
+  <data name="home acceleration (s)" xml:space="preserve"><value>원점 가감속 (s)</value></data>
+  <data name="fastening height" xml:space="preserve"><value>체결 높이</value></data>
+  <data name="check the s2 backup heights and position tolerance" xml:space="preserve"><value>S2 백업 높이와 도착 허용 오차를 확인하세요</value></data>
+  <data name="transfer height" xml:space="preserve"><value>이송 높이</value></data>
+  <data name="home speed (mm/s)" xml:space="preserve"><value>원점 속도 (mm/s)</value></data>
+  <data name="pulses / mm" xml:space="preserve"><value>펄스 / mm</value></data>
+  <data name="s2 backup did not reach the target height" xml:space="preserve"><value>S2 백업 목표 높이 미도착</value></data>
+  <data name="backup height (mm)" xml:space="preserve"><value>백업 높이 (mm)</value></data>
+  <data name="raise fastening heads and pickup table" xml:space="preserve"><value>체결 헤드·픽업 테이블 상승 필요</value></data>
+  <data name="move backup to fastening height" xml:space="preserve"><value>백업 체결 높이로 이동 필요</value></data>
 </root>

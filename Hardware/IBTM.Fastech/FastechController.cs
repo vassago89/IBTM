@@ -8,25 +8,22 @@ namespace IBTM.Fastech;
 
 public sealed class FastechController : IDisposable
 {
+    private readonly string _portName;
     private readonly uint _baudRate;
     private readonly ILogger<FastechController>? _log;
     private bool _opened;
 
     public FastechController(FastechSettings settings, ILogger<FastechController>? log = null)
     {
-        if (!settings.PortName.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
-            || !byte.TryParse(settings.PortName.AsSpan(3), out var port) || port == 0)
-            throw new ArgumentException("FASTECH requires a COM port between COM1 and COM255.");
-        if (settings.BaudRate is not (9600 or 19200 or 38400 or 57600 or 115200))
-            throw new ArgumentOutOfRangeException(nameof(settings), "Unsupported FASTECH baud rate.");
-        PortNumber = port;
+        _portName = settings.PortName;
         _baudRate = settings.BaudRate;
         _log = log;
         SyncRoot = new();
     }
 
-    internal byte PortNumber { get; }
+    internal byte PortNumber { get; private set; }
     internal Lock SyncRoot { get; }
+    internal bool IsOpen => _opened;
 
     public void Initialize(byte slaveNumber)
     {
@@ -36,6 +33,12 @@ public sealed class FastechController : IDisposable
         {
             if (!_opened)
             {
+                if (!_portName.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
+                    || !byte.TryParse(_portName.AsSpan(3), out var port) || port == 0)
+                    throw new ArgumentException("FASTECH requires a COM port between COM1 and COM255.");
+                if (_baudRate is not (9600 or 19200 or 38400 or 57600 or 115200))
+                    throw new ArgumentOutOfRangeException(nameof(FastechSettings.BaudRate), "Unsupported FASTECH baud rate.");
+                PortNumber = port;
                 if (!Environment.Is64BitProcess)
                     throw new PlatformNotSupportedException("FASTECH requires a 64-bit process.");
                 if (EziMOTIONPlusRLib.FAS_Connect(PortNumber, _baudRate) == 0)

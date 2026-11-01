@@ -15,6 +15,8 @@ public sealed class VirtualMachine
 
     private readonly VirtualIoService _io;
     private readonly IReadOnlyList<VirtualMotionService> _motions;
+    private readonly IMotionFeedback? _fasteningBackup;
+    private readonly double? _backupTransferHeight;
     private readonly bool[] _supplyPcbs;
     private int _supplySmemaVersion;
     private int _mainConveyorTransferVersion;
@@ -42,7 +44,9 @@ public sealed class VirtualMachine
 
     public VirtualMachine(
         VirtualIoService io,
-        IReadOnlyList<VirtualMotionService> motions)
+        IReadOnlyList<VirtualMotionService> motions,
+        IMotionFeedback? fasteningBackup = null,
+        double? backupTransferHeight = null)
     {
         _supplyPcbs = new bool[2];
         _carrierPcbs = [];
@@ -50,6 +54,8 @@ public sealed class VirtualMachine
 
         _io = io;
         _motions = motions;
+        _fasteningBackup = fasteningBackup;
+        _backupTransferHeight = backupTransferHeight;
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
         io.OutputApplied += ApplyPhysicalOutput;
@@ -67,6 +73,16 @@ public sealed class VirtualMachine
         if (IsEmergencyStopPressed || !_io.GetInput(InputIo.AutoMode) && IsDoorOpen)
         {
             DropServoPower();
+        }
+    }
+
+    private bool IsFasteningBackupLowered
+    {
+        get
+        {
+            return _fasteningBackup is { } motion && _backupTransferHeight is { } height
+                && MotionServiceBase.IsReadyAndStopped(motion)
+                && Math.Abs(motion.Position.Z - height) <= SensorPositionToleranceMillimeters;
         }
     }
 
@@ -511,7 +527,7 @@ public sealed class VirtualMachine
                 }
 
                 if ((_io.GetInput(InputIo.BoltFasteningHeatSink1Present) || _io.GetInput(InputIo.BoltFasteningHeatSink2Present))
-                    && _io.GetInput(InputIo.BoltFasteningBackupPlateDown)
+                    && IsFasteningBackupLowered
                     && _io.GetInput(InputIo.InspectionBackupPlateDown)
                     && _io.GetInput(InputIo.BoltFasteningStopperDown)
                     && _io.GetInput(InputIo.InspectionStopperUp)
@@ -527,7 +543,7 @@ public sealed class VirtualMachine
 
                 if ((_io.GetInput(InputIo.PcbPlacementHeatSink1Present) || _io.GetInput(InputIo.PcbPlacementHeatSink2Present))
                     && _io.GetInput(InputIo.PcbPlacementBackupPlateDown)
-                    && _io.GetInput(InputIo.BoltFasteningBackupPlateDown)
+                    && IsFasteningBackupLowered
                     && _io.GetInput(InputIo.PcbPlacementStopperDown)
                     && _io.GetInput(InputIo.BoltFasteningStopperUp)
                     && !(_io.GetInput(InputIo.BoltFasteningHeatSink1Present) || _io.GetInput(InputIo.BoltFasteningHeatSink2Present)))
@@ -582,12 +598,13 @@ public sealed class VirtualMachine
 
     private void ReturnMainCarrier(int version)
     {
+        if (!IsFasteningBackupLowered)
+            return;
         // The returning carrier passes every station. There is no reverse stopper.
         foreach (var input in new[]
         {
             InputIo.PcbPlacementBackupPlateDown,
             InputIo.PcbPlacementStopperDown,
-            InputIo.BoltFasteningBackupPlateDown,
             InputIo.BoltFasteningStopperDown,
             InputIo.InspectionBackupPlateDown,
             InputIo.InspectionStopperDown,

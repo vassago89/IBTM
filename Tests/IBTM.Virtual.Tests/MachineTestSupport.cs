@@ -21,6 +21,8 @@ public static class MachineTestSupport
         this IServiceCollection services,
         MachineSettings settings)
     {
+        settings.BoltFasteningBackup.TransferHeight ??= 0;
+        settings.BoltFasteningBackup.FasteningHeight ??= 5;
         services.AddIbtmApplication(settings)
             .AddSingleton<VirtualIoService>()
             .AddSingleton(provider =>
@@ -29,7 +31,9 @@ public static class MachineTestSupport
                 var motions = settings.MotionSections.ToDictionary(
                     section => section.Hardware.Group,
                     section => provider.GetRequiredKeyedService<VirtualMotionService>(section.Hardware.Group));
-                var machine = new VirtualMachine(io, motions.Values.ToArray());
+                var backup = provider.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.BoltFasteningBackup);
+                var machine = new VirtualMachine(io, [.. motions.Values, backup], backup,
+                    settings.BoltFasteningBackup.TransferHeight);
                 var recipes = provider.GetRequiredService<RecipeManager>();
                 motions[MotionGroup.PcbSupply].PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
                     x, y, z,
@@ -64,7 +68,7 @@ public static class MachineTestSupport
             .AddSingleton<VirtualCamera>(provider =>
             {
                 var recipes = provider.GetRequiredService<RecipeManager>();
-                var motion = provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()
+                var motion = provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>()
                     [MotionGroup.InspectionGantry];
                 return new VirtualCamera(
                     () => motion.Position,
@@ -100,6 +104,13 @@ public static class MachineTestSupport
             .AddKeyedSingleton<IXyMotion>(motionHardware.Group,
                 (provider, _) => provider.GetRequiredKeyedService<VirtualMotionService>(motionHardware.Group));
         }
+
+        services.AddKeyedSingleton<VirtualMotionService>(MotionGroup.BoltFasteningBackup, (provider, _) =>
+            new VirtualMotionService(settings.BoltFasteningBackup.Motion,
+                provider.GetRequiredService<OperationCancellation>(), hasY: false, hasX: false,
+                servoPowerOn: () => provider.GetRequiredService<VirtualIoService>().GetInput(InputIo.ServoMainContactorOn)))
+            .AddKeyedSingleton<IAxisMotion>(MotionGroup.BoltFasteningBackup,
+                (provider, _) => provider.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.BoltFasteningBackup));
 
         return services;
     }
@@ -158,6 +169,15 @@ public static class MachineTestSupport
                 new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true, });
     }
 
+    public static void SetBackupPosition(IServiceProvider services, double position, bool homed = true)
+    {
+        var motion = services.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.BoltFasteningBackup);
+        motion.SetAxisPosition(MotionAxis.Z, position, homed);
+        var status = services.GetRequiredKeyedService<MotionStatus>(MotionGroup.BoltFasteningBackup);
+        status.RefreshMonitorFeedback();
+        status.RefreshControlFeedback();
+    }
+
     public static ServiceProvider CreateMotionScopeServices(
         MachineSettings settings,
         out Dictionary<MotionGroup, ScopedMotionProbe> probes,
@@ -169,6 +189,18 @@ public static class MachineTestSupport
             .AddVirtualApplication(settings);
         foreach (var group in Enum.GetValues<MotionGroup>())
         {
+            if (group == MotionGroup.BoltFasteningBackup)
+            {
+                services.AddKeyedSingleton<IAxisMotion>(group, (provider, _) =>
+                {
+                    var motion = DispatchProxy.Create<IAxisMotion, ScopedMotionProbe>();
+                    var probe = (ScopedMotionProbe)motion;
+                    probe.Motion = provider.GetRequiredKeyedService<VirtualMotionService>(group);
+                    captured.Add(group, probe);
+                    return motion;
+                });
+                continue;
+            }
             services.AddKeyedSingleton<IXyMotion>(group, (provider, _) =>
             {
                 var motion = DispatchProxy.Create<IXyMotion, ScopedMotionProbe>();

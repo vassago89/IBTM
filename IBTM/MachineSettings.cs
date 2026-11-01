@@ -36,6 +36,7 @@ public sealed class MachineSettings
         Ajin = values.Get<AjinSettings>();
         AlphaMotion = values.Get<AlphaMotionSettings>();
         Fastech = values.Get<FastechSettings>();
+        BoltFasteningBackup = values.Get<BackupPlateSettings>();
         Hantas = values.Get<HantasSettings>();
         InspectionCamera = values.Get<InspectionCameraSettings>();
         Lighting = values.Get<LightingSettings>();
@@ -61,6 +62,14 @@ public sealed class MachineSettings
         NgCarrierTransferHardware = values.Get<NgCarrierTransferHardwareSettings>();
         NgShuttleHardware = values.Get<NgShuttleHardwareSettings>();
         NgConveyorHardware = values.Get<NgConveyorHardwareSettings>();
+
+        // Remove the retired S2 cylinder from both saved mapping locations.
+        BoltFasteningStationHardware.Inputs.Remove(InputIo.BoltFasteningBackupPlateUp);
+        BoltFasteningStationHardware.Inputs.Remove(InputIo.BoltFasteningBackupPlateDown);
+        BoltFasteningStationHardware.Outputs.Remove(OutputIo.BoltFasteningBackupPlateUp);
+        ConveyorHardware.Inputs.Remove(InputIo.BoltFasteningBackupPlateUp);
+        ConveyorHardware.Inputs.Remove(InputIo.BoltFasteningBackupPlateDown);
+        ConveyorHardware.Outputs.Remove(OutputIo.BoltFasteningBackupPlateUp);
 
         // Move saved conveyor support addresses into their station settings.
         IoHardwareSettings[] stations = [PcbPlacementStationHardware, BoltFasteningStationHardware, InspectionStationHardware];
@@ -91,6 +100,7 @@ public sealed class MachineSettings
     public AjinSettings Ajin { get; set; }
     public AlphaMotionSettings AlphaMotion { get; set; }
     public FastechSettings Fastech { get; set; }
+    public BackupPlateSettings BoltFasteningBackup { get; set; }
     public HantasSettings Hantas { get; set; }
     public InspectionCameraSettings InspectionCamera { get; set; }
     public LightingSettings Lighting { get; set; }
@@ -170,6 +180,7 @@ public sealed class MachineSettings
                 Ajin,
                 AlphaMotion,
                 Fastech,
+                BoltFasteningBackup,
                 InspectionCamera,
                 Lighting,
                 Hantas,

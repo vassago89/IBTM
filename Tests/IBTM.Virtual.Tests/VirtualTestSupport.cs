@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BackupPlate;
@@ -22,6 +23,35 @@ namespace IBTM.Virtual.Tests;
 
 internal static class VirtualTestSupport
 {
+    private static readonly ConditionalWeakTable<IIoService, BackupPlateStation> s_fasteningBackups;
+
+    static VirtualTestSupport()
+    {
+        s_fasteningBackups = new();
+    }
+
+    public static BackupPlateStation CreateFasteningBackup(IIoService io, bool seated = true)
+    {
+        return s_fasteningBackups.GetValue(io, source =>
+        {
+            var settings = new BackupPlateSettings { TransferHeight = 0, FasteningHeight = 5 };
+            var motion = new VirtualMotionService(settings.Motion, new(), hasY: false, hasX: false);
+            motion.Initialize();
+            motion.SetAxisPosition(MotionAxis.Z, seated ? 5 : 0, homed: true);
+            var status = new MotionStatus(motion);
+            void Refresh()
+            {
+                status.RefreshMonitorFeedback();
+                status.RefreshControlFeedback();
+            }
+            motion.StateChanged += Refresh;
+            motion.PositionChanged += (x, y, z) => Refresh();
+            motion.MovingChanged += moving => Refresh();
+            Refresh();
+            return new BackupPlateStation(source, motion, status, settings);
+        });
+    }
+
     public const double PositionToleranceMillimeters = 0.05;
 
     public static bool IsAt(IMotionFeedback motion, AxisPosition target)
@@ -84,7 +114,7 @@ internal static class VirtualTestSupport
     {
         var units = new UnitSettings();
         return new(shooting, pickup, io, motion, new(motion), settings,
-            BackupPlateStation.CreateBoltFastening(io),
+            VirtualTestSupport.CreateFasteningBackup(io),
             new(OpenMachineStore(), new()), units, new(io, new(), units));
     }
 

@@ -275,7 +275,7 @@ public sealed class MachineLifecycleTests
             io.SetInput(InputIo.AutoMode, false);
             await machine.HomeAsync(default);
             await WaitUntilAsync(() => state.SetupEnabled);
-            var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+            var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>();
             var order = new ConcurrentQueue<MotionGroup>();
             foreach (var (group, motion) in motions)
                 motion.MovingChanged += moving => { if (moving) order.Enqueue(group); };
@@ -467,7 +467,7 @@ public sealed class MachineLifecycleTests
             io.AutoResponseEnabled = false;
             if (timeout)
                 settings.Options.TimeoutMilliseconds = 100;
-            var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+            var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>();
             var supplyPosition = motions[MotionGroup.PcbSupply].Position;
             var moving = review.MoveAllToStandbyCommand.ExecuteAsync(null);
             await WaitForOutputAsync(io, OutputIo.PcbPlacementIpmDown, false);
@@ -550,7 +550,7 @@ public sealed class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var placer = services.GetRequiredService<PcbPlacer>();
-        var motion = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.PcbPlacementHandler];
+        var motion = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>()[MotionGroup.PcbPlacementHandler];
         await machine.InitializeAsync();
         await machine.HomeAsync(default);
         await motion.MoveAxisAsync(MotionAxis.Z, 0, 10_000);
@@ -1199,10 +1199,13 @@ public sealed class MachineLifecycleTests
         // Match the equipment case: HS2 only and the empty next station raised.
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true);
+        fastening.Motion!.Feedback.MovingChanged += moving =>
+        {
+            if (moving)
+                fasteningPlate.Enqueue(fastening.Motion.Feedback.Position.Z == settings.BoltFasteningBackup.TransferHeight);
+        };
         io.OutputChanged += (output, value) =>
         {
-            if (output == OutputIo.BoltFasteningBackupPlateUp)
-                fasteningPlate.Enqueue(value);
             if (value && output is OutputIo.PcbPlacementHandlerDown or OutputIo.PcbPlacementVacuumEjector
                 or OutputIo.ShootBolt or OutputIo.ShootingHeadDown or OutputIo.PickupHeadDown
                 or OutputIo.NgCarrierPickupDown or OutputIo.NgCarrierGripperClose)
@@ -1314,11 +1317,16 @@ public sealed class MachineLifecycleTests
         {
             await machine.HomeAsync(CancellationToken.None);
             io.AutoResponseEnabled = false;
-            var plate = io.GetOutputFeedback(station.Plate)!;
             var stopper = io.GetOutputFeedback(station.Stopper)!;
             var inspecting = unit == MachineUnit.Inspection;
-            io.SetInput(plate.OffInput!.Value, inspecting);
-            io.SetInput(plate.OnInput, !inspecting);
+            if (inspecting)
+            {
+                var plate = io.GetOutputFeedback(station.Plate)!;
+                io.SetInput(plate.OffInput!.Value, true);
+                io.SetInput(plate.OnInput, false);
+            }
+            else
+                SetBackupPosition(services, settings.BoltFasteningBackup.FasteningHeight!.Value);
             io.SetInput(stopper.OnInput, inspecting);
             io.SetInput(stopper.OffInput!.Value, !inspecting);
             Assert.True(
@@ -1356,12 +1364,13 @@ public sealed class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        SetBackupPosition(services, settings.BoltFasteningBackup.FasteningHeight!.Value);
         await WaitUntilAsync(() => machine.IsStartAllowed);
         io.AutoResponseEnabled = false;
         OutputIo[] plates =
         [
             OutputIo.PcbPlacementBackupPlateUp,
-            OutputIo.BoltFasteningBackupPlateUp,
             OutputIo.InspectionBackupPlateUp,
         ];
         foreach (var plate in plates)
@@ -1379,7 +1388,7 @@ public sealed class MachineLifecycleTests
         try
         {
             await WaitUntilAsync(() => plates.All(plate => !io.GetOutput(plate)));
-            foreach (var plate in plates.Take(2))
+            foreach (var plate in plates.Take(1))
             {
                 var feedback = io.GetOutputFeedback(plate)!;
                 io.SetInput(feedback.OnInput, false);
@@ -1391,7 +1400,7 @@ public sealed class MachineLifecycleTests
 
             if (outcome == PlatePreparationOutcome.Arrived)
             {
-                var feedback = io.GetOutputFeedback(plates[2])!;
+                var feedback = io.GetOutputFeedback(plates[1])!;
                 io.SetInput(feedback.OnInput, false);
                 io.SetInput(feedback.OffInput!.Value, true);
                 Assert.True(
@@ -1870,10 +1879,9 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.AutoResponseEnabled = false;
+        SetBackupPosition(services, settings.BoltFasteningBackup.FasteningHeight!.Value);
         io.SetInputs(
             (InputIo.BoltFasteningHeatSink1Present, true),
-            (InputIo.BoltFasteningBackupPlateUp, true),
-            (InputIo.BoltFasteningBackupPlateDown, false),
             (InputIo.BoltFasteningStopperUp, false),
             (InputIo.BoltFasteningStopperDown, true),
             (InputIo.PickupHeadUp, true),
@@ -2116,8 +2124,7 @@ public sealed class MachineLifecycleTests
 
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
-        io.SetInput(InputIo.BoltFasteningBackupPlateDown, false);
+        SetBackupPosition(services, settings.BoltFasteningBackup.FasteningHeight!.Value);
         io.SetInput(InputIo.BoltFasteningStopperUp, false);
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
         io.SetInput(InputIo.AutoMode, false);
@@ -2129,6 +2136,7 @@ public sealed class MachineLifecycleTests
             await WaitUntilAsync(() => state.AutomaticRunning);
             io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            SetBackupPosition(services, settings.BoltFasteningBackup.FasteningHeight!.Value);
             Assert.True(services.GetRequiredService<BoltFasteningStation>().Station.CarrierSeated);
             Assert.True(
                 await VirtualTestSupport.WaitUntilAsync(() => head.Started.Task.IsCompleted, TimeSpan.FromSeconds(3)),
@@ -2781,6 +2789,7 @@ public sealed class MachineLifecycleTests
                 io.SetInput(station.HeatSink, true);
             }
 
+            SetBackupPosition(services, settings.BoltFasteningBackup.FasteningHeight!.Value);
             Assert.True(services.GetRequiredService<BoltFasteningStation>().Station.CarrierSeated);
             Assert.True(services.GetRequiredService<InspectionStation>().Station.CarrierSeated);
             state.AutomaticRunning = true;
@@ -3224,7 +3233,7 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.PickupFeederBoltDetected, pickupFeeding);
         io.SetInput(InputIo.ShootingFeederBoltDetected, shootingFeeding);
         io.SetInput(InputIo.AutoMode, false);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningBackupPlateUp, true);
+        await work.SetBackupPlateUpAsync(true, default);
         // Standalone fastening starts from plate UP even if the stopper is still UP.
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningStopperUp, true);
         gantry.Motion.Feedback.PositionChanged += (x, y, _) =>
@@ -4429,11 +4438,12 @@ public sealed class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var review = services.GetRequiredService<OperationViewModel>();
-        (StartArea Area, OutputIo Output)[] cylinders = [
-            (StartArea.Station1, stopper ? OutputIo.PcbPlacementStopperUp : OutputIo.PcbPlacementBackupPlateUp),
-            (StartArea.Station2, stopper ? OutputIo.BoltFasteningStopperUp : OutputIo.BoltFasteningBackupPlateUp),
-            (StartArea.Station3, stopper ? OutputIo.InspectionStopperUp : OutputIo.InspectionBackupPlateUp),
-        ];
+        (StartArea Area, OutputIo Output)[] cylinders = stopper
+            ? [(StartArea.Station1, OutputIo.PcbPlacementStopperUp),
+                (StartArea.Station2, OutputIo.BoltFasteningStopperUp),
+                (StartArea.Station3, OutputIo.InspectionStopperUp)]
+            : [(StartArea.Station1, OutputIo.PcbPlacementBackupPlateUp),
+                (StartArea.Station3, OutputIo.InspectionBackupPlateUp)];
         await machine.InitializeAsync();
         try
         {
@@ -5078,13 +5088,16 @@ public sealed class MachineLifecycleTests
         try
         {
             await WaitUntilAsync(() => state.SetupEnabled);
+            await machine.HomeAsync(MotionGroup.BoltFasteningBackup, default);
             Assert.False(station.CarrierPresent);
+            SetBackupPosition(services, 2);
+            Assert.Equal(StationCylinderState.Between, station.BackupPlate);
             Assert.True(await machine.PrepareStartAreaAsync(
-                StartArea.Station2, StartPreparationAction.ToggleCarrierSupport, default));
+                StartArea.Station2, StartPreparationAction.MoveBackupToFastening, default));
             Assert.Equal(StationCylinderState.Up, station.BackupPlate);
             Assert.Equal(StationCylinderState.Down, station.Stopper);
             Assert.True(await machine.PrepareStartAreaAsync(
-                StartArea.Station2, StartPreparationAction.ToggleCarrierSupport, default));
+                StartArea.Station2, StartPreparationAction.MoveBackupToTransfer, default));
             Assert.Equal(StationCylinderState.Down, station.BackupPlate);
             Assert.Empty(station.Assemblies);
             Assert.False(state.IsError, state.AlarmDetail);
@@ -6125,18 +6138,18 @@ public sealed class MachineLifecycleTests
             await review.CheckStartCommand.ExecuteAsync(null);
             Assert.False(review.IsFasteningResumeConfirmed);
             Assert.False(review.IsStartReviewAllowed);
-            // DOWN, neither sensor and contradictory feedback must all revoke resume confirmation.
-            foreach (var (up, down) in new[] { (false, true), (false, false), (true, true) })
+            // Transfer height, intermediate position and lost origin must revoke resume confirmation.
+            foreach (var (position, homed) in new[] { (0.0, true), (2.0, true), (5.0, false) })
             {
                 review.IsFasteningResumeConfirmed = true;
-                io.SetInputs((InputIo.BoltFasteningBackupPlateUp, up), (InputIo.BoltFasteningBackupPlateDown, down));
+                SetBackupPosition(services, position, homed);
                 Assert.False(review.IsFasteningResumeAvailable);
                 Assert.False(review.IsFasteningResumeConfirmed);
                 Assert.False(review.IsStartReviewAllowed);
                 await machine.StartAsync(resumeFastening: reviewedJob).WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.False(state.AutomaticRunning);
                 Assert.Equal(0, writes);
-                io.SetInputs((InputIo.BoltFasteningBackupPlateUp, true), (InputIo.BoltFasteningBackupPlateDown, false));
+                SetBackupPosition(services, settings.BoltFasteningBackup.FasteningHeight!.Value);
                 Assert.True(review.IsFasteningResumeAvailable);
                 Assert.False(review.IsFasteningResumeConfirmed);
                 Assert.False(review.IsStartReviewAllowed);

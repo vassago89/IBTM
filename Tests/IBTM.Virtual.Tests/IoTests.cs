@@ -120,11 +120,11 @@ public sealed class IoTests
         var placement = services.GetRequiredService<PcbPlacer>();
         var fastening = services.GetRequiredService<BoltFasteningStation>();
         var inspection = services.GetRequiredService<InspectionStation>();
-        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>();
         var statuses = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>();
         foreach (var group in Enum.GetValues<MotionGroup>())
         {
-            Assert.Same(services.GetRequiredKeyedService<IXyMotion>(group), motions[group]);
+            Assert.Same(services.GetRequiredKeyedService<IAxisMotion>(group), motions[group]);
             Assert.Same(services.GetRequiredKeyedService<MotionStatus>(group), statuses[group]);
             Assert.Same(motions[group], statuses[group].Feedback);
         }
@@ -192,6 +192,8 @@ public sealed class IoTests
             InputIo.PcbSupplyIpmFixerBackward,
             InputIo.PcbPlacementCarrierPresent,
             InputIo.BoltFasteningCarrierPresent,
+            InputIo.BoltFasteningBackupPlateUp,
+            InputIo.BoltFasteningBackupPlateDown,
             InputIo.InspectionCarrierPresent,
         ];
         Assert.Equal(Enum.GetValues<InputIo>().Except(retiredInputs).Order(), inputs.Keys.Order());
@@ -217,7 +219,7 @@ public sealed class IoTests
         Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback);
 
         var outputs = hardware.SelectMany(section => section.Outputs).ToArray();
-        Assert.Equal(Enum.GetValues<OutputIo>().Except([OutputIo.Unused3]).Order(), outputs.Select(pair => pair.Key).Order());
+        Assert.Equal(Enum.GetValues<OutputIo>().Except([OutputIo.Unused3, OutputIo.BoltFasteningBackupPlateUp]).Order(), outputs.Select(pair => pair.Key).Order());
         var channels = outputs.SelectMany(
             pair =>
                 pair.Value.OffNumber is { } off
@@ -250,10 +252,13 @@ public sealed class IoTests
 
         var allOutputs = outputs.ToDictionary(pair => pair.Key, pair => pair.Value);
         var allSignals = new IoSignals(hardware, new VirtualIoService(allOutputs, new()));
+        Assert.DoesNotContain(InputIo.BoltFasteningBackupPlateUp, allSignals.Inputs.Keys);
+        Assert.DoesNotContain(InputIo.BoltFasteningBackupPlateDown, allSignals.Inputs.Keys);
+        Assert.DoesNotContain(OutputIo.BoltFasteningBackupPlateUp, allSignals.Outputs.Keys);
+        Assert.Equal(HardwareArea.BoltFasteningStation, allSignals.Outputs[OutputIo.BoltFasteningStopperUp].Area);
         foreach (var (station, plate, stopper) in new[]
         {
             (HardwareArea.PcbPlacementStation, OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp),
-            (HardwareArea.BoltFasteningStation, OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp),
             (HardwareArea.InspectionStation, OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp),
         })
         {

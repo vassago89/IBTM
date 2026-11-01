@@ -144,7 +144,6 @@ public partial class OperationViewModel : ObservableObject
                 .. placementOutputs,
             ],
             [StartArea.Station2] = [
-                new(signals.Outputs[OutputIo.BoltFasteningBackupPlateUp], machine),
                 new(signals.Outputs[OutputIo.BoltFasteningStopperUp], machine),
                 .. pickupOutputs, .. shootingOutputs,
             ],

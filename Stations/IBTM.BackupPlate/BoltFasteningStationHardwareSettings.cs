@@ -13,15 +13,11 @@ public sealed class BoltFasteningStationHardwareSettings : IoHardwareSettings
             [InputIo.BoltFasteningHeatSink2Present] = 63,
             [InputIo.BoltFasteningStopperDown] = 64,
             [InputIo.BoltFasteningStopperUp] = 65,
-            [InputIo.BoltFasteningBackupPlateUp] = 66,
-            [InputIo.BoltFasteningBackupPlateDown] = 67,
         };
         Outputs = new()
         {
             [OutputIo.BoltFasteningStopperUp] = CreateOutput(
                 52, 53, InputIo.BoltFasteningStopperUp, InputIo.BoltFasteningStopperDown),
-            [OutputIo.BoltFasteningBackupPlateUp] = CreateOutput(
-                54, 55, InputIo.BoltFasteningBackupPlateUp, InputIo.BoltFasteningBackupPlateDown),
         };
     }
 

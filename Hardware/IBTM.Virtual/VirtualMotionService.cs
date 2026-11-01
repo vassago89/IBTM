@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Device;
@@ -34,12 +35,14 @@ public sealed class VirtualMotionService : MotionServiceBase, IDisposable, IMoti
         bool hasZ = true,
         double resolutionMillimeters = 0.001,
         Func<bool>? servoPowerOn = null,
-        (double X, double Y, double Z)? axisResolutionMillimeters = null)
+        (double X, double Y, double Z)? axisResolutionMillimeters = null,
+        bool hasX = true)
         : base(
             settings,
             operationCancellation,
             hasY,
-            hasZ)
+            hasZ,
+            hasX)
     {
         _servoPowerOn = servoPowerOn;
         _resolution = axisResolutionMillimeters
@@ -109,6 +112,26 @@ public sealed class VirtualMotionService : MotionServiceBase, IDisposable, IMoti
     public void SetAlarm(MotionAxis axis, bool on)
     {
         _alarm[(int)axis] = on;
+        PublishStateChanged();
+    }
+
+    public void SetAxisPosition(MotionAxis axis, double position, bool homed)
+    {
+        if (!double.IsFinite(position) || !Axes.Contains(axis))
+            throw new ArgumentOutOfRangeException(nameof(position));
+        _homed[(int)axis] = homed;
+        switch (axis)
+        {
+            case MotionAxis.X:
+                SetPosition(position, _y, _z);
+                break;
+            case MotionAxis.Y:
+                SetPosition(_x, position, _z);
+                break;
+            case MotionAxis.Z:
+                SetPosition(_x, _y, position);
+                break;
+        }
         PublishStateChanged();
     }
 

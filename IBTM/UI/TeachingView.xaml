@@ -7,6 +7,7 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     xmlns:machine="clr-namespace:IBTM"
     xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
+    xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
     xmlns:data="clr-namespace:System.Windows.Data;assembly=PresentationFramework"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:TeachingViewModel, IsDesignTimeCreatable=False}"
@@ -441,8 +442,18 @@
                         <StackPanel>
                             <ui:TeachingMotionView/>
                             <Button Content="{ui:Text 'Safe Z → Raise Pickup Head'}" Command="{Binding ReturnFromPickupCommand}" IsEnabled="{Binding IsReturnFromPickupAllowed}"
-                                Margin="0,8,0,0"
-                                Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
+                                Margin="0,8,0,0">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                        <Setter Property="Visibility" Value="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                         </StackPanel>
                     </ScrollViewer>
                     <ScrollViewer Grid.Row="1" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

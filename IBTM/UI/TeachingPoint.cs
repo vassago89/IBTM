@@ -85,6 +85,8 @@ public class TeachingPoint : ObservableObject
                     return _settings.BoltFastening;
                 case TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin:
                     return _settings.CarrierReference;
+                case TeachingTarget.BackupTransferHeight or TeachingTarget.BackupFasteningHeight:
+                    return _settings.BoltFasteningBackup;
                 case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
                     return _settings.NgCarrierTransfer;
                 default:
@@ -113,6 +115,10 @@ public class TeachingPoint : ObservableObject
                     return _settings.PcbPlacementHandler.HandoffPosition;
                 case TeachingTarget.PlacementReceiveZ:
                     return _settings.PcbPlacementHandler.ReceiveZ is { } z ? new() { Z = z } : null;
+                case TeachingTarget.BackupTransferHeight:
+                    return _settings.BoltFasteningBackup.TransferHeight is { } transferZ ? new() { Z = transferZ } : null;
+                case TeachingTarget.BackupFasteningHeight:
+                    return _settings.BoltFasteningBackup.FasteningHeight is { } fasteningZ ? new() { Z = fasteningZ } : null;
                 case TeachingTarget.HeatSink1PcbPlacement:
                     return recipe.PcbPlacement.HeatSink1PcbPlacementPosition;
                 case TeachingTarget.HeatSink2PcbPlacement:
@@ -220,6 +226,8 @@ public class TeachingPoint : ObservableObject
                         ? TeachingPointGroup.ShootingFastening : TeachingPointGroup.PickupFastening;
                 case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
                     return TeachingPointGroup.CarrierTransfer;
+                case TeachingTarget.BackupTransferHeight or TeachingTarget.BackupFasteningHeight:
+                    return TeachingPointGroup.Backup;
                 case TeachingTarget.SafeZ or TeachingTarget.ShootingHeadPreliminaryZ
                     or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
                     or TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin
@@ -296,6 +304,12 @@ public class TeachingPoint : ObservableObject
                 break;
             case TeachingTarget.PlacementReceiveZ:
                 _settings.PcbPlacementHandler.ReceiveZ = position.Z;
+                break;
+            case TeachingTarget.BackupTransferHeight:
+                _settings.BoltFasteningBackup.TransferHeight = position.Z;
+                break;
+            case TeachingTarget.BackupFasteningHeight:
+                _settings.BoltFasteningBackup.FasteningHeight = position.Z;
                 break;
             case TeachingTarget.HeatSink1PcbPlacement:
                 _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition = position;
@@ -391,4 +405,6 @@ public enum TeachingPointGroup
     ShootingFastening,
     [Description("Pickup")]
     PickupFastening,
+    [Description("S2 Backup")]
+    Backup,
 }

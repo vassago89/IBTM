@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FASTECH;
 using IBTM.Device;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.Fastech;
 
@@ -20,20 +21,17 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
 
     public FastechZMotion(
         FastechController controller,
-        FastechZAxisSettings axis,
-        MotionSettings settings,
+        [FromKeyedServices] FastechZAxisSettings axis,
+        [FromKeyedServices] MotionSettings settings,
         MachineOptions options,
         OperationCancellation operations)
     {
-        if (axis.SlaveNumber >= EziMOTIONPlusRLib.MAX_SLAVE_NUMS)
-            throw new ArgumentOutOfRangeException(nameof(axis), "FASTECH slave number must be between 0 and 15.");
-        ValidatePositive(axis.PulsesPerMillimeter, nameof(axis.PulsesPerMillimeter));
+        _slave = axis.SlaveNumber;
+        _pulsesPerMillimeter = axis.PulsesPerMillimeter;
         _controller = controller;
         _settings = settings;
         _operations = operations;
         _options = options;
-        _slave = axis.SlaveNumber;
-        _pulsesPerMillimeter = axis.PulsesPerMillimeter;
         Axes = new[] { MotionAxis.Z };
     }
 
@@ -71,6 +69,9 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
 
     public void Initialize()
     {
+        if (_slave >= EziMOTIONPlusRLib.MAX_SLAVE_NUMS)
+            throw new ArgumentOutOfRangeException(nameof(FastechZAxisSettings.SlaveNumber), "FASTECH slave number must be between 0 and 15.");
+        ValidatePositive(_pulsesPerMillimeter, nameof(FastechZAxisSettings.PulsesPerMillimeter));
         _controller.Initialize(_slave);
         StateChanged?.Invoke();
     }
@@ -146,10 +147,10 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
         cancellationToken = operation.Token;
         if (axis != MotionAxis.Z)
             throw new ArgumentOutOfRangeException(nameof(axis));
-        if (!double.IsFinite(position))
-            throw new ArgumentOutOfRangeException(nameof(position));
+        var target = Math.Round(position * _pulsesPerMillimeter);
+        if (!double.IsFinite(target) || target < int.MinValue || target > int.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(position), "Position exceeds the FASTECH pulse range.");
         EnsureStopped();
-        var target = checked((int)Math.Round(position * _pulsesPerMillimeter));
         var speed = ToSpeed(velocity);
         var options = new EziMOTIONPlusRLib.MOTION_OPTION_EX
         {
@@ -171,7 +172,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
                     cancellationToken.ThrowIfCancellationRequested();
                     _controller.EnsureOpen();
                     _controller.Check(EziMOTIONPlusRLib.FAS_MoveSingleAxisAbsPosEx(
-                        _controller.PortNumber, _slave, target, speed, options),
+                        _controller.PortNumber, _slave, (int)target, speed, options),
                         nameof(EziMOTIONPlusRLib.FAS_MoveSingleAxisAbsPosEx), _slave);
                 }
             }).ConfigureAwait(false);
@@ -236,8 +237,10 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
         if (axis != MotionAxis.Z)
             throw new ArgumentOutOfRangeException(nameof(axis));
         EnsureStopped();
-        var speed = checked((int)ToSpeed(velocity));
-        var searchSpeed = checked((int)ToSpeed(_settings.ZHome.DetectionSpeed));
+        var speed = ToSpeed(velocity);
+        var searchSpeed = ToSpeed(_settings.ZHome.DetectionSpeed);
+        if (speed > int.MaxValue || searchSpeed > int.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(velocity), "Home speed exceeds the FASTECH parameter range.");
         var acceleration = ToMilliseconds(_settings.ZHome.SearchAccelerationSeconds);
         cancellationToken.ThrowIfCancellationRequested();
         try
@@ -251,9 +254,9 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
                     _controller.EnsureOpen();
                     // Plus-R ORGSPEED / ORGSEARCHSPEED / ORGACCDECTIME, as in MWD100.
                     // Origin method and direction remain configured in the drive.
-                    _controller.Check(EziMOTIONPlusRLib.FAS_SetParameter(_controller.PortNumber, _slave, 17, speed),
+                    _controller.Check(EziMOTIONPlusRLib.FAS_SetParameter(_controller.PortNumber, _slave, 17, (int)speed),
                         nameof(EziMOTIONPlusRLib.FAS_SetParameter), _slave);
-                    _controller.Check(EziMOTIONPlusRLib.FAS_SetParameter(_controller.PortNumber, _slave, 18, searchSpeed),
+                    _controller.Check(EziMOTIONPlusRLib.FAS_SetParameter(_controller.PortNumber, _slave, 18, (int)searchSpeed),
                         nameof(EziMOTIONPlusRLib.FAS_SetParameter), _slave);
                     _controller.Check(EziMOTIONPlusRLib.FAS_SetParameter(_controller.PortNumber, _slave, 19, acceleration),
                         nameof(EziMOTIONPlusRLib.FAS_SetParameter), _slave);
@@ -299,7 +302,8 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             {
                 stoppedAt ??= Stopwatch.GetTimestamp();
                 if (Stopwatch.GetElapsedTime(stoppedAt.Value).TotalMilliseconds >= _options.TimeoutMilliseconds)
-                    throw new TimeoutException("FASTECH Z completion feedback was not received.");
+                    throw new MotionException("Move FASTECH Z",
+                        new TimeoutException("FASTECH Z completion feedback was not received."));
             }
             await Task.Delay(_options.MotionPollMilliseconds, cancellationToken).ConfigureAwait(false);
         }
@@ -338,7 +342,8 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
     {
         lock (_controller.SyncRoot)
         {
-            _controller.EnsureOpen();
+            if (!_controller.IsOpen)
+                return;
             _controller.Check(EziMOTIONPlusRLib.FAS_MoveStop(_controller.PortNumber, _slave),
                 nameof(EziMOTIONPlusRLib.FAS_MoveStop), _slave);
         }
@@ -404,18 +409,18 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
     private uint ToSpeed(double millimetersPerSecond)
     {
         ValidatePositive(millimetersPerSecond, nameof(millimetersPerSecond));
-        var speed = checked((uint)Math.Round(millimetersPerSecond * _pulsesPerMillimeter));
-        if (speed == 0)
-            throw new ArgumentOutOfRangeException(nameof(millimetersPerSecond), "Speed is below one pulse per second.");
-        return speed;
+        var speed = Math.Round(millimetersPerSecond * _pulsesPerMillimeter);
+        if (!double.IsFinite(speed) || speed < 1 || speed > uint.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(millimetersPerSecond), "Speed must be within 1–4294967295 pulses per second.");
+        return (uint)speed;
     }
 
     private static ushort ToMilliseconds(double seconds)
     {
         ValidatePositive(seconds, nameof(seconds));
-        var milliseconds = checked((ushort)Math.Round(seconds * 1000));
-        if (milliseconds == 0)
-            throw new ArgumentOutOfRangeException(nameof(seconds), "Time is below one millisecond.");
-        return milliseconds;
+        var milliseconds = Math.Round(seconds * 1000);
+        if (milliseconds < 1 || milliseconds > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(seconds), "Time must be within 1–65535 milliseconds.");
+        return (ushort)milliseconds;
     }
 }

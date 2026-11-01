@@ -53,7 +53,7 @@ public sealed class BoltFasteningTests
             new(), 1, "Shooting", 115200);
         var pickup = CreateAdcHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Pickup", 115200);
         var bolt = Bolt(1, FasteningHead.Shooting, 20, 30);
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(shooting, pickup, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
             units, new BoltFeederUnit(io, new(), units));
@@ -141,7 +141,7 @@ public sealed class BoltFasteningTests
         var pickup = CreateAdcHead(pickupBus, io, FasteningHead.Pickup,
             new(), 1, "Pickup", 115200);
         var bolt = Bolt(1, FasteningHead.Pickup, 10, 20);
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(shooting, pickup, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
             units, new BoltFeederUnit(io, new(), units));
@@ -278,7 +278,7 @@ public sealed class BoltFasteningTests
                 PreliminaryFeedDistance = 5, PreliminaryFeedSeconds = 0.2,
             },
         };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var observedMotion = DispatchProxy.Create<IXyMotion, MachineTestSupport.DisplayReadMotion>();
         var motionCalls = (MachineTestSupport.DisplayReadMotion)observedMotion;
         motionCalls.Motion = motion;
@@ -468,7 +468,7 @@ public sealed class BoltFasteningTests
         var head = CreateAdcHead(bus, io, FasteningHead.Shooting,
             new(), 1, "Virtual", 115200);
         var bolts = new[] { Bolt(1, FasteningHead.Pickup, 10, 20), Bolt(2, FasteningHead.Pickup, 20, 20) };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
             units, new BoltFeederUnit(io, new(), units));
@@ -534,7 +534,7 @@ public sealed class BoltFasteningTests
         var rejection = new AdcResponseException(2, "HComm error 0x02; RX=018602C3A1.");
         using var bus = new AdcControllerStub { RegisterWriteFailure = (4100, 0, rejection) };
         var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var bolt = new BoltPoint { Head = FasteningHead.Pickup, FasteningX = 10, FasteningY = 10, PreliminaryFasteningPosition = new() { X = 30, Y = 20 } };
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
@@ -614,7 +614,7 @@ public sealed class BoltFasteningTests
             HeatSink = number <= 2 ? HeatSinkSlot.HeatSink1 : HeatSinkSlot.HeatSink2,
             FasteningX = number * 10, FasteningY = 10, PreliminaryFasteningPosition = new() { X = number * 10 + 100, Y = 20 },
         }).ToArray();
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var shootingBolts = Enumerable.Range(1, pcbFeeding ? 4 : 1).Select(number => new BoltPoint
         {
             Head = FasteningHead.Shooting,
@@ -841,7 +841,7 @@ public sealed class BoltFasteningTests
             new BoltPoint { Head = FasteningHead.Pickup, FasteningX = 10, FasteningY = 10, PreliminaryFasteningPosition = new() { X = 30, Y = 20 } },
             new BoltPoint { Head = FasteningHead.Pickup, FasteningX = 20, FasteningY = 10, PreliminaryFasteningPosition = new() { X = 40, Y = 20 } },
         };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(shootingHead, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
             units, new BoltFeederUnit(io, new(), units));
@@ -955,7 +955,7 @@ public sealed class BoltFasteningTests
             Head = FasteningHead.Pickup, FasteningX = 10, FasteningY = 10,
             PreliminaryFasteningPosition = new() { X = 30, Y = 20 },
         };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(shooting, pickup, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
             new(), new BoltFeederUnit(io, new(), new()));
@@ -1013,7 +1013,7 @@ public sealed class BoltFasteningTests
         await HomeAsync(motion, 20_000);
         using var bus = new AdcControllerStub();
         var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var bolt = new BoltPoint { Head = FasteningHead.Pickup, FasteningX = 10, FasteningY = 10, PreliminaryFasteningPosition = new() { X = 30, Y = 20 } };
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
@@ -1094,7 +1094,7 @@ public sealed class BoltFasteningTests
         io.Initialize();
         using var motion = new VirtualMotionService(settings.Motion, new());
         var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var bolt = new BoltPoint { Head = FasteningHead.Pickup, FasteningX = 10, FasteningY = 10, PreliminaryFasteningPosition = new() { X = 30, Y = 20 } };
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
@@ -1253,7 +1253,7 @@ public sealed class BoltFasteningTests
         using var bus = new VirtualAdcBus();
         var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
         var bolt = new BoltPoint { Head = (FasteningHead)123, FasteningX = 0, FasteningY = 0 };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
             new() { ShootingBoltFeeder = false, PickupBoltFeeder = false },
@@ -1309,7 +1309,7 @@ public sealed class BoltFasteningTests
         var bolt = Bolt(1, FasteningHead.Shooting, 0, 0);
         var otherBolt = Bolt(2, FasteningHead.Shooting, 0, 0);
         otherBolt.HeatSink = HeatSinkSlot.HeatSink2;
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new())
             {
@@ -1420,7 +1420,7 @@ public sealed class BoltFasteningTests
         var shooting = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
         var pickup = CreateAdcHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
         var units = new UnitSettings();
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var recipes = new RecipeManager(OpenMachineStore(), new())
         {
             Current = { Pcb = new() { BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30)] } },
@@ -1519,7 +1519,7 @@ public sealed class BoltFasteningTests
         IBoltHead head = CreateAdcHead(bus, io, FasteningHead.Shooting,
             new HantasSettings { FasteningTimeoutMilliseconds = 100 }, 1, "Virtual", 115200);
         var units = new UnitSettings();
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         Assert.Null(work.LastCycleSeconds);
         var layout = new PcbLayout
         {
@@ -1622,7 +1622,7 @@ public sealed class BoltFasteningTests
         var nextHead = pickupNext ? FasteningHead.Pickup : selectedHead;
         var retractionZ = settings.SafeZ;
         var bolts = new[] { Bolt(1, selectedHead, 20, 30), Bolt(2, nextHead, 40, 50) };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(
             selectedHead == FasteningHead.Shooting ? head : otherHead,
             selectedHead == FasteningHead.Pickup ? head : otherHead,
@@ -1831,7 +1831,7 @@ public sealed class BoltFasteningTests
             Bolt(2, FasteningHead.Shooting, 30, 40), Bolt(3, FasteningHead.Shooting, 40, 50),
             Bolt(4, FasteningHead.Pickup, 60, 50) };
         bolts[3].PreliminaryFasteningPosition = new() { X = 60, Y = 50 };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var stationIo = new WriteNotifyingIo(io);
         var station = new BoltFasteningStation(shooting, pickup, stationIo, motion, new(motion), settings,
             work, new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
@@ -2025,7 +2025,7 @@ public sealed class BoltFasteningTests
                     Assert.True(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
                     break;
                 case ShootingPreparationFailure.CarrierLost:
-                    io.SetInput(InputIo.BoltFasteningBackupPlateUp, false);
+                    ((VirtualMotionService)work.Motion!.Feedback).SetAxisPosition(MotionAxis.Z, 2, homed: true);
                     await Assert.ThrowsAsync<MotionInterlockException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
                     Assert.False(nextTravelStarted);
                     break;
@@ -2102,7 +2102,7 @@ public sealed class BoltFasteningTests
         var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
         var pickup = CreateAdcHead(new VirtualAdcBus(), io, FasteningHead.Pickup, new(), 2, "Virtual", 115200);
         var units = new UnitSettings { ShootingBoltFeeder = !dryRun };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var layout = new PcbLayout
         {
             BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 30, 40)],
@@ -2742,7 +2742,7 @@ public sealed class BoltFasteningTests
             PreliminaryFasteningPosition = new() { X = 30, Y = 20 },
         };
         var units = new UnitSettings { PickupBoltFeeder = false, ShootingBoltFeeder = false };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(shooting, pickup, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
             units, new BoltFeederUnit(io, new(), units));
@@ -2821,7 +2821,7 @@ public sealed class BoltFasteningTests
             PreliminaryFasteningPosition = new() { X = 30, Y = 20 },
         };
         var units = new UnitSettings { PickupBoltFeeder = false, ShootingBoltFeeder = false };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(shooting, pickup, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
             units, new BoltFeederUnit(io, new(), units));
@@ -2892,7 +2892,7 @@ public sealed class BoltFasteningTests
         using var bus = new AdcControllerStub();
         IBoltHead pickup = CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200);
 
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var layout = new PcbLayout { BoltPoints = [Bolt(1, FasteningHead.Pickup, 10, 10)] };
         var units = new UnitSettings();
         var station = new BoltFasteningStation(shooting,
@@ -3022,7 +3022,7 @@ public sealed class BoltFasteningTests
         };
         var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
         var units = new UnitSettings { PickupBoltFeeder = false, ShootingBoltFeeder = false };
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var layout = new PcbLayout
         {
             BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 40, 30),
@@ -3120,7 +3120,7 @@ public sealed class BoltFasteningTests
         using var shootingBus = new VirtualAdcBus();
         var pickupHead = CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200);
 
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var layout = new PcbLayout
         {
             BoltPoints = [Bolt(1, FasteningHead.Pickup, 0, 0)],
@@ -3247,7 +3247,7 @@ public sealed class BoltFasteningTests
             Current = { Pcb = new() { BoltPoints = [Bolt(1, FasteningHead.Shooting, 10, 20)] } },
         };
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings,
-            BackupPlateStation.CreateBoltFastening(io), recipes, new(),
+            VirtualTestSupport.CreateFasteningBackup(io), recipes, new(),
             new BoltFeederUnit(io, new(), new()));
         io.Initialize();
         motion.Initialize();
@@ -3361,7 +3361,7 @@ public sealed class BoltFasteningTests
         };
         foreach (var bolt in layout.BoltPoints)
             settings.InitializeBoltPosition(bolt, reference);
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new HantasSettings(), 2, "Virtual", 115200),
             CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200),
             io,
@@ -3506,7 +3506,7 @@ public sealed class BoltFasteningTests
         await HomeAsync(motion, 20_000);
         using var bus = new AdcControllerStub { SuppressCompletion = duringFeed };
         var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var bolt = Bolt(1, FasteningHead.Shooting, 20, 30);
         bolt.FeedDistance = duringFeed ? 2 : 0;
         bolt.FeedSeconds = 2;
@@ -3596,7 +3596,7 @@ public sealed class BoltFasteningTests
         using var bus = new AdcControllerStub();
         var pickup = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
         var units = new UnitSettings();
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(pickup, pickup, io, motion, new MotionStatus(motion), settings,
             work,
             new RecipeManager(OpenMachineStore(), new())
@@ -3739,7 +3739,7 @@ public sealed class BoltFasteningTests
         var feeder = new BoltFeederUnit(io, new() { PickupTimeoutMilliseconds = 0 }, units);
         var supplyFailure = await Assert.ThrowsAsync<IoTimeoutException>(() => feeder.RunAsync());
         var stationIo = new WriteNotifyingIo(io);
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var station = new BoltFasteningStation(head, head, stationIo, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new())
             {
@@ -3806,7 +3806,7 @@ public sealed class BoltFasteningTests
         var head = CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
         var units = new UnitSettings { ShootingBoltFeeder = false };
         var feeder = new BoltFeederUnit(io, new() { PickupTimeoutMilliseconds = 0 }, units);
-        var work = BackupPlateStation.CreateBoltFastening(io);
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
         var bolt = Bolt(1, FasteningHead.Pickup, 20, 30);
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },

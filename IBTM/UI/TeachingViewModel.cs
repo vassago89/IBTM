@@ -16,6 +16,7 @@ using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
@@ -56,6 +57,8 @@ public enum TeachingMotionHint
     RaisePlacementCylinders,
     [Description("Raise both fastening heads")]
     RaiseFasteningHeads,
+    [Description("Raise fastening heads and pickup table")]
+    RaiseFasteningTooling,
     [Description("Home this unit first")]
     HomeRequired,
     [Description("Axis servo OFF")]
@@ -86,6 +89,7 @@ public partial class TeachingViewModel : ObservableObject
     private readonly PcbSupplier _pcbSupply;
     private readonly PcbPlacer _pcbPlacement;
     private readonly BoltFasteningStation _fasteningStation;
+    private readonly IAxisMotion _backupMotion;
     private readonly MachineStore _store;
     private readonly InspectionImageLoader _images;
     private CancellationTokenSource _viewCancellation;
@@ -104,6 +108,7 @@ public partial class TeachingViewModel : ObservableObject
         PcbSupplier pcbSupply,
         PcbPlacer pcbPlacement,
         BoltFasteningStation fasteningStation,
+        [FromKeyedServices(MotionGroup.BoltFasteningBackup)] IAxisMotion backupMotion,
         InspectionStation inspectionStation,
         MachineState state,
         MachineController machine,
@@ -208,6 +213,7 @@ public partial class TeachingViewModel : ObservableObject
         _pcbSupply = pcbSupply;
         _pcbPlacement = pcbPlacement;
         _fasteningStation = fasteningStation;
+        _backupMotion = backupMotion;
         Inspection = inspectionStation;
         RecipeEditor = recipeEditor;
         Recipes = recipes;
@@ -511,9 +517,20 @@ public partial class TeachingViewModel : ObservableObject
     [ObservableProperty]
     public partial TeachingPoint? SelectedPoint { get; set; }
 
+    partial void OnSelectedPointChanging(TeachingPoint? value)
+    {
+        if (PositionUpdatesActive)
+            UnsubscribeMotionChanges();
+    }
+
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
         CancelTeaching();
+        if (PositionUpdatesActive)
+            SubscribeMotionChanges();
+        OnPropertyChanged(nameof(ActiveMotionGroup));
+        OnPropertyChanged(nameof(Motion));
+        OnPropertyChanged(nameof(MoveToHorizontalZLabel));
         if (!Inspection.IsLiveView)
         {
             LiveLightLevel = (SelectedBarcode is { } pcb
@@ -560,9 +577,12 @@ public partial class TeachingViewModel : ObservableObject
     {
         var selectedTarget = SelectedPoint?.Position.Target;
         var selectedBolt = SelectedPoint?.Position.Bolt;
+        var unitMotionGroup = IsFasteningSelected ? MotionGroup.BoltFastening : ActiveMotionGroup;
         TeachingPoint Point(TeachingTarget target, TeachMode mode, BoltPoint? bolt = null)
         {
-            return new(new(target, ActiveMotionGroup, mode) { Bolt = bolt }, _settings, Recipes, SelectedPcb);
+            var group = target is TeachingTarget.BackupTransferHeight or TeachingTarget.BackupFasteningHeight
+                ? MotionGroup.BoltFasteningBackup : unitMotionGroup;
+            return new(new(target, group, mode) { Bolt = bolt }, _settings, Recipes, SelectedPcb);
         }
         TeachingPoint[] points = SelectedTeachingUnit switch
         {
@@ -594,6 +614,8 @@ public partial class TeachingViewModel : ObservableObject
                 .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
                     .Where(bolt => bolt.HeatSink == SelectedPcb && bolt.Head == FasteningHead.Pickup)
                     .Select(bolt => Point(TeachingTarget.BoltPreliminaryPosition, TeachMode.XYOnly, bolt)),
+                Point(TeachingTarget.BackupTransferHeight, TeachMode.ZOnly),
+                Point(TeachingTarget.BackupFasteningHeight, TeachMode.ZOnly),
             ],
             HardwareArea.InspectionGantry => [
                 Point(TeachingTarget.CarrierUpperLeftLocatingPin, TeachMode.XYOnly),
@@ -614,6 +636,7 @@ public partial class TeachingViewModel : ObservableObject
                 TeachingTarget.DataMatrix => 0,
                 TeachingTarget.BoltPosition or TeachingTarget.BoltReference => 1,
                 TeachingTarget.BoltPreliminaryPosition => 2,
+                TeachingTarget.BackupTransferHeight or TeachingTarget.BackupFasteningHeight => 4,
                 _ => 3,
             })
             .ThenBy(point => point.Group)
@@ -859,7 +882,8 @@ public partial class TeachingViewModel : ObservableObject
             RecipeEditor.Error = null;
             if (await SaveSettingsAsync(operation.Token,
                     _settings.PcbSupply, _settings.PcbPlacementHandler, _settings.BoltFastening,
-                    _settings.InspectionGantry, _settings.CarrierReference, _settings.NgCarrierTransfer)
+                    _settings.InspectionGantry, _settings.CarrierReference, _settings.NgCarrierTransfer,
+                    _settings.BoltFasteningBackup)
                 && !await RecipeEditor.SaveAsync(cancellationToken: operation.Token))
             {
                 SaveError = UiText.Get("Settings saved; recipe was not saved. ")
@@ -965,6 +989,8 @@ public partial class TeachingViewModel : ObservableObject
                     return TeachingMotionHint.RaisePlacementCylinders;
                 case MotionGroup.BoltFastening when !_fasteningStation.IsHorizontalMoveAllowed:
                     return TeachingMotionHint.RaiseFasteningHeads;
+                case MotionGroup.BoltFasteningBackup when !IsBackupMoveAllowed:
+                    return TeachingMotionHint.RaiseFasteningTooling;
                 case MotionGroup.InspectionGantry when !Inspection.IsRaised:
                     return TeachingMotionHint.RaiseNgPickup;
                 default:
@@ -986,7 +1012,8 @@ public partial class TeachingViewModel : ObservableObject
                 case HardwareArea.PcbPlacementHandler:
                     return MotionGroup.PcbPlacementHandler;
                 case HardwareArea.BoltFastening:
-                    return MotionGroup.BoltFastening;
+                    return SelectedPoint?.Position.MotionGroup == MotionGroup.BoltFasteningBackup
+                        ? MotionGroup.BoltFasteningBackup : MotionGroup.BoltFastening;
                 case HardwareArea.InspectionGantry:
                     return MotionGroup.InspectionGantry;
                 default:
@@ -1014,6 +1041,7 @@ public partial class TeachingViewModel : ObservableObject
             && ActiveMotionGroup switch
             {
                 MotionGroup.PcbSupply or MotionGroup.BoltFastening => true,
+                MotionGroup.BoltFasteningBackup => IsBackupMoveAllowed,
                 MotionGroup.PcbPlacementHandler => axis == MotionAxis.Z
                     || _pcbPlacement.Lift == StationCylinderState.Up,
                 MotionGroup.InspectionGantry => Inspection.IsRaised,
@@ -1022,6 +1050,16 @@ public partial class TeachingViewModel : ObservableObject
     }
 
     public bool IsHomeAllowed => Machine.IsManualHomeAllowed(ActiveMotionGroup);
+
+    private bool IsBackupMoveAllowed
+    {
+        get
+        {
+            return _fasteningStation.PickupHeadPosition == StationCylinderState.Up
+                && _fasteningStation.ShootingHeadPosition == StationCylinderState.Up
+                && _fasteningStation.PickupTablePosition == StationCylinderState.Up;
+        }
+    }
 
     public bool IsJogXAllowed => IsJogAllowed(MotionAxis.X);
     public bool IsJogYAllowed => IsJogAllowed(MotionAxis.Y);
@@ -1050,7 +1088,8 @@ public partial class TeachingViewModel : ObservableObject
         {
             SaveError = null;
             using var operation = Machine.BeginManualOperation(
-                () => Machine.IsManualMotionReady(group),
+                () => Machine.IsManualMotionReady(group)
+                    && (group != MotionGroup.BoltFasteningBackup || IsBackupMoveAllowed),
                 cancellationToken,
                 viewCancellation);
             if (operation is null)
@@ -1069,6 +1108,9 @@ public partial class TeachingViewModel : ObservableObject
                     break;
                 case MotionGroup.BoltFastening:
                     await _fasteningStation.JogAsync(axis, velocity, operation.Token);
+                    break;
+                case MotionGroup.BoltFasteningBackup:
+                    await _backupMotion.JogAsync(axis, velocity, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
                     await Inspection.JogAsync(axis, velocity, operation.Token);
@@ -1105,6 +1147,7 @@ public partial class TeachingViewModel : ObservableObject
         get
         {
             return IsJogAllowed(MotionAxis.Z)
+                && ActiveMotionGroup != MotionGroup.BoltFasteningBackup
                 && (ActiveMotionGroup != MotionGroup.PcbPlacementHandler
                     || _pcbPlacement.Lift == StationCylinderState.Up);
         }
@@ -1215,7 +1258,8 @@ public partial class TeachingViewModel : ObservableObject
         {
             SaveError = null;
             using var operation = Machine.BeginManualOperation(
-                () => Machine.IsManualMotionReady(commandGroup),
+                () => Machine.IsManualMotionReady(commandGroup)
+                    && (commandGroup != MotionGroup.BoltFasteningBackup || IsBackupMoveAllowed),
                 cancellationToken,
                 viewToken);
             if (operation is null)
@@ -1244,6 +1288,9 @@ public partial class TeachingViewModel : ObservableObject
                     break;
                 case MotionGroup.BoltFastening:
                     await _fasteningStation.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
+                    break;
+                case MotionGroup.BoltFasteningBackup:
+                    await _backupMotion.MoveAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
                     await Inspection.MoveAxisAsync(axis, target, JogSpeed, operation.Token);
@@ -1328,7 +1375,8 @@ public partial class TeachingViewModel : ObservableObject
         {
             SaveError = null;
             using var operation = Machine.BeginManualOperation(
-                () => Machine.IsManualMotionReady(commandGroup),
+                () => Machine.IsManualMotionReady(commandGroup)
+                    && (commandGroup != MotionGroup.BoltFasteningBackup || IsBackupMoveAllowed),
                 cancellationToken,
                 viewToken);
             if (operation is null)
@@ -1348,6 +1396,10 @@ public partial class TeachingViewModel : ObservableObject
                     break;
                 case MotionGroup.BoltFastening:
                     await _fasteningStation.MoveToTeachingPositionAsync(position, point.MovePosition, operation.Token);
+                    break;
+                case MotionGroup.BoltFasteningBackup:
+                    await _backupMotion.MoveAxisAsync(
+                        MotionAxis.Z, point.MovePosition.Z, _settings.BoltFasteningBackup.Motion.ZSpeed, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when position.Target == TeachingTarget.NgCarrierPickup:
                     await Inspection.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
@@ -1394,6 +1446,8 @@ public partial class TeachingViewModel : ObservableObject
                     return false;
                 case { } when ActiveMotionGroup == MotionGroup.PcbPlacementHandler
                     && _pcbPlacement.Lift != StationCylinderState.Up:
+                    return false;
+                case { } when ActiveMotionGroup == MotionGroup.BoltFasteningBackup && !IsBackupMoveAllowed:
                     return false;
                 case { } point when ActiveMotionGroup == MotionGroup.PcbSupply:
                     return _pcbSupply.IsMoveToTeachingPositionAllowed(point.Position);
