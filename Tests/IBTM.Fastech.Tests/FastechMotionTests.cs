@@ -190,13 +190,14 @@ public sealed class FastechMotionTests
     }
 
     [Fact]
-    public async Task ResetDoesNotEnableServoAndHomePreservesDriveMethod()
+    public async Task ResetDoesNotEnableServoAndHomeUsesNegativeLimitWithoutOriginSensor()
     {
         using var controller = new FastechController(new() { IpAddress = "192.168.0.7" });
         var motion = CreateMotion(controller);
         motion.Initialize();
         EziMOTIONPlusELib.Parameters[17] = 4;
-        EziMOTIONPlusELib.Parameters[18] = 1;
+        EziMOTIONPlusELib.Parameters[18] = 0;
+        EziMOTIONPlusELib.Status = (EziMOTIONPlusELib.Ready & ~0x02000000U) | 0x00000004;
         await motion.ResetAsync();
         Assert.Contains("Reset:0", EziMOTIONPlusELib.Calls);
         Assert.DoesNotContain(EziMOTIONPlusELib.Calls, call => call.StartsWith("Servo:"));
@@ -204,8 +205,29 @@ public sealed class FastechMotionTests
         Assert.Equal(15000, EziMOTIONPlusELib.Parameters[14]);
         Assert.Equal(10000, EziMOTIONPlusELib.Parameters[15]);
         Assert.Equal(1000, EziMOTIONPlusELib.Parameters[16]);
-        Assert.Equal(4, EziMOTIONPlusELib.Parameters[17]);
+        Assert.Equal(2, EziMOTIONPlusELib.Parameters[17]);
         Assert.Equal(1, EziMOTIONPlusELib.Parameters[18]);
+        Assert.True(EziMOTIONPlusELib.Calls.IndexOf("Parameter:0:17:2") < EziMOTIONPlusELib.Calls.IndexOf("Home:0"));
+        Assert.True(EziMOTIONPlusELib.Calls.IndexOf("Parameter:0:18:1") < EziMOTIONPlusELib.Calls.IndexOf("Home:0"));
+        Assert.True(motion.GetAxisState(MotionAxis.Z).Homed);
+        Assert.False(motion.GetAxisState(MotionAxis.Z).HomeSensor);
+    }
+
+    [Theory]
+    [InlineData(1, EziMOTIONPlusELib.DIR_INC)]
+    [InlineData(-1, EziMOTIONPlusELib.DIR_DEC)]
+    public async Task JogKeepsPositiveUpAndNegativeDown(double velocity, int direction)
+    {
+        using var controller = new FastechController(new() { IpAddress = "192.168.0.7" });
+        var motion = CreateMotion(controller);
+        motion.Initialize();
+        using var cancellation = new CancellationTokenSource();
+        var jog = motion.JogAsync(MotionAxis.Z, velocity, cancellation.Token);
+        await EziMOTIONPlusELib.MoveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog);
+        Assert.Contains($"Jog:0:{direction}", EziMOTIONPlusELib.Calls);
+        Assert.Equal(5000U, EziMOTIONPlusELib.Speed);
     }
 
     private static FastechZMotion CreateMotion(FastechController controller, OperationCancellation? operations = null)

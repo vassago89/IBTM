@@ -95,11 +95,13 @@ public enum InputIo
     [Description("Placement Handler Up")]
     PcbPlacementHandlerUp = 27,
 
-    [Description("Placement Handler Rotated")]
-    PcbPlacementHandlerRotated = 28,
+    [Description("Placement IPM Support Engaged")]
+    [JsonStringEnumMemberName("PcbPlacementHandlerRotated")]
+    PcbPlacementIpmSupportEngaged = 28,
 
-    [Description("Placement Handler Unrotated")]
-    PcbPlacementHandlerUnrotated = 29,
+    [Description("Placement IPM Support Retracted")]
+    [JsonStringEnumMemberName("PcbPlacementHandlerUnrotated")]
+    PcbPlacementIpmSupportRetracted = 29,
 
     [Description("Placement IPM Down")]
     PcbPlacementIpmDown = 30,

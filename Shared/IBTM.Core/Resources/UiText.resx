@@ -1599,14 +1599,14 @@ Operation failed Check controller status</value>
   <data name="placement handler pcb detected" xml:space="preserve">
     <value>Placement head PCB detected</value>
   </data>
-  <data name="placement handler rotate" xml:space="preserve">
-    <value>Placement head rotate</value>
+  <data name="placement ipm support" xml:space="preserve">
+    <value>Placement IPM support</value>
   </data>
-  <data name="placement handler rotated" xml:space="preserve">
-    <value>Placement head rotated</value>
+  <data name="placement ipm support engaged" xml:space="preserve">
+    <value>Placement IPM support engaged</value>
   </data>
-  <data name="placement handler unrotated" xml:space="preserve">
-    <value>Placement head unrotated</value>
+  <data name="placement ipm support retracted" xml:space="preserve">
+    <value>Placement IPM support retracted</value>
   </data>
   <data name="placement handler up" xml:space="preserve">
     <value>Placement head up</value>
@@ -3210,9 +3210,6 @@ COMPLETE: finish</value>
   </data>
   <data name="review unfinished carriers before starting" xml:space="preserve">
     <value>Review unfinished carriers</value>
-  </data>
-  <data name="fixed off" xml:space="preserve">
-    <value>Fixed OFF</value>
   </data>
   <data name="horizontalspeed" xml:space="preserve">
     <value>HorizontalSpeed</value>

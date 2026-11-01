@@ -316,14 +316,6 @@ public sealed class AlarmRecoveryTests
                 io.SetOutput(output, false);
                 writes.Clear();
                 var row = new OutputSignalRow(signal, machine);
-                if (output == OutputIo.PcbPlacementHandlerRotate)
-                {
-                    Assert.False(row.ToggleCommand.CanExecute(null));
-                    Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(output));
-                    Assert.False(io.GetOutput(output));
-                    Assert.Empty(writes);
-                    continue;
-                }
                 row.ToggleCommand.Execute(null);
                 Assert.True(io.GetOutput(output));
                 // Normal outputs toggle without a feedback wait or display refresh.

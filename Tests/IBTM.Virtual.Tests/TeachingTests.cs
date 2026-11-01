@@ -2002,35 +2002,39 @@ public sealed class TeachingTests
     }
 
     [Fact]
-    public async Task PlacementRotationStaysOffInInitializationTeachingAndOutputControl()
+    public async Task IpmSupportPreservesItsPositionDuringInitializationAndResetAndCanBeTaught()
     {
         await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        io.SetOutput(OutputIo.PcbPlacementHandlerRotate, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmSupport, true);
         await machine.InitializeAsync();
         try
         {
-            Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
+            Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmSupport));
+            var placer = services.GetRequiredService<PcbPlacer>();
+            Assert.True(placer.IsIpmSupportEngaged);
+            await Assert.ThrowsAsync<MotionInterlockException>(() => placer.SetLiftDownAsync(true));
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerDown));
+            services.GetRequiredService<MachineState>().SetError(MachineAlarm.PcbPlacement, new InvalidOperationException("Reset with IPM supported"));
+            await machine.ResetAsync();
+            Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmSupport));
+            Assert.True(placer.IsIpmSupportEngaged);
             var teaching = services.GetRequiredService<TeachingViewModel>();
             teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-            Assert.DoesNotContain(teaching.TeachingIoGroups.SelectMany(group => group.Outputs),
-                row => row.Io.Signal == OutputIo.PcbPlacementHandlerRotate);
+            Assert.Contains(teaching.TeachingIoGroups.SelectMany(group => group.Outputs),
+                row => row.Io.Signal == OutputIo.PcbPlacementIpmSupport);
             Assert.DoesNotContain(teaching.TeachingIoGroups.SelectMany(group => group.Sensors),
-                row => row.Signal is InputIo.PcbPlacementHandlerRotated or InputIo.PcbPlacementHandlerUnrotated);
-            var rotation = services.GetRequiredService<IoSignals>().Outputs[OutputIo.PcbPlacementHandlerRotate];
-            Assert.False(machine.IsSetTeachingOutputAllowed(rotation));
-            await machine.SetTeachingOutputAsync(rotation, CancellationToken.None, CancellationToken.None);
-            Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
-            var output = new OutputSignalRow(
-                services.GetRequiredService<IoSignals>().Outputs[OutputIo.PcbPlacementHandlerRotate], machine);
-            Assert.False(output.ToggleCommand.CanExecute(null));
-            Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.PcbPlacementHandlerRotate));
-            Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
-            io.SetOutput(OutputIo.PcbPlacementHandlerRotate, true);
-            services.GetRequiredService<MachineState>().SetError(MachineAlarm.PcbPlacement, new InvalidOperationException("Reset fixed output"));
-            await machine.ResetAsync();
-            Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
+                row => row.Signal is InputIo.PcbPlacementIpmSupportEngaged or InputIo.PcbPlacementIpmSupportRetracted);
+            var support = services.GetRequiredService<IoSignals>().Outputs[OutputIo.PcbPlacementIpmSupport];
+            await WaitUntilAsync(() => machine.IsSetTeachingOutputAllowed(support));
+            await machine.SetTeachingOutputAsync(support, CancellationToken.None, CancellationToken.None);
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementIpmSupport));
+            Assert.False(placer.IsIpmSupportEngaged);
+            var output = new OutputSignalRow(support, machine);
+            Assert.True(output.ToggleCommand.CanExecute(null));
+            Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.PcbPlacementIpmSupport));
+            Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmSupport));
         }
         finally
         {
@@ -2110,7 +2114,7 @@ public sealed class TeachingTests
         var lift = TeachingRows(teaching)[OutputIo.PcbPlacementHandlerDown];
         await lift.ToggleOutputCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => !teaching.IsStepXPlusAllowed);
-        Assert.DoesNotContain(OutputIo.PcbPlacementHandlerRotate, TeachingRows(teaching).Keys);
+        Assert.Contains(OutputIo.PcbPlacementIpmSupport, TeachingRows(teaching).Keys);
         await lift.ToggleOutputCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
         var ipm = TeachingRows(teaching)[OutputIo.PcbPlacementIpmDown];

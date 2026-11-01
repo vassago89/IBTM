@@ -87,6 +87,7 @@ public partial class EziMOTIONPlusELib
 
     public static int FAS_MoveVelocityEx(int boardId, uint speed, int direction, VELOCITY_OPTION_EX options)
     {
+        Calls.Add($"Jog:{boardId}:{direction}");
         Speed = speed;
         Status = Ready | Moving;
         MoveStarted.TrySetResult();
@@ -117,12 +118,14 @@ public partial class EziMOTIONPlusELib
 
     public static int FAS_SetParameter(int boardId, byte parameter, int value)
     {
+        Calls.Add($"Parameter:{boardId}:{parameter}:{value}");
         Parameters[parameter] = value;
         return FMM_OK;
     }
 
     public static int FAS_MoveOriginSingleAxis(int boardId)
     {
+        Calls.Add($"Home:{boardId}");
         Status = Ready;
         ActualPosition = 0;
         return FMM_OK;

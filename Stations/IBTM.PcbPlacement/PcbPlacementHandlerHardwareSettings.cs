@@ -25,8 +25,8 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
         {
             [InputIo.PcbPlacementHandlerDown] = 30,
             [InputIo.PcbPlacementHandlerUp] = 31,
-            [InputIo.PcbPlacementHandlerRotated] = 32,
-            [InputIo.PcbPlacementHandlerUnrotated] = 33,
+            [InputIo.PcbPlacementIpmSupportEngaged] = 32,
+            [InputIo.PcbPlacementIpmSupportRetracted] = 33,
             [InputIo.PcbPlacementIpmDown] = 34,
             [InputIo.PcbPlacementIpmUp] = 35,
             [InputIo.PcbPlacementVacuumDetected] = 38,
@@ -39,11 +39,11 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
                 29,
                 InputIo.PcbPlacementHandlerDown,
                 InputIo.PcbPlacementHandlerUp),
-            [OutputIo.PcbPlacementHandlerRotate] = CreateOutput(
+            [OutputIo.PcbPlacementIpmSupport] = CreateOutput(
                 30,
                 31,
-                InputIo.PcbPlacementHandlerRotated,
-                InputIo.PcbPlacementHandlerUnrotated),
+                InputIo.PcbPlacementIpmSupportEngaged,
+                InputIo.PcbPlacementIpmSupportRetracted),
             [OutputIo.PcbPlacementIpmDown] = CreateOutput(
                 32,
                 33,

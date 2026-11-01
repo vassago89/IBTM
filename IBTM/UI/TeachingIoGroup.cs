@@ -18,7 +18,6 @@ public sealed class TeachingIoGroup
             .OrderBy(row => row.Signal)
             .ToArray();
         Outputs = signals
-            .Where(signal => signal.Signal != OutputIo.PcbPlacementHandlerRotate)
             .Select(signal => new TeachingOutputRow(signal, machine))
             .ToArray();
     }

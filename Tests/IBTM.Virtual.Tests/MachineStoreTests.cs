@@ -209,6 +209,10 @@ public sealed class MachineStoreTests
         Assert.Equal("20", JsonSerializer.Serialize(OutputIo.NgCarrierPickupDown));
         Assert.Equal("21", JsonSerializer.Serialize(OutputIo.NgCarrierGripperClose));
         Assert.Equal("23", JsonSerializer.Serialize(OutputIo.ShootingFeederOff));
+        Assert.Equal("9", JsonSerializer.Serialize(OutputIo.PcbPlacementIpmSupport));
+        Assert.Equal(OutputIo.PcbPlacementIpmSupport, JsonSerializer.Deserialize<OutputIo>("\"PcbPlacementHandlerRotate\""));
+        Assert.Equal(InputIo.PcbPlacementIpmSupportEngaged, JsonSerializer.Deserialize<InputIo>("\"PcbPlacementHandlerRotated\""));
+        Assert.Equal(InputIo.PcbPlacementIpmSupportRetracted, JsonSerializer.Deserialize<InputIo>("\"PcbPlacementHandlerUnrotated\""));
         Assert.Equal(OutputIo.ShootingFeederOff, JsonSerializer.Deserialize<OutputIo>("\"ShootingFeederRunSignal\""));
         var feeder = JsonSerializer.Deserialize<BoltFeederHardwareSettings>("""
             {"Outputs":{"ShootingFeederRunSignal":{"Number":145}}}

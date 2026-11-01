@@ -191,9 +191,24 @@
                         CommandParameter="{x:Static ui:TeachingDirection.YMinus}"/>
                 </Grid>
             </Grid>
-            <StackPanel Grid.Column="1" Width="68" Margin="12,0,0,0"
+            <Grid Grid.Column="1" Width="68" Margin="12,0,0,0"
                 Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid Margin="2">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Grid.Row" Value="0"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                                    <Setter Property="Grid.Row" Value="2"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
                     <ui:HoldButton
                         PressCommand="{Binding JogCommand}"
                         ReleaseCommand="{Binding JogStopCommand}"
@@ -203,7 +218,7 @@
                                 <Setter Property="Content" Value="{ui:Text '↑ Z−'}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
-                                        <Setter Property="Content" Value="Z−"/>
+                                        <Setter Property="Content" Value="↓ Z−"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -217,16 +232,26 @@
                                 <Setter Property="Content" Value="{ui:Text '↑ Z−'}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
-                                        <Setter Property="Content" Value="Z−"/>
+                                        <Setter Property="Content" Value="↓ Z−"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
                     </Button>
                 </Grid>
-                <TextBlock Text="Z" Height="44" TextAlignment="Center" Padding="0,12,0,0"
+                <TextBlock Grid.Row="1" Text="Z" Height="44" TextAlignment="Center" Padding="0,12,0,0"
                     FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"/>
                 <Grid Margin="2">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Grid.Row" Value="2"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
+                                    <Setter Property="Grid.Row" Value="0"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
                     <ui:HoldButton
                         PressCommand="{Binding JogCommand}"
                         ReleaseCommand="{Binding JogStopCommand}"
@@ -236,7 +261,7 @@
                                 <Setter Property="Content" Value="{ui:Text '↓ Z+'}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
-                                        <Setter Property="Content" Value="Z+"/>
+                                        <Setter Property="Content" Value="↑ Z+"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -250,14 +275,14 @@
                                 <Setter Property="Content" Value="{ui:Text '↓ Z+'}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding ActiveMotionGroup}" Value="{x:Static core:MotionGroup.BoltFasteningBackup}">
-                                        <Setter Property="Content" Value="Z+"/>
+                                        <Setter Property="Content" Value="↑ Z+"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
                     </Button>
                 </Grid>
-            </StackPanel>
+            </Grid>
         </Grid>
         <Button Content="{ui:Text 'Home Selected Unit'}" Command="{Binding HomeCommand}" IsEnabled="{Binding IsHomeAllowed}" Margin="0,8,0,0"/>
         <Button Content="{Binding MoveToHorizontalZLabel}"

@@ -15,6 +15,97 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbPlacementStateSafetyTests
 {
+    [Fact]
+    public async Task ReceiptWaitsForIpmSupportBeforeAllowingSupplyRelease()
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        rig.Io.AutoResponseEnabled = false;
+        rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        var engaging = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PcbPlacementIpmSupport && on)
+                engaging.TrySetResult();
+        };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var receipt = rig.Placer.PrepareHandoffAsync(timeout.Token);
+        await engaging.Task.WaitAsync(timeout.Token);
+        Assert.True(rig.Placer.PcbSecured);
+        Assert.False(receipt.IsCompleted);
+        Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
+
+        rig.Io.SetInput(InputIo.PcbPlacementIpmSupportEngaged, true);
+        Assert.Null(rig.Placer.IsIpmSupportEngaged);
+        Assert.False(receipt.IsCompleted);
+        rig.Io.SetInput(InputIo.PcbPlacementIpmSupportRetracted, false);
+        await receipt;
+        Assert.Equal(PcbPlacementHandoff.Holding, rig.Placer.Handoff);
+
+        rig.Io.SetInput(InputIo.PcbPlacementIpmSupportEngaged, false);
+        Assert.Null(rig.Placer.IsIpmSupportEngaged);
+        Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementKeepsIpmSupportUntilTargetAndWaitsForRetraction(bool confirmRetraction)
+    {
+        using var rig = new PlacementRig(vacuumTimeout: 1_000);
+        await rig.InitializeAsync();
+        await rig.ReceiveAsync();
+        rig.Motion.MovingChanged += moving =>
+        {
+            if (moving)
+                Assert.True(rig.Placer.IsIpmSupportEngaged);
+        };
+        await rig.Placer.ExecuteStepAsync(PcbPlacementState.PreparingPlacement, HeatSinkSlot.HeatSink1, CancellationToken.None);
+        Assert.True(rig.Placer.IsIpmSupportEngaged);
+        rig.Io.AutoResponseEnabled = false;
+        var retracting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lowered = false;
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PcbPlacementIpmSupport && !on)
+            {
+                Assert.Equal((rig.Position.X, rig.Position.Y, rig.Position.Z), rig.Motion.Position);
+                Assert.False(rig.Motion.IsMoving);
+                retracting.TrySetResult();
+            }
+            if (output == OutputIo.PcbPlacementHandlerDown && on)
+            {
+                Assert.False(rig.Placer.IsIpmSupportEngaged);
+                lowered = true;
+            }
+        };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var placement = rig.Placer.ExecuteStepAsync(PcbPlacementState.PlacingPcb, HeatSinkSlot.HeatSink1, timeout.Token);
+        await retracting.Task.WaitAsync(timeout.Token);
+        Assert.False(lowered);
+        Assert.False(placement.IsCompleted);
+        Assert.True(rig.Io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
+
+        if (confirmRetraction)
+        {
+            rig.Io.AutoResponseEnabled = true;
+            rig.Io.SetInputs(
+                (InputIo.PcbPlacementIpmSupportEngaged, false),
+                (InputIo.PcbPlacementIpmSupportRetracted, true));
+            await placement;
+            Assert.True(lowered);
+            Assert.True(Assert.Single(rig.Work.Assemblies).IsPlacementCompleted);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<IoTimeoutException>(() => placement);
+            Assert.False(lowered);
+            Assert.Equal(StationCylinderState.Up, rig.Placer.Lift);
+            Assert.True(rig.Io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
+            Assert.Empty(rig.Work.Assemblies);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -565,15 +656,17 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.Equal(PcbPlacementHandoff.Holding, rig.Placer.Handoff);
     }
 
-    [Fact]
-    public async Task ReceiptDoesNotCompleteWhenPcbDetectionDropsDuringVacuumPickup()
+    [Theory]
+    [InlineData(OutputIo.PcbPlacementVacuumEjector)]
+    [InlineData(OutputIo.PcbPlacementIpmSupport)]
+    public async Task ReceiptStopsOnPcbLossBeforeSupplyRelease(OutputIo loseAt)
     {
         using var rig = new PlacementRig();
         await rig.InitializeAsync();
         rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         rig.Io.OutputChanged += (output, on) =>
         {
-            if (output == OutputIo.PcbPlacementVacuumEjector && on)
+            if (output == loseAt && on)
                 rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, false);
         };
 
@@ -584,6 +677,7 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.Equal(PcbPlacementState.ReceivingPcb, rig.Placer.Phase);
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
         Assert.Equal(rig.Settings.ReceiveZ, rig.Motion.Position.Z);
+        Assert.Equal(loseAt == OutputIo.PcbPlacementIpmSupport, rig.Io.GetOutput(OutputIo.PcbPlacementIpmSupport));
         Assert.Empty(rig.Work.Assemblies);
     }
 
@@ -727,6 +821,8 @@ public sealed class PcbPlacementStateSafetyTests
             operations.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => preparation);
             Assert.True(rig.Placer.PcbSecured);
+            Assert.True(rig.Io.GetOutput(OutputIo.PcbPlacementIpmSupport));
+            Assert.True(rig.Placer.IsIpmSupportEngaged);
             Assert.False(rig.Motion.IsMoving);
             Assert.Empty(rig.Work.Assemblies);
         }
@@ -740,6 +836,7 @@ public sealed class PcbPlacementStateSafetyTests
         command.Dispose();
         await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Placer.RunAsync());
         Assert.True(rig.Placer.PcbSecured);
+        Assert.True(rig.Io.GetOutput(OutputIo.PcbPlacementIpmSupport));
     }
 
     [Fact]

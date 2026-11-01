@@ -33,6 +33,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         : base(io, [
             InputIo.PcbPlacementHandlerDown,
             InputIo.PcbPlacementHandlerUp,
+            InputIo.PcbPlacementIpmSupportEngaged,
+            InputIo.PcbPlacementIpmSupportRetracted,
             InputIo.PcbPlacementIpmDown,
             InputIo.PcbPlacementIpmUp,
             InputIo.PcbPlacementPcbDetected,
@@ -88,6 +90,24 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         }
     }
 
+    public bool? IsIpmSupportEngaged
+    {
+        get
+        {
+            if (!Io.IsReady)
+                return null;
+            switch ((Io.GetInput(InputIo.PcbPlacementIpmSupportEngaged), Io.GetInput(InputIo.PcbPlacementIpmSupportRetracted)))
+            {
+                case (true, false):
+                    return true;
+                case (false, true):
+                    return false;
+                default:
+                    return null;
+            }
+        }
+    }
+
     public PlacementPcbState Pcb
     {
         get
@@ -134,7 +154,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 return PcbPlacementHandoff.Unavailable;
             switch (Phase)
             {
-                case PcbPlacementState.WaitingForSupplyRelease when PcbSecured:
+                case PcbPlacementState.WaitingForSupplyRelease when PcbSecured && IsIpmSupportEngaged == true:
                     return PcbPlacementHandoff.Holding;
                 case PcbPlacementState.WaitingForSupplyDeparture:
                     return PcbPlacementHandoff.Clear;
@@ -354,6 +374,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     await MoveAxisAsync(MotionAxis.Z, position.Z, operation.Token);
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
+                    await SetIpmSupportAsync(false, operation.Token);
+                    operation.Token.ThrowIfCancellationRequested();
                     // PCB/vacuum feedback can turn OFF as the placement cylinder lowers the PCB.
                     carryingPcb = false;
                     await SetLiftDownAsync(true, operation.Token);
@@ -500,6 +522,10 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             approach.Token.ThrowIfCancellationRequested();
             if (!PcbSecured)
                 throw new InvalidOperationException("Placement receipt requires both PCB detection and vacuum before Supply releases it.");
+            await SetIpmSupportAsync(true, approach.Token);
+            approach.Token.ThrowIfCancellationRequested();
+            if (!PcbSecured)
+                throw new InvalidOperationException("Placement receipt requires both PCB detection and vacuum before Supply releases it.");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -616,11 +642,18 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             await Task.Delay(TimeSpan.FromSeconds(_settings.IpmDelaySeconds), cancellationToken);
     }
 
+    public Task SetIpmSupportAsync(bool engaged, CancellationToken cancellationToken = default)
+    {
+        return Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmSupport, engaged, cancellationToken);
+    }
+
     public Task SetLiftDownAsync(bool down, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (down && _motion.IsMoving)
             throw new MotionInterlockException("Stop the placement axes before lowering the handler.");
+        if (down && IsIpmSupportEngaged != false)
+            throw new MotionInterlockException("Retract the IPM support before lowering the placement handler.");
         return Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, down, cancellationToken);
     }
 

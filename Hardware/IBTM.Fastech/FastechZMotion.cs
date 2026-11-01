@@ -249,12 +249,16 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
                     cancellationToken.ThrowIfCancellationRequested();
                     _controller.EnsureOpen();
                     // Plus-E SERVO2_ORGSPEED / ORGSEARCHSPEED / ORGACCDECTIME.
-                    // Origin method and direction remain configured in the drive.
                     _controller.Check(EziMOTIONPlusELib.FAS_SetParameter(FastechController.BoardId, 14, (int)speed),
                         nameof(EziMOTIONPlusELib.FAS_SetParameter));
                     _controller.Check(EziMOTIONPlusELib.FAS_SetParameter(FastechController.BoardId, 15, (int)searchSpeed),
                         nameof(EziMOTIONPlusELib.FAS_SetParameter));
                     _controller.Check(EziMOTIONPlusELib.FAS_SetParameter(FastechController.BoardId, 16, acceleration),
+                        nameof(EziMOTIONPlusELib.FAS_SetParameter));
+                    // S2 backup: Limit Origin (2), negative / CCW (1). No origin sensor.
+                    _controller.Check(EziMOTIONPlusELib.FAS_SetParameter(FastechController.BoardId, 17, 2),
+                        nameof(EziMOTIONPlusELib.FAS_SetParameter));
+                    _controller.Check(EziMOTIONPlusELib.FAS_SetParameter(FastechController.BoardId, 18, 1),
                         nameof(EziMOTIONPlusELib.FAS_SetParameter));
                     cancellationToken.ThrowIfCancellationRequested();
                     _controller.Check(EziMOTIONPlusELib.FAS_MoveOriginSingleAxis(FastechController.BoardId),

@@ -116,6 +116,7 @@ public partial class OperationViewModel : ObservableObject
         TeachingOutputRow[] placementOutputs = [
             new(signals.Outputs[OutputIo.PcbPlacementHandlerDown], machine),
             new(signals.Outputs[OutputIo.PcbPlacementIpmDown], machine),
+            new(signals.Outputs[OutputIo.PcbPlacementIpmSupport], machine),
             new(signals.Outputs[OutputIo.PcbPlacementVacuumEjector], machine),
         ];
         TeachingOutputRow[] pickupOutputs = [

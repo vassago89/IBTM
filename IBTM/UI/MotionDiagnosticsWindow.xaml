@@ -28,6 +28,7 @@
             <Setter Property="Margin" Value="3,0"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="Height" Value="32"/>
             <Setter Property="Padding" Value="5,6"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
@@ -66,19 +67,21 @@
                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding ControlStatus}"/>
         </DockPanel>
         <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <StackPanel>
-                <TextBlock Text="{ui:Text 'SEARCH · AXIS / NUMBER'}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6"/>
-                <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"/>
-            </StackPanel>
-            <CheckBox Grid.Column="1" Content="{ui:Text 'Enabled axes only'}"
+            <TextBlock Text="{ui:Text 'SEARCH · AXIS / NUMBER'}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6"/>
+            <TextBox Grid.Row="1" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"/>
+            <CheckBox Grid.Row="1" Grid.Column="1" Content="{ui:Text 'Enabled axes only'}"
                 IsChecked="{Binding EnabledOnly}"
-                Margin="20,0,0,0" VerticalAlignment="Bottom"/>
+                Margin="20,0,0,0" VerticalAlignment="Center"/>
         </Grid>
-        <Grid Grid.Row="2" Margin="12,0,28,8">
+        <Grid Grid.Row="2" Margin="16,0,29,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="58"/>
                 <ColumnDefinition Width="42"/>
@@ -92,9 +95,9 @@
                 <ColumnDefinition Width="78"/>
                 <ColumnDefinition Width="196"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="{ui:Text 'NO.'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1" Text="{ui:Text 'Axis'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="{ui:Text 'Position (mm)'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Text="{ui:Text 'NO.'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="1" Text="{ui:Text 'Axis'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="2" Text="{ui:Text 'Position (mm)'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Right" Margin="0,0,16,0"/>
             <TextBlock Grid.Column="3" Text="{ui:Text 'State'}" Style="{StaticResource SectionHeaderStyle}"/>
             <TextBlock Grid.Column="4" Text="{ui:Text 'Servo'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
             <TextBlock Grid.Column="5" Text="{ui:Text 'Homed'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
@@ -102,7 +105,7 @@
             <TextBlock Grid.Column="7" Text="{ui:Text '−LIMIT'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
             <TextBlock Grid.Column="8" Text="{ui:Text '+LIMIT'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
             <TextBlock Grid.Column="9" Text="{ui:Text 'Alarm'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
-            <TextBlock Grid.Column="10" Text="{ui:Text 'Manual'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="10" Text="{ui:Text 'Manual'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center" Margin="8,0,0,0"/>
         </Grid>
         <ListBox x:Name="AxesList" Grid.Row="3" ItemsSource="{Binding View}" Style="{StaticResource IoListStyle}">
             <ListBox.ItemContainerStyle>
@@ -116,7 +119,7 @@
             </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type ui:MotionAxisViewModel}">
-                    <Grid>
+                    <Grid MinHeight="36">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="58"/>
                             <ColumnDefinition Width="42"/>
@@ -132,14 +135,14 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{Binding Address}"
                             FontFamily="Consolas" FontSize="13" FontWeight="SemiBold"
-                            Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="{Binding Axis}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                            Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Axis}" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
                         <TextBlock Grid.Column="2"
                             Text="{Binding Diagnostics.Sample.Position, StringFormat=F3, TargetNullValue=—}"
-                            VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
+                            VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0" FontFamily="Consolas" FontSize="15"/>
                         <TextBlock Grid.Column="3"
                             ToolTip="{Binding Diagnostics.Sample.ReadError.Message}"
-                            VerticalAlignment="Center" Height="36" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Margin="0,0,8,0">
+                            VerticalAlignment="Center" MaxHeight="36" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Margin="0,0,8,0">
                             <Run Text="{Binding Diagnostics.Sample.Condition, Mode=OneWay, Converter={StaticResource UiTextConverter}}"/>
                             <Run>
                                 <Run.Style>
@@ -178,8 +181,13 @@
                             Tag="{Binding Diagnostics.Sample.Faulted}"
                             Text="{Binding Diagnostics.Sample.Faulted, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionFaultBit}" ToolTip="{ui:Text 'Alarm / E-stop'}"/>
-                        <StackPanel Grid.Column="10" Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Width="96" Padding="8,7" Margin="8,0,6,0" Command="{Binding ToggleServoCommand}" IsEnabled="{Binding IsToggleServoAllowed}">
+                        <Grid Grid.Column="10" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Height="32" Padding="8,0" Command="{Binding ToggleServoCommand}" IsEnabled="{Binding IsToggleServoAllowed}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Setter Property="Content" Value="{ui:Text 'Servo ON'}"/>
@@ -191,9 +199,9 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Content="{ui:Text 'Home'}" Width="80" Padding="8,7"
+                            <Button Grid.Column="2" Content="{ui:Text 'Home'}" Height="32" Padding="8,0"
                                 Command="{Binding HomeCommand}" IsEnabled="{Binding IsHomeAllowed}"/>
-                        </StackPanel>
+                        </Grid>
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>

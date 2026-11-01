@@ -251,7 +251,7 @@ Supply의 `PCB Handoff`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unr
 Placement는 Supply가 인계 XYZ에 도착하고 Unrotated를 확인한 뒤에만 접근한다. 인수 전 `Holding`을 기다린다.
 그 뒤 핸들러 상승 → 대기 Z → 인계 X → 인계 Y 순서로 접근하며, 도중 Supply 준비가 풀리면 정지한다. 실린더 Up 상태로 `ReceiveZ`까지 이동해 받는다.
 Supply 해제 후 대기 Z로 복귀하고 선택한 히트싱크 Y까지 먼저 빠진 뒤 X 이동·안착한다. Supply는 Y 도착 후 복귀한다.
-Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동 동작에서 회전하거나 회전 피드백을 기다리지 않는다. 티칭·OUTPUTS에서도 ON으로 전환할 수 없다.
+기존 Placement Handler Rotate I/O는 안착 IPM 지지대로 사용한다. 인계 위치에서 진공 확보 → 지지대 진입 확인 후 공급기가 놓는다. 지지대는 안착 XYZ까지 유지하고, 안착 실린더 하강 직전에 복귀 피드백을 확인한다. 초기화·리셋에서는 지지대 출력을 유지하며, 시작 확인·티칭·OUTPUTS에서 조작할 수 있다. 기존 I/O 번호와 저장 ID는 유지한다.
 체결의 `Safe Z`는 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
 `Pickup Head Fastening Z`는 픽업 볼트의 체결 높이다. 볼트마다 한 번만 체결한다.
 자동 동작은 양쪽 헤드 상승 → Safe Z에서 XY 이동 → 선택 헤드의 체결 Z 이동 → 체결 START → 즉시 해당 헤드 하강 순서다.

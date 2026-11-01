@@ -539,7 +539,6 @@ public sealed class MachineController : INotifyPropertyChanged
             cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         StopRunOutputs();
-        _io.SetOutput(OutputIo.PcbPlacementHandlerRotate, false);
         _io.SetOutput(OutputIo.MainConveyorForward, true);
         _log?.LogInformation("Control I/O initialization and readiness check completed.");
     }
@@ -2126,11 +2125,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 return block;
             }
 
-            var value = signal switch
-            {
-                OutputIo.PcbPlacementHandlerRotate => false,
-                _ => !_io.GetOutput(signal),
-            };
+            var value = !_io.GetOutput(signal);
             operation.Token.ThrowIfCancellationRequested();
             _io.SetOutput(signal, value);
             _log?.LogInformation("Direct output {Signal}: {Value}; alarm={Alarm}.",
@@ -2612,7 +2607,7 @@ public sealed class MachineController : INotifyPropertyChanged
     {
         return output is OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward
             or OutputIo.PcbSupplyRotate or OutputIo.PcbPlacementHandlerDown
-            or OutputIo.PcbPlacementIpmDown or OutputIo.PcbPlacementVacuumEjector
+            or OutputIo.PcbPlacementIpmDown or OutputIo.PcbPlacementIpmSupport or OutputIo.PcbPlacementVacuumEjector
             or OutputIo.PcbPlacementStopperUp or OutputIo.PcbPlacementBackupPlateUp
             or OutputIo.PickupHeadDown or OutputIo.PickupTableDown or OutputIo.ShootingHeadDown
             or OutputIo.PickupHeadVacuumPump or OutputIo.ShootingHeadVacuumPump or OutputIo.ShootBolt
@@ -2666,6 +2661,9 @@ public sealed class MachineController : INotifyPropertyChanged
                     break;
                 case OutputIo.PcbPlacementIpmDown:
                     await _pcbPlacement.SetIpmDownAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbPlacementIpmSupport:
+                    await _pcbPlacement.SetIpmSupportAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbPlacementVacuumEjector:
                     await _pcbPlacement.SetVacuumAsync(value, operation.Token);

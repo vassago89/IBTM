@@ -37,8 +37,9 @@ public enum OutputIo
     [Description("Placement Handler Down")]
     PcbPlacementHandlerDown = 8,
 
-    [Description("Placement Handler Rotate")]
-    PcbPlacementHandlerRotate = 9,
+    [Description("Placement IPM Support")]
+    [JsonStringEnumMemberName("PcbPlacementHandlerRotate")]
+    PcbPlacementIpmSupport = 9,
 
     [Description("Placement IPM Down")]
     PcbPlacementIpmDown = 10,

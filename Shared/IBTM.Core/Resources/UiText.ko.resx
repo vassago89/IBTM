@@ -1599,14 +1599,14 @@
   <data name="placement handler pcb detected" xml:space="preserve">
     <value>안착 헤드 PCB 감지</value>
   </data>
-  <data name="placement handler rotate" xml:space="preserve">
-    <value>안착 헤드 회전</value>
+  <data name="placement ipm support" xml:space="preserve">
+    <value>안착 IPM 지지대</value>
   </data>
-  <data name="placement handler rotated" xml:space="preserve">
-    <value>안착 헤드 회전 후</value>
+  <data name="placement ipm support engaged" xml:space="preserve">
+    <value>안착 IPM 지지대 진입</value>
   </data>
-  <data name="placement handler unrotated" xml:space="preserve">
-    <value>안착 헤드 회전 전</value>
+  <data name="placement ipm support retracted" xml:space="preserve">
+    <value>안착 IPM 지지대 복귀</value>
   </data>
   <data name="placement handler up" xml:space="preserve">
     <value>안착 헤드 상승</value>
@@ -3208,9 +3208,6 @@
   </data>
   <data name="review unfinished carriers before starting" xml:space="preserve">
     <value>미완료 캐리어 확인</value>
-  </data>
-  <data name="fixed off" xml:space="preserve">
-    <value>OFF 고정</value>
   </data>
   <data name="horizontalspeed" xml:space="preserve">
     <value>XY 속도</value>
