@@ -101,7 +101,7 @@ public sealed class FastechMotionTests
         motion.Initialize();
         await motion.ResetAsync();
         Assert.Equal(1.25, motion.Position.Z);
-        Assert.Contains("Reset:0", EziMOTIONPlusELib.Calls);
+        Assert.DoesNotContain("Reset:0", EziMOTIONPlusELib.Calls);
 
         settings.AccelerationSeconds = 0.15;
         settings.DecelerationSeconds = 0.07;
@@ -189,8 +189,67 @@ public sealed class FastechMotionTests
         Assert.False(operations.HasActiveOperations);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResetSkipsHealthyDriveWithoutChangingServo(bool servoOn)
+    {
+        using var controller = new FastechController(new() { IpAddress = "192.168.0.7" });
+        var motion = CreateMotion(controller);
+        motion.Initialize();
+        var status = servoOn ? EziMOTIONPlusELib.Ready : EziMOTIONPlusELib.Ready & ~0x00100000U;
+        EziMOTIONPlusELib.Status = status;
+        EziMOTIONPlusELib.Calls.Clear();
+
+        await motion.ResetAsync();
+
+        Assert.Equal(new[] { "Status:0" }, EziMOTIONPlusELib.Calls);
+        Assert.Equal(status, EziMOTIONPlusELib.Status);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(EziMOTIONPlusELib.FMP_RESETFAIL)]
+    public async Task ResetSendsAlarmResetOnlyForFaultAndReportsRejection(int resetResult)
+    {
+        using var controller = new FastechController(new() { IpAddress = "192.168.0.7" });
+        var motion = CreateMotion(controller);
+        motion.Initialize();
+        EziMOTIONPlusELib.Status = 0x00000001;
+        EziMOTIONPlusELib.ResetResult = resetResult;
+        EziMOTIONPlusELib.Calls.Clear();
+
+        if (resetResult == 0)
+            await motion.ResetAsync();
+        else
+        {
+            var error = await Assert.ThrowsAsync<IOException>(() => motion.ResetAsync());
+            Assert.Contains("FAS_ServoAlarmReset", error.Message);
+            Assert.Contains("0x86", error.Message);
+        }
+
+        Assert.Equal(new[] { "Status:0", "Reset:0" }, EziMOTIONPlusELib.Calls);
+        Assert.Equal(resetResult != 0, motion.GetAxisState(MotionAxis.Z).Alarm);
+        Assert.False(motion.GetAxisState(MotionAxis.Z).ServoOn);
+    }
+
     [Fact]
-    public async Task ResetDoesNotEnableServoAndHomeUsesNegativeLimitWithoutOriginSensor()
+    public async Task ResetReportsStatusReadFailureWithoutSendingCommands()
+    {
+        using var controller = new FastechController(new() { IpAddress = "192.168.0.7" });
+        var motion = CreateMotion(controller);
+        motion.Initialize();
+        EziMOTIONPlusELib.ReadResult = 6;
+        EziMOTIONPlusELib.Calls.Clear();
+
+        var error = await Assert.ThrowsAsync<IOException>(() => motion.ResetAsync());
+
+        Assert.Contains("FAS_GetAxisStatus", error.Message);
+        Assert.Equal(new[] { "Status:0" }, EziMOTIONPlusELib.Calls);
+    }
+
+    [Fact]
+    public async Task HomeUsesNegativeLimitWithoutOriginSensor()
     {
         using var controller = new FastechController(new() { IpAddress = "192.168.0.7" });
         var motion = CreateMotion(controller);
@@ -198,9 +257,6 @@ public sealed class FastechMotionTests
         EziMOTIONPlusELib.Parameters[17] = 4;
         EziMOTIONPlusELib.Parameters[18] = 0;
         EziMOTIONPlusELib.Status = (EziMOTIONPlusELib.Ready & ~0x02000000U) | 0x00000004;
-        await motion.ResetAsync();
-        Assert.Contains("Reset:0", EziMOTIONPlusELib.Calls);
-        Assert.DoesNotContain(EziMOTIONPlusELib.Calls, call => call.StartsWith("Servo:"));
         Assert.True(await motion.HomeAsync(MotionAxis.Z, 3));
         Assert.Equal(15000, EziMOTIONPlusELib.Parameters[14]);
         Assert.Equal(10000, EziMOTIONPlusELib.Parameters[15]);

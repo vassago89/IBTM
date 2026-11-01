@@ -2118,6 +2118,9 @@ public sealed class TeachingTests
         await lift.ToggleOutputCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
         var ipm = TeachingRows(teaching)[OutputIo.PcbPlacementIpmDown];
+        Assert.False(ipm.Io.HasFeedback);
+        Assert.DoesNotContain(InputIo.PcbPlacementIpmDown, services.GetRequiredService<IoSignals>().Inputs.Keys);
+        Assert.DoesNotContain(InputIo.PcbPlacementIpmUp, services.GetRequiredService<IoSignals>().Inputs.Keys);
         await ipm.ToggleOutputCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => teaching.IsStepXPlusAllowed);
 

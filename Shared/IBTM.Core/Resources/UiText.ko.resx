@@ -1614,9 +1614,6 @@
   <data name="placement ipm down" xml:space="preserve">
     <value>안착 IPM 하강</value>
   </data>
-  <data name="placement ipm up" xml:space="preserve">
-    <value>안착 IPM 상승</value>
-  </data>
   <data name="placement vacuum detected" xml:space="preserve">
     <value>안착 진공 감지</value>
   </data>

@@ -372,9 +372,11 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             lock (_controller.SyncRoot)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                _controller.EnsureOpen();
-                _controller.Check(EziMOTIONPlusELib.FAS_ServoAlarmReset(FastechController.BoardId),
-                    nameof(EziMOTIONPlusELib.FAS_ServoAlarmReset));
+                var state = GetAxisState(MotionAxis.Z);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (state.Alarm)
+                    _controller.Check(EziMOTIONPlusELib.FAS_ServoAlarmReset(FastechController.BoardId),
+                        nameof(EziMOTIONPlusELib.FAS_ServoAlarmReset));
             }
         }).ConfigureAwait(false);
         StateChanged?.Invoke();

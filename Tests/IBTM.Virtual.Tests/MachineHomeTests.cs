@@ -506,7 +506,6 @@ public sealed class MachineHomeTests
                 InputIo.PcbPlacementHandlerUp,
                 InputIo.PcbPlacementHandlerDown,
                 HomeBlockReason.PlacementNotRaised),
-            (InputIo.PcbPlacementIpmUp, InputIo.PcbPlacementIpmDown, HomeBlockReason.PlacementNotRaised),
             (InputIo.PickupHeadUp, InputIo.PickupHeadDown, HomeBlockReason.FasteningNotRaised),
             (InputIo.ShootingHeadUp, InputIo.ShootingHeadDown, HomeBlockReason.FasteningNotRaised),
             (InputIo.NgCarrierPickupUp, InputIo.NgCarrierPickupDown, HomeBlockReason.NgPickupNotRaised),
@@ -649,7 +648,8 @@ public sealed class MachineHomeTests
             OutputIo.ShootingHeadDown,
             OutputIo.NgCarrierPickupDown,
         ];
-        await Task.WhenAll(cylinders.Select(
+        io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
+        await Task.WhenAll(cylinders.Where(output => output != OutputIo.PcbPlacementIpmDown).Select(
             output => signals.SetOutputAndWaitAsync(output, true)));
         var motions = new[]
         {
@@ -696,8 +696,6 @@ public sealed class MachineHomeTests
         Assert.False(movedBeforeRaised);
         Assert.Equal(cylinders.Order(), outputChanges.Order());
         Assert.All(cylinders, output => Assert.False(io.GetOutput(output)));
-        Assert.True(io.GetInput(InputIo.PcbPlacementIpmUp));
-        Assert.False(io.GetInput(InputIo.PcbPlacementIpmDown));
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(machine.IsHomeAllowed);
     }
@@ -714,7 +712,7 @@ public sealed class MachineHomeTests
         await machine.InitializeAsync();
         IIoService signals = io;
         await signals.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, true);
-        await signals.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+        io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
         void DetectPcb(OutputIo output, bool on)
         {
             if (output == OutputIo.PcbPlacementHandlerDown && !on)
@@ -908,8 +906,6 @@ public sealed class MachineHomeTests
 
     [Theory]
     [InlineData(InputIo.PickupHeadUp, false, false)]
-    [InlineData(InputIo.PcbPlacementIpmUp, false, false)]
-    [InlineData(InputIo.PcbPlacementIpmUp, false, true)]
     public async Task HomeStopsWhenItsCylinderConditionChanges(
         InputIo input,
         bool value,

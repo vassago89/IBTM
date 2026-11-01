@@ -623,7 +623,7 @@
                                             </Style>
                                         </Grid.Style>
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                         <TextBlock Grid.Row="0" Text="{ui:Text 'Lift'}" Style="{StaticResource ReviewStatusLabel}"/>
                                         <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock.Style>
@@ -638,24 +638,10 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Grid.Row="1" Text="{ui:Text 'IPM'}" Style="{StaticResource ReviewStatusLabel}"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="{Binding Placement.IpmLift, Converter={StaticResource UiTextConverter}}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
-                                                            <Setter Property="Text" Value="{ui:Text 'UNKNOWN'}"/>
-                                                            <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                        <TextBlock Grid.Row="2" Text="{ui:Text 'PCB detected'}" Style="{StaticResource ReviewStatusLabel}"/>
-                                        <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[PcbPlacementPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
-                                        <TextBlock Grid.Row="3" Text="{ui:Text 'Vacuum detected'}" Style="{StaticResource ReviewStatusLabel}"/>
-                                        <TextBlock Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[PcbPlacementVacuumDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                        <TextBlock Grid.Row="1" Text="{ui:Text 'PCB detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[PcbPlacementPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
+                                        <TextBlock Grid.Row="2" Text="{ui:Text 'Vacuum detected'}" Style="{StaticResource ReviewStatusLabel}"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Signals.Inputs[PcbPlacementVacuumDetected].IsOn, Converter={StaticResource SignalTextConverter}}"/>
                                     </Grid>
                                     <Grid Margin="0,6,0,0">
                                         <Grid.Style>

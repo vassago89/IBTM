@@ -343,11 +343,6 @@ public sealed class PcbTransferTests
         Assert.False(movedWithCylinderDown);
         Assert.Equal((50, 10, placementSettings.ReceiveZ!.Value), placementMotion.Position);
         Assert.Equal(PcbPlacementHandoff.Holding, placer.Handoff);
-        io.SetInputs((InputIo.PcbPlacementIpmDown, false), (InputIo.PcbPlacementIpmUp, false));
-        Assert.True(placer.PcbSecured);
-        Assert.Equal(PcbPlacementHandoff.Unavailable, placer.Handoff);
-        io.SetInput(InputIo.PcbPlacementIpmDown, true);
-        Assert.Equal(PcbPlacementHandoff.Holding, placer.Handoff);
     }
 
     [Trait("Category", "MachineFlow")]
@@ -517,7 +512,7 @@ public sealed class PcbTransferTests
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
 
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+        io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
         await placementMotion.MoveToXYAsync(50, 10, placementSettings.Motion.HorizontalSpeed);
         await placementMotion.MoveAxisAsync(MotionAxis.Z, 8, placementSettings.Motion.ZSpeed);
 

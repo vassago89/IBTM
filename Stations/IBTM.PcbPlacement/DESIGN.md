@@ -6,15 +6,16 @@ moves Y to the first present heat sink (Heat Sink 1 without a target), then X to
 handoff X. After placement, keep that heat sink's Y and return Z followed by X.
 This Z is also the XY travel height. `HandoffPosition.Y` is used only for receiving
 a PCB. `ReceiveZ` is taught separately at the same handoff X/Y.
-Handler Rotate output stays OFF during automatic and manual operation.
+The former Handler Rotate output operates the IPM support: ON engages (DO31),
+OFF retracts (DO30), with separate engaged/retracted feedback.
 HOME ALL homes Placement in Y -> Z -> X order to avoid interference, then starts
 the other units. Each axis must finish successfully before the next starts.
 Individual Placement HOME still homes Z first, followed by X/Y together.
 
-1. Wait outside the handoff until an unfinished carrier is seated with a target heat sink, and Supply reports `Holding`: settled at its give XYZ, Unrotated, and securing the PCB. Placement never receives a PCB ahead of its carrier. Then raise the handler, reach standby Z, prepare the IPM and move to standby X followed by Y. Loss of Supply readiness during this approach stops movement.
-2. After the awaited X/Y moves, lower Z to `ReceiveZ` in the same approach operation. Keep the handler cylinder Up, detect the PCB and confirm vacuum holding. STOP cancels the operation; a new START does not resume its descent.
+1. Wait outside the handoff until an unfinished carrier is seated with a target heat sink, and Supply reports `Holding`: settled at its give XYZ, Unrotated, and securing the PCB. Placement never receives a PCB ahead of its carrier. Confirm empty IPM support retraction before approaching; a detected PCB with support not retracted blocks a new handoff. Then raise the handler, reach standby Z, prepare the IPM and move to standby X followed by Y. Loss of Supply readiness during this approach stops movement.
+2. After the awaited X/Y moves, lower Z to `ReceiveZ` in the same approach operation. Keep the handler cylinder Up, detect the PCB, confirm vacuum holding and engage the IPM support before Supply releases. STOP cancels the operation; a new START does not resume its descent.
 3. After Supply fixer and gripper retract, return Z to standby and move only Y to the selected heat sink's placement Y. Keep `PreparingPlacement` until Y settles, then enter `WaitingForSupplyDeparture` and publish `Clear`. Wait for Supply to leave its handoff stage before proceeding.
-4. With the carrier seated, finish the move to the selected heat sink X, descend to placement Z and lower the handler.
+4. With the carrier seated, finish the move to the selected heat sink X, descend to placement Z, confirm IPM support retraction and lower the handler.
 5. Release vacuum, raise IPM and lower IPM to press using the existing IPM Down output. Record the placement, then raise IPM and handler and return Z followed by X to standby, keeping the placement Y. There is no IPM gripper output or open/closed feedback.
 6. Wait for Supply readiness before returning to receiving XY for the second PCB, then repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
 7. Complete the carrier only after the final return reaches standby Z and handoff X. Wait there at the last heat sink Y for the next Supply PCB. A cancelled or failed return does not complete the carrier.
@@ -57,11 +58,12 @@ an already completed carrier keeps its completion and is not placed again. A new
 executes the full standby preparation, not an interrupted actuator step.
 PCB presence and vacuum are required through arrival at placement Z and checked
 again immediately before commanding the handler Down. Both may clear during
-lowering and pressing. Handler/IPM endpoint feedback, carrier seating and the
+lowering and pressing. Handler endpoint feedback, carrier seating and the
 selected heat sink remain required. The operation uses its selected carrier and heat-sink target;
 it never guesses a heat sink from X/Y. Receipt confirms PCB detection and vacuum
-before Supply may release. IPM Down prepares receipt and pressing; unknown or
-contradictory IPM endpoint feedback blocks handoff readiness.
+before Supply may release. IPM Down prepares receipt and pressing. Its up/down
+inputs are unused; each output command waits only `IpmDelaySeconds` (0 skips the wait).
+The rotary support still requires engaged/retracted feedback for handoff and lowering.
 
 `MovingToHandoff`, `ReceivingPcb`, `PreparingPlacement`, `PlacingPcb` and
 `Retracting` execute their full actuator/motion sequence before the next
@@ -76,7 +78,7 @@ explicitly confirms supported remaining-work resume or clears the station's resu
 Carrier or support feedback changes during active work stop the run, including waits
 between PCBs and the final standby return. Sensor edges never clear its job or completion records.
 `HeatSinkAssembly.IsPlacementCompleted` is set only after the full press sequence and final
-IPM Down feedback. It is completion history, not a PCB presence sensor. START review lists
+IPM Down output delay. It is completion history, not a PCB presence sensor. START review lists
 each detected heat sink's completion record. Confirmed S1 resume skips recorded placements
 on the same seated carrier; a missing record never implies successful placement. A changed
 carrier, target configuration or seating feedback revokes UI confirmation. START still checks

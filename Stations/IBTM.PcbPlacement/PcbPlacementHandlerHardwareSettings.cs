@@ -27,8 +27,6 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
             [InputIo.PcbPlacementHandlerUp] = 31,
             [InputIo.PcbPlacementIpmSupportEngaged] = 32,
             [InputIo.PcbPlacementIpmSupportRetracted] = 33,
-            [InputIo.PcbPlacementIpmDown] = 34,
-            [InputIo.PcbPlacementIpmUp] = 35,
             [InputIo.PcbPlacementVacuumDetected] = 38,
             [InputIo.PcbPlacementPcbDetected] = 39,
         };
@@ -40,15 +38,11 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
                 InputIo.PcbPlacementHandlerDown,
                 InputIo.PcbPlacementHandlerUp),
             [OutputIo.PcbPlacementIpmSupport] = CreateOutput(
-                30,
                 31,
+                30,
                 InputIo.PcbPlacementIpmSupportEngaged,
                 InputIo.PcbPlacementIpmSupportRetracted),
-            [OutputIo.PcbPlacementIpmDown] = CreateOutput(
-                32,
-                33,
-                InputIo.PcbPlacementIpmDown,
-                InputIo.PcbPlacementIpmUp),
+            [OutputIo.PcbPlacementIpmDown] = new() { Number = 32, OffNumber = 33 },
             [OutputIo.PcbPlacementVacuumEjector] = CreateOutput(36),
         };
     }
@@ -58,9 +52,18 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
 
     void IJsonOnDeserialized.OnDeserialized()
     {
-        // Retire the removed gripper without remapping any remaining hardware channels.
+        // Discard retired inputs and the removed gripper from saved settings.
         Inputs.Remove(InputIo.Unused7);
         Inputs.Remove(InputIo.Unused8);
+        Inputs.Remove(InputIo.PcbPlacementIpmDown);
+        Inputs.Remove(InputIo.PcbPlacementIpmUp);
         Outputs.Remove(OutputIo.Unused3);
+        // Correct the original support valve mapping; preserve custom channel assignments.
+        if (Outputs.TryGetValue(OutputIo.PcbPlacementIpmSupport, out var support)
+            && support.Number == 30 && support.OffNumber == 31)
+        {
+            support.Number = 31;
+            support.OffNumber = 30;
+        }
     }
 }

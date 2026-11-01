@@ -1614,9 +1614,6 @@ Operation failed Check controller status</value>
   <data name="placement ipm down" xml:space="preserve">
     <value>Placement IPM Down</value>
   </data>
-  <data name="placement ipm up" xml:space="preserve">
-    <value>Placement IPM Up</value>
-  </data>
   <data name="placement vacuum detected" xml:space="preserve">
     <value>Placement Vacuum Detected</value>
   </data>

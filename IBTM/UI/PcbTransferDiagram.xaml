@@ -192,23 +192,6 @@
                         Panel.ZIndex="2"
                         Visibility="{Binding Signals.Inputs[PcbPlacementVacuumDetected].IsOn,
                                                   Converter={StaticResource BoolToVis}}"/>
-                    <Border Width="24" Height="6" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,10"
-                        Background="{StaticResource MaterialIpmBrush}" CornerRadius="1">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding Signals.Inputs[PcbPlacementIpmDown].IsOn}" Value="True"/>
-                                            <Condition Binding="{Binding Signals.Inputs[PcbPlacementIpmUp].IsOn}" Value="False"/>
-                                        </MultiDataTrigger.Conditions>
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                    </Border>
                 </Grid>
             </Grid>
 

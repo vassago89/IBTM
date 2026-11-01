@@ -35,8 +35,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             InputIo.PcbPlacementHandlerUp,
             InputIo.PcbPlacementIpmSupportEngaged,
             InputIo.PcbPlacementIpmSupportRetracted,
-            InputIo.PcbPlacementIpmDown,
-            InputIo.PcbPlacementIpmUp,
             InputIo.PcbPlacementPcbDetected,
             InputIo.PcbPlacementVacuumDetected,
         ])
@@ -63,22 +61,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         get
         {
             switch ((Io.GetInput(InputIo.PcbPlacementHandlerUp), Io.GetInput(InputIo.PcbPlacementHandlerDown)))
-            {
-                case (true, false):
-                    return StationCylinderState.Up;
-                case (false, true):
-                    return StationCylinderState.Down;
-                default:
-                    return StationCylinderState.Between;
-            }
-        }
-    }
-
-    public StationCylinderState IpmLift
-    {
-        get
-        {
-            switch ((Io.GetInput(InputIo.PcbPlacementIpmUp), Io.GetInput(InputIo.PcbPlacementIpmDown)))
             {
                 case (true, false):
                     return StationCylinderState.Up;
@@ -148,9 +130,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             if (!Io.IsReady || !MotionServiceBase.IsReadyAndStopped(_motion))
                 return PcbPlacementHandoff.Unavailable;
-            if (!_units.PcbPlacement
-                || Lift != StationCylinderState.Up
-                || IpmLift == StationCylinderState.Between)
+            if (!_units.PcbPlacement || Lift != StationCylinderState.Up)
                 return PcbPlacementHandoff.Unavailable;
             switch (Phase)
             {
@@ -210,6 +190,9 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             return;
         if (_units.PcbPlacement && Io.GetInput(InputIo.PcbPlacementVacuumDetected))
             throw new InvalidOperationException("Release Placement vacuum before starting.");
+        if (_units.PcbPlacement && IsIpmSupportEngaged != false
+            && Io.GetInput(InputIo.PcbPlacementPcbDetected))
+            throw new InvalidOperationException("Check the PCB on the Placement IPM support before starting a new handoff.");
         _runTargets = null;
         Phase = _units.PcbPlacement ? PcbPlacementState.Retracting
             : PcbPlacementState.WaitingForCarrier;
@@ -429,7 +412,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         get
         {
             if (!Io.IsReady || !MotionServiceBase.IsReadyAndStopped(_motion)
-                || Lift != StationCylinderState.Up || IpmLift != StationCylinderState.Up)
+                || Lift != StationCylinderState.Up)
                 return false;
             const double Tolerance = 0.05;
             var current = _motion.Position;
@@ -500,6 +483,9 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             CheckSupply();
             approach.Token.ThrowIfCancellationRequested();
+            if (IsIpmSupportEngaged != false && Io.GetInput(InputIo.PcbPlacementPcbDetected))
+                throw new InvalidOperationException("Check the PCB on the Placement IPM support before starting a new handoff.");
+            await SetIpmSupportAsync(false, approach.Token);
             await SetLiftDownAsync(false, approach.Token);
             await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, approach.Token);
             await SetIpmDownAsync(true, approach.Token);
@@ -637,7 +623,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public async Task SetIpmDownAsync(bool down, CancellationToken cancellationToken = default)
     {
-        await Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, down, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        Io.SetOutput(OutputIo.PcbPlacementIpmDown, down);
         if (_settings.IpmDelaySeconds > 0)
             await Task.Delay(TimeSpan.FromSeconds(_settings.IpmDelaySeconds), cancellationToken);
     }

@@ -69,12 +69,14 @@ public sealed class MachineStoreTests
     [Theory]
     [InlineData("PcbPlacementIpmGripperClosed", "PcbPlacementIpmGripperOpen", "PcbPlacementIpmGripperClose")]
     [InlineData("7", "8", "3")]
-    public void RemovedPlacementGripperDoesNotReturnFromSavedHardware(
+    public void RemovedPlacementGripperAndIpmInputsDoNotReturnFromSavedHardware(
         string closedInput, string openInput, string closeOutput)
     {
         var hardware = new PcbPlacementHandlerHardwareSettings();
         Assert.DoesNotContain(InputIo.Unused7, hardware.Inputs.Keys);
         Assert.DoesNotContain(InputIo.Unused8, hardware.Inputs.Keys);
+        Assert.DoesNotContain(InputIo.PcbPlacementIpmDown, hardware.Inputs.Keys);
+        Assert.DoesNotContain(InputIo.PcbPlacementIpmUp, hardware.Inputs.Keys);
         Assert.DoesNotContain(OutputIo.Unused3, hardware.Outputs.Keys);
 
         hardware = JsonSerializer.Deserialize<PcbPlacementHandlerHardwareSettings>($$$"""
@@ -83,15 +85,36 @@ public sealed class MachineStoreTests
                         "PcbPlacementIpmDown":{"Number":132,"OffNumber":133}}
             }
             """)!;
-        Assert.Equal(2, hardware.Inputs.Count);
-        Assert.Equal(134, hardware.Inputs[InputIo.PcbPlacementIpmDown]);
-        Assert.Equal(135, hardware.Inputs[InputIo.PcbPlacementIpmUp]);
+        Assert.Empty(hardware.Inputs);
         var press = Assert.Single(hardware.Outputs);
         Assert.Equal(OutputIo.PcbPlacementIpmDown, press.Key);
         Assert.Equal(132, press.Value.Number);
         Assert.Equal(133, press.Value.OffNumber);
-        Assert.Equal(InputIo.PcbPlacementIpmDown, press.Value.Feedback!.OnInput);
-        Assert.Equal(InputIo.PcbPlacementIpmUp, press.Value.Feedback.OffInput);
+        Assert.Null(press.Value.Feedback);
+    }
+
+    [Theory]
+    [InlineData(30, 31, 31, 30)]
+    [InlineData(31, 30, 31, 30)]
+    [InlineData(130, 131, 130, 131)]
+    public void PlacementSupportCorrectsOriginalOutputDirection(int on, int off, int expectedOn, int expectedOff)
+    {
+        var defaults = new PcbPlacementHandlerHardwareSettings().Outputs[OutputIo.PcbPlacementIpmSupport];
+        Assert.Equal(31, defaults.Number);
+        Assert.Equal(30, defaults.OffNumber);
+        var hardware = JsonSerializer.Deserialize<PcbPlacementHandlerHardwareSettings>($$$"""
+            {"Outputs":{
+                "9":{"Number":{{{on}}},"OffNumber":{{{off}}}}
+            }}
+            """)!;
+        var support = hardware.Outputs[OutputIo.PcbPlacementIpmSupport];
+        Assert.Equal(expectedOn, support.Number);
+        Assert.Equal(expectedOff, support.OffNumber);
+        Assert.Equal(InputIo.PcbPlacementIpmSupportEngaged, support.Feedback!.OnInput);
+        Assert.Equal(InputIo.PcbPlacementIpmSupportRetracted, support.Feedback.OffInput);
+        hardware = JsonSerializer.Deserialize<PcbPlacementHandlerHardwareSettings>(JsonSerializer.Serialize(hardware))!;
+        Assert.Equal(expectedOn, hardware.Outputs[OutputIo.PcbPlacementIpmSupport].Number);
+        Assert.Equal(expectedOff, hardware.Outputs[OutputIo.PcbPlacementIpmSupport].OffNumber);
     }
 
     [Fact]

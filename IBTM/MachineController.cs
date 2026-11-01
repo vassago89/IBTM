@@ -323,8 +323,6 @@ public sealed class MachineController : INotifyPropertyChanged
             || input is InputIo.PcbPlacementPcbDetected
                 or InputIo.PcbPlacementHandlerUp
                 or InputIo.PcbPlacementHandlerDown
-                or InputIo.PcbPlacementIpmUp
-                or InputIo.PcbPlacementIpmDown
                 or InputIo.PickupHeadUp
                 or InputIo.PickupHeadDown
                 or InputIo.ShootingHeadUp
@@ -1351,14 +1349,12 @@ public sealed class MachineController : INotifyPropertyChanged
             return HomeBlockReason.DoorOpen;
         if ((group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
             || group is null && PcbHandlersEnabled)
-            && _io.GetInput(InputIo.PcbPlacementPcbDetected)
-            && _pcbPlacement.IpmLift != StationCylinderState.Up)
+            && _io.GetInput(InputIo.PcbPlacementPcbDetected))
             return HomeBlockReason.PlacementHoldingPcb;
         if (requireRaised
             && (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
                 || group is null && PcbHandlersEnabled)
-            && (_pcbPlacement.Lift != StationCylinderState.Up
-                || _pcbPlacement.IpmLift != StationCylinderState.Up))
+            && _pcbPlacement.Lift != StationCylinderState.Up)
             return HomeBlockReason.PlacementNotRaised;
         if (requireRaised
             && (group is MotionGroup.BoltFastening or MotionGroup.BoltFasteningBackup

@@ -7,6 +7,7 @@ namespace FASTECH;
 public partial class EziMOTIONPlusELib
 {
     public const int FMM_OK = 0;
+    public const int FMP_RESETFAIL = 0x86;
     public const uint Ready = 0x02180000;
     public const uint Moving = 0x08000000;
 
@@ -22,6 +23,7 @@ public partial class EziMOTIONPlusELib
     public static Dictionary<byte, int> Parameters { get; }
     public static bool ConnectResult { get; set; }
     public static int ReadResult { get; set; }
+    public static int ResetResult { get; set; }
     public static uint Status { get; set; }
     public static int ActualPosition { get; set; }
     public static int Target { get; private set; }
@@ -38,6 +40,7 @@ public partial class EziMOTIONPlusELib
         Parameters.Clear();
         ConnectResult = true;
         ReadResult = 0;
+        ResetResult = 0;
         Status = Ready;
         ActualPosition = 0;
         Target = 0;
@@ -113,7 +116,11 @@ public partial class EziMOTIONPlusELib
     public static int FAS_ServoAlarmReset(int boardId)
     {
         Calls.Add($"Reset:{boardId}");
-        return FMM_OK;
+        if ((Status & 0x00100000) != 0)
+            return FMP_RESETFAIL;
+        if (ResetResult == FMM_OK)
+            Status &= ~0x00000001U;
+        return ResetResult;
     }
 
     public static int FAS_SetParameter(int boardId, byte parameter, int value)

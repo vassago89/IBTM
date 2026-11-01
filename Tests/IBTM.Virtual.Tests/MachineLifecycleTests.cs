@@ -462,7 +462,7 @@ public sealed class MachineLifecycleTests
         {
             await machine.HomeAsync(default);
             await WaitUntilAsync(() => state.SetupEnabled);
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+            await services.GetRequiredService<PcbPlacer>().SetLiftDownAsync(true);
             io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
             io.AutoResponseEnabled = false;
             if (timeout)
@@ -470,7 +470,7 @@ public sealed class MachineLifecycleTests
             var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>();
             var supplyPosition = motions[MotionGroup.PcbSupply].Position;
             var moving = review.MoveAllToStandbyCommand.ExecuteAsync(null);
-            await WaitForOutputAsync(io, OutputIo.PcbPlacementIpmDown, false);
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementHandlerDown, false);
             Assert.False(moving.IsCompleted);
             if (!timeout)
                 await review.StopCommand.ExecuteAsync(null);
@@ -505,11 +505,11 @@ public sealed class MachineLifecycleTests
         {
             await machine.HomeAsync(default);
             await WaitUntilAsync(() => state.SetupEnabled);
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+            await services.GetRequiredService<PcbPlacer>().SetLiftDownAsync(true);
             io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
             io.AutoResponseEnabled = false;
             var moving = review.MoveAllToStandbyCommand.ExecuteAsync(null);
-            await WaitForOutputAsync(io, OutputIo.PcbPlacementIpmDown, false);
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementHandlerDown, false);
             if (changeMode)
             {
                 io.SetInput(InputIo.AutoMode, false);
@@ -4982,7 +4982,7 @@ public sealed class MachineLifecycleTests
             var job = placement.Station.CurrentJob;
             var assembly = placement.Station.GetAssembly(HeatSinkSlot.HeatSink1);
             assembly.IsPlacementCompleted = true;
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+            io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementBackupPlateUp, false);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementStopperUp, false);
@@ -4992,7 +4992,7 @@ public sealed class MachineLifecycleTests
                 if (output == OutputIo.PcbPlacementBackupPlateUp)
                 {
                     Assert.Equal(StationCylinderState.Up, placement.Lift);
-                    Assert.Equal(StationCylinderState.Up, placement.IpmLift);
+                    Assert.False(io.GetOutput(OutputIo.PcbPlacementIpmDown));
                 }
                 writes.Enqueue((output, on));
             };
@@ -5304,21 +5304,21 @@ public sealed class MachineLifecycleTests
             await WaitUntilAsync(() => state.SetupEnabled);
             io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
             await placement.Station.SeatAsync(CancellationToken.None);
-            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+            io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, true);
             io.SetInputs((InputIo.PcbPlacementPcbDetected, true), (InputIo.PcbPlacementVacuumDetected, true));
             var error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.PrepareStartAreaAsync(
                 StartArea.Station1, StartPreparationAction.ToggleCarrierSupport, CancellationToken.None));
             Assert.Equal("Release Placement vacuum before raising the IPM support.", error.Message);
             Assert.Equal(StationCylinderState.Up, placement.Lift);
-            Assert.Equal(StationCylinderState.Down, placement.IpmLift);
+            Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmDown));
             Assert.True(placement.Station.CarrierSeated);
             Assert.False(state.IsError);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
 
             io.SetInputs((InputIo.PcbPlacementPcbDetected, true), (InputIo.PcbPlacementVacuumDetected, false));
             Assert.True(await machine.PrepareStartAreaAsync(StartArea.Station1, StartPreparationAction.ToggleCarrierSupport, CancellationToken.None));
-            Assert.Equal(StationCylinderState.Up, placement.IpmLift);
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementIpmDown));
             Assert.Equal(StationCylinderState.Down, placement.Station.BackupPlate);
         }
         finally
@@ -6875,7 +6875,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await placement.SetLiftDownAsync(true);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+        io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
         io.SetInput(InputIo.PcbPlacementPcbDetected, holdingPcb);
         io.SetInput(InputIo.PcbPlacementVacuumDetected, holdingPcb);
         io.SetInput(InputIo.AutoMode, false);
@@ -6887,7 +6887,7 @@ public sealed class MachineLifecycleTests
                 return;
             started = true;
             readyBeforeStarting = placement.Lift == StationCylinderState.Up
-                && placement.IpmLift == (holdingPcb ? StationCylinderState.Down : StationCylinderState.Up);
+                && io.GetOutput(OutputIo.PcbPlacementIpmDown) == holdingPcb;
             machine.Stop();
         }
 
@@ -6990,19 +6990,23 @@ public sealed class MachineLifecycleTests
         var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+        io.AutoResponseEnabled = false;
+        io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
         await WaitUntilAsync(() => state.FeedbackReadiness.Homed);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.False(machine.IsHomeAllowed);
         Assert.Equal(HomeBlockReason.PlacementHoldingPcb, machine.HomeBlock);
         Assert.Equal(StationCylinderState.Up, placement.Lift);
-        Assert.True(io.GetInput(InputIo.PcbPlacementIpmDown));
+        Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmDown));
 
         var move = placement.MoveToXYAsync(new() { X = 20, Y = 20 });
         await WaitUntilAsync(() => placement.Motion.Feedback.IsMovingHorizontal);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false);
+        io.SetOutput(OutputIo.PcbPlacementIpmDown, false);
         await move;
 
+        // An output command cannot prove that the PCB no longer needs support.
+        Assert.Equal(HomeBlockReason.PlacementHoldingPcb, machine.HomeBlock);
+        io.SetInput(InputIo.PcbPlacementPcbDetected, false);
         Assert.Equal(HomeBlockReason.None, machine.HomeBlock);
         Assert.Equal(
             (20, 20, settings.PcbPlacementHandler.HandoffPosition.Z),
