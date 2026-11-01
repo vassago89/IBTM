@@ -3597,4 +3597,5 @@ Supply: PCB 1, travel Z</value>
   <data name="backup height (mm)" xml:space="preserve"><value>Backup height (mm)</value></data>
   <data name="raise fastening heads and pickup table" xml:space="preserve"><value>Raise fastening heads and pickup table</value></data>
   <data name="move backup to fastening height" xml:space="preserve"><value>Move backup to fastening height</value></data>
+  <data name="ip address" xml:space="preserve"><value>IP address</value></data>
 </root>

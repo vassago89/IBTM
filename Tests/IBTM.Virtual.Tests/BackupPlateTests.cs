@@ -123,8 +123,7 @@ public sealed class BackupPlateTests
         settings.BoltFasteningBackup.TransferHeight = -1.25;
         settings.BoltFasteningBackup.FasteningHeight = 12.375;
         settings.BoltFasteningBackup.Motion.ZSpeed = 3.5;
-        settings.Fastech.PortName = "COM7";
-        settings.Fastech.BackupAxis.SlaveNumber = 3;
+        settings.Fastech.IpAddress = "192.168.0.7";
         settings.Fastech.BackupAxis.PulsesPerMillimeter = 4000.5;
         settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningBackupPlateUp] = 66;
         settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningBackupPlateDown] = 67;
@@ -138,8 +137,7 @@ public sealed class BackupPlateTests
         Assert.Equal(-1.25, loaded.BoltFasteningBackup.TransferHeight);
         Assert.Equal(12.375, loaded.BoltFasteningBackup.FasteningHeight);
         Assert.Equal(3.5, loaded.BoltFasteningBackup.Motion.ZSpeed);
-        Assert.Equal("COM7", loaded.Fastech.PortName);
-        Assert.Equal(3, loaded.Fastech.BackupAxis.SlaveNumber);
+        Assert.Equal("192.168.0.7", loaded.Fastech.IpAddress);
         Assert.Equal(4000.5, loaded.Fastech.BackupAxis.PulsesPerMillimeter);
         Assert.DoesNotContain(InputIo.BoltFasteningBackupPlateUp, loaded.BoltFasteningStationHardware.Inputs.Keys);
         Assert.DoesNotContain(InputIo.BoltFasteningBackupPlateDown, loaded.BoltFasteningStationHardware.Inputs.Keys);

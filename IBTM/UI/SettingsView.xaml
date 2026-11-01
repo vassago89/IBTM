@@ -641,16 +641,8 @@
                         <Border Style="{StaticResource SettingCard}" Margin="0,0,12,0" VerticalAlignment="Top"><StackPanel>
                             <TextBlock Text="{ui:Text 'FASTECH'}" Style="{StaticResource SettingSectionTitle}"/>
                             <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="{ui:Text 'COM port'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                <TextBox Grid.Column="1" Text="{Binding Settings.Fastech.PortName, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                            </Grid>
-                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="{ui:Text 'Baud rate'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                <TextBox Grid.Column="1" Text="{Binding Settings.Fastech.BaudRate, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                            </Grid>
-                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="{ui:Text 'Slave'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                <TextBox Grid.Column="1" Text="{Binding Settings.Fastech.BackupAxis.SlaveNumber, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                <TextBlock Text="{ui:Text 'IP address'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox Grid.Column="1" Text="{Binding Settings.Fastech.IpAddress, BindingGroupName=SettingsInputs, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                             </Grid>
                             <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="{ui:Text 'Pulses / mm'}" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>

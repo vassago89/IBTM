@@ -114,8 +114,8 @@ Normal Speed는 초기화 시 ON하며, OUTPUTS에서 조작해도 ON을 유지�
 - AirPressureHigh 입력 ON은 공압 정상이다. 발생했던 알람의 래치는 별도로 확인한다.
 - S1·S3의 BackupPlateUp과 각 스테이션의 StopperUp 출력 ON은 상승 명령이다.
 - S2 백업은 파스텍 Z축으로 이동한다. `설정 → S2 백업`에서 공통 이송·체결 높이,
-  속도·가감속, COM·슬레이브·펄스/mm를 설정한다. 도착은 실제 위치·정지·InPosition으로 판단한다.
-  COM·통신속도·슬레이브·펄스/mm 변경은 저장 후 프로그램을 재시작해야 적용된다.
+  속도·가감속, Ethernet IP 주소·펄스/mm를 설정한다. 도착은 실제 위치·정지·InPosition으로 판단한다.
+  IP 주소·펄스/mm 변경은 저장 후 프로그램을 재시작해야 적용된다.
   기존 S2 백업 실린더 입출력은 사용하지 않으며, 캐리어 클램퍼 연결은 별도 작업이다.
 - MainConveyorForward ON은 메인 벨트 정방향이다. NG는 Reverse 명칭을 쓴다.
 - NgCarrierPickupDown ON은 픽업 하강, OFF는 상승이다.
