@@ -3,165 +3,77 @@ using System.Text;
 
 namespace FASTECH
 {
-	public partial class EziMOTIONPlusRLib
+	public partial class EziMOTIONPlusELib
 	{
 		////------------------------------------------------------------------
 		////                 Device Type Defines.
 		////------------------------------------------------------------------
-		//#ifndef DEVTYPE_EZI_SERVO_PLUS_R_ST
-		//#define	DEVTYPE_EZI_SERVO_PLUS_R_ST				1
-		//#define DEVNAME_EZI_SERVO_PLUS_R_ST				"Ezi-SERVO Plus-R-ST"
+		//#ifndef DEVTYPE_EZI_SERVO2_PLUS_E_ST
+		//#define	DEVTYPE_EZI_SERVO2_PLUS_E_ST			100
+		//#define DEVNAME_EZI_SERVO2_PLUS_E_ST			"Ezi-SERVO II Plus-R-ST"
 		//#endif
-		public const byte DEVTYPE_EZI_SERVO_PLUS_R_ST = 1;
-		public const string DEVNAME_EZI_SERVO_PLUS_R_ST = "Ezi-SERVO Plus-R-ST";
+		public const byte DEVTYPE_EZI_SERVO2_PLUS_E_ST = 100;
+		public const string DEVNAME_EZI_SERVO2_PLUS_E_ST = "Ezi-SERVO II Plus-E-ST";
 
-		//#ifndef DEVTYPE_EZI_SERVO_PLUS_R_ADC_ST
-		//#define	DEVTYPE_EZI_SERVO_PLUS_R_ADC_ST			3
-		//#define DEVNAME_EZI_SERVO_PLUS_R_ADC_ST			"Ezi-SERVO Plus-R-ADC"
+		//#ifndef DEVTYPE_S_SERVO_PLUS_E_ST
+		//#define	DEVTYPE_S_SERVO_PLUS_E_ST				102
+		//#define DEVNAME_S_SERVO_PLUS_E_ST				"S-SERVO Plus-R-ST"
 		//#endif
-		public const byte DEVTYPE_EZI_SERVO_PLUS_R_ADC_ST = 3;
-		public const string DEVNAME_EZI_SERVO_PLUS_R_ADC_ST = "Ezi-SERVO Plus-R-ADC";
-
-		//#ifndef DEVTYPE_EZI_MOTIONLINK
-		//#define	DEVTYPE_EZI_MOTIONLINK					10
-		//#define DEVNAME_EZI_MOTIONLINK					"Ezi-MotionLink"
-		//#endif
-		public const byte DEVTYPE_EZI_MOTIONLINK = 10;
-		public const string DEVNAME_EZI_MOTIONLINK = "Ezi-MotionLink";
-
-		//#ifndef DEVTYPE_EZI_MOTIONLINK2
-		//#define	DEVTYPE_EZI_MOTIONLINK2					11
-		//#define DEVNAME_EZI_MOTIONLINK2					"Ezi-MotionLink2"
-		//#endif
-		public const byte DEVTYPE_EZI_MOTIONLINK2 = 11;
-		public const string DEVNAME_EZI_MOTIONLINK2 = "Ezi-MotionLink2";
-
-		//#ifndef DEVTYPE_EZI_STEP_PLUS_R_ST
-		//#define	DEVTYPE_EZI_STEP_PLUS_R_ST				20
-		//#define DEVNAME_EZI_STEP_PLUS_R_ST				"Ezi-STEP Plus-R-ST"
-		//#endif
-		public const byte DEVTYPE_EZI_STEP_PLUS_R_ST = 20;
-		public const string DEVNAME_EZI_STEP_PLUS_R_ST = "Ezi-STEP Plus-R-ST";
-
-		//#ifndef DEVTYPE_EZI_SERVO_PLUS_R_ALL_ST
-		//#define	DEVTYPE_EZI_SERVO_PLUS_R_ALL_ST			30
-		//#define DEVNAME_EZI_SERVO_PLUS_R_ALL_ST			"Ezi-SERVO Plus-R-ALL"
-		//#endif
-		public const byte DEVTYPE_EZI_SERVO_PLUS_R_ALL_ST = 30;
-		public const string DEVNAME_EZI_SERVO_PLUS_R_ALL_ST = "Ezi-SERVO Plus-R-ALL";
-
-		//#ifndef DEVTYPE_EZI_SERVO_PLUS_R_ALL_ABS
-		//#define	DEVTYPE_EZI_SERVO_PLUS_R_ALL_ABS		35
-		//#define DEVNAME_EZI_SERVO_PLUS_R_ALL_ABS		"Ezi-SERVO Plus-R-ALL Abs"
-		//#endif
-		public const byte DEVTYPE_EZI_SERVO_PLUS_R_ALL_ABS = 35;
-		public const string DEVNAME_EZI_SERVO_PLUS_R_ALL_ABS = "Ezi-SERVO Plus-R-ALL Abs";
-
-		//#ifndef DEVTYPE_EZI_STEP_PLUS_R_ALL_ST
-		//#define	DEVTYPE_EZI_STEP_PLUS_R_ALL_ST			40
-		//#define DEVNAME_EZI_STEP_PLUS_R_ALL_ST			"Ezi-STEP Plus-R-ALL"
-		//#endif
-		public const byte DEVTYPE_EZI_STEP_PLUS_R_ALL_ST = 40;
-		public const string DEVNAME_EZI_STEP_PLUS_R_ALL_ST = "Ezi-STEP Plus-R-ALL";
-
-		//#ifndef DEVTYPE_EZI_SERVO_PLUS_R_MINI
-		//#define	DEVTYPE_EZI_SERVO_PLUS_R_MINI			50
-		//#define DEVNAME_EZI_SERVO_PLUS_R_MINI			"Ezi-SERVO Plus-R-Mini"
-		//#endif
-		public const byte DEVTYPE_EZI_SERVO_PLUS_R_MINI = 50;
-		public const string DEVNAME_EZI_SERVO_PLUS_R_MINI = "Ezi-SERVO Plus-R-Mini";
-
-		//#ifndef DEVTYPE_EZI_STEP_PLUS_R_MINI
-		//#define	DEVTYPE_EZI_STEP_PLUS_R_MINI			60
-		//#define DEVNAME_EZI_STEP_PLUS_R_MINI			"Ezi-STEP Plus-R-Mini"
-		//#endif
-		public const byte DEVTYPE_EZI_STEP_PLUS_R_MINI = 60;
-		public const string DEVNAME_EZI_STEP_PLUS_R_MINI = "Ezi-STEP Plus-R-Mini";
-
-		//#ifndef DEVTYPE_EZI_SERVO_PLUS_R_ALL60I
-		//#define	DEVTYPE_EZI_SERVO_PLUS_R_ALL60I			31
-		//#define DEVNAME_EZI_SERVO_PLUS_R_ALL60I			"Ezi-SERVO Plus-R-ALL 60i"
-		//#endif
-		public const byte DEVTYPE_EZI_SERVO_PLUS_R_ALL60I = 31;
-		public const string DEVNAME_EZI_SERVO_PLUS_R_ALL60I = "Ezi-SERVO Plus-R-ALL 60i";
-
-		//#ifndef DEVTYPE_EZI_SERVO2_PLUS_R_ST
-		//#define	DEVTYPE_EZI_SERVO2_PLUS_R_ST			100
-		//#define DEVNAME_EZI_SERVO2_PLUS_R_ST			"Ezi-SERVO II Plus-R-ST"
-		//#endif
-		public const byte DEVTYPE_EZI_SERVO2_PLUS_R_ST = 100;
-		public const string DEVNAME_EZI_SERVO2_PLUS_R_ST = "Ezi-SERVO II Plus-R-ST";
-
-		//#ifndef DEVTYPE_S_SERVO_PLUS_R_ST
-		//#define	DEVTYPE_S_SERVO_PLUS_R_ST				102
-		//#define DEVNAME_S_SERVO_PLUS_R_ST				"S-SERVO Plus-R-ST"
-		//#endif
-		public const byte DEVTYPE_S_SERVO_PLUS_R_ST = 102;
-		public const string DEVNAME_S_SERVO_PLUS_R_ST = "S-SERVO Plus-R-ST";
-
-		////------------------------------------------------------------------
-		////                 Device Type Defines. (for V8)
-		////------------------------------------------------------------------
-		//// Driver Type A group : Ezi-SERVO Plus-R Inc. Family
-		//#ifndef DEVTYPEV8_EZI_SERVO_PLUS_R_ST
-		//#define	DEVTYPEV8_EZI_SERVO_PLUS_R_ST			1
-		//#define DEVNAMEV8_EZI_SERVO_PLUS_R_ST			"Ezi-SERVO Plus-R Inc."
-		//#endif
-
-		//// Driver Type B group : only Motion Controller (without Drive) family
-		//#ifndef DEVTYPEV8_EZI_MOTIONLINK
-		//#define	DEVTYPEV8_EZI_MOTIONLINK				10
-		//#define DEVNAMEV8_EZI_MOTIONLINK				"Ezi-MotionLink"
-		//#endif
-
-		//// Driver Type C group : Ezi-STEP Plus-R Family
-		//#ifndef DEVTYPEV8_EZI_STEP_PLUS_R_ST
-		//#define	DEVTYPEV8_EZI_STEP_PLUS_R_ST			20
-		//#define DEVNAMEV8_EZI_STEP_PLUS_R_ST			"Ezi-STEP Plus-R"
-		//#endif
-
-		//// Driver Type D group : Ezi-SERVO Plus-R Abs. Family
-		//#ifndef DEVTYPEV8_EZI_SERVO_PLUS_R_ABS_ST
-		//#define	DEVTYPEV8_EZI_SERVO_PLUS_R_ABS_ST		30
-		//#define DEVNAMEV8_EZI_SERVO_PLUS_R_ABS_ST		"Ezi-SERVO Plus-R Abs."
-		//#endif
-
-		//// Driver Type E group : Ezi-SERVO Plus-R BLDC Family
-		//#ifndef DEVTYPEV8_EZI_SERVO_PLUS_R_BLDC_ST
-		//#define	DEVTYPEV8_EZI_SERVO_PLUS_R_BLDC_ST		40
-		//#define DEVNAMEV8_EZI_SERVO_PLUS_R_BLDC_ST		"Ezi-SERVO Plus-R BLDC F60"
-		//#endif
-
-		//// Driver Type F group : only Motion Controller (without Drive) family
-		//#ifndef DEVTYPEV8_EZI_MOTIONLINK2
-		//#define	DEVTYPEV8_EZI_MOTIONLINK2				110
-		//#define DEVNAMEV8_EZI_MOTIONLINK2				"Ezi-MotionLink2"
-		//#endif
+		public const byte DEVTYPE_S_SERVO_PLUS_E_ST = 102;
+		public const string DEVNAME_S_SERVO_PLUS_E_ST = "S-SERVO Plus-E-ST";
 
 		////------------------------------------------------------------------
 		////                 Device Type Defines. (Ezi-IO)
 		////------------------------------------------------------------------
 
-		//#ifndef DEVTYPE_EZI_IO_PLUS_R_IN16
-		//#define	DEVTYPE_EZI_IO_PLUS_R_IN16			150
-		//#define DEVNAME_EZI_IO_PLUS_R_IN16			"Ezi-IO RS-485-IN16"
+		//#ifndef DEVTYPE_EZI_IO_PLUS_E_IN16
+		//#define	DEVTYPE_EZI_IO_PLUS_E_IN16			150
+		//#define DEVNAME_EZI_IO_PLUS_E_IN16			"Ezi-IO Ethernet-IN16"
 		//#endif
-		public const byte DEVTYPE_EZI_IO_PLUS_R_IN16 = 150;
-		public const string DEVNAME_EZI_IO_PLUS_R_IN16 = "Ezi-IO RS-485-IN16";
+		public const byte DEVTYPE_EZI_IO_PLUS_E_IN16 = 150;
+		public const string DEVNAME_EZI_IO_PLUS_E_IN16 = "Ezi-IO Ethernet-IN16";
 
-		//#ifndef DEVTYPE_EZI_IO_PLUS_R_OUT16
-		//#define	DEVTYPE_EZI_IO_PLUS_R_OUT16			160
-		//#define DEVNAME_EZI_IO_PLUS_R_OUT16			"Ezi-IO RS-485-OUT16"
+		//#ifndef DEVTYPE_EZI_IO_PLUS_E_IN32
+		//#define	DEVTYPE_EZI_IO_PLUS_E_IN32			151
+		//#define DEVNAME_EZI_IO_PLUS_E_IN32			"Ezi-IO Ethernet-IN32"
 		//#endif
-		public const byte DEVTYPE_EZI_IO_PLUS_R_OUT16 = 160;
-		public const string DEVNAME_EZI_IO_PLUS_R_OUT16 = "Ezi-IO RS-485-OUT16";
+		public const byte DEVTYPE_EZI_IO_PLUS_E_IN32 = 151;
+		public const string DEVNAME_EZI_IO_PLUS_E_IN32 = "Ezi-IO Ethernet-IN32";
 
-		//#ifndef DEVTYPE_EZI_IO_PLUS_R_I8O8
-		//#define	DEVTYPE_EZI_IO_PLUS_R_I8O8			155
-		//#define DEVNAME_EZI_IO_PLUS_R_I8O8			"Ezi-IO RS-485-I8O8"
+		//#ifndef DEVTYPE_EZI_IO_PLUS_E_OUT16
+		//#define	DEVTYPE_EZI_IO_PLUS_E_OUT16			160
+		//#define DEVNAME_EZI_IO_PLUS_E_OUT16			"Ezi-IO Ethernet-OUT16"
 		//#endif
-		public const byte DEVTYPE_EZI_IO_PLUS_R_I8O8 = 155;
-		public const string DEVNAME_EZI_IO_PLUS_R_I8O8 = "Ezi-IO RS-485-I8O8";
+		public const byte DEVTYPE_EZI_IO_PLUS_E_OUT16 = 160;
+		public const string DEVNAME_EZI_IO_PLUS_E_OUT16 = "Ezi-IO Ethernet-OUT16";
+
+		//#ifndef DEVTYPE_EZI_IO_PLUS_E_OUT32
+		//#define	DEVTYPE_EZI_IO_PLUS_E_OUT32			161
+		//#define DEVNAME_EZI_IO_PLUS_E_OUT32			"Ezi-IO Ethernet-OUT32"
+		//#endif
+		public const byte DEVTYPE_EZI_IO_PLUS_E_OUT32 = 161;
+		public const string DEVNAME_EZI_IO_PLUS_E_OUT32 = "Ezi-IO Ethernet-OUT32";
+
+		//#ifndef DEVTYPE_EZI_IO_PLUS_E_I8O8
+		//#define	DEVTYPE_EZI_IO_PLUS_E_I8O8			155
+		//#define DEVNAME_EZI_IO_PLUS_E_I8O8			"Ezi-IO Ethernet-I8O8"
+		//#endif
+		public const byte DEVTYPE_EZI_IO_PLUS_E_I8O8 = 155;
+		public const string DEVNAME_EZI_IO_PLUS_E_I8O8 = "Ezi-IO Ethernet-I8O8";
+
+		//#ifndef DEVTYPE_EZI_IO_PLUS_E_I16O16
+		//#define	DEVTYPE_EZI_IO_PLUS_E_I16O16		156
+		//#define DEVNAME_EZI_IO_PLUS_E_I16O16			"Ezi-IO Ethernet-I16O16"
+		//#endif
+		public const byte DEVTYPE_EZI_IO_PLUS_E_I16O16 = 156;
+		public const string DEVNAME_EZI_IO_PLUS_E_I16O16 = "Ezi-IO Ethernet-I16O16";
+
+		//#ifndef DEVTYPE_EZI_IO_PLUS_E_IO16
+		//#define	DEVTYPE_EZI_IO_PLUS_E_IO16			152
+		//#define DEVNAME_EZI_IO_PLUS_E_IO16			"Ezi-IO Ethernet-IO16"
+		//#endif
+		public const byte DEVTYPE_EZI_IO_PLUS_E_IO16 = 152;
+		public const string DEVNAME_EZI_IO_PLUS_E_IO16 = "Ezi-IO Ethernet-IO16";
 
 		////------------------------------------------------------------------
 		////                 Device Type Defines. (Etc)
@@ -1202,6 +1114,168 @@ namespace FASTECH
 		}
 
 		//#pragma pack()
+
+		////------------------------------------------------------------------
+		////                 Ezi-IO DA Defines
+		////------------------------------------------------------------------
+
+		//enum DA_RANGE
+		//{
+		//	DARANGE_0_to_5 = 0,     //    0V ~   5V (0 ~ 25000)
+		//	DARANGE_10_to_10,       //  -10V ~  10V (-25000 ~ 25000)
+		//	DARANGE_0_to_10,        //    0V ~  10V (0 ~ 25000)
+		//	DARANGE_1_to_5,         //    1V ~   5V (0 ~ 25000)
+		//	DARANGE_0_to_20_C,      //   0mA ~ 20mA (0 ~ 25000)
+		//	DARANGE_4_to_20_C,      //   4mA ~ 20mA (0 ~ 25000)
+
+		//	DARANGE_EX_0_to_5 = 0x10,   // (Read Only, External Switch)    0V ~   5V (0 ~ 25000)
+		//	DARANGE_EX_10_to_10,        // (Read Only, External Switch)  -10V ~  10V (-25000 ~ 25000)
+		//	DARANGE_EX_0_to_20_C,       // (Read Only, External Switch)   0mA ~ 20mA (0 ~ 25000)
+		//	DARANGE_EX_4_to_20_C,       // (Read Only, External Switch)   4mA ~ 20mA (0 ~ 25000)
+		//};
+		public enum DA_RANGE
+		{
+			DARANGE_0_to_5 = 0,     //    0V ~   5V (0 ~ 25000)
+			DARANGE_10_to_10,       //  -10V ~  10V (-25000 ~ 25000)
+			DARANGE_0_to_10,        //    0V ~  10V (0 ~ 25000)
+			DARANGE_1_to_5,         //    1V ~   5V (0 ~ 25000)
+			DARANGE_0_to_20_C,      //   0mA ~ 20mA (0 ~ 25000)
+			DARANGE_4_to_20_C,      //   4mA ~ 20mA (0 ~ 25000)
+
+			DARANGE_EX_0_to_5 = 0x10,   // (Read Only, External Switch)    0V ~   5V (0 ~ 25000)
+			DARANGE_EX_10_to_10,        // (Read Only, External Switch)  -10V ~  10V (-25000 ~ 25000)
+			DARANGE_EX_0_to_20_C,       // (Read Only, External Switch)   0mA ~ 20mA (0 ~ 25000)
+			DARANGE_EX_4_to_20_C,       // (Read Only, External Switch)   4mA ~ 20mA (0 ~ 25000)
+		};
+
+		//enum DAC_CONFIG
+		//{
+		//	DAC_RANGE = 0,
+
+		//	DAC_CALIBRATION_HIGH,
+		//	DAC_CALIBRATION_LOW,
+		//};
+		public enum DAC_CONFIG
+		{
+			DAC_RANGE = 0,
+
+			DAC_CALIBRATION_HIGH,
+			DAC_CALIBRATION_LOW,
+		};
+
+		////------------------------------------------------------------------
+		////                 Ezi-IO COUNTER Defines
+		////------------------------------------------------------------------
+
+		//enum COUNTER_CMD
+		//{
+		//    CNTCMD_CH_ENABLE = 0,
+		//    CNTCMD_LATCHA_ENABLE,
+		//    CNTCMD_LATCHB_ENABLE,
+		//    CNTCMD_ZLATCH_ENABLE,
+
+		//    CNTCMD_RESET_ALL,
+		//    CNTCMD_RESET_COUNT,
+		//    CNTCMD_RESET_LATCH,
+		//};
+
+		public enum COUNTER_CMD
+		{
+			CNTCMD_CH_ENABLE = 0,
+			CNTCMD_LATCHA_ENABLE,
+			CNTCMD_LATCHB_ENABLE,
+			CNTCMD_ZLATCH_ENABLE,
+
+			CNTCMD_RESET_ALL,
+			CNTCMD_RESET_COUNT,
+			CNTCMD_RESET_LATCH,
+		};
+
+		//enum COUNTER_VALUE
+		//{
+		//    CNT_COUNT_VALUE = 0,
+		//    CNT_LATCHA_VALUE,
+		//    CNT_LATCHB_VALUE,
+		//    CNT_ZLATCH_VALUE,
+		//};
+
+		public enum COUNTER_VALUE
+		{
+			CNT_COUNT_VALUE = 0,
+			CNT_LATCHA_VALUE,
+			CNT_LATCHB_VALUE,
+			CNT_ZLATCH_VALUE,
+		};
+
+		//#define CNTSTATUS_CH1_ENABLED				0x00000001
+		//#define CNTSTATUS_CH1_LTCA_EN				0x00000002
+		//#define CNTSTATUS_CH1_LTCB_EN				0x00000004
+		//#define CNTSTATUS_CH1_ZLTC_EN				0x00000008
+		//#define CNTSTATUS_CH1_LTCA_LATCHED		0x00000010
+		//#define CNTSTATUS_CH1_LTCB_LATCHED		0x00000020
+		//#define CNTSTATUS_CH1_ZLTC_LATCHED		0x00000040
+		//#define CNTSTATUS_CH1_RESET				0x00000080
+		//#define CNTSTATUS_CH1_TRIGGER				0x00000100
+		//#define CNTSTATUS_CH1_COMPARISON			0x00000200
+		//#define CNTSTATUS_CH2_ENABLED				0x00010000
+		//#define CNTSTATUS_CH2_LTCA_EN				0x00020000
+		//#define CNTSTATUS_CH2_LTCB_EN				0x00040000
+		//#define CNTSTATUS_CH2_ZLTC_EN				0x00080000
+		//#define CNTSTATUS_CH2_LTCA_LATCHED		0x00100000
+		//#define CNTSTATUS_CH2_LTCB_LATCHED		0x00200000
+		//#define CNTSTATUS_CH2_ZLTC_LATCHED		0x00400000
+		//#define CNTSTATUS_CH2_RESET				0x00800000
+		//#define CNTSTATUS_CH2_TRIGGER				0x01000000
+		//#define CNTSTATUS_CH2_COMPARISON			0x02000000
+
+		public const uint CNTSTATUS_CH1_ENABLED = 0x00000001;
+		public const uint CNTSTATUS_CH1_LTCA_EN = 0x00000002;
+		public const uint CNTSTATUS_CH1_LTCB_EN = 0x00000004;
+		public const uint CNTSTATUS_CH1_ZLTC_EN = 0x00000008;
+		public const uint CNTSTATUS_CH1_LTCA_LATCHED = 0x00000010;
+		public const uint CNTSTATUS_CH1_LTCB_LATCHED = 0x00000020;
+		public const uint CNTSTATUS_CH1_ZLTC_LATCHED = 0x00000040;
+		public const uint CNTSTATUS_CH1_RESET = 0x00000080;
+		public const uint CNTSTATUS_CH1_TRIGGER = 0x00000100;
+		public const uint CNTSTATUS_CH1_COMPARISON = 0x00000200;
+		public const uint CNTSTATUS_CH2_ENABLED = 0x00010000;
+		public const uint CNTSTATUS_CH2_LTCA_EN = 0x00020000;
+		public const uint CNTSTATUS_CH2_LTCB_EN = 0x00040000;
+		public const uint CNTSTATUS_CH2_ZLTC_EN = 0x00080000;
+		public const uint CNTSTATUS_CH2_LTCA_LATCHED = 0x00100000;
+		public const uint CNTSTATUS_CH2_LTCB_LATCHED = 0x00200000;
+		public const uint CNTSTATUS_CH2_ZLTC_LATCHED = 0x00400000;
+		public const uint CNTSTATUS_CH2_RESET = 0x00800000;
+		public const uint CNTSTATUS_CH2_TRIGGER = 0x01000000;
+		public const uint CNTSTATUS_CH2_COMPARISON = 0x02000000;
+
+		//enum COUNTER_CONFIG
+		//{
+		//    CFG_INPUT_MODE = 0,	// Counter Input Mode (0: Quadrature, 1: 2-Pulse, 2: 1-Pulse)
+		//    CFG_COUNT_DIRECTION,	// Count Direction (0: CW, 1: CCW)
+		//    CFG_LATCHA_MODE,		// Latch A Mode (0: Single, 1: Continue)
+		//    CFG_LATCHB_MODE,		// Latch B Mode (0: Single, 1: Continue)
+		//    CFG_ZLATCH_MODE,		// Z-Phase Latch Mode (0: Single, 1: Continue, 2: Reset)
+		//    CFG_LATCHA_LOGIC,		// Latch A Logic (0: Low-Active, 1: High-Active)
+		//    CFG_LATCHB_LOGIC,		// Latch B Logic (0: Low-Active, 1: High-Active)
+		//    CFG_ZLATCH_LOGIC,		// Z-Phase Latch Logic (0: Low-Active, 1: High-Active)
+		//    CFG_RESET_LOGIC,		// (external input) Reset Logic (0: Low-Active, 1: High-Active)
+		//    CFG_CP_LOGIC,			// (external output) Comparison Output Logic (0: Low-Active, 1: High-Active)
+		//};
+
+		public enum COUNTER_CONFIG
+		{
+			CFG_INPUT_MODE = 0,		// Counter Input Mode (0: Quadrature, 1: 2-Pulse, 2: 1-Pulse)
+			CFG_COUNT_DIRECTION,	// Count Direction (0: CW, 1: CCW)
+			CFG_LATCHA_MODE,		// Latch A Mode (0: Single, 1: Continue)
+			CFG_LATCHB_MODE,		// Latch B Mode (0: Single, 1: Continue)
+			CFG_ZLATCH_MODE,		// Z-Phase Latch Mode (0: Single, 1: Continue, 2: Reset)
+			CFG_LATCHA_LOGIC,		// Latch A Logic (0: Low-Active, 1: High-Active)
+			CFG_LATCHB_LOGIC,		// Latch B Logic (0: Low-Active, 1: High-Active)
+			CFG_ZLATCH_LOGIC,		// Z-Phase Latch Logic (0: Low-Active, 1: High-Active)
+			CFG_RESET_LOGIC,		// (external input) Reset Logic (0: Low-Active, 1: High-Active)
+			CFG_CP_LOGIC,			// (external output) Comparison Output Logic (0: Low-Active, 1: High-Active)
+		};
 
 		////------------------------------------------------------------------
 		////                 LOG Level Defines

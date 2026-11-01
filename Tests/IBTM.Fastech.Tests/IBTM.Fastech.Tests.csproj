@@ -17,6 +17,6 @@
     <Compile Include="../../Hardware/IBTM.Fastech/FastechController.cs" Link="Driver/FastechController.cs" />
     <Compile Include="../../Hardware/IBTM.Fastech/FastechSettings.cs" Link="Driver/FastechSettings.cs" />
     <Compile Include="../../Hardware/IBTM.Fastech/FastechZMotion.cs" Link="Driver/FastechZMotion.cs" />
-    <Compile Include="../../Hardware/IBTM.Fastech/Vendor/MOTION_DEFINE.cs" Link="Driver/MOTION_DEFINE.cs" />
+    <Compile Include="../../Hardware/IBTM.Fastech/Vendor/MOTION_DEFINE_PlusE.cs" Link="Driver/MOTION_DEFINE_PlusE.cs" />
   </ItemGroup>
 </Project>

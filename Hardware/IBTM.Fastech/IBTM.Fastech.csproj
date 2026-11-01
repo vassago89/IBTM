@@ -6,9 +6,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- FASTECH Plus-R GUI 6.51.7.107, Example/C#/src/Include_x64, unchanged SDK files.
-         https://fastech.co.kr/software/261008_Program_Plus-R%20GUI_x86_Ver.6.51.7.107.zip -->
-    <None Update="Vendor\EziMOTIONPlusRx64.dll" Link="EziMOTIONPlusRx64.dll"
+    <!-- FASTECH Plus-E GUI 6.51.7.107, Example/C#/src/Include_x64, unchanged SDK files.
+         https://fastech.co.kr/software/261008_Program_Plus-E%20GUI_x86_Ver.6.51.7.107.zip -->
+    <None Update="Vendor\EziMOTIONPlusE.dll" Link="EziMOTIONPlusE.dll"
           CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

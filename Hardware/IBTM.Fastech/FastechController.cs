@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using FASTECH;
 using Microsoft.Extensions.Logging;
@@ -8,65 +10,59 @@ namespace IBTM.Fastech;
 
 public sealed class FastechController : IDisposable
 {
-    private readonly string _portName;
-    private readonly uint _baudRate;
+    // The SDK assigns this connection ID locally; the drive is selected by its IP.
+    public const int BoardId = 0;
+
+    private readonly string _ipAddress;
     private readonly ILogger<FastechController>? _log;
     private bool _opened;
 
     public FastechController(FastechSettings settings, ILogger<FastechController>? log = null)
     {
-        _portName = settings.PortName;
-        _baudRate = settings.BaudRate;
+        _ipAddress = settings.IpAddress;
         _log = log;
         SyncRoot = new();
     }
 
-    internal byte PortNumber { get; private set; }
     internal Lock SyncRoot { get; }
     internal bool IsOpen => _opened;
 
-    public void Initialize(byte slaveNumber)
+    public void Initialize()
     {
-        if (slaveNumber >= EziMOTIONPlusRLib.MAX_SLAVE_NUMS)
-            throw new ArgumentOutOfRangeException(nameof(slaveNumber));
         lock (SyncRoot)
         {
             if (!_opened)
             {
-                if (!_portName.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
-                    || !byte.TryParse(_portName.AsSpan(3), out var port) || port == 0)
-                    throw new ArgumentException("FASTECH requires a COM port between COM1 and COM255.");
-                if (_baudRate is not (9600 or 19200 or 38400 or 57600 or 115200))
-                    throw new ArgumentOutOfRangeException(nameof(FastechSettings.BaudRate), "Unsupported FASTECH baud rate.");
-                PortNumber = port;
+                if (!IPAddress.TryParse(_ipAddress, out var address)
+                    || address.AddressFamily != AddressFamily.InterNetwork)
+                    throw new ArgumentException("FASTECH requires an IPv4 address.");
                 if (!Environment.Is64BitProcess)
                     throw new PlatformNotSupportedException("FASTECH requires a 64-bit process.");
-                if (EziMOTIONPlusRLib.FAS_Connect(PortNumber, _baudRate) == 0)
+                if (!EziMOTIONPlusELib.FAS_ConnectTCP(address, BoardId))
                 {
-                    EziMOTIONPlusRLib.FAS_Close(PortNumber);
-                    throw new IOException($"FASTECH COM{PortNumber} connection failed.");
+                    EziMOTIONPlusELib.FAS_Close(BoardId);
+                    throw new IOException($"FASTECH {_ipAddress} connection failed.");
                 }
                 _opened = true;
-                _log?.LogInformation("FASTECH COM{Port} connected at {BaudRate} baud.", PortNumber, _baudRate);
+                _log?.LogInformation("FASTECH {IpAddress} connected over Ethernet TCP.", _ipAddress);
             }
 
-            // An open port is not proof that this slave is responding.
             var status = 0U;
-            Check(EziMOTIONPlusRLib.FAS_GetAxisStatus(PortNumber, slaveNumber, ref status),
-                nameof(EziMOTIONPlusRLib.FAS_GetAxisStatus), slaveNumber);
+            Check(EziMOTIONPlusELib.FAS_GetAxisStatus(BoardId, ref status),
+                nameof(EziMOTIONPlusELib.FAS_GetAxisStatus));
         }
     }
 
     internal void EnsureOpen()
     {
         if (!_opened)
-            throw new IOException($"FASTECH COM{PortNumber} has not been opened.");
+            throw new IOException($"FASTECH {_ipAddress} has not been connected.");
     }
 
-    internal void Check(int result, string operation, byte slaveNumber)
+    internal void Check(int result, string operation)
     {
-        if (result != EziMOTIONPlusRLib.FMM_OK)
-            throw new IOException($"{operation} failed: COM{PortNumber}, slave={slaveNumber}, result={result} (0x{result:X2}).");
+        if (result != EziMOTIONPlusELib.FMM_OK)
+            throw new IOException($"{operation} failed: IP={_ipAddress}, result={result} (0x{result:X2}).");
     }
 
     public void Dispose()
@@ -75,7 +71,7 @@ public sealed class FastechController : IDisposable
         {
             if (!_opened)
                 return;
-            EziMOTIONPlusRLib.FAS_Close(PortNumber);
+            EziMOTIONPlusELib.FAS_Close(BoardId);
             _opened = false;
         }
     }

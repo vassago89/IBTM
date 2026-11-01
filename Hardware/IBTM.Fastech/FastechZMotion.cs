@@ -15,7 +15,6 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
     private readonly MotionSettings _settings;
     private readonly OperationCancellation _operations;
     private readonly MachineOptions _options;
-    private readonly byte _slave;
     private readonly double _pulsesPerMillimeter;
     private int _command;
 
@@ -26,7 +25,6 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
         MachineOptions options,
         OperationCancellation operations)
     {
-        _slave = axis.SlaveNumber;
         _pulsesPerMillimeter = axis.PulsesPerMillimeter;
         _controller = controller;
         _settings = settings;
@@ -69,10 +67,8 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
 
     public void Initialize()
     {
-        if (_slave >= EziMOTIONPlusRLib.MAX_SLAVE_NUMS)
-            throw new ArgumentOutOfRangeException(nameof(FastechZAxisSettings.SlaveNumber), "FASTECH slave number must be between 0 and 15.");
         ValidatePositive(_pulsesPerMillimeter, nameof(FastechZAxisSettings.PulsesPerMillimeter));
-        _controller.Initialize(_slave);
+        _controller.Initialize();
         StateChanged?.Invoke();
     }
 
@@ -94,9 +90,9 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             {
                 _controller.EnsureOpen();
                 var flags = 0U;
-                _controller.Check(EziMOTIONPlusRLib.FAS_GetAxisStatus(_controller.PortNumber, _slave, ref flags),
-                    nameof(EziMOTIONPlusRLib.FAS_GetAxisStatus), _slave);
-                // Ezi-SERVO Plus-R status layout (MOTION_EziSERVO_DEFINE.h).
+                _controller.Check(EziMOTIONPlusELib.FAS_GetAxisStatus(FastechController.BoardId, ref flags),
+                    nameof(EziMOTIONPlusELib.FAS_GetAxisStatus));
+                // Ezi-SERVO II Plus-E status layout (MOTION_EziSERVO2_DEFINE.h).
                 return (new AxisState(
                     Homed: (flags & 0x02000000) != 0,
                     ServoOn: (flags & 0x00100000) != 0,
@@ -125,8 +121,8 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             {
                 _controller.EnsureOpen();
                 var pulses = 0;
-                _controller.Check(EziMOTIONPlusRLib.FAS_GetActualPos(_controller.PortNumber, _slave, ref pulses),
-                    nameof(EziMOTIONPlusRLib.FAS_GetActualPos), _slave);
+                _controller.Check(EziMOTIONPlusELib.FAS_GetActualPos(FastechController.BoardId, ref pulses),
+                    nameof(EziMOTIONPlusELib.FAS_GetActualPos));
                 var millimeters = pulses / _pulsesPerMillimeter;
                 if (!double.IsFinite(millimeters))
                     throw new InvalidOperationException("FASTECH position scale produced a non-finite coordinate.");
@@ -152,7 +148,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             throw new ArgumentOutOfRangeException(nameof(position), "Position exceeds the FASTECH pulse range.");
         EnsureStopped();
         var speed = ToSpeed(velocity);
-        var options = new EziMOTIONPlusRLib.MOTION_OPTION_EX
+        var options = new EziMOTIONPlusELib.MOTION_OPTION_EX
         {
             BIT_USE_CUSTOMACCEL = true,
             BIT_USE_CUSTOMDECEL = true,
@@ -171,9 +167,9 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     _controller.EnsureOpen();
-                    _controller.Check(EziMOTIONPlusRLib.FAS_MoveSingleAxisAbsPosEx(
-                        _controller.PortNumber, _slave, (int)target, speed, options),
-                        nameof(EziMOTIONPlusRLib.FAS_MoveSingleAxisAbsPosEx), _slave);
+                    _controller.Check(EziMOTIONPlusELib.FAS_MoveSingleAxisAbsPosEx(
+                        FastechController.BoardId, (int)target, speed, options),
+                        nameof(EziMOTIONPlusELib.FAS_MoveSingleAxisAbsPosEx));
                 }
             }).ConfigureAwait(false);
             await WaitForMoveAsync(cancellationToken).ConfigureAwait(false);
@@ -197,7 +193,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             throw new ArgumentOutOfRangeException(nameof(axis));
         EnsureStopped();
         var speed = ToSpeed(Math.Abs(velocity));
-        var options = new EziMOTIONPlusRLib.VELOCITY_OPTION_EX
+        var options = new EziMOTIONPlusELib.VELOCITY_OPTION_EX
         {
             BIT_USE_CUSTOMACCDEC = true,
             wCustomAccDecTime = ToMilliseconds(_settings.ZAccelerationSeconds ?? _settings.AccelerationSeconds),
@@ -212,9 +208,9 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     _controller.EnsureOpen();
-                    _controller.Check(EziMOTIONPlusRLib.FAS_MoveVelocityEx(
-                        _controller.PortNumber, _slave, speed, velocity > 0 ? 1 : 0, options),
-                        nameof(EziMOTIONPlusRLib.FAS_MoveVelocityEx), _slave);
+                    _controller.Check(EziMOTIONPlusELib.FAS_MoveVelocityEx(
+                        FastechController.BoardId, speed, velocity > 0 ? 1 : 0, options),
+                        nameof(EziMOTIONPlusELib.FAS_MoveVelocityEx));
                 }
             }).ConfigureAwait(false);
             await WaitForMoveAsync(cancellationToken).ConfigureAwait(false);
@@ -252,17 +248,17 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     _controller.EnsureOpen();
-                    // Plus-R ORGSPEED / ORGSEARCHSPEED / ORGACCDECTIME, as in MWD100.
+                    // Plus-E SERVO2_ORGSPEED / ORGSEARCHSPEED / ORGACCDECTIME.
                     // Origin method and direction remain configured in the drive.
-                    _controller.Check(EziMOTIONPlusRLib.FAS_SetParameter(_controller.PortNumber, _slave, 17, (int)speed),
-                        nameof(EziMOTIONPlusRLib.FAS_SetParameter), _slave);
-                    _controller.Check(EziMOTIONPlusRLib.FAS_SetParameter(_controller.PortNumber, _slave, 18, (int)searchSpeed),
-                        nameof(EziMOTIONPlusRLib.FAS_SetParameter), _slave);
-                    _controller.Check(EziMOTIONPlusRLib.FAS_SetParameter(_controller.PortNumber, _slave, 19, acceleration),
-                        nameof(EziMOTIONPlusRLib.FAS_SetParameter), _slave);
+                    _controller.Check(EziMOTIONPlusELib.FAS_SetParameter(FastechController.BoardId, 14, (int)speed),
+                        nameof(EziMOTIONPlusELib.FAS_SetParameter));
+                    _controller.Check(EziMOTIONPlusELib.FAS_SetParameter(FastechController.BoardId, 15, (int)searchSpeed),
+                        nameof(EziMOTIONPlusELib.FAS_SetParameter));
+                    _controller.Check(EziMOTIONPlusELib.FAS_SetParameter(FastechController.BoardId, 16, acceleration),
+                        nameof(EziMOTIONPlusELib.FAS_SetParameter));
                     cancellationToken.ThrowIfCancellationRequested();
-                    _controller.Check(EziMOTIONPlusRLib.FAS_MoveOriginSingleAxis(_controller.PortNumber, _slave),
-                        nameof(EziMOTIONPlusRLib.FAS_MoveOriginSingleAxis), _slave);
+                    _controller.Check(EziMOTIONPlusELib.FAS_MoveOriginSingleAxis(FastechController.BoardId),
+                        nameof(EziMOTIONPlusELib.FAS_MoveOriginSingleAxis));
                 }
             }).ConfigureAwait(false);
             await WaitForMoveAsync(cancellationToken, homing: true).ConfigureAwait(false);
@@ -344,8 +340,8 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
         {
             if (!_controller.IsOpen)
                 return;
-            _controller.Check(EziMOTIONPlusRLib.FAS_MoveStop(_controller.PortNumber, _slave),
-                nameof(EziMOTIONPlusRLib.FAS_MoveStop), _slave);
+            _controller.Check(EziMOTIONPlusELib.FAS_MoveStop(FastechController.BoardId),
+                nameof(EziMOTIONPlusELib.FAS_MoveStop));
         }
     }
 
@@ -356,8 +352,8 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
         lock (_controller.SyncRoot)
         {
             _controller.EnsureOpen();
-            _controller.Check(EziMOTIONPlusRLib.FAS_ServoEnable(_controller.PortNumber, _slave, on ? 1 : 0),
-                nameof(EziMOTIONPlusRLib.FAS_ServoEnable), _slave);
+            _controller.Check(EziMOTIONPlusELib.FAS_ServoEnable(FastechController.BoardId, on ? 1 : 0),
+                nameof(EziMOTIONPlusELib.FAS_ServoEnable));
         }
         StateChanged?.Invoke();
     }
@@ -373,8 +369,8 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 _controller.EnsureOpen();
-                _controller.Check(EziMOTIONPlusRLib.FAS_ServoAlarmReset(_controller.PortNumber, _slave),
-                    nameof(EziMOTIONPlusRLib.FAS_ServoAlarmReset), _slave);
+                _controller.Check(EziMOTIONPlusELib.FAS_ServoAlarmReset(FastechController.BoardId),
+                    nameof(EziMOTIONPlusELib.FAS_ServoAlarmReset));
             }
         }).ConfigureAwait(false);
         StateChanged?.Invoke();

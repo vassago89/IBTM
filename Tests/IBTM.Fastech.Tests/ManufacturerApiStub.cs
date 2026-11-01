@@ -1,16 +1,16 @@
 using System.Collections.Generic;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace FASTECH;
 
-public partial class EziMOTIONPlusRLib
+public partial class EziMOTIONPlusELib
 {
     public const int FMM_OK = 0;
-    public const int MAX_SLAVE_NUMS = 16;
     public const uint Ready = 0x02180000;
     public const uint Moving = 0x08000000;
 
-    static EziMOTIONPlusRLib()
+    static EziMOTIONPlusELib()
     {
         Calls = [];
         Parameters = [];
@@ -20,7 +20,7 @@ public partial class EziMOTIONPlusRLib
 
     public static List<string> Calls { get; }
     public static Dictionary<byte, int> Parameters { get; }
-    public static int ConnectResult { get; set; }
+    public static bool ConnectResult { get; set; }
     public static int ReadResult { get; set; }
     public static uint Status { get; set; }
     public static int ActualPosition { get; set; }
@@ -36,7 +36,7 @@ public partial class EziMOTIONPlusRLib
     {
         Calls.Clear();
         Parameters.Clear();
-        ConnectResult = 1;
+        ConnectResult = true;
         ReadResult = 0;
         Status = Ready;
         ActualPosition = 0;
@@ -49,31 +49,31 @@ public partial class EziMOTIONPlusRLib
         StopRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    public static int FAS_Connect(byte port, uint baud)
+    public static bool FAS_ConnectTCP(IPAddress address, int boardId)
     {
-        Calls.Add($"Connect:{port}:{baud}");
+        Calls.Add($"Connect:{address}:{boardId}");
         return ConnectResult;
     }
 
-    public static void FAS_Close(byte port)
+    public static void FAS_Close(int boardId)
     {
-        Calls.Add($"Close:{port}");
+        Calls.Add($"Close:{boardId}");
     }
 
-    public static int FAS_GetAxisStatus(byte port, byte slave, ref uint status)
+    public static int FAS_GetAxisStatus(int boardId, ref uint status)
     {
-        Calls.Add($"Status:{slave}");
+        Calls.Add($"Status:{boardId}");
         status = Status;
         return ReadResult;
     }
 
-    public static int FAS_GetActualPos(byte port, byte slave, ref int position)
+    public static int FAS_GetActualPos(int boardId, ref int position)
     {
         position = ActualPosition;
         return ReadResult;
     }
 
-    public static int FAS_MoveSingleAxisAbsPosEx(byte port, byte slave, int target, uint speed, MOTION_OPTION_EX options)
+    public static int FAS_MoveSingleAxisAbsPosEx(int boardId, int target, uint speed, MOTION_OPTION_EX options)
     {
         Target = target;
         Speed = speed;
@@ -85,7 +85,7 @@ public partial class EziMOTIONPlusRLib
         return FMM_OK;
     }
 
-    public static int FAS_MoveVelocityEx(byte port, byte slave, uint speed, int direction, VELOCITY_OPTION_EX options)
+    public static int FAS_MoveVelocityEx(int boardId, uint speed, int direction, VELOCITY_OPTION_EX options)
     {
         Speed = speed;
         Status = Ready | Moving;
@@ -93,35 +93,35 @@ public partial class EziMOTIONPlusRLib
         return FMM_OK;
     }
 
-    public static int FAS_MoveStop(byte port, byte slave)
+    public static int FAS_MoveStop(int boardId)
     {
-        Calls.Add($"Stop:{slave}");
+        Calls.Add($"Stop:{boardId}");
         if (CompleteStop)
             Status = Ready;
         StopRequested.TrySetResult();
         return FMM_OK;
     }
 
-    public static int FAS_ServoEnable(byte port, byte slave, int on)
+    public static int FAS_ServoEnable(int boardId, int on)
     {
-        Calls.Add($"Servo:{slave}:{on}");
+        Calls.Add($"Servo:{boardId}:{on}");
         Status = on != 0 ? Status | 0x00100000 : Status & ~0x00100000U;
         return FMM_OK;
     }
 
-    public static int FAS_ServoAlarmReset(byte port, byte slave)
+    public static int FAS_ServoAlarmReset(int boardId)
     {
-        Calls.Add($"Reset:{slave}");
+        Calls.Add($"Reset:{boardId}");
         return FMM_OK;
     }
 
-    public static int FAS_SetParameter(byte port, byte slave, byte parameter, int value)
+    public static int FAS_SetParameter(int boardId, byte parameter, int value)
     {
         Parameters[parameter] = value;
         return FMM_OK;
     }
 
-    public static int FAS_MoveOriginSingleAxis(byte port, byte slave)
+    public static int FAS_MoveOriginSingleAxis(int boardId)
     {
         Status = Ready;
         ActualPosition = 0;
