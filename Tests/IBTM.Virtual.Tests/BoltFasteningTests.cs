@@ -35,7 +35,7 @@ public sealed class BoltFasteningTests
         var settings = new BoltFasteningSettings
         {
             MonitorTorqueCurves = false,
-            ShootingArrivalDelaySeconds = 0,
+            ShootingArrivalDelaySeconds = zFirst ? 0.3 : 0,
             DryRunMilliseconds = 30,
             SafeZ = 3,
             ShootingHead = new() { FasteningZ = 12 },
@@ -63,10 +63,12 @@ public sealed class BoltFasteningTests
         await work.SeatAsync(CancellationToken.None);
         var headLowered = false;
         var zArrived = false;
+        long tubeDetectedAt = 0;
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.ShootBolt && on)
             {
+                tubeDetectedAt = Stopwatch.GetTimestamp();
                 io.SetInput(InputIo.ShootingTubeBoltDetected, true);
                 io.SetInput(InputIo.ShootingTubeBoltDetected, false);
                 io.SetInput(InputIo.ShootingHeadVacuumDetected,
@@ -75,6 +77,13 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.ShootingHeadDown && on)
             {
                 headLowered = true;
+                if (!dryRun)
+                {
+                    Assert.False(io.GetOutput(OutputIo.ShootBolt));
+                    Assert.NotEqual(0, tubeDetectedAt);
+                    Assert.InRange(Stopwatch.GetElapsedTime(tubeDetectedAt).TotalSeconds,
+                        settings.ShootingArrivalDelaySeconds - 0.02, double.MaxValue);
+                }
                 Assert.Equal((20d, 30d), (motion.Position.X, motion.Position.Y));
                 Assert.False(motion.IsMovingHorizontal);
                 Assert.True(motion.IsMoving);
@@ -2179,7 +2188,7 @@ public sealed class BoltFasteningTests
         var shots = 0;
         var secondSupply = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var secondSupplyStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var nextPointReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nextXyReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         long secondPassageAt = 0;
         var nextTravelStarted = false;
         var motionFailure = new IOException("Retraction failed while supplying the next bolt.");
@@ -2222,6 +2231,13 @@ public sealed class BoltFasteningTests
                 io.SetInput(InputIo.ShootingHeadVacuumDetected, false);
             if (output == OutputIo.ShootingHeadDown)
             {
+                if (on && station.ActiveBolt?.Id == bolts[2].Id)
+                {
+                    Assert.False(io.GetOutput(OutputIo.ShootBolt));
+                    if (arrivalDelaySeconds > 0)
+                        Assert.InRange(Stopwatch.GetElapsedTime(secondPassageAt).TotalSeconds,
+                            arrivalDelaySeconds - 0.02, double.MaxValue);
+                }
                 // Hold the first rise until the test releases its feedback.
                 if (on || bus.StartWrites != 1)
                     io.SetInputs((InputIo.ShootingHeadUp, !on), (InputIo.ShootingHeadDown, on));
@@ -2266,8 +2282,8 @@ public sealed class BoltFasteningTests
             {
                 if (motion.IsMovingHorizontal)
                     Assert.True(station.IsHorizontalMoveAllowed);
-                if (z == settings.ShootingHead.FasteningZ)
-                    nextPointReached.TrySetResult();
+                if ((x, y, z) == (40d, 50d, settings.SafeZ))
+                    nextXyReached.TrySetResult();
             }
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -2281,7 +2297,7 @@ public sealed class BoltFasteningTests
         try
         {
             await secondSupply.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(nextPointReached.Task.IsCompleted);
+            Assert.False(nextXyReached.Task.IsCompleted);
             switch (failure)
             {
                 case ShootingPreparationFailure.None:
@@ -2293,11 +2309,14 @@ public sealed class BoltFasteningTests
                         io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
                     }
                     io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
-                    Assert.True(await WaitUntilAsync(() => nextPointReached.Task.IsCompleted || run.IsCompleted, TimeSpan.FromSeconds(2)),
+                    Assert.True(await WaitUntilAsync(() => nextXyReached.Task.IsCompleted || run.IsCompleted, TimeSpan.FromSeconds(2)),
                         $"Step={station.NextStep}, position={motion.Position}, pickup={station.PickupHeadPosition}, shooting={station.ShootingHeadPosition}, table={station.PickupTablePosition}, run={run.Status}");
                     if (run.IsCompleted)
                         await run;
-                    Assert.True(nextPointReached.Task.IsCompleted);
+                    Assert.True(nextXyReached.Task.IsCompleted);
+                    Assert.Equal(settings.SafeZ, motion.Position.Z);
+                    Assert.True(io.GetInput(InputIo.ShootingHeadUp));
+                    Assert.False(io.GetOutput(OutputIo.ShootingHeadDown));
                     if (arrivalDelaySeconds > 0)
                     {
                         Assert.True(Stopwatch.GetElapsedTime(secondPassageAt).TotalSeconds < arrivalDelaySeconds);

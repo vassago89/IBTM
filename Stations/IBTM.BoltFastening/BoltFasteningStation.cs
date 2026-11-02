@@ -1485,12 +1485,12 @@ public sealed class BoltFasteningStation : AutoUnit
         await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
         _log?.LogInformation("Bolt timing {Bolt}: XY move, elapsed={ElapsedMs:F1} ms.",
             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-        started = Stopwatch.GetTimestamp();
-        EnsureCanMoveHorizontal(cancellationToken);
         if (lowerShootingHead)
             await LowerShootingHeadAndZAsync(position.Z, cancellationToken);
         else
         {
+            started = Stopwatch.GetTimestamp();
+            EnsureCanMoveHorizontal(cancellationToken);
             await MoveZAsync(position.Z, cancellationToken);
             _log?.LogInformation("Bolt timing {Bolt}: fastening Z={Z}, elapsed={ElapsedMs:F1} ms.",
                 bolt.Id, position.Z, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
