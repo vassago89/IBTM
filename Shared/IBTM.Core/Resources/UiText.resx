@@ -3554,9 +3554,6 @@ Supply: PCB 1, travel Z</value>
   </data>
   <data name="retighten first ipm bolt on each pcb" xml:space="preserve"><value>Retighten first IPM bolt on each PCB</value></data>
   <data name="shooting ipm preliminary z" xml:space="preserve"><value>Shooting IPM preliminary Z</value></data>
-  <data name="shooting pickup alignment (s, 0 = off)" xml:space="preserve">
-    <value>Shooting pickup alignment (s, 0 = off)</value>
-  </data>
   <data name="fastening start delay (s)" xml:space="preserve"><value>Fastening start delay (s)</value></data>
   <data name="shooting ipm preliminary" xml:space="preserve"><value>Shooting IPM preliminary</value></data>
   <data name="pickup ipm final" xml:space="preserve"><value>Pickup IPM final</value></data>

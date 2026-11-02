@@ -617,8 +617,20 @@ public sealed class BoltFasteningStation : AutoUnit
                                                     "Pickup bolt supply stopped. Refill the feeder and RESET before resuming.", supplyAlarm);
                                             Io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
                                             await Task.Delay(_settings.PickupVacuumDelayMilliseconds, token);
+                                            await ShootingHead.SelectPresetAsync(_settings.ShootingIpmPreset, token);
+                                            Io.SetOutput(OutputIo.ShootingBoltDirection, false);
                                         }
-                                        await MoveZAsync(_settings.SafeZ, token);
+                                        try
+                                        {
+                                            if (feeding)
+                                                Io.SetOutput(OutputIo.ShootingBoltStart, true);
+                                            await MoveZAsync(_settings.SafeZ, token);
+                                        }
+                                        finally
+                                        {
+                                            if (feeding)
+                                                Io.SetOutput(OutputIo.ShootingBoltStart, false);
+                                        }
                                         token.ThrowIfCancellationRequested();
                                         if (!feeding || Io.GetInput(InputIo.ShootingHeadVacuumDetected))
                                             break;
@@ -626,15 +638,6 @@ public sealed class BoltFasteningStation : AutoUnit
                                         if (retry >= retryCount)
                                             throw new MaintenanceStopException(
                                                 $"IPM bolt {bolt.Id}, {bolt.HeatSink}: shooting vacuum not detected after {retry + 1} pickup attempts.");
-                                    }
-                                    var spinMilliseconds = _settings.ShootingPickupSpinMilliseconds;
-                                    if (feeding && spinMilliseconds > 0)
-                                    {
-                                        await ShootingHead.SelectPresetAsync(_settings.ShootingIpmPreset, token);
-                                        Io.SetOutput(OutputIo.ShootingBoltDirection, false);
-                                        Io.SetOutput(OutputIo.ShootingBoltStart, true);
-                                        await Task.Delay(spinMilliseconds);
-                                        Io.SetOutput(OutputIo.ShootingBoltStart, false);
                                     }
                                 }
                                 await MoveWithShootingHeadDownAsync(fasteningPosition, token);

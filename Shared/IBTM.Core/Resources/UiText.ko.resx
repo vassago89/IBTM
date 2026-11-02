@@ -3552,9 +3552,6 @@
   </data>
   <data name="retighten first ipm bolt on each pcb" xml:space="preserve"><value>각 PCB 첫 IPM 볼트 추가 본체결</value></data>
   <data name="shooting ipm preliminary z" xml:space="preserve"><value>슈팅 IPM 가체결 Z</value></data>
-  <data name="shooting pickup alignment (s, 0 = off)" xml:space="preserve">
-    <value>슈팅 픽업 후 홈 맞춤 (s, 0 = 끔)</value>
-  </data>
   <data name="fastening start delay (s)" xml:space="preserve"><value>체결 시작 대기 (s)</value></data>
   <data name="shooting ipm preliminary" xml:space="preserve"><value>슈팅 IPM 가체결</value></data>
   <data name="pickup ipm final" xml:space="preserve"><value>픽업 IPM 본체결</value></data>
