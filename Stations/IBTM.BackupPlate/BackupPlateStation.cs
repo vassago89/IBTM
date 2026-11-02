@@ -101,7 +101,7 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
             {
                 if (_settings!.ValidationError is not null
                     || motion.Axes[MotionAxis.Z].State is not
-                        { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false }
+                        { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true }
                     || motion.Position.Z is not { } position || !double.IsFinite(position))
                     return StationCylinderState.Between;
                 if (Math.Abs(position - _settings.FasteningHeight!.Value) <= _settings.PositionTolerance)

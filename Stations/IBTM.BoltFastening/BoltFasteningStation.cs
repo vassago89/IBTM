@@ -77,8 +77,6 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public BackupPlateStation Station { get; }
 
-    private bool IsReadyToFasten => Station.CarrierSeated && !Station.Completed;
-
     // Recorded NG/dry-run results count as finished work, not as a passing verdict.
     public bool IsFasteningRecorded
     {
@@ -282,11 +280,7 @@ public sealed class BoltFasteningStation : AutoUnit
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (resumeJob is not null)
-                {
                     Station.RequireCurrentJob(resumeJob);
-                    if (!Station.CarrierSeated)
-                        throw new MotionInterlockException("The fastening carrier is no longer seated.");
-                }
                 var step = NextStep;
                 if (!await ExecuteStepAsync(step, cancellationToken, selectedBolts, resultReceived,
                     continueAfterSelection, torqueCompensations))
@@ -364,11 +358,11 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             if (!_units.BoltFastening)
                 return BoltFasteningState.Disabled;
-            if (!IsReadyToFasten)
+            if (!Station.CarrierPresent || Station.Completed)
                 return BoltFasteningState.Waiting;
 
             if (_runJob is null)
-                return BoltFasteningState.PreparingCarrier;
+                return Station.CarrierSeated ? BoltFasteningState.PreparingCarrier : BoltFasteningState.Waiting;
 
             var head = ActiveBolt?.Head;
             switch (head)
@@ -963,7 +957,7 @@ public sealed class BoltFasteningStation : AutoUnit
             && !cancellationToken.IsCancellationRequested)
         {
             throw new MotionInterlockException(
-                "The fastening carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
+                "The fastening carrier changed or lost its PCB presence feedback. Check the carrier before restarting.");
         }
     }
 
@@ -974,8 +968,7 @@ public sealed class BoltFasteningStation : AutoUnit
         lock (operation)
         {
             if (ReferenceEquals(operation, _carrierOperation)
-                && (!Station.CarrierSeated
-                    || !ReferenceEquals(_runJob, Station.CurrentJob)
+                && (!ReferenceEquals(_runJob, Station.CurrentJob)
                     || Enum.GetValues<HeatSinkSlot>().Any(heatSink =>
                         Station.IsHeatSinkPresent(heatSink) != _runTargets!.Contains(heatSink))))
                 operation.Cancel();
