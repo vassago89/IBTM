@@ -4159,7 +4159,7 @@ public sealed class BoltFasteningTests
                     && message.Contains("safe Z=5") && message.Contains("head/table DOWN=")
                     && message.Contains("XY=(10, 10)") && message.Contains("target Z=10"));
                 Assert.Contains(timings, message => message.Contains("head-down move complete;")
-                    && message.Contains("XY=(20, 30)") && message.Contains("target Z=12"));
+                    && message.Contains("XY=(120, 30)") && message.Contains("target Z=12"));
             }
             else if (cancelDuringRetry)
             {
