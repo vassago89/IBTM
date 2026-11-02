@@ -146,7 +146,7 @@
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="{ui:Text 'Torque'}" Foreground="{StaticResource TextMutedBrush}"
                                 VerticalAlignment="Center" Margin="12,0,8,0"/>
-                            <TextBlock Text="{Binding RecentFastening.Result.Torque, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
+                            <TextBlock Text="{Binding RecentFastening.Result.CompensatedTorque, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
                                 FontSize="28" FontWeight="SemiBold" FontFamily="Cascadia Mono, Consolas"
                                 Foreground="{StaticResource TextPrimaryBrush}"/>
                         </StackPanel>

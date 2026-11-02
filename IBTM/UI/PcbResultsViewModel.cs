@@ -264,7 +264,7 @@ public partial class PcbResultsViewModel : ObservableObject
                 var controller = result.Controller;
                 AppendRow(++number, bolt.BoltLabel, bolt.HeadLabel, UiText.Get(result.Stage), bolt.Verdict, bolt.VisionVerdict,
                     result.TotalTurns,
-                    result.MinimumTurns, result.MaximumTurns, bolt.TurnsVerdict, result.Torque,
+                    result.MinimumTurns, result.MaximumTurns, bolt.TurnsVerdict, result.CompensatedTorque,
                     controller?.CompensatedTargetTorque, controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds,
                     controller?.Angle3, result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
                     string.Join(" ", new[] { result.Error, controller?.ErrorCode > 0 ? bolt.ControllerErrorDescription : null }
@@ -289,7 +289,7 @@ public partial class PcbResultsViewModel : ObservableObject
                 var result = stage.Result;
                 var controller = result.Controller;
                 AppendRow(++number, stage.BoltLabel, UiText.Get(result.Stage), controller?.Preset,
-                    stage.StageVerdict, result.MeasuredTurns, result.Torque, controller?.CompensatedTargetTorque,
+                    stage.StageVerdict, result.MeasuredTurns, result.CompensatedTorque, controller?.CompensatedTargetTorque,
                     controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds, controller?.Angle3,
                     result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
                     string.Join(" ", new[] { result.Error, controller?.ErrorCode > 0 ? stage.ControllerErrorDescription : null }

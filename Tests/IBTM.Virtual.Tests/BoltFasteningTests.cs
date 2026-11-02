@@ -3191,6 +3191,8 @@ public sealed class BoltFasteningTests
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         io.OutputChanged += (signal, on) =>
         {
+            if (signal == OutputIo.PickupTableDown)
+                io.SetInputs((InputIo.PickupTableUp, !on), (InputIo.PickupTableDown, on));
             if (signal != output || !on)
                 return;
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));

@@ -57,6 +57,9 @@ public sealed record BoltResult(
     public double? MaximumTurns { get; init; }
 
     [JsonIgnore]
+    public double? CompensatedTorque => Torque * Controller?.TorqueCompensationPercent / 100.0;
+
+    [JsonIgnore]
     public double? MeasuredTurns => Source == BoltResultSource.Controller
         && Controller is { Angle3: >= 0 } data && double.IsFinite(data.Angle3)
         ? data.Angle3 / 360.0 : null;
