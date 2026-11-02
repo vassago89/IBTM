@@ -1293,7 +1293,8 @@ public sealed class BoltFasteningTests
             SafeZ = 0,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
         };
-        var io = CreateIo();
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new BoltFasteningStationHardwareSettings()), new());
         io.Initialize();
         using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
@@ -1306,7 +1307,7 @@ public sealed class BoltFasteningTests
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new())
             {
-                Current = { Pcb = new() { BoltPoints = bolts.ToList(), FasteningOrder = bolts.Select(bolt => bolt.Id).ToList() } },
+                Current = { Pcb = new() { BoltPoints = [.. bolts], FasteningOrder = [.. bolts.Select(bolt => bolt.Id)] } },
             }, units, new BoltFeederUnit(io, new(), units));
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         Assert.Equal(BoltFasteningState.Waiting, station.NextStep);
