@@ -489,14 +489,13 @@ public sealed class BoltFasteningStation : AutoUnit
                     await FinishFasteningAsync(FasteningHead.Pickup, token);
                     await FinishFasteningAsync(FasteningHead.Shooting, token);
                     var standby = StandbyPosition;
-                    var standbyZ = standby?.Z ?? _settings.SafeZ;
                     var started = Stopwatch.GetTimestamp();
-                    await MoveZAsync(standbyZ, token);
-                    _log?.LogInformation("Bolt timing {Job}: completion standby Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
-                        job.Id, standbyZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    await MoveZAsync(0, token);
+                    _log?.LogInformation("Bolt timing {Job}: completion standby Z=0 arrived, elapsed={ElapsedMs:F1} ms.",
+                        job.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                     if (standby is not null)
                     {
-                        EnterStep(BoltFasteningState.MovingToStandby, $"X={standby.X}, Y={standby.Y}, Z={standby.Z}", job.Id);
+                        EnterStep(BoltFasteningState.MovingToStandby, $"X={standby.X}, Y={standby.Y}, Z=0", job.Id);
                         EnsureCanMoveHorizontal(token);
                         await _motion.MoveToXYAsync(standby.X, standby.Y, _settings.Motion.HorizontalSpeed, token);
                     }
@@ -620,10 +619,13 @@ public sealed class BoltFasteningStation : AutoUnit
                                     for (var retry = 0; ; retry++)
                                     {
                                         token.ThrowIfCancellationRequested();
+                                        var pickupStarted = Stopwatch.GetTimestamp();
                                         if (feeding)
                                             await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
+                                        var supplyFinished = Stopwatch.GetTimestamp();
                                         await MoveWithHeadDownAsync(FasteningHead.Shooting, _settings.PickupPosition, token);
                                         token.ThrowIfCancellationRequested();
+                                        var vacuumStarted = Stopwatch.GetTimestamp();
                                         if (feeding)
                                         {
                                             if (_feeder.PickupEmptyAlarm is { } supplyAlarm)
@@ -633,6 +635,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                             await Task.Delay(_settings.PickupVacuumDelayMilliseconds, token);
                                             Io.SetOutput(OutputIo.ShootingBoltDirection, false);
                                         }
+                                        var liftStarted = Stopwatch.GetTimestamp();
                                         try
                                         {
                                             if (feeding)
@@ -644,6 +647,17 @@ public sealed class BoltFasteningStation : AutoUnit
                                             if (feeding)
                                                 Io.SetOutput(OutputIo.ShootingBoltStart, false);
                                         }
+                                        var liftFinished = Stopwatch.GetTimestamp();
+                                        _log?.LogInformation(
+                                            "Bolt timing {Bolt}: IPM pickup attempt={Attempt}, feeding={Feeding}; "
+                                                + "supply wait={SupplyMs:F1} ms; vacuum wait={VacuumMs:F1} ms (configured={ConfiguredMs} ms); "
+                                                + "lift/rotation Z={Z} at {Speed} mm/s, elapsed={LiftMs:F1} ms; total={TotalMs:F1} ms.",
+                                            bolt.Id, retry + 1, feeding,
+                                            Stopwatch.GetElapsedTime(pickupStarted, supplyFinished).TotalMilliseconds,
+                                            Stopwatch.GetElapsedTime(vacuumStarted, liftStarted).TotalMilliseconds,
+                                            _settings.PickupVacuumDelayMilliseconds, _settings.SafeZ, _settings.Motion.ZSpeed,
+                                            Stopwatch.GetElapsedTime(liftStarted, liftFinished).TotalMilliseconds,
+                                            Stopwatch.GetElapsedTime(pickupStarted, liftFinished).TotalMilliseconds);
                                         token.ThrowIfCancellationRequested();
                                         if (!feeding || Io.GetInput(InputIo.ShootingHeadVacuumDetected))
                                             break;
@@ -870,9 +884,10 @@ public sealed class BoltFasteningStation : AutoUnit
                             else
                             {
                                 TraceStep(step, target, job.Id, "head retraction");
-                                var nextShootingBolt = toolHead == FasteningHead.Shooting && _units.ShootingBoltFeeder
+                                var nextShootingBolt = _units.ShootingBoltFeeder
                                     && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
-                                await ClearHeadAsync(toolHead, token, nextShootingBolt);
+                                await ClearHeadAsync(toolHead, token, nextShootingBolt,
+                                    retractZ: nextBolt is null ? 0 : _settings.SafeZ);
                             }
                         }
                         catch (Exception exception)
@@ -1147,9 +1162,10 @@ public sealed class BoltFasteningStation : AutoUnit
     }
 
     private async Task ClearHeadAsync(
-        FasteningHead head, CancellationToken cancellationToken, Guid? nextShootingBolt = null)
+        FasteningHead head, CancellationToken cancellationToken, Guid? nextShootingBolt = null,
+        double? retractZ = null)
     {
-        var safeZ = _settings.SafeZ;
+        var targetZ = retractZ ?? _settings.SafeZ;
         var boltId = ActiveBolt?.Id;
         var clearanceStarted = Stopwatch.GetTimestamp();
         await SetVacuumAsync(head, false, cancellationToken);
@@ -1158,9 +1174,9 @@ public sealed class BoltFasteningStation : AutoUnit
 
         using var clearance = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var zStarted = Stopwatch.GetTimestamp();
-        _log?.LogInformation("Bolt timing {Bolt}/{Head}: parallel head UP / retract Z={SafeZ} begin.",
-            boltId, head, safeZ);
-        var moving = MoveZAsync(safeZ, clearance.Token);
+        _log?.LogInformation("Bolt timing {Bolt}/{Head}: parallel head UP / retract Z={Z} begin.",
+            boltId, head, targetZ);
+        var moving = MoveZAsync(targetZ, clearance.Token);
         if (moving.IsCompleted)
             await moving;
         var headStarted = Stopwatch.GetTimestamp();
@@ -1191,10 +1207,10 @@ public sealed class BoltFasteningStation : AutoUnit
         }
         var finished = Stopwatch.GetTimestamp();
         _log?.LogInformation(
-            "Bolt timing {Bolt}/{Head}: clearance complete; head/table UP={HeadMs:F1} ms, retract Z={SafeZ} in {ZMs:F1} ms, parallel={ParallelMs:F1} ms, total including vacuum OFF={TotalMs:F1} ms.",
+            "Bolt timing {Bolt}/{Head}: clearance complete; head/table UP={HeadMs:F1} ms, retract Z={Z} in {ZMs:F1} ms, parallel={ParallelMs:F1} ms, total including vacuum OFF={TotalMs:F1} ms.",
             boltId, head,
             Stopwatch.GetElapsedTime(headStarted, first == raising ? firstFinished : finished).TotalMilliseconds,
-            safeZ, Stopwatch.GetElapsedTime(zStarted, first == moving ? firstFinished : finished).TotalMilliseconds,
+            targetZ, Stopwatch.GetElapsedTime(zStarted, first == moving ? firstFinished : finished).TotalMilliseconds,
             Stopwatch.GetElapsedTime(zStarted, finished).TotalMilliseconds,
             Stopwatch.GetElapsedTime(clearanceStarted, finished).TotalMilliseconds);
     }
@@ -1541,6 +1557,9 @@ public sealed class BoltFasteningStation : AutoUnit
     private async Task MoveWithHeadDownAsync(
         FasteningHead head, AxisPosition position, CancellationToken cancellationToken)
     {
+        var started = Stopwatch.GetTimestamp();
+        var clearanceFinished = started;
+        var safeZFinished = started;
         switch (head)
         {
             case FasteningHead.Shooting:
@@ -1548,7 +1567,9 @@ public sealed class BoltFasteningStation : AutoUnit
                     await RaiseCylindersAsync(cancellationToken);
                 else if (PickupHeadPosition != StationCylinderState.Up)
                     await SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
+                clearanceFinished = Stopwatch.GetTimestamp();
                 await MoveZAsync(_settings.SafeZ, cancellationToken);
+                safeZFinished = Stopwatch.GetTimestamp();
                 if (PickupTablePosition != StationCylinderState.Up)
                     await Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
                 if (ShootingHeadPosition != StationCylinderState.Down)
@@ -1557,7 +1578,9 @@ public sealed class BoltFasteningStation : AutoUnit
             case FasteningHead.Pickup:
                 if (ShootingHeadPosition != StationCylinderState.Up)
                     await SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken);
+                clearanceFinished = Stopwatch.GetTimestamp();
                 await MoveZAsync(_settings.SafeZ, cancellationToken);
+                safeZFinished = Stopwatch.GetTimestamp();
                 if (PickupTablePosition != StationCylinderState.Down || PickupHeadPosition != StationCylinderState.Down)
                     await Task.WhenAll(
                         Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, cancellationToken),
@@ -1566,6 +1589,7 @@ public sealed class BoltFasteningStation : AutoUnit
             default:
                 throw new ArgumentOutOfRangeException(nameof(head));
         }
+        var headFinished = Stopwatch.GetTimestamp();
         using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckClearance()
         {
@@ -1579,8 +1603,25 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             CheckClearance();
             move.Token.ThrowIfCancellationRequested();
+            var xyStarted = Stopwatch.GetTimestamp();
             await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, move.Token);
+            var xyFinished = Stopwatch.GetTimestamp();
             await MoveZAsync(position.Z, move.Token);
+            var finished = Stopwatch.GetTimestamp();
+            _log?.LogInformation(
+                "Bolt timing {Bolt}/{Head}: head-down move complete; clearance={ClearanceMs:F1} ms; "
+                    + "safe Z={SafeZ} move={SafeZMs:F1} ms; head/table DOWN={HeadMs:F1} ms; "
+                    + "XY=({X}, {Y}) at {XySpeed} mm/s, elapsed={XyMs:F1} ms; "
+                    + "target Z={Z} at {ZSpeed} mm/s, elapsed={ZMs:F1} ms; total={TotalMs:F1} ms.",
+                ActiveBolt?.Id, head,
+                Stopwatch.GetElapsedTime(started, clearanceFinished).TotalMilliseconds,
+                _settings.SafeZ, Stopwatch.GetElapsedTime(clearanceFinished, safeZFinished).TotalMilliseconds,
+                Stopwatch.GetElapsedTime(safeZFinished, headFinished).TotalMilliseconds,
+                position.X, position.Y, _settings.Motion.HorizontalSpeed,
+                Stopwatch.GetElapsedTime(xyStarted, xyFinished).TotalMilliseconds,
+                position.Z, _settings.Motion.ZSpeed,
+                Stopwatch.GetElapsedTime(xyFinished, finished).TotalMilliseconds,
+                Stopwatch.GetElapsedTime(started, finished).TotalMilliseconds);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
