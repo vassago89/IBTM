@@ -789,20 +789,28 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 CheckFasteningFeedback();
-                                if (bolt.Head == FasteningHead.Shooting && feeding)
+                                var vacuumRequired = bolt.Head == FasteningHead.Shooting && feeding;
+                                var vacuumStarted = Stopwatch.GetTimestamp();
+                                if (vacuumRequired)
                                     await Io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected,
                                         true, fastening.Token, requireCurrent: true);
+                                var delayStarted = Stopwatch.GetTimestamp();
                                 var startDelayMilliseconds = bolt.Head == FasteningHead.Shooting
                                     ? _settings.ShootingPcbStartDelayMilliseconds
                                     : isPreliminary ? _settings.ShootingIpmStartDelayMilliseconds
                                         : _settings.PickupFinalStartDelayMilliseconds;
                                 if (startDelayMilliseconds > 0)
                                     await Task.Delay(startDelayMilliseconds, fastening.Token);
+                                var delayFinished = Stopwatch.GetTimestamp();
                                 var dryRunMilliseconds = !_units.IsBoltFeederEnabled(bolt.Head)
                                     ? _settings.DryRunMilliseconds : 0;
                                 _log?.LogInformation(
-                                    "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
-                                    toolHead, bolt.HeatSink, bolt.Id, head.GetType().Name, dryRunMilliseconds);
+                                    "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; dry run={DryRunMilliseconds} ms (0=wait for fastening result); "
+                                        + "vacuum required={VacuumRequired}, vacuum wait={VacuumWaitMs:F1} ms; "
+                                        + "start delay configured={StartDelayMs} ms, actual={ActualDelayMs:F1} ms.",
+                                    toolHead, bolt.HeatSink, bolt.Id, head.GetType().Name, dryRunMilliseconds,
+                                    vacuumRequired, Stopwatch.GetElapsedTime(vacuumStarted, delayStarted).TotalMilliseconds,
+                                    startDelayMilliseconds, Stopwatch.GetElapsedTime(delayStarted, delayFinished).TotalMilliseconds);
                                 var started = Stopwatch.GetTimestamp();
                                 var completed = await head.TightenAsync(
                                     fastening.Token,
@@ -1505,8 +1513,10 @@ public sealed class BoltFasteningStation : AutoUnit
         var moving = MoveZAsync(z, descent.Token);
         if (moving.IsCompleted)
             await moving;
+        var headStarted = Stopwatch.GetTimestamp();
         var lowering = SetHeadDownAsync(FasteningHead.Shooting, true, descent.Token);
         var first = await Task.WhenAny(moving, lowering);
+        var firstFinished = Stopwatch.GetTimestamp();
         if (!first.IsCompletedSuccessfully)
             descent.Cancel();
         var completed = Task.WhenAll(moving, lowering);
@@ -1518,8 +1528,14 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             throw failures;
         }
-        _log?.LogInformation("Bolt timing {Bolt}: fastening Z={Z}, parallel shooting head DOWN complete, elapsed={ElapsedMs:F1} ms.",
-            ActiveBolt?.Id, z, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        var finished = Stopwatch.GetTimestamp();
+        _log?.LogInformation(
+            "Bolt timing {Bolt}: fastening Z={Z}, parallel shooting head DOWN complete, elapsed={ElapsedMs:F1} ms; "
+                + "Z move={ZMs:F1} ms, head DOWN={HeadMs:F1} ms, head wait after Z={HeadWaitMs:F1} ms.",
+            ActiveBolt?.Id, z, Stopwatch.GetElapsedTime(started, finished).TotalMilliseconds,
+            Stopwatch.GetElapsedTime(started, first == moving ? firstFinished : finished).TotalMilliseconds,
+            Stopwatch.GetElapsedTime(headStarted, first == lowering ? firstFinished : finished).TotalMilliseconds,
+            first == moving ? Stopwatch.GetElapsedTime(firstFinished, finished).TotalMilliseconds : 0);
     }
 
     private async Task MoveWithHeadDownAsync(

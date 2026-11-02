@@ -282,6 +282,10 @@ public sealed class AdcBoltHead : IBoltHead
         AdcFasteningResult? lastResult = null;
         var runObserved = false;
         var startedAt = long.MaxValue;
+        var preparationStartedAt = Stopwatch.GetTimestamp();
+        long? eventQueuedAt = null;
+        long? eventReadStartedAt = null;
+        long? eventReceivedAt = null;
         var stopped = new TaskCompletionSource<AdcStatusSample>(TaskCreationOptions.RunContinuationsAsynchronously);
         var statusSamples = 0;
         var rejectedSamples = 0;
@@ -367,13 +371,28 @@ public sealed class AdcBoltHead : IBoltHead
             // Reuse the selected preset while live feedback agrees; recheck only if it changed or is unknown.
             if (Monitor.Sample?.Status is not { } readyStatus
                 || readyStatus.Preset != preset || !readyStatus.Ready || readyStatus.Running || readyStatus.Alarm != 0)
+            {
+                var currentStatus = Monitor.Sample?.Status;
+                _logger.LogInformation(
+                    "ADC {Port}/{Slave}: pre-START preset/READY recheck; requested preset={Preset}, actual preset={ActualPreset}, "
+                        + "READY={Ready}, RUN={Running}, ALARM={Alarm}.",
+                    _portName, _slaveAddress, preset, currentStatus?.Preset,
+                    currentStatus?.Ready, currentStatus?.Running, currentStatus?.Alarm);
                 await SelectPresetAsync(preset, timeout.Token);
+            }
             else
                 RequireReady(readyStatus);
+            eventQueuedAt = Stopwatch.GetTimestamp();
             var initialEvent = dryRunMilliseconds > 0
                 ? null : await Monitor.EnqueueAsync(
-                    token => _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,
-                        (ushort)AdcResultRegister.EventCount, 1, token), timeout.Token);
+                    async token =>
+                    {
+                        eventReadStartedAt = Stopwatch.GetTimestamp();
+                        var registers = await _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,
+                            (ushort)AdcResultRegister.EventCount, 1, token);
+                        eventReceivedAt = Stopwatch.GetTimestamp();
+                        return registers;
+                    }, timeout.Token);
             // One pre-START baseline excludes previously received bolt results.
             var fastening = (EventCount: initialEvent?[0] ?? (ushort)0, Preset: preset);
             _io.SetOutput(_direction, false);
@@ -543,6 +562,19 @@ public sealed class AdcBoltHead : IBoltHead
             StopAfterOperation(failure);
             // Record the summary after START OFF; diagnostics must not hold the motor on.
             var stoppedAt = Stopwatch.GetTimestamp();
+            _logger.LogInformation(
+                "ADC {Port}/{Slave}: pre-START timing; preset={Preset}, start event={StartEvent}, START sent={StartSent}; "
+                    + "preset/READY check={ReadyMs:F1} ms; event queue wait={QueueMs:F1} ms, event read={ReadMs:F1} ms; "
+                    + "entry to START={TotalMs:F1} ms.",
+                _portName, _slaveAddress, started?.Preset ?? _requestedPreset, started?.EventCount, startedAt != long.MaxValue,
+                eventQueuedAt is { } queuedAt
+                    ? Stopwatch.GetElapsedTime(preparationStartedAt, queuedAt).TotalMilliseconds : (double?)null,
+                eventQueuedAt is { } queueStartedAt && eventReadStartedAt is { } readStartedAt
+                    ? Stopwatch.GetElapsedTime(queueStartedAt, readStartedAt).TotalMilliseconds : (double?)null,
+                eventReadStartedAt is { } readingAt && eventReceivedAt is { } readFinishedAt
+                    ? Stopwatch.GetElapsedTime(readingAt, readFinishedAt).TotalMilliseconds : (double?)null,
+                startedAt != long.MaxValue
+                    ? Stopwatch.GetElapsedTime(preparationStartedAt, startedAt).TotalMilliseconds : (double?)null);
             if (finishedSample is { } completionSample)
             {
                 _logger.LogInformation(
