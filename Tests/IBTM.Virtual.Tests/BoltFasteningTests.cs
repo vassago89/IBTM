@@ -69,7 +69,8 @@ public sealed class BoltFasteningTests
             {
                 io.SetInput(InputIo.ShootingTubeBoltDetected, true);
                 io.SetInput(InputIo.ShootingTubeBoltDetected, false);
-                io.SetInput(InputIo.ShootingHeadVacuumDetected, false);
+                io.SetInput(InputIo.ShootingHeadVacuumDetected,
+                    vacuumDetected && io.GetInput(InputIo.ShootingHeadDown));
             }
             if (output == OutputIo.ShootingHeadDown && on)
             {
@@ -2209,7 +2210,7 @@ public sealed class BoltFasteningTests
                     Assert.True(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
                     break;
                 case ShootingPreparationFailure.CarrierLost:
-                    ((VirtualMotionService)work.Motion!.Feedback).SetAxisPosition(MotionAxis.Z, 2, homed: true);
+                    io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
                     await Assert.ThrowsAsync<MotionInterlockException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
                     Assert.False(nextTravelStarted);
                     break;
