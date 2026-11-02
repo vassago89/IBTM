@@ -1282,6 +1282,63 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ActiveFasteningDoesNotRecheckBackupHeight(bool selectedTest)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            MonitorTorqueCurves = false,
+            DryRunMilliseconds = 20,
+            SafeZ = 0,
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+        };
+        var io = CreateIo();
+        io.Initialize();
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new VirtualAdcBus();
+        var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
+        var bolts = new[] { Bolt(1, FasteningHead.Shooting, 0, 0), Bolt(2, FasteningHead.Shooting, 0, 0) };
+        var work = CreateFasteningBackup(io, seated: false);
+        var units = new UnitSettings { ShootingBoltFeeder = false };
+        var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
+            new RecipeManager(OpenMachineStore(), new())
+            {
+                Current = { Pcb = new() { BoltPoints = bolts.ToList(), FasteningOrder = bolts.Select(bolt => bolt.Id).ToList() } },
+            }, units, new BoltFeederUnit(io, new(), units));
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        Assert.Equal(BoltFasteningState.Waiting, station.NextStep);
+        await work.SeatAsync(default);
+        var backupMotion = (VirtualMotionService)work.Motion!.Feedback;
+        var starts = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootingBoltStart && on)
+            {
+                starts++;
+                if (starts == 1)
+                    backupMotion.SetAxisPosition(MotionAxis.Z, 4.8, homed: true);
+            }
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        work.Changed += () =>
+        {
+            if (work.Completed)
+                stop.Cancel();
+        };
+
+        await station.RunAsync(stop.Token, selectedBolts: selectedTest ? bolts.Select(bolt => bolt.Id).ToArray() : null);
+
+        Assert.Equal(2, starts);
+        Assert.False(work.CarrierSeated);
+        Assert.True(work.Completed);
+        Assert.Equal(2, work.GetAssembly(HeatSinkSlot.HeatSink1).ShootingBoltResults.Count);
+        Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+    }
+
+    [Theory]
     [InlineData(false, false, true, false)]
     [InlineData(true, false, true, false)]
     [InlineData(false, true, true, false)]
