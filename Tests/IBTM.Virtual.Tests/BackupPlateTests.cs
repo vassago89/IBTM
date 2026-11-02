@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BackupPlate;
@@ -40,6 +41,43 @@ public sealed class BackupPlateTests
         Assert.False(station.CarrierSeated);
         Assert.DoesNotContain(OutputIo.BoltFasteningBackupPlateUp, writes);
         Assert.All(writes, output => Assert.Equal(OutputIo.BoltFasteningStopperUp, output));
+    }
+
+    [Fact]
+    public void S2SeatingUsesActualHeightWhenInPositionDrops()
+    {
+        var io = CreateIo();
+        io.Initialize();
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        var settings = new BackupPlateSettings { TransferHeight = 0, FasteningHeight = 5 };
+        using var motion = new VirtualMotionService(settings.Motion, new(), hasY: false, hasX: false);
+        motion.Initialize();
+        motion.SetAxisPosition(MotionAxis.Z, 5, homed: true);
+        var feedback = DispatchProxy.Create<IAxisMotion, MachineTestSupport.ScopedMotionProbe>();
+        var probe = (MachineTestSupport.ScopedMotionProbe)feedback;
+        probe.Motion = motion;
+        probe.ReportReady = true;
+        var status = new MotionStatus(feedback);
+        status.RefreshMonitorFeedback();
+        status.RefreshControlFeedback();
+        var station = new BackupPlateStation(io, feedback, status, settings);
+        Assert.True(station.CarrierSeated);
+        var lostSeating = false;
+        station.Changed += () => lostSeating |= !station.CarrierSeated;
+
+        probe.OverrideState = (axis, state) => state with { InPosition = false };
+        status.RefreshMonitorFeedback();
+        status.RefreshControlFeedback();
+
+        Assert.False(status.Axes[MotionAxis.Z].State!.Value.InPosition);
+        Assert.True(station.CarrierSeated);
+        Assert.False(lostSeating);
+
+        motion.SetAxisPosition(MotionAxis.Z, 5 + settings.PositionTolerance * 2, homed: true);
+        status.RefreshMonitorFeedback();
+        status.RefreshControlFeedback();
+        Assert.False(station.CarrierSeated);
+        Assert.True(lostSeating);
     }
 
     [Fact]
