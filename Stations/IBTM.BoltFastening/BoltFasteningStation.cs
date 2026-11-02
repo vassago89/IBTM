@@ -26,6 +26,8 @@ public sealed class BoltFasteningStation : AutoUnit
     // Selected work belongs only to this run; STOP discards it.
     private (BoltPoint Bolt, BoltFasteningStage Stage)[]? _runBolts;
     private int _boltIndex;
+    // Selection history for this carrier run; controller feedback remains in the head.
+    private BoltFasteningStage? _presetStage;
     private long _cycleStartedAt;
     private BackupPlateStation.Job? _runJob;
     private CancellationTokenSource? _carrierOperation;
@@ -571,6 +573,19 @@ public sealed class BoltFasteningStation : AutoUnit
                     _log?.LogInformation("Bolt timing {Job}/{Bolt}: begin, PCB={Pcb}, head={Head}, safe Z={SafeZ}.",
                         job.Id, bolt.Id, bolt.HeatSink, toolHead, _settings.SafeZ);
                     var feeding = !isFinal && _units.IsBoltFeederEnabled(bolt.Head);
+                    var head = toolHead == FasteningHead.Pickup ? PickupHead : ShootingHead;
+                    var preset = bolt.Head == FasteningHead.Shooting ? _settings.ShootingPcbPreset
+                        : isPreliminary ? _settings.ShootingIpmPreset : _settings.PickupFinalPreset;
+                    var presetStage = isFinal ? BoltFasteningStage.Final : stage;
+                    if (_presetStage != presetStage)
+                    {
+                        var presetStarted = Stopwatch.GetTimestamp();
+                        await head.SelectPresetAsync(preset, token);
+                        _presetStage = presetStage;
+                        _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
+                            bolt.Id, Stopwatch.GetElapsedTime(presetStarted).TotalMilliseconds);
+                        Station.RequireCurrentJob(job);
+                    }
                     switch (toolHead)
                     {
                         case FasteningHead.Shooting:
@@ -616,7 +631,6 @@ public sealed class BoltFasteningStation : AutoUnit
                                                     "Pickup bolt supply stopped. Refill the feeder and RESET before resuming.", supplyAlarm);
                                             Io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
                                             await Task.Delay(_settings.PickupVacuumDelayMilliseconds, token);
-                                            await ShootingHead.SelectPresetAsync(_settings.ShootingIpmPreset, token);
                                             Io.SetOutput(OutputIo.ShootingBoltDirection, false);
                                         }
                                         try
@@ -733,21 +747,6 @@ public sealed class BoltFasteningStation : AutoUnit
                     Io.OutputChanged += TrackStart;
                     try
                     {
-                        var head = toolHead switch
-                        {
-                            FasteningHead.Shooting => ShootingHead,
-                            FasteningHead.Pickup => PickupHead,
-                            _ => throw new ArgumentOutOfRangeException(nameof(bolt.Head)),
-                        };
-                        var started = Stopwatch.GetTimestamp();
-                        var preset = bolt.Head == FasteningHead.Shooting ? _settings.ShootingPcbPreset
-                            : stage == BoltFasteningStage.Preliminary
-                                ? _settings.ShootingIpmPreset : _settings.PickupFinalPreset;
-                        await head.SelectPresetAsync(preset, token);
-                        _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
-                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                        Station.RequireCurrentJob(job);
-
                         using var curveCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
                         Task<AdcTorqueCurve>? receivingCurve = null;
                         using (var fastening = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -804,7 +803,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 _log?.LogInformation(
                                     "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
                                     toolHead, bolt.HeatSink, bolt.Id, head.GetType().Name, dryRunMilliseconds);
-                                started = Stopwatch.GetTimestamp();
+                                var started = Stopwatch.GetTimestamp();
                                 var completed = await head.TightenAsync(
                                     fastening.Token,
                                     feedDistance > 0 ? FeedZAsync : null,
@@ -1044,6 +1043,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 _runTargets = null;
                 _runBolts = null;
                 _boltIndex = 0;
+                _presetStage = null;
             }
         }
     }

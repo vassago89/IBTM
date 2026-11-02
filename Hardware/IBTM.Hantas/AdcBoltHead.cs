@@ -364,6 +364,12 @@ public sealed class AdcBoltHead : IBoltHead
                 if (_io.GetOutput(_presets[index]) != (index == preset - 1))
                     throw new InvalidOperationException($"Preset outputs no longer match preset {preset}.");
             }
+            // Reuse the selected preset while live feedback agrees; recheck only if it changed or is unknown.
+            if (Monitor.Sample?.Status is not { } readyStatus
+                || readyStatus.Preset != preset || !readyStatus.Ready || readyStatus.Running || readyStatus.Alarm != 0)
+                await SelectPresetAsync(preset, timeout.Token);
+            else
+                RequireReady(readyStatus);
             var initialEvent = dryRunMilliseconds > 0
                 ? null : await Monitor.EnqueueAsync(
                     token => _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,

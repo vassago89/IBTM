@@ -1561,6 +1561,41 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task ReusedPresetWaitsIfControllerPresetOrReadyChanged(bool wrongPreset)
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10, ResponseTimeoutMilliseconds = 500 });
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        await head.SelectPresetAsync(2, stop.Token);
+        Assert.True((await head.TightenAsync(stop.Token)).Success);
+        bus.ReportedPreset = wrongPreset ? (ushort)1 : null;
+        bus.NotReady = !wrongPreset;
+        await head.Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), stop.Token);
+
+        var tightening = head.TightenAsync(stop.Token);
+        try
+        {
+            await head.Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), stop.Token);
+            Assert.False(tightening.IsCompleted);
+            Assert.Equal(1, bus.StartWrites);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            bus.ReportedPreset = null;
+            bus.NotReady = false;
+            Assert.True((await tightening).Success);
+            Assert.Equal(2, bus.StartWrites);
+            Assert.Equal(0, bus.ResetWrites);
+        }
+        finally
+        {
+            stop.Cancel();
+            await ((Task)tightening).ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task NextPresetWaitsForReadyAfterSuccessfulTighteningWithoutStartingOrResetting(bool cancel)
     {
         using var bus = new AdcControllerStub();

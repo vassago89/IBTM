@@ -667,7 +667,7 @@ public sealed class BoltFasteningTests
         }).ToArray();
         var station = new BoltFasteningStation(shootingHead, head, io, motion, new(motion), settings, work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. shootingBolts, .. bolts] } } },
-            units, new BoltFeederUnit(io, new(), units));
+            units, new BoltFeederUnit(io, new(), units), factory.CreateLogger<BoltFasteningStation>());
         io.SetInputs((InputIo.BoltFasteningHeatSink1Present, true), (InputIo.BoltFasteningHeatSink2Present, true));
         await work.SeatAsync(CancellationToken.None);
         var starts = new List<(int Bolt, ushort Preset)>();
@@ -770,6 +770,7 @@ public sealed class BoltFasteningTests
             });
             Assert.False(work.Completed);
             Assert.Equal(4, starts.Count);
+            Assert.Single(log.Snapshot(), entry => entry.Message.Contains(": preset selection,"));
             Assert.All(starts, item => Assert.Equal((ushort)3, item.Preset));
             beforeStop = work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults[bolts[0].Id];
             Assert.Equal(BoltFasteningStage.Preliminary, beforeStop.Stage);
@@ -813,6 +814,7 @@ public sealed class BoltFasteningTests
         {
             Assert.True(await WaitUntilAsync(() => work.Completed || run.IsCompleted, TimeSpan.FromSeconds(20)));
             Assert.True(work.Completed, run.Exception?.ToString() ?? station.NextStep.ToString());
+            Assert.Equal(3, log.Snapshot().Count(entry => entry.Message.Contains(": preset selection,")));
             Assert.Equal(expectedCompensationReads, bus.CompensationReads);
             Assert.Equal(expectedCompensationReads * (pcbFeeding ? 2 : 1), shootingBus.CompensationReads);
             if (resume)
