@@ -26,9 +26,11 @@ public sealed class BoltFasteningTests
 {
     [Theory]
     [InlineData(true, false)]
+    [InlineData(true, false, true)]
     [InlineData(false, false)]
     [InlineData(false, true)]
-    public async Task ShootingFinalChecksVacuumAfterLoweringBeforeStarting(bool vacuumDetected, bool dryRun)
+    public async Task ShootingFinalChecksVacuumAfterParallelDescentBeforeStarting(
+        bool vacuumDetected, bool dryRun, bool zFirst = false)
     {
         var settings = new BoltFasteningSettings
         {
@@ -37,7 +39,7 @@ public sealed class BoltFasteningTests
             DryRunMilliseconds = 30,
             SafeZ = 3,
             ShootingHead = new() { FasteningZ = 12 },
-            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = zFirst ? 20_000 : 100 },
         };
         var units = new UnitSettings { ShootingBoltFeeder = !dryRun };
         var io = new VirtualIoService(Outputs(new BoltFasteningHardwareSettings(), new BoltFasteningStationHardwareSettings()),
@@ -60,6 +62,7 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
         var headLowered = false;
+        var zArrived = false;
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.ShootBolt && on)
@@ -71,11 +74,20 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.ShootingHeadDown && on)
             {
                 headLowered = true;
+                Assert.Equal((20d, 30d), (motion.Position.X, motion.Position.Y));
+                Assert.False(motion.IsMovingHorizontal);
+                Assert.True(motion.IsMoving);
+                Assert.True(motion.Position.Z < settings.ShootingHead.FasteningZ);
                 Assert.False(io.GetInput(InputIo.ShootingHeadVacuumDetected));
                 Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+                if (!zFirst)
+                    io.SetInputs((InputIo.ShootingHeadUp, false), (InputIo.ShootingHeadDown, true));
             }
             if (output == OutputIo.ShootingBoltStart && on)
             {
+                Assert.True(zArrived);
+                Assert.False(motion.IsMoving);
+                Assert.Equal(settings.ShootingHead.FasteningZ, motion.Position.Z);
                 Assert.True(io.GetInput(InputIo.ShootingHeadDown));
                 Assert.True(dryRun || io.GetInput(InputIo.ShootingHeadVacuumDetected));
             }
@@ -84,6 +96,14 @@ public sealed class BoltFasteningTests
         {
             if (input == InputIo.ShootingHeadDown && on && !dryRun)
                 io.SetInput(InputIo.ShootingHeadVacuumDetected, vacuumDetected);
+        };
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (!headLowered || zArrived || z != settings.ShootingHead.FasteningZ)
+                return;
+            zArrived = true;
+            Assert.Equal(!zFirst, io.GetInput(InputIo.ShootingHeadDown));
+            Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var run = station.RunAsync(stop.Token, selectedBolts: [bolt.Id]);
@@ -2091,7 +2111,8 @@ public sealed class BoltFasteningTests
                 throw motionFailure;
             if (station.ActiveBolt?.Id == bolts[2].Id && bus.StartWrites == 1 && (x != 20 || y != 30))
             {
-                Assert.True(station.IsHorizontalMoveAllowed);
+                if (motion.IsMovingHorizontal)
+                    Assert.True(station.IsHorizontalMoveAllowed);
                 if (z == settings.ShootingHead.FasteningZ)
                     nextPointReached.TrySetResult();
             }
@@ -2962,7 +2983,8 @@ public sealed class BoltFasteningTests
         {
             ShootingPreliminaryZ = 12,
             FirstFasteningHead = FasteningHead.Pickup,
-            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            ShootingHead = new() { FasteningZ = 12 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = boltHead == FasteningHead.Shooting ? 1 : 20_000 },
         };
         var io = new VirtualIoService(Outputs(new BoltFasteningHardwareSettings(), new BoltFasteningStationHardwareSettings()),
             new() { TimeoutMilliseconds = 1_000 });
@@ -3015,6 +3037,8 @@ public sealed class BoltFasteningTests
         Assert.Equal(0, shootingBus.StartWrites);
         Assert.False(motion.IsMoving);
         Assert.False(work.Completed);
+        if (boltHead == FasteningHead.Shooting)
+            Assert.True(motion.Position.Z < settings.ShootingHead.FasteningZ);
         if (final)
             Assert.Same(preliminary, assembly.PickupBoltResults[bolt.Id]);
         else

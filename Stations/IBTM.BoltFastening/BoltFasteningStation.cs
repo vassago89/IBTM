@@ -653,7 +653,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 if (shooting?.IsCompleted == true)
                                     await shooting;
                                 // XY travel and fastening-Z descent overlap the supply's arrival delay.
-                                var moving = MoveToBoltAsync(bolt, preparation.Token);
+                                var moving = MoveToBoltAsync(bolt, preparation.Token, lowerShootingHead: true);
                                 if (moving.IsCompleted && pendingFeed is null)
                                     await moving;
                                 shooting ??= ShootBoltAsync(preparation.Token, bolt.Id);
@@ -681,7 +681,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                     bolt.Id, Stopwatch.GetElapsedTime(supplyWaitStarted).TotalMilliseconds, pendingFeed is not null);
                             }
                             else
-                                await MoveToBoltAsync(bolt, token, target: fasteningPosition);
+                                await MoveToBoltAsync(bolt, token, target: fasteningPosition, lowerShootingHead: true);
                             break;
                         }
                         case FasteningHead.Pickup:
@@ -787,8 +787,6 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 CheckFasteningFeedback();
-                                if (!isFinal && !isPreliminary)
-                                    await SetHeadDownAsync(toolHead, true, fastening.Token);
                                 if (bolt.Head == FasteningHead.Shooting && feeding)
                                     await Io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected,
                                         true, fastening.Token, requireCurrent: true);
@@ -1441,7 +1439,8 @@ public sealed class BoltFasteningStation : AutoUnit
     }
 
     internal async Task MoveToBoltAsync(
-        BoltPoint bolt, CancellationToken cancellationToken = default, AxisPosition? target = null)
+        BoltPoint bolt, CancellationToken cancellationToken = default,
+        AxisPosition? target = null, bool lowerShootingHead = false)
     {
         var position = target ?? _settings.GetBoltPosition(bolt);
         _log?.LogInformation(
@@ -1461,9 +1460,30 @@ public sealed class BoltFasteningStation : AutoUnit
             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         started = Stopwatch.GetTimestamp();
         EnsureCanMoveHorizontal(cancellationToken);
-        await MoveZAsync(position.Z, cancellationToken);
-        _log?.LogInformation("Bolt timing {Bolt}: fastening Z={Z}, elapsed={ElapsedMs:F1} ms.",
-            bolt.Id, position.Z, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        if (lowerShootingHead)
+        {
+            using var descent = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var moving = MoveZAsync(position.Z, descent.Token);
+            if (moving.IsCompleted)
+                await moving;
+            var lowering = SetHeadDownAsync(FasteningHead.Shooting, true, descent.Token);
+            var first = await Task.WhenAny(moving, lowering);
+            if (!first.IsCompletedSuccessfully)
+                descent.Cancel();
+            var completed = Task.WhenAll(moving, lowering);
+            try
+            {
+                await completed;
+            }
+            catch when (completed.Exception is { InnerExceptions.Count: > 1 } failures)
+            {
+                throw failures;
+            }
+        }
+        else
+            await MoveZAsync(position.Z, cancellationToken);
+        _log?.LogInformation("Bolt timing {Bolt}: fastening Z={Z}, parallel shooting head DOWN={HeadDown}, elapsed={ElapsedMs:F1} ms.",
+            bolt.Id, position.Z, lowerShootingHead, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
     private async Task MoveWithHeadDownAsync(
