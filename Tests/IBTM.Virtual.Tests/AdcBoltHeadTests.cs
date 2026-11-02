@@ -830,8 +830,9 @@ public sealed class AdcBoltHeadTests
         bool? startDuringSummary = null;
         ((INotifyCollectionChanged)log.Entries).CollectionChanged += (sender, args) =>
         {
-            if (log.Entries[^1].Message.Contains("completion observed"))
-                startDuringSummary = io.GetOutput(OutputIo.PickupBoltStart);
+            if (log.Entries[^1].Message.Contains("completion observed")
+                || log.Entries[^1].Message.Contains("pre-START timing"))
+                startDuringSummary = startDuringSummary == true || io.GetOutput(OutputIo.PickupBoltStart);
         };
         await head.SelectPresetAsync(1);
         var rejection = $"HComm error 0x03; RX={response}.";
@@ -872,6 +873,8 @@ public sealed class AdcBoltHeadTests
             Assert.Equal(1, bus.StopWrites);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
             Assert.False(startDuringSummary);
+            Assert.Single(log.Snapshot(), entry => entry.Message.Contains("pre-START timing")
+                && entry.Message.Contains("event queue wait=") && entry.Message.Contains("event read="));
             Assert.Contains(log.Snapshot(), entry => entry.Message.Contains("completion observed")
                 && entry.Message.Contains($"rejected={rejectionCount}"));
             Assert.Contains(log.Snapshot(), entry => entry.Message.Contains("cycle timing")
