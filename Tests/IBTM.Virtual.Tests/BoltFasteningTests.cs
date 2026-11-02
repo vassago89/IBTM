@@ -1623,13 +1623,16 @@ public sealed class BoltFasteningTests
                 if (on)
                 {
                     headWasLowered = true;
-                    bolt.MinimumTurns = 20;
-                    bolt.MaximumTurns = 30;
                     if (failStop)
                         bus.StopWriteFailure = stopFailure;
                 }
                 else if (headWasLowered && failClearance)
                     throw clearFailure;
+            }
+            if (output == OutputIo.ShootingBoltStart && on)
+            {
+                bolt.MinimumTurns = 20;
+                bolt.MaximumTurns = 30;
             }
         };
         assembly.ResultsChanged += updated =>
@@ -1662,6 +1665,155 @@ public sealed class BoltFasteningTests
         Assert.Equal(15, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].MaximumTurns);
         Assert.Equal(1, bus.StartWrites);
         Assert.False(work.Completed);
+    }
+
+    public enum CurveRetractionScenario { Delayed, Timeout, Stop, RetractionFailure, GraphFailure, BothFailures }
+
+    [Theory]
+    [InlineData(CurveRetractionScenario.Delayed)]
+    [InlineData(CurveRetractionScenario.Timeout)]
+    [InlineData(CurveRetractionScenario.Stop)]
+    [InlineData(CurveRetractionScenario.RetractionFailure)]
+    [InlineData(CurveRetractionScenario.GraphFailure)]
+    [InlineData(CurveRetractionScenario.BothFailures)]
+    public async Task TorqueCurveReceptionOverlapsRetractionAndKeepsEachBoltResult(CurveRetractionScenario scenario)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            ShootingArrivalDelaySeconds = 0,
+            ShootingHead = new() { FasteningZ = 12 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            TorqueCurveTimeoutMilliseconds = scenario == CurveRetractionScenario.Timeout ? 100 : 3_000,
+        };
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new BoltFasteningStationHardwareSettings()), new());
+        io.Initialize();
+        io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new AdcControllerStub
+        {
+            SuppressTorqueCurve = true,
+            ResultStatus = scenario == CurveRetractionScenario.Timeout ? AdcEventStatus.FasteningNg : AdcEventStatus.FasteningOk,
+        };
+        using var pickupBus = new AdcControllerStub();
+        var shooting = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Shooting", 115200);
+        var pickup = CreateAdcHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Pickup", 115200);
+        var bolts = new[] { Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 40, 50) };
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
+        var units = new UnitSettings();
+        var station = new BoltFasteningStation(shooting, pickup, io, motion, new(motion), settings,
+            work, new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
+            units, new BoltFeederUnit(io, new(), units));
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        await work.SeatAsync(CancellationToken.None);
+        var results = work.GetAssembly(HeatSinkSlot.HeatSink1).ShootingBoltResults;
+        var retractionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retractionFailure = new IOException("Retraction failed while receiving the graph.");
+        var graphFailure = new IOException("Graph request failed.");
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootBolt && on)
+            {
+                io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+                io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
+            }
+            if (output == OutputIo.ShootingBoltStart && bus.StartWrites == 1)
+            {
+                if (on && scenario is CurveRetractionScenario.GraphFailure or CurveRetractionScenario.BothFailures)
+                    bus.GraphRequestFailure = graphFailure;
+                if (!on && scenario == CurveRetractionScenario.BothFailures)
+                    settings.Motion.ZSpeed = 10;
+            }
+            if (output == OutputIo.ShootingHeadDown && !on && bus.ResultReads == 1)
+            {
+                Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+                Assert.Empty(results);
+                retractionStarted.TrySetResult();
+                if (scenario == CurveRetractionScenario.RetractionFailure)
+                    throw retractionFailure;
+            }
+        };
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (scenario == CurveRetractionScenario.BothFailures
+                && retractionStarted.Task.IsCompleted && bus.GraphRequests >= 2)
+                throw retractionFailure;
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var run = station.RunAsync(stop.Token, selectedBolts: bolts.Select(bolt => bolt.Id).ToArray());
+        try
+        {
+            await retractionStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            switch (scenario)
+            {
+                case CurveRetractionScenario.Delayed:
+                    Assert.True(await WaitUntilAsync(() => !motion.IsMoving
+                        && station.ShootingHeadPosition == StationCylinderState.Up && bus.GraphRequests >= 2,
+                        TimeSpan.FromSeconds(2)));
+                    Assert.Equal(settings.SafeZ, motion.Position.Z);
+                    Assert.Equal(1, bus.StartWrites);
+                    Assert.Empty(results);
+                    bus.SuppressTorqueCurve = false;
+                    await bus.RequestTorqueCurveAsync(1);
+                    await run.WaitAsync(TimeSpan.FromSeconds(3));
+                    Assert.True(work.Completed);
+                    Assert.Equal(2, bus.StartWrites);
+                    Assert.Equal((ushort)1, results[bolts[0].Id].TorqueCurve!.ScrewCount);
+                    Assert.Equal((ushort)2, results[bolts[1].Id].TorqueCurve!.ScrewCount);
+                    break;
+                case CurveRetractionScenario.Timeout:
+                    await run.WaitAsync(TimeSpan.FromSeconds(3));
+                    Assert.True(work.Completed);
+                    Assert.Equal(2, bus.StartWrites);
+                    Assert.All(results.Values, result =>
+                    {
+                        Assert.False(result.Success);
+                        Assert.Null(result.TorqueCurve);
+                        Assert.NotNull(result.TorqueCurveError);
+                    });
+                    break;
+                case CurveRetractionScenario.Stop:
+                    stop.Cancel();
+                    await run.WaitAsync(TimeSpan.FromSeconds(1));
+                    break;
+                case CurveRetractionScenario.RetractionFailure:
+                    Assert.Same(retractionFailure, await Assert.ThrowsAsync<IOException>(
+                        () => run.WaitAsync(TimeSpan.FromSeconds(1))));
+                    break;
+                case CurveRetractionScenario.GraphFailure:
+                    Assert.Same(graphFailure, await Assert.ThrowsAsync<IOException>(
+                        () => run.WaitAsync(TimeSpan.FromSeconds(2))));
+                    Assert.Equal(settings.SafeZ, motion.Position.Z);
+                    Assert.Equal(StationCylinderState.Up, station.ShootingHeadPosition);
+                    break;
+                case CurveRetractionScenario.BothFailures:
+                    var failures = (await Assert.ThrowsAsync<AggregateException>(
+                        () => run.WaitAsync(TimeSpan.FromSeconds(2)))).Flatten().InnerExceptions;
+                    Assert.Contains(retractionFailure, failures);
+                    Assert.Contains(graphFailure, failures);
+                    break;
+            }
+            Assert.False(motion.IsMoving);
+            Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+            Assert.NotNull(results[bolts[0].Id].Controller);
+            if (scenario != CurveRetractionScenario.Timeout)
+                Assert.True(results[bolts[0].Id].Success);
+            if (scenario is not CurveRetractionScenario.Delayed and not CurveRetractionScenario.Timeout)
+            {
+                Assert.Equal(1, bus.StartWrites);
+                Assert.Single(results);
+                Assert.False(work.Completed);
+            }
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
     }
 
     [Fact]

@@ -652,8 +652,8 @@ public sealed class BoltFasteningStation : AutoUnit
                                 var shooting = pendingFeed?.Completion;
                                 if (shooting?.IsCompleted == true)
                                     await shooting;
-                                // XY travel and fastening-Z descent overlap the supply's arrival delay.
-                                var moving = MoveToBoltAsync(bolt, preparation.Token, lowerShootingHead: true);
+                                // Travel with the head raised while the supplied bolt reaches it.
+                                var moving = MoveToXYAsync(fasteningPosition.X, fasteningPosition.Y, preparation.Token);
                                 if (moving.IsCompleted && pendingFeed is null)
                                     await moving;
                                 shooting ??= ShootBoltAsync(preparation.Token, bolt.Id);
@@ -679,6 +679,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                 }
                                 _log?.LogInformation("Bolt timing {Bolt}: movement / shooting supply joined, elapsed={ElapsedMs:F1} ms, supplied during previous retraction={Prefed}.",
                                     bolt.Id, Stopwatch.GetElapsedTime(supplyWaitStarted).TotalMilliseconds, pendingFeed is not null);
+                                await LowerShootingHeadAndZAsync(fasteningPosition.Z, token);
                             }
                             else
                                 await MoveToBoltAsync(bolt, token, target: fasteningPosition, lowerShootingHead: true);
@@ -747,6 +748,8 @@ public sealed class BoltFasteningStation : AutoUnit
                             bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                         Station.RequireCurrentJob(job);
 
+                        using var curveCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+                        Task<AdcTorqueCurve>? receivingCurve = null;
                         using (var fastening = CancellationTokenSource.CreateLinkedTokenSource(token))
                         {
                             void CheckFasteningFeedback()
@@ -827,17 +830,8 @@ public sealed class BoltFasteningStation : AutoUnit
                                 if (_settings.MonitorTorqueCurves && dryRunMilliseconds == 0
                                     && completed.Controller is { } controller && head.Monitor is { } monitor)
                                 {
-                                    try
-                                    {
-                                        torqueCurve = await monitor.ReadTorqueCurveAsync(
-                                            controller, completed.Torque, _settings.TorqueCurveTimeoutMilliseconds, token);
-                                    }
-                                    catch (TimeoutException)
-                                    {
-                                        torqueCurveError = monitor.TorqueCurveError ?? UiText.Get("Torque curve not received");
-                                        _log?.LogWarning("Torque curve not received for carrier {Job}, bolt {Bolt}, stage {Stage}.",
-                                            job.Id, bolt.Id, stage);
-                                    }
+                                    receivingCurve = monitor.ReadTorqueCurveAsync(
+                                        controller, completed.Torque, _settings.TorqueCurveTimeoutMilliseconds, curveCancellation.Token);
                                 }
                             }
                             catch (OperationCanceledException) when (fastening.IsCancellationRequested && !token.IsCancellationRequested)
@@ -850,25 +844,58 @@ public sealed class BoltFasteningStation : AutoUnit
                             }
                         }
 
-                        var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1].Bolt : null;
-                        if (result is { Success: true }
-                            && nextBolt?.Id == bolt.Id
-                            && stage == BoltFasteningStage.FinalBeforeRetightening
-                            && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Retightening)
-                            await SetVacuumAsync(toolHead, false, token);
-                        else if (nextBolt is not null
-                            && (isPreliminary && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Preliminary
-                                || isFinal && nextBolt.Head == FasteningHead.Pickup))
+                        Exception? retractionFailure = null;
+                        try
                         {
-                            await SetVacuumAsync(toolHead, false, token);
-                            await MoveZAsync(_settings.SafeZ, token);
+                            var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1].Bolt : null;
+                            if (result is { Success: true }
+                                && nextBolt?.Id == bolt.Id
+                                && stage == BoltFasteningStage.FinalBeforeRetightening
+                                && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Retightening)
+                                await SetVacuumAsync(toolHead, false, token);
+                            else if (nextBolt is not null
+                                && (isPreliminary && _runBolts[_boltIndex + 1].Stage == BoltFasteningStage.Preliminary
+                                    || isFinal && nextBolt.Head == FasteningHead.Pickup))
+                            {
+                                await SetVacuumAsync(toolHead, false, token);
+                                await MoveZAsync(_settings.SafeZ, token);
+                            }
+                            else
+                            {
+                                TraceStep(step, target, job.Id, "head retraction");
+                                var nextShootingBolt = toolHead == FasteningHead.Shooting && _units.ShootingBoltFeeder
+                                    && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
+                                await ClearHeadAsync(toolHead, token, nextShootingBolt);
+                            }
                         }
-                        else
+                        catch (Exception exception)
                         {
-                            TraceStep(step, target, job.Id, "head retraction");
-                            var nextShootingBolt = toolHead == FasteningHead.Shooting && _units.ShootingBoltFeeder
-                                && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
-                            await ClearHeadAsync(toolHead, token, nextShootingBolt);
+                            retractionFailure = exception;
+                            throw;
+                        }
+                        finally
+                        {
+                            // Finish this bolt's graph before another START can replace it in the controller.
+                            if (receivingCurve is not null)
+                            {
+                                if (retractionFailure is not null)
+                                    curveCancellation.Cancel();
+                                try
+                                {
+                                    torqueCurve = await receivingCurve;
+                                }
+                                catch (TimeoutException)
+                                {
+                                    torqueCurveError = head.Monitor?.TorqueCurveError ?? UiText.Get("Torque curve not received");
+                                    _log?.LogWarning("Torque curve not received for carrier {Job}, bolt {Bolt}, stage {Stage}.",
+                                        job.Id, bolt.Id, stage);
+                                }
+                                catch (OperationCanceledException) when (retractionFailure is not null && curveCancellation.IsCancellationRequested) { }
+                                catch (Exception curveFailure) when (retractionFailure is not null)
+                                {
+                                    throw new AggregateException(retractionFailure, curveFailure);
+                                }
+                            }
                         }
                     }
                     catch (Exception exception)
@@ -1461,29 +1488,38 @@ public sealed class BoltFasteningStation : AutoUnit
         started = Stopwatch.GetTimestamp();
         EnsureCanMoveHorizontal(cancellationToken);
         if (lowerShootingHead)
-        {
-            using var descent = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var moving = MoveZAsync(position.Z, descent.Token);
-            if (moving.IsCompleted)
-                await moving;
-            var lowering = SetHeadDownAsync(FasteningHead.Shooting, true, descent.Token);
-            var first = await Task.WhenAny(moving, lowering);
-            if (!first.IsCompletedSuccessfully)
-                descent.Cancel();
-            var completed = Task.WhenAll(moving, lowering);
-            try
-            {
-                await completed;
-            }
-            catch when (completed.Exception is { InnerExceptions.Count: > 1 } failures)
-            {
-                throw failures;
-            }
-        }
+            await LowerShootingHeadAndZAsync(position.Z, cancellationToken);
         else
+        {
             await MoveZAsync(position.Z, cancellationToken);
-        _log?.LogInformation("Bolt timing {Bolt}: fastening Z={Z}, parallel shooting head DOWN={HeadDown}, elapsed={ElapsedMs:F1} ms.",
-            bolt.Id, position.Z, lowerShootingHead, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            _log?.LogInformation("Bolt timing {Bolt}: fastening Z={Z}, elapsed={ElapsedMs:F1} ms.",
+                bolt.Id, position.Z, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        }
+    }
+
+    private async Task LowerShootingHeadAndZAsync(double z, CancellationToken cancellationToken)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        var started = Stopwatch.GetTimestamp();
+        using var descent = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var moving = MoveZAsync(z, descent.Token);
+        if (moving.IsCompleted)
+            await moving;
+        var lowering = SetHeadDownAsync(FasteningHead.Shooting, true, descent.Token);
+        var first = await Task.WhenAny(moving, lowering);
+        if (!first.IsCompletedSuccessfully)
+            descent.Cancel();
+        var completed = Task.WhenAll(moving, lowering);
+        try
+        {
+            await completed;
+        }
+        catch when (completed.Exception is { InnerExceptions.Count: > 1 } failures)
+        {
+            throw failures;
+        }
+        _log?.LogInformation("Bolt timing {Bolt}: fastening Z={Z}, parallel shooting head DOWN complete, elapsed={ElapsedMs:F1} ms.",
+            ActiveBolt?.Id, z, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
     private async Task MoveWithHeadDownAsync(
