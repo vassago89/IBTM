@@ -101,7 +101,7 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
             {
                 if (_settings!.ValidationError is not null
                     || motion.Axes[MotionAxis.Z].State is not
-                        { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true }
+                        { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false }
                     || motion.Position.Z is not { } position || !double.IsFinite(position))
                     return StationCylinderState.Between;
                 if (Math.Abs(position - _settings.FasteningHeight!.Value) <= _settings.PositionTolerance)
@@ -196,7 +196,7 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
 
     public async Task SeatAsync(CancellationToken cancellationToken)
     {
-        await SetStopperUpAsync(true, cancellationToken);
+        //await SetStopperUpAsync(true, cancellationToken);
         await SetBackupPlateUpAsync(true, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (!CarrierPresent)
@@ -214,8 +214,8 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
         }
         if (_settings!.ValidationError is { } error)
             throw new InvalidOperationException(error);
-        if (!MotionServiceBase.IsReadyAndStopped(motion))
-            throw new MotionInterlockException(UiText.Get("S2 backup motion is not ready"));
+        //if (!MotionServiceBase.IsReadyAndStopped(motion))
+        //    throw new MotionInterlockException(UiText.Get("S2 backup motion is not ready"));
         var target = up ? _settings.FasteningHeight!.Value : _settings.TransferHeight!.Value;
         await motion.MoveAxisAsync(MotionAxis.Z, target, _settings.Motion.ZSpeed, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
