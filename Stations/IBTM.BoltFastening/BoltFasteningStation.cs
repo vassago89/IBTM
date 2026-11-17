@@ -1552,6 +1552,7 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             await Task.Delay(250);
             Io.SetOutput(OutputIo.ShootingBoltStart, false);
+            await Task.Delay(100);
         }
 
         var finished = Stopwatch.GetTimestamp();
