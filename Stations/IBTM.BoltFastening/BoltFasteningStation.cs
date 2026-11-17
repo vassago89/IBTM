@@ -1530,7 +1530,11 @@ public sealed class BoltFasteningStation : AutoUnit
         if (moving.IsCompleted)
             await moving;
         var headStarted = Stopwatch.GetTimestamp();
-        var lowering = SetHeadDownAsync(FasteningHead.Shooting, true, descent.Token);
+
+        Io.SetOutput(OutputIo.ShootingBoltStart, true);
+
+        var lowering = SetHeadDownAsync(FasteningHead.Shooting, true);
+
         var first = await Task.WhenAny(moving, lowering);
         var firstFinished = Stopwatch.GetTimestamp();
         if (!first.IsCompletedSuccessfully)
@@ -1544,6 +1548,12 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             throw failures;
         }
+        finally
+        {
+            await Task.Delay(250);
+            Io.SetOutput(OutputIo.ShootingBoltStart, false);
+        }
+
         var finished = Stopwatch.GetTimestamp();
         _log?.LogInformation(
             "Bolt timing {Bolt}: fastening Z={Z}, parallel shooting head DOWN complete, elapsed={ElapsedMs:F1} ms; "
@@ -1560,7 +1570,7 @@ public sealed class BoltFasteningStation : AutoUnit
         var started = Stopwatch.GetTimestamp();
         var clearanceFinished = started;
         var safeZFinished = started;
-        switch (head)
+        switch (head)   
         {
             case FasteningHead.Shooting:
                 if (ShootingHeadPosition == StationCylinderState.Between || PickupTablePosition != StationCylinderState.Up)
