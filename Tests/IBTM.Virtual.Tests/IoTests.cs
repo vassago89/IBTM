@@ -190,6 +190,8 @@ public sealed class IoTests
             InputIo.Unused80,
             InputIo.PcbSupplyIpmFixerForward,
             InputIo.PcbSupplyIpmFixerBackward,
+            InputIo.PcbPlacementIpmDown,
+            InputIo.PcbPlacementIpmUp,
             InputIo.PcbPlacementCarrierPresent,
             InputIo.BoltFasteningCarrierPresent,
             InputIo.BoltFasteningBackupPlateUp,
@@ -197,7 +199,10 @@ public sealed class IoTests
             InputIo.InspectionCarrierPresent,
         ];
         Assert.Equal(Enum.GetValues<InputIo>().Except(retiredInputs).Order(), inputs.Keys.Order());
-        Assert.Equal(inputs.Count, inputs.Values.Distinct().Count());
+        var assignedInputs = inputs.Values.Where(number => number >= 0).ToArray();
+        Assert.Equal(assignedInputs.Length, assignedInputs.Distinct().Count());
+        Assert.Equal(-1, inputs[InputIo.InspectionProbeUp]);
+        Assert.Equal(-1, inputs[InputIo.InspectionProbeDown]);
         Assert.DoesNotContain(86, inputs.Values); // DI-146 is not installed; P3 is DI-142.
         Assert.Equal(82, inputs[InputIo.NgShuttleCarrierDetected]);
         Assert.Equal(84, inputs[InputIo.NgConveyorPosition1Occupied]);
@@ -229,6 +234,8 @@ public sealed class IoTests
         Assert.Equal(channels.Length, channels.Distinct().Count());
         Assert.Equal(62, settings.ConveyorHardware.Outputs[OutputIo.MainConveyorNormalSpeed].Number); // DO-12E
         Assert.Equal(74, settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorNormalSpeed].Number); // DO-13A
+        Assert.Equal(77, settings.InspectionGantryHardware.Outputs[OutputIo.InspectionProbeDown].Number);
+        Assert.Null(settings.InspectionGantryHardware.Outputs[OutputIo.InspectionProbeDown].OffNumber);
         foreach (var (output, down, up, channel) in new[]
         {
             (OutputIo.PickupTableDown, InputIo.PickupTableDown, InputIo.PickupTableUp, 37),

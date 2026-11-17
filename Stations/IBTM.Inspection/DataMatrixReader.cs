@@ -37,7 +37,7 @@ public static class DataMatrixReader
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var binary = BinaryRegionAnalyzer.Check(image, region, candidate).Image;
+            var binary = ImageBinarizer.Binarize(image, region, candidate);
             var text = reader.Decode(new RGBLuminanceSource(
                 binary.Pixels, binary.Width, binary.Height, RGBLuminanceSource.BitmapFormat.BGR24))?.Text;
             cancellationToken.ThrowIfCancellationRequested();

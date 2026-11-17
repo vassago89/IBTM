@@ -23,7 +23,9 @@ public static class MachineTestSupport
     {
         settings.BoltFasteningBackup.TransferHeight ??= 0;
         settings.BoltFasteningBackup.FasteningHeight ??= 5;
+        settings.Mlcp.PortName = "Virtual";
         services.AddIbtmApplication(settings)
+            .AddSingleton(_ => VirtualTestSupport.CreateHeightController())
             .AddSingleton<VirtualIoService>()
             .AddSingleton(provider =>
             {
@@ -276,11 +278,9 @@ public static class MachineTestSupport
             Y = 50,
             Z = 10,
         };
-        settings.BoltFastening.PickupHead = HeadSettings();
-        settings.BoltFastening.ShootingHead = HeadSettings();
+        settings.BoltFastening.PickupHead = new();
+        settings.BoltFastening.ShootingHead = new();
         settings.InspectionGantry.Motion = FastMotion();
-        settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
-        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
         settings.NgCarrierTransfer.WaitingPosition = new() { X = 5, Y = 20 };
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 5, Y = 20 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 150, Y = 20 };
@@ -295,15 +295,6 @@ public static class MachineTestSupport
             ZSpeed = 10_000,
             HorizontalHome = FastHome(),
             ZHome = FastHome(),
-        };
-    }
-
-    public static BoltHeadSettings HeadSettings()
-    {
-        return new()
-        {
-            UpperLeftLocatingPin = new() { X = 0, Y = 0 },
-            LowerRightLocatingPin = new() { X = 100, Y = 100 },
         };
     }
 
@@ -465,22 +456,19 @@ public static class MachineTestSupport
     {
         recipe.PcbSupply.Pcb1PickPosition.Y = 10;
         recipe.PcbSupply.Pcb2PickPosition.Y = 10;
-        settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
-        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
-        settings.BoltFastening.PickupHead = HeadSettings();
-        settings.BoltFastening.ShootingHead = HeadSettings();
+        settings.BoltFastening.PickupHead = new();
+        settings.BoltFastening.ShootingHead = new();
         recipe.Pcb = new();
         recipe.Pcb.BoltPoints.Add(
-            new BoltPoint { Id = VirtualTestSupport.BoltId(1), Head = FasteningHead.Shooting, X = 10, Y = 10, });
+            new BoltPoint { Id = VirtualTestSupport.BoltId(1), Head = FasteningHead.Shooting, X = 10, Y = 10, FasteningX = 10, FasteningY = 10 });
         recipe.Pcb.BoltPoints.Add(
-            new BoltPoint { Id = VirtualTestSupport.BoltId(1, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 28, Y = 10 });
-        foreach (var bolt in recipe.Pcb.BoltPoints)
-            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
+            new BoltPoint { Id = VirtualTestSupport.BoltId(1, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 28, Y = 10, FasteningX = 28, FasteningY = 10 });
         TeachInspectionFovs(recipe);
     }
 
     public static void TeachInspectionFovs(Recipe recipe)
     {
+        VirtualTestSupport.TeachInspectionHeights(recipe);
         recipe.CarrierImages = recipe.Pcb.BoltPoints.Select((bolt, index) => new CarrierImageTile
         {
             Number = index + 1,

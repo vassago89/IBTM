@@ -17,19 +17,20 @@ public sealed record PcbInspectionImageItem(
             return Recipe?.Pcb.GetBoltName(id, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
         }
     }
-    public string Verdict => Error is not null ? "—"
-        : Record.BoltId is null ? UiText.Get(Record.Success ? "Recognized" : "Not read")
-        : Record.Success ? "OK" : "NG";
-    public Rect Region => new(Record.Region.X, Record.Region.Y, Record.Region.Width, Record.Region.Height);
+    public string? Verdict => Error is not null ? "—"
+        : Record.BoltId is null ? UiText.Get(Record.Success == true ? "Recognized" : "Not read")
+        : null;
+    public Rect? Region => Record.BoltId is null && Record.Region is { } region
+        ? new(region.X, region.Y, region.Width, region.Height) : null;
 
-    public string Details
+    public string? Details
     {
         get
         {
             if (Error is not null)
                 return Error;
             if (Record.BoltId.HasValue)
-                return UiText.Format($"Bright {Record.BrightRatio:P2} · Required ≥ {Record.MinimumBrightRatio:P2}");
+                return null;
             var details = Record.Barcode ?? UiText.Get("Data Matrix not read");
             if (Record.Threshold is { } threshold)
                 details += UiText.Format($" · Threshold {threshold}");

@@ -1,9 +1,5 @@
-using System;
 using System.Windows;
-using IBTM.BoltFastening;
-using IBTM.Core;
 using IBTM.Device;
-using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
@@ -15,8 +11,6 @@ public sealed class MachineDiagramMapper
     private readonly RecipeManager _recipes;
     private readonly PcbSupplySettings _supply;
     private readonly PcbPlacementHandlerSettings _placement;
-    private readonly BoltFasteningSettings _fastening;
-    private readonly NgCarrierTransferSettings _transfer;
     private static readonly Point s_supplyPcb1;
     private static readonly Point s_supplyPcb2;
     private static readonly Point s_supplyHandoff;
@@ -49,20 +43,12 @@ public sealed class MachineDiagramMapper
     public MachineDiagramMapper(
         RecipeManager recipes,
         PcbSupplySettings supply,
-        PcbPlacementHandlerSettings placement,
-        BoltFasteningSettings fastening,
-        CarrierReferenceSettings carrier,
-        NgCarrierTransferSettings transfer)
+        PcbPlacementHandlerSettings placement)
     {
         _recipes = recipes;
         _supply = supply;
         _placement = placement;
-        _fastening = fastening;
-        Carrier = carrier;
-        _transfer = transfer;
     }
-
-    public CarrierReferenceSettings Carrier { get; }
 
     public bool IsSupplyDefined
     {
@@ -96,18 +82,6 @@ public sealed class MachineDiagramMapper
                 new Point(
                     _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.X,
                     _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.Y)) != 0;
-        }
-    }
-
-    public bool IsFasteningDefined
-    {
-        get
-        {
-            return Carrier.IsDefined
-                && (CarrierCoordinates.IsDefined(
-                        _fastening.ShootingHead.UpperLeftLocatingPin, _fastening.ShootingHead.LowerRightLocatingPin)
-                    || CarrierCoordinates.IsDefined(
-                        _fastening.PickupHead.UpperLeftLocatingPin, _fastening.PickupHead.LowerRightLocatingPin));
         }
     }
 
@@ -153,138 +127,6 @@ public sealed class MachineDiagramMapper
             s_placementHandoff,
             s_placementHeatSink1,
             s_placementHeatSink2);
-    }
-
-    public Point? GetFasteningPosition(MotionPosition current, FasteningHead head)
-    {
-        return current is { X: { } x, Y: { } y }
-            ? MapFastening(x, y, head, head == FasteningHead.Pickup
-                ? MachineDiagramLayout.PickupToolCenter : MachineDiagramLayout.ShootingToolCenter)
-            : null;
-    }
-
-    public Point? GetFasteningTargetPosition(BoltPoint bolt)
-    {
-        return bolt.IsFasteningPositionDefined
-            ? MapFastening(
-                bolt.FasteningX!.Value, bolt.FasteningY!.Value, bolt.Head, MachineDiagramLayout.FasteningContentOrigin)
-            : null;
-    }
-
-    public Point? GetInspectionCameraPosition(MotionPosition current)
-    {
-        // Camera feedback and taught bolt positions must use the same carrier projection.
-        return Carrier.IsDefined && current is { X: { } x, Y: { } y }
-            ? MachineDiagramLayout.Offset(
-                MapCarrier(x, y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight),
-                MachineDiagramLayout.CameraCenter)
-            : null;
-    }
-
-    public Point? GetNgPickupPosition(MotionPosition current)
-    {
-        if (!Carrier.IsDefined || current is not { X: { } x, Y: { } y })
-            return null;
-        var waiting = _transfer.WaitingPosition;
-        var shuttle = _transfer.ShuttlePlacePosition;
-        if (waiting is null || shuttle.Y == waiting.Y)
-            return GetInspectionCameraPosition(current);
-
-        // Centre the waiting position; retain the taught pickup's offset from it.
-        // Use one map throughout the transfer so straight moves remain straight.
-        var progress = (y - waiting.Y) / (shuttle.Y - waiting.Y);
-        var routeX = waiting.X + (shuttle.X - waiting.X) * progress;
-        var position = MapCarrier(x, waiting.Y,
-            MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight);
-        var route = MapCarrier(routeX, waiting.Y,
-            MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight);
-        var origin = MachineDiagramLayout.Offset(
-            MachineDiagramLayout.InspectionCarrierCenter, MachineDiagramLayout.NgPickerCenter);
-        // Retain live X deviation from the taught route, including separate-axis moves.
-        return new Point(
-            origin.X + position.X - route.X,
-            origin.Y + (MachineDiagramLayout.NgShuttleCenter.Y - MachineDiagramLayout.InspectionCarrierCenter.Y) * progress);
-    }
-
-    public Point? GetInspectionTargetPosition(BoltPoint bolt)
-    {
-        if (!Carrier.IsDefined || _recipes.Current.FindInspectionImage(bolt.HeatSink, bolt.Id) is null
-            || bolt.InspectionPosition is not { } center)
-            return null;
-        var mapped = MapCarrier(center.X, center.Y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight);
-        return MachineDiagramLayout.Offset(mapped, MachineDiagramLayout.InspectionContentOrigin);
-    }
-
-    private Point? MapFastening(
-        double x, double y, FasteningHead head, Point origin)
-    {
-        var settings = _fastening.GetHead(head);
-        if (!Carrier.IsDefined
-            || !CarrierCoordinates.IsDefined(settings.UpperLeftLocatingPin, settings.LowerRightLocatingPin))
-            return null;
-        // Project this head's stored or live machine XY back onto the carrier drawing.
-        var carrier = CarrierCoordinates.ToMachine(new() { X = x, Y = y },
-            settings.UpperLeftLocatingPin!, settings.LowerRightLocatingPin!,
-            Carrier.UpperLeftLocatingPin!, Carrier.LowerRightLocatingPin!);
-        var mapped = MapCarrier(carrier.X, carrier.Y, MachineDiagramLayout.FasteningUpperLeft, MachineDiagramLayout.FasteningLowerRight);
-        return MachineDiagramLayout.Offset(mapped, origin);
-    }
-
-    private Point MapCarrier(double x, double y,
-        Point upperLeft, Point lowerRight)
-    {
-        var first = Carrier.UpperLeftLocatingPin!;
-        var second = Carrier.LowerRightLocatingPin!;
-        // Locating pins are reference positions, not the outside edges of the carrier.
-        // Fit the whole taught carrier, independently of live position, active head and presence sensors.
-        var minX = Math.Min(first.X, second.X);
-        var maxX = Math.Max(first.X, second.X);
-        var minY = Math.Min(first.Y, second.Y);
-        var maxY = Math.Max(first.Y, second.Y);
-        foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
-        {
-            if (bolt.InspectionPosition is not { } position)
-                continue;
-            minX = Math.Min(minX, position.X);
-            maxX = Math.Max(maxX, position.X);
-            minY = Math.Min(minY, position.Y);
-            maxY = Math.Max(maxY, position.Y);
-        }
-        foreach (var fov in _recipes.Current.CarrierImages)
-        {
-            if (!fov.IsBarcode || fov.Center is not { } position
-                || !double.IsFinite(position.X) || !double.IsFinite(position.Y))
-                continue;
-            minX = Math.Min(minX, position.X);
-            maxX = Math.Max(maxX, position.X);
-            minY = Math.Min(minY, position.Y);
-            maxY = Math.Max(maxY, position.Y);
-        }
-        // Keep the carrier centre fixed so adding an outer bolt does not shift the HS1/HS2 boundary.
-        var centerX = (first.X + second.X) / 2;
-        var centerY = (first.Y + second.Y) / 2;
-        var halfWidth = Math.Max(centerX - minX, maxX - centerX);
-        var halfHeight = Math.Max(centerY - minY, maxY - centerY);
-        var sourceFirst = new Point(centerX + (first.X <= second.X ? -halfWidth : halfWidth),
-            centerY + (first.Y <= second.Y ? -halfHeight : halfHeight));
-        var sourceSecond = new Point(centerX + (first.X <= second.X ? halfWidth : -halfWidth),
-            centerY + (first.Y <= second.Y ? halfHeight : -halfHeight));
-        var dx = sourceSecond.X - sourceFirst.X;
-        var dy = sourceSecond.Y - sourceFirst.Y;
-        var tx = lowerRight.X - upperLeft.X;
-        var ty = lowerRight.Y - upperLeft.Y;
-        // Diagonal pins define separate X/Y scales. An axis-aligned pair uses a similarity transform.
-        if (dx != 0 && dy != 0)
-            return new Point(upperLeft.X + (x - sourceFirst.X) * tx / dx, upperLeft.Y + (y - sourceFirst.Y) * ty / dy);
-
-        var lengthSquared = dx * dx + dy * dy;
-        if (lengthSquared == 0)
-            return default;
-        var a = (tx * dx + ty * dy) / lengthSquared;
-        var b = (ty * dx - tx * dy) / lengthSquared;
-        return new Point(
-            upperLeft.X + a * (x - sourceFirst.X) - b * (y - sourceFirst.Y),
-            upperLeft.Y + b * (x - sourceFirst.X) + a * (y - sourceFirst.Y));
     }
 
     private static Point FromThreePoints(

@@ -6,10 +6,8 @@ public sealed record InspectionCapture(
     Guid? BoltId,
     DateTimeOffset CapturedAt,
     ImageFrame Frame,
-    PixelRegion Region,
-    bool Success,
+    PixelRegion? Region,
+    bool? Success,
     string? Barcode = null,
-    double? BrightRatio = null,
-    double? MinimumBrightRatio = null,
     int? Threshold = null,
     bool? Dilated = null);

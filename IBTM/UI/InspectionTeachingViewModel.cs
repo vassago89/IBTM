@@ -45,7 +45,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         InspectCommand = new AsyncRelayCommand(InspectAsync);
         LoadRecordCommand = new AsyncRelayCommand(LoadRecordAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        DrawRegionCommand = new RelayCommand<Rect>(DrawRegion);
+        DrawRegionCommand = new RelayCommand<Rect>(DrawRegion, _ => IsDrawRegionAllowed);
+        CloseReinspectionCommand = new RelayCommand(CloseReinspection);
         _commands = [RefreshImagesCommand, SaveCommand, InspectCommand, LoadRecordCommand];
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
@@ -59,6 +60,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public IAsyncRelayCommand InspectCommand { get; }
     public IAsyncRelayCommand LoadRecordCommand { get; }
     public IRelayCommand<Rect> DrawRegionCommand { get; }
+    public IRelayCommand CloseReinspectionCommand { get; }
 
     [ObservableProperty] public partial InspectionImageMode ImageMode { get; set; }
     [ObservableProperty] public partial IReadOnlyList<InspectionPoint> Points { get; private set; }
@@ -81,7 +83,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public bool IsIdle => !_shuttingDown && !IsBusy;
     public bool IsDataMatrixSelected => SelectedPoint?.IsDataMatrix == true;
 
-    public string? OriginalResult => OriginalImage is { } saved ? UiText.Format($"Recorded {saved.Verdict} · {saved.Details}") : null;
+    public string? OriginalResult => OriginalImage is { Record.BoltId: null } saved ? UiText.Format($"Recorded {saved.Verdict} · {saved.Details}") : null;
 
     public DataMatrixInspectionRecipe? DataMatrix
     {
@@ -191,7 +193,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Message = null;
         ImageSource = null;
         OriginalImage = null;
-        Preview.Clear(IsDataMatrixSelected ? SelectedPoint!.HeatSink : null, SelectedPoint?.Bolt);
+        Preview.Clear(IsDataMatrixSelected ? SelectedPoint!.HeatSink : null);
         if (SelectedPoint is { } point)
         {
             var loaded = point.FindImage(_carrierImages);
@@ -200,7 +202,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 Message = UiText.Get("No reference image");
             if (loaded?.Image is { } image)
             {
-                var region = point.Metadata!.Region ?? PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight,
+                var region = !point.IsDataMatrix ? null : point.Metadata!.Region ?? PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight,
                     Math.Min(image.PixelWidth, image.PixelHeight) / 4);
                 try
                 {
@@ -209,7 +211,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 catch (Exception exception)
                 {
                     Error = exception.Message;
-                    _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata.Number);
+                    _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata!.Number);
                 }
             }
             ImageSource = point.Title;
@@ -218,7 +220,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(IsDrawRegionAllowed));
     }
 
-    public bool IsInspectAllowed => !_shuttingDown && Preview.HasImage && SelectedPoint?.Metadata is not null;
+    public bool IsInspectAllowed => !_shuttingDown && IsDataMatrixSelected && Preview.HasImage && SelectedPoint?.Metadata is not null;
 
     public bool IsDrawRegionAllowed => !IsBusy && IsInspectAllowed;
 
@@ -298,6 +300,11 @@ public partial class InspectionTeachingViewModel : ObservableObject
             Error = exception.Message;
             _log.LogError(exception, "Inspection teaching save failed for {Recipe}.", Preview.Recipe.Name);
         }
+    }
+
+    private void CloseReinspection()
+    {
+        ImageMode = InspectionImageMode.Reference;
     }
 
     partial void OnImageModeChanged(InspectionImageMode value)
@@ -417,7 +424,13 @@ public partial class InspectionTeachingViewModel : ObservableObject
         OriginalImage = null;
         var saved = SelectedHistoryImage;
         var target = HistoryImageTarget;
-        if (saved?.Image is { } image)
+        if (saved?.Image is { } photo && saved.Record.BoltId is not null)
+        {
+            SelectedPoint = target;
+            Preview.Clear();
+            Preview.SetSavedImage(photo, null);
+        }
+        else if (saved?.Image is { } image)
         {
             if (target is null)
             {
@@ -440,7 +453,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 }
             }
             SelectedPoint = target;
-            Preview.Clear(IsDataMatrixSelected ? target!.HeatSink : null, target?.Bolt);
+            Preview.Clear(IsDataMatrixSelected ? target!.HeatSink : null);
             try
             {
                 Preview.SetSavedImage(image, target is null ? null : target.Metadata!.Region ?? saved.Record.Region);

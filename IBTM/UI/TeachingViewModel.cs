@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -184,7 +185,10 @@ public partial class TeachingViewModel : ObservableObject
         MoveToHorizontalZCommand = new AsyncRelayCommand(MoveToHorizontalZAsync);
 
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync);
-        GrabCommand = new AsyncRelayCommand(GrabAsync);
+        RegisterFiducialCommand = new AsyncRelayCommand(RegisterFiducialAsync);
+        FindFiducialCommand = new AsyncRelayCommand(FindFiducialAsync);
+        ShowLiveImageCommand = new RelayCommand(ShowLiveImage);
+        DrawFiducialRegionCommand = new RelayCommand<Rect>(DrawFiducialRegion, _ => SelectedPoint?.Fiducial is not null && State.SetupEditingEnabled);
         ApplyLightCommand = new AsyncRelayCommand(ApplyLightAsync);
         AddBoltPointCommand = new AsyncRelayCommand(AddBoltPointAsync);
         RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint);
@@ -195,7 +199,8 @@ public partial class TeachingViewModel : ObservableObject
 
         _commands = [
             ToggleLiveViewCommand,
-            GrabCommand,
+            RegisterFiducialCommand,
+            FindFiducialCommand,
             AddBoltPointCommand,
             ApplyLightCommand,
             JogCommand,
@@ -239,7 +244,8 @@ public partial class TeachingViewModel : ObservableObject
         if (e.PropertyName != nameof(RecipeEditor.IsSaveAllowed))
             return;
         OnPropertyChanged(nameof(IsTeachCurrentPositionAllowed));
-        OnPropertyChanged(nameof(IsGrabAllowed));
+        OnPropertyChanged(nameof(IsFiducialCaptureAllowed));
+        DrawFiducialRegionCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsAddBoltPointAllowed));
     }
 
@@ -456,8 +462,9 @@ public partial class TeachingViewModel : ObservableObject
             return;
         OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(IsToggleLiveViewAllowed));
-        OnPropertyChanged(nameof(IsGrabAllowed));
         OnPropertyChanged(nameof(IsApplyLightAllowed));
+        OnPropertyChanged(nameof(IsFiducialCaptureAllowed));
+        DrawFiducialRegionCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshManualControls()
@@ -491,9 +498,10 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(IsSaveAllowed));
         OnPropertyChanged(nameof(IsReturnFromPickupAllowed));
         OnPropertyChanged(nameof(IsToggleLiveViewAllowed));
-        OnPropertyChanged(nameof(IsGrabAllowed));
         OnPropertyChanged(nameof(IsApplyLightAllowed));
         OnPropertyChanged(nameof(IsAddBoltPointAllowed));
+        OnPropertyChanged(nameof(IsFiducialCaptureAllowed));
+        DrawFiducialRegionCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsRemoveBoltPointAllowed));
         OnPropertyChanged(nameof(IsMoveFasteningEarlierAllowed));
         OnPropertyChanged(nameof(IsMoveFasteningLaterAllowed));
@@ -526,6 +534,12 @@ public partial class TeachingViewModel : ObservableObject
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
         CancelTeaching();
+        FiducialImage = null;
+        DetectedFiducial = null;
+        FiducialMessage = null;
+        OnPropertyChanged(nameof(FiducialRegion));
+        OnPropertyChanged(nameof(IsFiducialSelected));
+        OnPropertyChanged(nameof(FiducialRegistration));
         if (PositionUpdatesActive)
             SubscribeMotionChanges();
         OnPropertyChanged(nameof(ActiveMotionGroup));
@@ -534,7 +548,8 @@ public partial class TeachingViewModel : ObservableObject
         if (!Inspection.IsLiveView)
         {
             LiveLightLevel = (SelectedBarcode is { } pcb
-                ? Recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel : newValue?.Position.Bolt?.LightLevel)
+                ? Recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel
+                : newValue?.Fiducial?.LightLevel ?? newValue?.Position.Bolt?.LightLevel)
                 ?? Recipes.Current.BoltInspection.LightLevel;
         }
         OnPropertyChanged(nameof(CameraImage));
@@ -575,6 +590,7 @@ public partial class TeachingViewModel : ObservableObject
 
     private void RefreshTeachingPoints()
     {
+        OnPropertyChanged(nameof(SelectedFiducials));
         var selectedTarget = SelectedPoint?.Position.Target;
         var selectedBolt = SelectedPoint?.Position.Bolt;
         var unitMotionGroup = IsFasteningSelected ? MotionGroup.BoltFastening : ActiveMotionGroup;
@@ -602,11 +618,7 @@ public partial class TeachingViewModel : ObservableObject
                 Point(TeachingTarget.SafeZ, TeachMode.ZOnly),
                 Point(TeachingTarget.ShootingHeadPreliminaryZ, TeachMode.ZOnly),
                 Point(TeachingTarget.ShootingHeadFasteningZ, TeachMode.ZOnly),
-                Point(TeachingTarget.ShootingHeadUpperLeftLocatingPin, TeachMode.XYOnly),
-                Point(TeachingTarget.ShootingHeadLowerRightLocatingPin, TeachMode.XYOnly),
                 Point(TeachingTarget.PickupHeadFasteningZ, TeachMode.ZOnly),
-                Point(TeachingTarget.PickupHeadUpperLeftLocatingPin, TeachMode.XYOnly),
-                Point(TeachingTarget.PickupHeadLowerRightLocatingPin, TeachMode.XYOnly),
                 Point(TeachingTarget.BoltPickup, TeachMode.Full),
                 .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
                     .Where(bolt => bolt.HeatSink == SelectedPcb)
@@ -618,12 +630,15 @@ public partial class TeachingViewModel : ObservableObject
                 Point(TeachingTarget.BackupFasteningHeight, TeachMode.ZOnly),
             ],
             HardwareArea.InspectionGantry => [
-                Point(TeachingTarget.CarrierUpperLeftLocatingPin, TeachMode.XYOnly),
-                Point(TeachingTarget.CarrierLowerRightLocatingPin, TeachMode.XYOnly),
                 Point(TeachingTarget.InspectionWaiting, TeachMode.XYOnly),
                 Point(TeachingTarget.NgCarrierPickup, TeachMode.XYOnly),
                 Point(TeachingTarget.NgShuttlePlace, TeachMode.XYOnly),
                 Point(TeachingTarget.DataMatrix, TeachMode.Image),
+                Point(TeachingTarget.Fiducial1, TeachMode.XYOnly),
+                Point(TeachingTarget.Fiducial2, TeachMode.XYOnly),
+                Point(TeachingTarget.HeightReference1, TeachMode.XYOnly),
+                Point(TeachingTarget.HeightReference2, TeachMode.XYOnly),
+                Point(TeachingTarget.HeightReference3, TeachMode.XYOnly),
                 .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
                     .Where(bolt => bolt.HeatSink == SelectedPcb)
                     .Select(bolt => Point(TeachingTarget.BoltReference, TeachMode.Image, bolt)),
@@ -722,8 +737,6 @@ public partial class TeachingViewModel : ObservableObject
         {
             HeatSink = SelectedPcb,
             Head = NewFasteningHead,
-            BrightnessThreshold = Recipes.Current.BoltInspection.BrightnessThreshold,
-            MinimumBrightRatio = Recipes.Current.BoltInspection.MinimumBrightRatio,
         };
         var layout = Recipes.Current.Pcb;
         layout.BoltPoints.Add(bolt);
@@ -806,16 +819,12 @@ public partial class TeachingViewModel : ObservableObject
                     var current = Motion.Feedback.Position;
                     operation.Token.ThrowIfCancellationRequested();
                     point.Teach(current.X, current.Y, current.Z);
+                    OnPropertyChanged(nameof(FiducialRegistration));
                     RefreshPointPositions();
                     if (point.Storage == TeachingStorage.Machine
                         && !await SaveSettingsAsync(operation.Token, point.Setting!))
                         return;
                     operation.Token.ThrowIfCancellationRequested();
-                    if (point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
-                    {
-                        SelectedPoint = FilteredPoints.First(
-                            candidate => candidate.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
-                    }
                     RefreshManualControls();
                     break;
                 case { Position.Mode: not TeachMode.Image }:
@@ -882,12 +891,14 @@ public partial class TeachingViewModel : ObservableObject
             RecipeEditor.Error = null;
             if (await SaveSettingsAsync(operation.Token,
                     _settings.PcbSupply, _settings.PcbPlacementHandler, _settings.BoltFastening,
-                    _settings.InspectionGantry, _settings.CarrierReference, _settings.NgCarrierTransfer,
-                    _settings.BoltFasteningBackup)
-                && !await RecipeEditor.SaveAsync(cancellationToken: operation.Token))
+                    _settings.InspectionGantry, _settings.NgCarrierTransfer,
+                    _settings.BoltFasteningBackup))
             {
-                SaveError = UiText.Get("Settings saved; recipe was not saved. ")
-                    + (RecipeEditor.Error ?? UiText.Get("Save cancelled. Retry Save."));
+                if (!await RecipeEditor.SaveAsync(cancellationToken: operation.Token))
+                    SaveError = UiText.Get("Settings saved; recipe was not saved. ")
+                        + (RecipeEditor.Error ?? UiText.Get("Save cancelled. Retry Save."));
+                else if (IsFiducialSelected)
+                    FiducialMessage = UiText.Get("Recipe saved");
             }
             RefreshManualControls();
         }
@@ -1495,7 +1506,6 @@ public partial class TeachingViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CameraImage))]
     [NotifyPropertyChangedFor(nameof(CameraError))]
-    [NotifyPropertyChangedFor(nameof(IsGrabAllowed))]
     public partial IReadOnlyList<RecipeImageItem> CarrierImages { get; set; }
 
     public string? CameraError
@@ -1508,26 +1518,137 @@ public partial class TeachingViewModel : ObservableObject
     {
         get
         {
+            if (IsFiducialSelected && FiducialImage is not null)
+                return FiducialImage;
             return Inspection.IsLiveView ? LiveImage
-                : SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Image;
+                : IsFiducialSelected ? FiducialImage : SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Image;
         }
     }
 
-    public IAsyncRelayCommand GrabCommand { get; }
-
-    private async Task GrabAsync(CancellationToken cancellationToken)
-    {
-        if (IsGrabAllowed)
-            await CaptureTeachingImageAsync(recordPosition: false, cancellationToken);
-    }
-
-    public bool IsGrabAllowed
+    public IAsyncRelayCommand RegisterFiducialCommand { get; }
+    public IAsyncRelayCommand FindFiducialCommand { get; }
+    public IRelayCommand ShowLiveImageCommand { get; }
+    public IRelayCommand<Rect> DrawFiducialRegionCommand { get; }
+    public FiducialRecipe SelectedFiducials => Recipes.Current.BoltInspection.GetFiducials(SelectedPcb);
+    public bool IsFiducialSelected => SelectedPoint?.Fiducial is not null;
+    public string FiducialRegistration
     {
         get
         {
-            return IsRecordImagePositionAllowed && SelectedPoint?.Position.HasPosition == true
-                && SelectedPoint.Inspection?.FindImage(CarrierImages) is not null;
+            string Status(FiducialMark mark)
+            {
+                return UiText.Get(mark is { CameraPosition: not null, Contour.Length: >= 5 }
+                    ? "Registered" : "Not registered");
+            }
+            return UiText.Format($"Fiducial 1: {Status(SelectedFiducials.First)} / Fiducial 2: {Status(SelectedFiducials.Second)}");
         }
+    }
+    public Rect? FiducialRegion => SelectedPoint?.Fiducial?.Region is { } region
+        ? new Rect(region.X, region.Y, region.Width, region.Height) : null;
+    public bool IsFiducialCaptureAllowed => IsFiducialSelected && IsTeachCurrentPositionAllowed
+        && !State.IsRunningFor(includeOperations: true);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CameraImage))]
+    public partial BitmapSource? FiducialImage { get; private set; }
+
+    [ObservableProperty]
+    public partial FiducialDetection? DetectedFiducial { get; private set; }
+
+    [ObservableProperty]
+    public partial string? FiducialMessage { get; private set; }
+
+    private void DrawFiducialRegion(Rect region)
+    {
+        if (SelectedPoint?.Fiducial is not { } mark || !State.SetupEditingEnabled)
+            return;
+        mark.Region = new((int)region.X, (int)region.Y, (int)region.Width, (int)region.Height);
+        mark.Contour = [];
+        DetectedFiducial = null;
+        FiducialMessage = null;
+        OnPropertyChanged(nameof(FiducialRegion));
+        OnPropertyChanged(nameof(FiducialRegistration));
+    }
+
+    private async Task RegisterFiducialAsync(CancellationToken cancellationToken)
+    {
+        await CaptureFiducialAsync(registering: true, cancellationToken);
+    }
+
+    private async Task FindFiducialAsync(CancellationToken cancellationToken)
+    {
+        await CaptureFiducialAsync(registering: false, cancellationToken);
+    }
+
+    private async Task CaptureFiducialAsync(bool registering, CancellationToken cancellationToken)
+    {
+        if (!IsFiducialCaptureAllowed || SelectedPoint?.Fiducial is not { } mark)
+            return;
+        var viewToken = _viewCancellation.Token;
+        var activeToken = cancellationToken;
+        try
+        {
+            CameraError = null;
+            FiducialMessage = null;
+            DetectedFiducial = null;
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(MotionGroup.InspectionGantry), cancellationToken, viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            await _cameraStop;
+            operation.Token.ThrowIfCancellationRequested();
+            var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, LiveLightLevel);
+            FiducialImage = InspectionPreviewViewModel.CreateBitmap(captured.Frame);
+            var found = await Task.Run(() => FiducialDetector.Detect(captured.Frame, mark, registering), operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
+            DetectedFiducial = found;
+            var position = _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center,
+                captured.Frame.Width, captured.Frame.Height);
+            operation.Token.ThrowIfCancellationRequested();
+            if (registering)
+            {
+                mark.CameraPosition = captured.Center;
+                mark.Contour = found.Contour;
+                mark.ImageWidth = captured.Frame.Width;
+                mark.ImageHeight = captured.Frame.Height;
+                mark.LightLevel = LiveLightLevel;
+                RefreshPointPositions();
+                OnPropertyChanged(nameof(FiducialRegistration));
+                if (await RecipeEditor.SaveAsync(cancellationToken: operation.Token))
+                {
+                    SaveError = null;
+                    FiducialMessage = UiText.Get("Contour registered and saved");
+                }
+                else
+                {
+                    SaveError = RecipeEditor.Error ?? UiText.Get("Save cancelled; teaching not saved.");
+                    FiducialMessage = UiText.Get("Contour registered; save the recipe");
+                }
+            }
+            else
+            {
+                FiducialMessage = $"X {position.X:F3}  Y {position.Y:F3}  {UiText.Get("Shape error")} {found.ShapeError:F5}";
+            }
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested || viewToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Fiducial teaching failed.");
+            CameraError = exception.Message;
+        }
+    }
+
+    private void ShowLiveImage()
+    {
+        if (!Inspection.IsLiveView)
+            return;
+        FiducialImage = null;
+        DetectedFiducial = null;
+        FiducialMessage = null;
+        CameraError = null;
     }
 
     public IAsyncRelayCommand ApplyLightCommand { get; }
@@ -1573,6 +1694,8 @@ public partial class TeachingViewModel : ObservableObject
             CameraError = null;
             await _cameraStop;
             cancellation.Token.ThrowIfCancellationRequested();
+            FiducialImage = null;
+            DetectedFiducial = null;
             await Inspection.StartLiveViewAsync(cancellation.Token, LiveLightLevel);
             if (!State.ManualMode || !IsInspectionSelected)
                 await StopCameraLiveAsync();
@@ -1593,7 +1716,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             return Inspection.IsLiveView
                 || IsInspectionSelected && State.ManualMode
-                    && !TeachCurrentPositionCommand.IsRunning && !GrabCommand.IsRunning && !AddBoltPointCommand.IsRunning;
+                    && !TeachCurrentPositionCommand.IsRunning && !AddBoltPointCommand.IsRunning;
         }
     }
 
@@ -1667,7 +1790,7 @@ public partial class TeachingViewModel : ObservableObject
                 HeatSink = pcb,
                 BoltId = bolt?.Id,
                 IsBarcode = barcode,
-                Region = previous?.Region ?? PixelRegion.CenteredSquare(
+                Region = !barcode ? null : previous?.Region ?? PixelRegion.CenteredSquare(
                     image.PixelWidth, image.PixelHeight, Math.Min(image.PixelWidth, image.PixelHeight) / 4),
             };
             var replacement = new RecipeImageItem(metadata, image);
@@ -1687,7 +1810,6 @@ public partial class TeachingViewModel : ObservableObject
                 // The bolt is centered on the camera crosshair. ROI pixels do not alter its machine XY.
                 bolt.X = captured.Center.X;
                 bolt.Y = captured.Center.Y;
-                _settings.BoltFastening.InitializeBoltPosition(bolt, _settings.CarrierReference);
             }
             if (await RecipeEditor.SaveAsync(images, operation.Token))
             {
@@ -1827,7 +1949,6 @@ public partial class TeachingViewModel : ObservableObject
 
         OnPropertyChanged(nameof(IsToggleLiveViewAllowed));
         OnPropertyChanged(nameof(IsTeachCurrentPositionAllowed));
-        OnPropertyChanged(nameof(IsGrabAllowed));
         OnPropertyChanged(nameof(IsApplyLightAllowed));
         OnPropertyChanged(nameof(CameraImage));
     }

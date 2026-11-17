@@ -177,4 +177,7 @@ public enum OutputIo
 
     [Description("Pickup Table Down")]
     PickupTableDown = 55,
+
+    [Description("Inspection Probe Down")]
+    InspectionProbeDown = 56,
 }

@@ -45,6 +45,28 @@ public sealed class BoltPoint
             field = value;
         }
     }
+
+    public double? MinimumHeight
+    {
+        get;
+        set
+        {
+            if (value is { } height && !double.IsFinite(height))
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite height in millimetres.");
+            field = value;
+        }
+    }
+
+    public double? MaximumHeight
+    {
+        get;
+        set
+        {
+            if (value is { } height && !double.IsFinite(height))
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite height in millimetres.");
+            field = value;
+        }
+    }
     public HeatSinkSlot HeatSink { get; set; }
     public FasteningHead Head { get; set; } = FasteningHead.Shooting;
     // Actual Inspection Gantry XY captured by Record Position, in millimetres.
@@ -61,7 +83,7 @@ public sealed class BoltPoint
         }
     }
 
-    // Seeded from inspection once, then taught independently at the fastening station.
+    // Taught independently at the fastening station.
     public double? FasteningX { get; set; }
     public double? FasteningY { get; set; }
     [JsonIgnore]
@@ -85,28 +107,6 @@ public sealed class BoltPoint
         }
     }
 
-    public double FeedDistance
-    {
-        get;
-        set
-        {
-            if (!double.IsFinite(value) || value < 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite distance of zero or greater.");
-            field = value;
-        }
-    }
-
-    public double FeedSeconds
-    {
-        get;
-        set
-        {
-            if (!double.IsFinite(value) || value <= 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a positive finite time in seconds.");
-            field = value;
-        }
-    } = 1;
-
     // XY only; Z is the shooting preliminary reference plus the per-bolt offset.
     [JsonPropertyName("FinalFasteningPosition")]
     public AxisPosition? PreliminaryFasteningPosition { get; set; }
@@ -121,30 +121,6 @@ public sealed class BoltPoint
             field = value;
         }
     }
-
-    [JsonPropertyName("FinalFeedDistance")]
-    public double PreliminaryFeedDistance
-    {
-        get;
-        set
-        {
-            if (!double.IsFinite(value) || value < 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite distance of zero or greater.");
-            field = value;
-        }
-    }
-
-    [JsonPropertyName("FinalFeedSeconds")]
-    public double PreliminaryFeedSeconds
-    {
-        get;
-        set
-        {
-            if (!double.IsFinite(value) || value <= 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a positive finite time in seconds.");
-            field = value;
-        }
-    } = 1;
 
     public double? MinimumTurns
     {
@@ -168,26 +144,4 @@ public sealed class BoltPoint
         }
     }
 
-    // Null retains the inspection defaults of recipes saved before per-bolt settings.
-    public int? BrightnessThreshold
-    {
-        get;
-        set
-        {
-            if (value is < 0 or > 255)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255.");
-            field = value;
-        }
-    }
-
-    public double? MinimumBrightRatio
-    {
-        get;
-        set
-        {
-            if (value is { } ratio && !(ratio >= 0 && ratio <= 1))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a ratio from 0 to 1.");
-            field = value;
-        }
-    }
 }

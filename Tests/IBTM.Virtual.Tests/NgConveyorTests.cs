@@ -827,7 +827,7 @@ public sealed class NgConveyorTests
             new VirtualCamera(() => motion.Position, () => []),
             new VirtualLightController(),
             new(),
-            new(OpenMachineStore(), new()));
+            new(OpenMachineStore(), new()), VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
         io.Initialize();
         return new TestSystem(io, conveyor, pickup);
     }

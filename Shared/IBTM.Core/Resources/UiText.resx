@@ -57,12 +57,6 @@ Operation failed Check controller status</value>
   <data name="adc readiness query timeout base must be greater than 0 s." xml:space="preserve">
     <value>ADC readiness query timeout base: enter more than 0 s</value>
   </data>
-  <data name="adc shutdown failed" xml:space="preserve">
-    <value>ADC Shutdown Failed</value>
-  </data>
-  <data name="adc test" xml:space="preserve">
-    <value>ADC</value>
-  </data>
   <data name="add bolt" xml:space="preserve">
     <value>Add</value>
   </data>
@@ -171,12 +165,6 @@ Operation failed Check controller status</value>
   <data name="backup plate lowered" xml:space="preserve">
     <value>Backup plate lowered</value>
   </data>
-  <data name="backup plate pin - lower right" xml:space="preserve">
-    <value>Backup Plate Pin - Lower Right</value>
-  </data>
-  <data name="backup plate pin - upper left" xml:space="preserve">
-    <value>Backup Plate Pin - Upper Left</value>
-  </data>
   <data name="backup plate position unknown" xml:space="preserve">
     <value>Backup plate position unknown</value>
   </data>
@@ -191,9 +179,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="between" xml:space="preserve">
     <value>Position uncertain</value>
-  </data>
-  <data name="binary roi · no inspection target" xml:space="preserve">
-    <value>Binary ROI no inspection target</value>
   </data>
   <data name="binary roi · threshold {0}" xml:space="preserve">
     <value>Binary ROI threshold {0}</value>
@@ -246,9 +231,6 @@ Operation failed Check controller status</value>
   <data name="bolt pickup (feeder)" xml:space="preserve">
     <value>Bolt Pickup (Feeder)</value>
   </data>
-  <data name="bolt presence" xml:space="preserve">
-    <value>Bolt presence</value>
-  </data>
   <data name="bolt results" xml:space="preserve">
     <value>Bolt results</value>
   </data>
@@ -263,9 +245,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="bolt · ?" xml:space="preserve">
     <value>BOLT ?</value>
-  </data>
-  <data name="bright {0:p2} · required ≥ {1:p2}" xml:space="preserve">
-    <value>Bright area {0:P2} Minimum {1:P2}</value>
   </data>
   <data name="brightness (0–255)" xml:space="preserve">
     <value>Brightness (0–255)</value>
@@ -746,9 +725,6 @@ Operation failed Check controller status</value>
   <data name="handoff setup" xml:space="preserve">
     <value>Handoff setup</value>
   </data>
-  <data name="hantas adc protocol" xml:space="preserve">
-    <value>ADC Communication</value>
-  </data>
   <data name="head" xml:space="preserve">
     <value>HEAD</value>
   </data>
@@ -1070,9 +1046,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="min. turns (0 = no check)" xml:space="preserve">
     <value>Min turns (0 = no check)</value>
-  </data>
-  <data name="minimum bright (%)" xml:space="preserve">
-    <value>Minimum bright area (%)</value>
   </data>
   <data name="minimum turns" xml:space="preserve">
     <value>MINIMUM TURNS</value>
@@ -1560,12 +1533,6 @@ Operation failed Check controller status</value>
   <data name="pickup ipm final z" xml:space="preserve">
     <value>Pickup IPM final Z</value>
   </data>
-  <data name="pickup head pin - lower right" xml:space="preserve">
-    <value>Pickup Head Pin - Lower Right</value>
-  </data>
-  <data name="pickup head pin - upper left" xml:space="preserve">
-    <value>Pickup Head Pin - Upper Left</value>
-  </data>
   <data name="pickup head up" xml:space="preserve">
     <value>Pickup Head Up</value>
   </data>
@@ -1682,6 +1649,9 @@ Operation failed Check controller status</value>
   </data>
   <data name="raise both fastening heads" xml:space="preserve">
     <value>Raise both fastening heads</value>
+  </data>
+  <data name="ng pickup up" xml:space="preserve">
+    <value>NG pickup up</value>
   </data>
   <data name="raise ng pickup" xml:space="preserve">
     <value>Raise NG pickup</value>
@@ -1974,17 +1944,11 @@ Operation failed Check controller status</value>
   <data name="securing pcb and moving to handoff" xml:space="preserve">
     <value>Gripping / moving to handoff</value>
   </data>
-  <data name="select a bolt." xml:space="preserve">
-    <value>No bolt selected</value>
-  </data>
   <data name="select a data matrix before changing its threshold." xml:space="preserve">
     <value>No Data Matrix selected</value>
   </data>
   <data name="select a serial port" xml:space="preserve">
     <value>No port selected</value>
-  </data>
-  <data name="select an image linked to a data matrix or bolt before inspecting." xml:space="preserve">
-    <value>No inspection target selected</value>
   </data>
   <data name="select preset 1" xml:space="preserve">
     <value>Preset 1</value>
@@ -2093,12 +2057,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="shooting pcb final z" xml:space="preserve">
     <value>Shooting PCB final Z</value>
-  </data>
-  <data name="shooting head pin - lower right" xml:space="preserve">
-    <value>Shooting Head Pin - Lower Right</value>
-  </data>
-  <data name="shooting head pin - upper left" xml:space="preserve">
-    <value>Shooting Head Pin - Upper Left</value>
   </data>
   <data name="shooting head up" xml:space="preserve">
     <value>Shooting Head Up</value>
@@ -2409,12 +2367,6 @@ Speed   Configured axis speed</value>
   <data name="value" xml:space="preserve">
     <value>VALUE</value>
   </data>
-  <data name="vision" xml:space="preserve">
-    <value>VISION</value>
-  </data>
-  <data name="vision inspection" xml:space="preserve">
-    <value>VISION INSPECTION</value>
-  </data>
   <data name="wait" xml:space="preserve">
     <value>WAIT</value>
   </data>
@@ -2578,9 +2530,6 @@ Speed   Configured axis speed</value>
   </data>
   <data name="{0} unlinked image(s) excluded." xml:space="preserve">
     <value>Skipped {0} images with no inspection point</value>
-  </data>
-  <data name="{0} · bright {1:0.###}%" xml:space="preserve">
-    <value>{0} Bright area {1:0.###}%</value>
   </data>
   <data name="{0} · data matrix" xml:space="preserve">
     <value>{0} Data Matrix</value>
@@ -3457,7 +3406,6 @@ Supply: PCB 1, travel Z</value>
   <data name="mark all complete" xml:space="preserve"><value>Mark all complete</value></data>
   <data name="rework all" xml:space="preserve"><value>Rework all</value></data>
   <data name="fastening interrupted · remove bolt" xml:space="preserve"><value>Fastening interrupted remove bolt</value></data>
-  <data name="raise pickup" xml:space="preserve"><value>Raise pickup</value></data>
   <data name="channel (1–9)" xml:space="preserve">
     <value>Channel (1–9)</value>
   </data>
@@ -3589,4 +3537,98 @@ Supply: PCB 1, travel Z</value>
   <data name="raise fastening heads and pickup table" xml:space="preserve"><value>Raise fastening heads and pickup table</value></data>
   <data name="move backup to fastening height" xml:space="preserve"><value>Move backup to fastening height</value></data>
   <data name="ip address" xml:space="preserve"><value>IP address</value></data>
+  <data name="select a data matrix." xml:space="preserve">
+    <value>Select a Data Matrix</value>
+  </data>
+  <data name="protocol test" xml:space="preserve"><value>Protocol test</value></data>
+  <data name="port open" xml:space="preserve"><value>Port open</value></data>
+  <data name="response timeout (s)" xml:space="preserve"><value>Response timeout (s)</value></data>
+  <data name="command format" xml:space="preserve"><value>Command format</value></data>
+  <data name="measure (start)" xml:space="preserve"><value>Measure (START)</value></data>
+  <data name="last result (recall)" xml:space="preserve"><value>Last result (RECALL)</value></data>
+  <data name="cancel wait" xml:space="preserve"><value>Cancel wait</value></data>
+  <data name="received" xml:space="preserve"><value>Received</value></data>
+  <data name="measurement" xml:space="preserve"><value>Measurement</value></data>
+  <data name="waiting for response" xml:space="preserve"><value>Waiting for response</value></data>
+  <data name="response timeout must be greater than 0" xml:space="preserve"><value>Response timeout must be greater than 0</value></data>
+  <data name="last measurement received" xml:space="preserve"><value>Last measurement received</value></data>
+  <data name="measurement received" xml:space="preserve"><value>Measurement received</value></data>
+  <data name="response wait cancelled" xml:space="preserve"><value>Response wait cancelled</value></data>
+  <data name="height measurement" xml:space="preserve"><value>Height measurement</value></data>
+  <data name="reference plane" xml:space="preserve"><value>Reference plane</value></data>
+  <data name="height reference 1" xml:space="preserve"><value>Height reference 1</value></data>
+  <data name="height reference 2" xml:space="preserve"><value>Height reference 2</value></data>
+  <data name="height reference 3" xml:space="preserve"><value>Height reference 3</value></data>
+  <data name="camera to probe offset (mm)" xml:space="preserve"><value>Camera to LVDT offset (mm)</value></data>
+  <data name="minimum height (mm)" xml:space="preserve"><value>Minimum height (mm)</value></data>
+  <data name="maximum height (mm)" xml:space="preserve"><value>Maximum height (mm)</value></data>
+  <data name="height (mm)" xml:space="preserve"><value>Height (mm)</value></data>
+  <data name="measured height (mm)" xml:space="preserve"><value>Measured height (mm)</value></data>
+  <data name="reference height (mm)" xml:space="preserve"><value>Reference height (mm)</value></data>
+  <data name="inspection probe up" xml:space="preserve"><value>LVDT up</value></data>
+  <data name="inspection probe down" xml:space="preserve"><value>LVDT down</value></data>
+  <data name="measuring height" xml:space="preserve"><value>Measuring height</value></data>
+  <data name="teach all three height reference points" xml:space="preserve"><value>Teach all three height reference points</value></data>
+  <data name="reference points must form a triangle" xml:space="preserve"><value>Reference points must form a triangle</value></data>
+  <data name="invalid reference plane measurement" xml:space="preserve"><value>Invalid reference plane measurement</value></data>
+  <data name="set the height limits for {0}" xml:space="preserve"><value>Set the height limits for {0}</value></data>
+  <data name="height measurement is incomplete" xml:space="preserve"><value>Height measurement is incomplete</value></data>
+  <data name="height limits are not set" xml:space="preserve"><value>Height limits are not set</value></data>
+  <data name="height reference is missing" xml:space="preserve"><value>Height reference is missing</value></data>
+  <data name="raise the inspection probe before xy movement" xml:space="preserve"><value>Raise LVDT before XY movement</value></data>
+  <data name="ml-cp must return one height value" xml:space="preserve"><value>LVDT must return one height value</value></data>
+  <data name="minimum height exceeds maximum height" xml:space="preserve"><value>Minimum height exceeds maximum height</value></data>
+  <data name="fiducial 1" xml:space="preserve"><value>Fiducial 1</value></data>
+  <data name="fiducial 2" xml:space="preserve"><value>Fiducial 2</value></data>
+  <data name="finding fiducials" xml:space="preserve"><value>Finding fiducials</value></data>
+  <data name="fiducial alignment" xml:space="preserve"><value>Fiducial alignment</value></data>
+  <data name="white mark" xml:space="preserve"><value>White mark</value></data>
+  <data name="search settings" xml:space="preserve"><value>Search settings</value></data>
+  <data name="search margin (px)" xml:space="preserve"><value>Search margin (px)</value></data>
+  <data name="maximum shape error" xml:space="preserve"><value>Maximum shape error</value></data>
+  <data name="size tolerance (%)" xml:space="preserve"><value>Size tolerance (%)</value></data>
+  <data name="find mark" xml:space="preserve"><value>Find mark</value></data>
+  <data name="register the fiducial contour" xml:space="preserve"><value>Register the fiducial contour</value></data>
+  <data name="contour registered; save the recipe" xml:space="preserve"><value>Contour registered; save the recipe</value></data>
+  <data name="draw the fiducial region" xml:space="preserve"><value>Draw the fiducial region</value></data>
+  <data name="circle fit failed" xml:space="preserve"><value>Circle fit failed</value></data>
+  <data name="fiducial not found" xml:space="preserve"><value>Fiducial not found</value></data>
+  <data name="multiple fiducials found in the search region" xml:space="preserve"><value>Multiple fiducials found in the search region</value></data>
+  <data name="shape error" xml:space="preserve"><value>Shape error</value></data>
+  <data name="register both fiducials" xml:space="preserve"><value>Register both fiducials</value></data>
+  <data name="fiducials must be at two different positions" xml:space="preserve"><value>Fiducials must be at two different positions</value></data>
+  <data name="invalid fiducial position" xml:space="preserve"><value>Invalid fiducial position</value></data>
+  <data name="reference x (mm)" xml:space="preserve"><value>Reference X (mm)</value></data>
+  <data name="reference y (mm)" xml:space="preserve"><value>Reference Y (mm)</value></data>
+  <data name="measured x (mm)" xml:space="preserve"><value>Measured X (mm)</value></data>
+  <data name="measured y (mm)" xml:space="preserve"><value>Measured Y (mm)</value></data>
+  <data name="rotation (°)" xml:space="preserve"><value>Rotation (°)</value></data>
+  <data name="registered" xml:space="preserve"><value>Registered</value></data>
+  <data name="not registered" xml:space="preserve"><value>Not registered</value></data>
+  <data name="fiducial 1: {0} / fiducial 2: {1}" xml:space="preserve"><value>Fiducial 1: {0} / Fiducial 2: {1}</value></data>
+  <data name="recipe saved" xml:space="preserve"><value>Recipe saved</value></data>
+  <data name="contour registered and saved" xml:space="preserve"><value>Contour registered and saved</value></data>
+  <data name="register + save" xml:space="preserve"><value>Register + save</value></data>
+  <data name="captured image" xml:space="preserve"><value>Captured image</value></data>
+  <data name="show live" xml:space="preserve"><value>Show live</value></data>
+  <data name="resolution (mm/pixel)" xml:space="preserve"><value>Resolution (mm/pixel)</value></data>
+  <data name="set camera resolution" xml:space="preserve"><value>Set camera resolution</value></data>
+  <data name="enter a positive camera resolution" xml:space="preserve"><value>Enter a positive camera resolution</value></data>
+  <data name="exclude fiducial from ng" xml:space="preserve"><value>Exclude fiducial failures from NG</value></data>
+  <data name="failed · alignment not applied" xml:space="preserve"><value>Failed · alignment not applied</value></data>
+  <data name="drag around the circular mark in the image" xml:space="preserve"><value>Drag around the circular mark in the image</value></data>
+  <data name="keep the failure record; exclude it only from the pcb ng result" xml:space="preserve"><value>Keep the failure record; exclude it only from the PCB NG result</value></data>
+  <data name="applied" xml:space="preserve"><value>Applied</value></data>
+  <data name="ng · excluded" xml:space="preserve"><value>NG · excluded</value></data>
+  <data name="close reinspection" xml:space="preserve"><value>Close reinspection</value></data>
+  <data name="control target" xml:space="preserve"><value>Control target</value></data>
+  <data name="mark work on this carrier complete" xml:space="preserve"><value>Mark work on this carrier complete</value></data>
+  <data name="clear work records for this carrier" xml:space="preserve"><value>Clear work records for this carrier</value></data>
+  <data name="record the selected bolt as manually completed (ok)" xml:space="preserve"><value>Record the selected bolt as manually completed (OK)</value></data>
+  <data name="last result" xml:space="preserve"><value>Last result</value></data>
+  <data name="reset counts" xml:space="preserve"><value>Reset counts</value></data>
+  <data name="raise carrier support" xml:space="preserve"><value>Raise backup</value></data>
+  <data name="lower carrier support" xml:space="preserve"><value>Lower backup</value></data>
+  <data name="raise stopper" xml:space="preserve"><value>Raise stopper</value></data>
+  <data name="lower stopper" xml:space="preserve"><value>Lower stopper</value></data>
 </root>

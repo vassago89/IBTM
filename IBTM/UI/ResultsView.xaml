@@ -87,9 +87,47 @@
                             <TextBlock Text="{Binding FasteningResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding FasteningResult}" Style="{StaticResource ResultValueStyle}"/>
                         </DataTemplate></DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="{ui:Text 'Inspection'}" SortMemberPath="InspectionResult" Width="80">
+                    <DataGridTemplateColumn Header="{ui:Text 'Data Matrix'}" SortMemberPath="PcbBarcodeResult" Width="120">
                         <DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type storage:PcbRecord}">
-                            <TextBlock Text="{Binding InspectionResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding InspectionResult}" Style="{StaticResource ResultValueStyle}"/>
+                            <TextBlock Tag="{Binding PcbBarcodeResult}">
+                                <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}">
+                                    <Setter Property="Text" Value="{Binding PcbBarcodeResult, Converter={StaticResource UiTextConverter}}"/>
+                                    <Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding PcbBarcodeResult}" Value="{x:Static core:AssemblyResult.Ng}"/>
+                                        <Condition Binding="{Binding IsDataMatrixNgExcluded}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                        <Setter Property="Text" Value="{ui:Text 'NG · excluded'}"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                                    </MultiDataTrigger></Style.Triggers>
+                                </Style></TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="{ui:Text 'Fiducial alignment'}" Width="130">
+                        <DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type storage:PcbRecord}">
+                            <TextBlock ToolTip="{Binding FiducialError}">
+                                <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource ResultValueStyle}">
+                                    <Setter Property="Text" Value="NG"/>
+                                    <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFiducialNgExcluded}" Value="True">
+                                            <Setter Property="Text" Value="{ui:Text 'NG · excluded'}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding FiducialError}" Value="{x:Null}">
+                                            <Setter Property="Text" Value="OK"/>
+                                            <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                        <MultiDataTrigger><MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding FiducialError}" Value="{x:Null}"/>
+                                            <Condition Binding="{Binding Alignment}" Value="{x:Null}"/>
+                                        </MultiDataTrigger.Conditions>
+                                            <Setter Property="Text" Value="—"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style></TextBlock.Style>
+                            </TextBlock>
                         </DataTemplate></DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using IBTM.BackupPlate;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Mlcp;
 using IBTM.NgConveyor;
 using IBTM.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +29,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     // An unfinished shuttle handoff must still wait for clearance after STOP.
     private bool _waitingForShuttleDown;
     // Selected work belongs only to this run; STOP starts again at the first point.
-    private (HeatSinkSlot Pcb, BoltPoint? Bolt)[]? _runPoints;
+    private (HeatSinkSlot Pcb, BoltPoint? Bolt, InspectionPointKind Kind)[]? _runPoints;
     private int _pointIndex;
     private long _cycleStartedAt;
     private BackupPlateStation.Job? _runJob;
@@ -42,6 +43,8 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     private readonly RecipeManager _recipes;
     private readonly SemaphoreSlim _visionGate;
     private int? _lightChannel;
+    private readonly MlcpController _measurement;
+    private readonly MlcpSettings _measurementSettings;
 
     public InspectionStation(
         [FromKeyedServices(MotionGroup.InspectionGantry)] BackupPlateStation station,
@@ -56,12 +59,16 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         ILightController light,
         LightingSettings lightingSettings,
         RecipeManager recipes,
+        MlcpController measurement,
+        MlcpSettings measurementSettings,
         ILogger<InspectionStation>? log = null)
         : base(io, [
             InputIo.NgCarrierPickupUp,
             InputIo.NgCarrierPickupDown,
             InputIo.NgCarrierGripperOpen,
             InputIo.NgCarrierGripperClosed,
+            InputIo.InspectionProbeUp,
+            InputIo.InspectionProbeDown,
         ], [OutputIo.MainConveyorRun])
     {
         _log = log;
@@ -76,6 +83,8 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         _light = light;
         _lightingSettings = lightingSettings;
         _recipes = recipes;
+        _measurement = measurement;
+        _measurementSettings = measurementSettings;
         _visionGate = new(1, 1);
         camera.LiveViewFailed += OnCameraLiveViewFailed;
         station.Changed += NotifyChanged;
@@ -91,12 +100,12 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
 
     public HeatSinkSlot? ActivePcb => InspectionTarget.Pcb;
 
-    private (HeatSinkSlot? Pcb, BoltPoint? Bolt) InspectionTarget
+    private (HeatSinkSlot? Pcb, BoltPoint? Bolt, InspectionPointKind Kind) InspectionTarget
     {
         get
         {
             var index = _pointIndex;
-            return _runPoints is { } points && index < points.Length ? points[index] : (null, null);
+            return _runPoints is { } points && index < points.Length ? points[index] : (null, null, InspectionPointKind.Photo);
         }
     }
 
@@ -325,7 +334,11 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             var target = InspectionTarget;
             if (target.Pcb is null)
                 return InspectionStationState.CompletingInspection;
-            var taught = target.Bolt is null ? HasBarcodeRegion(target.Pcb.Value) : HasRegion(target.Bolt);
+            if (target.Kind == InspectionPointKind.Fiducials)
+                return InspectionStationState.FindingFiducials;
+            if (target.Kind is InspectionPointKind.ReferencePlane or InspectionPointKind.Height)
+                return InspectionStationState.MeasuringHeight;
+            var taught = target.Bolt is null ? HasBarcodeRegion(target.Pcb.Value) : target.Bolt.InspectionPosition is not null;
             return taught ? InspectionStationState.InspectingPoint : InspectionStationState.TeachingRequired;
         }
     }
@@ -351,17 +364,60 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     EnterStep(state, workId: Station.CurrentJob.Id);
                     ClearInspectionOperation();
                     _cycleStartedAt = Stopwatch.GetTimestamp();
-                    var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt)>();
+                    var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt, InspectionPointKind Kind)>();
                     foreach (var pcb in Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent))
                     {
-                        var pcbBolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => bolt.HeatSink == pcb);
+                        var pcbBolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => bolt.HeatSink == pcb).ToArray();
                         if (!pcbBolts.Any())
                             throw new InvalidOperationException(
                                 $"{pcb.GetDescription()} has no taught bolts. Complete bolt teaching before inspection.");
-                        points.Add((pcb, null));
+                        var reference = _recipes.Current.BoltInspection.GetHeightReference(pcb);
+                        if (reference.Point1 is not { } p1 || reference.Point2 is not { } p2 || reference.Point3 is not { } p3)
+                            throw new InvalidOperationException(UiText.Get("Teach all three height reference points"));
+                        _ = new HeightReferencePlane(DateTimeOffset.Now,
+                            new(p1.X, p1.Y, 0), new(p2.X, p2.Y, 0), new(p3.X, p3.Y, 0)).HeightAt(p1.X, p1.Y);
                         foreach (var bolt in pcbBolts)
-                            points.Add((pcb, bolt));
+                        {
+                            if (bolt.MinimumHeight is not { } minimum || bolt.MaximumHeight is not { } maximum || minimum > maximum)
+                                throw new InvalidOperationException(UiText.Format($"Set the height limits for {BoltPoint.GetDisplayName(bolt.Name, _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id))}"));
+                        }
+                        var fiducials = _recipes.Current.BoltInspection.GetFiducials(pcb);
+                        if (fiducials.Enabled)
+                        {
+                            foreach (var mark in new[] { fiducials.First, fiducials.Second })
+                            {
+                                if (mark.CameraPosition is null || mark.Contour.Length < 5)
+                                    throw new InvalidOperationException(UiText.Get("Register both fiducials"));
+                                _ = _gantrySettings.ToMachinePosition(mark.CameraPosition, new(0, 0), mark.ImageWidth, mark.ImageHeight);
+                            }
+                            points.Add((pcb, null, InspectionPointKind.Fiducials));
+                        }
+                        points.Add((pcb, null, InspectionPointKind.Photo));
+                        foreach (var bolt in pcbBolts)
+                            points.Add((pcb, bolt, InspectionPointKind.Photo));
+                        points.Add((pcb, null, InspectionPointKind.ReferencePlane));
+                        foreach (var bolt in pcbBolts)
+                            points.Add((pcb, bolt, InspectionPointKind.Height));
                     }
+                    // Unassigned I/O must fail before XY movement or a measurement request.
+                    _ = Io.GetInput(InputIo.InspectionProbeUp);
+                    _ = Io.GetInput(InputIo.InspectionProbeDown);
+                    _ = Io.GetOutput(OutputIo.InspectionProbeDown);
+                    if (!_measurement.IsOpen
+                        || !string.Equals(_measurement.PortName, _measurementSettings.PortName, StringComparison.OrdinalIgnoreCase)
+                        || _measurement.BaudRate is { } baud && baud != _measurementSettings.BaudRate)
+                    {
+                        await Task.Run(() =>
+                        {
+                            _measurement.Close();
+                            _measurement.Open(_measurementSettings.PortName, _measurementSettings.BaudRate);
+                        }, cancellationToken);
+                    }
+                    _measurement.ResponseTimeout = TimeSpan.FromMilliseconds(_measurementSettings.ResponseTimeoutMilliseconds);
+                    _measurement.CommandFormat = _measurementSettings.CommandFormat;
+                    await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false, cancellationToken);
+                    foreach (var point in points.Where(point => point.Kind == InspectionPointKind.ReferencePlane))
+                        Station.GetAssembly(point.Pcb).ClearInspectionResults();
                     _runJob = Station.CurrentJob;
                     _runPoints = points.ToArray();
                     _inspectionOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -413,9 +469,13 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     var ngCount = 0;
                     foreach (var point in _runPoints!)
                     {
-                        if (point.Bolt is not null)
+                        if (point.Bolt is not null || point.Kind != InspectionPointKind.Photo)
                             continue;
                         var assembly = Station.GetAssembly(job, point.Pcb);
+                        if (assembly.HeightReference is null || _runPoints.Any(target =>
+                            target.Pcb == point.Pcb && target.Kind == InspectionPointKind.Height && target.Bolt is { } bolt
+                            && !assembly.HeightResults.ContainsKey(bolt.Id)))
+                            throw new InvalidOperationException(UiText.Get("Height measurement is incomplete"));
                         assembly.CompleteInspection();
                         switch (assembly.Result)
                         {
@@ -433,6 +493,88 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     ClearInspectionOperation();
                     return true;
                 }
+                case InspectionStationState.FindingFiducials:
+                {
+                    var job = _runJob ?? throw new InvalidOperationException("Inspection has no active carrier job.");
+                    var pcb = InspectionTarget.Pcb!.Value;
+                    var token = _inspectionOperation!.Token;
+                    var fiducials = _recipes.Current.BoltInspection.GetFiducials(pcb);
+                    var markName = UiText.Get("Fiducial 1");
+                    try
+                    {
+                        EnterStep(state, $"{pcb.GetDescription()} / {markName}", job.Id);
+                        var first = await FindFiducialAsync(fiducials.First, token);
+                        markName = UiText.Get("Fiducial 2");
+                        EnterStep(state, $"{pcb.GetDescription()} / {markName}", job.Id);
+                        var second = await FindFiducialAsync(fiducials.Second, token);
+                        token.ThrowIfCancellationRequested();
+                        Station.RequireCurrentJob(job);
+                        if (double.Hypot(second.Reference.X - first.Reference.X, second.Reference.Y - first.Reference.Y) < 0.001
+                            || double.Hypot(second.Measured.X - first.Measured.X, second.Measured.Y - first.Measured.Y) < 0.001)
+                            throw new FiducialDetectionException(UiText.Get("Fiducials must be at two different positions"));
+                        var alignment = new PcbAlignment(DateTimeOffset.Now, first, second);
+                        Station.GetAssembly(job, pcb).RecordAlignment(alignment);
+                        _log?.LogInformation("Fiducials {Pcb}: angle={Angle}, first={First}, second={Second}.",
+                            pcb, alignment.AngleDegrees, first, second);
+                    }
+                    catch (FiducialDetectionException exception)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        Station.RequireCurrentJob(job);
+                        var error = $"{markName}: {exception.Message}";
+                        Station.GetAssembly(job, pcb).RecordFiducialFailure(error, _gantrySettings.ExcludeFiducialFromNg);
+                        _log?.LogWarning("Fiducials {Pcb} failed: {Error}. Continuing at taught coordinates; excluded from NG={Excluded}.",
+                            pcb, error, _gantrySettings.ExcludeFiducialFromNg);
+                    }
+                    _pointIndex++;
+                    NotifyChanged();
+                    return true;
+                }
+                case InspectionStationState.MeasuringHeight:
+                {
+                    var target = InspectionTarget;
+                    var pcb = target.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
+                    var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
+                    var job = _runJob!;
+                    Station.RequireCurrentJob(job);
+                    var assembly = Station.GetAssembly(job, pcb);
+                    if (target.Bolt is { } bolt)
+                    {
+                        EnterStep(state, $"{pcb.GetDescription()} / Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}", job.Id);
+                        var minimum = bolt.MinimumHeight ?? throw new InvalidOperationException(UiText.Get("Height limits are not set"));
+                        var maximum = bolt.MaximumHeight ?? throw new InvalidOperationException(UiText.Get("Height limits are not set"));
+                        if (minimum > maximum)
+                            throw new InvalidOperationException(UiText.Get("Minimum height exceeds maximum height"));
+                        var position = assembly.Alignment?.Transform(bolt.InspectionPosition!) ?? bolt.InspectionPosition!;
+                        var sample = await MeasureHeightAtAsync(position, token);
+                        token.ThrowIfCancellationRequested();
+                        Station.RequireCurrentJob(job);
+                        var plane = assembly.HeightReference ?? throw new InvalidOperationException(UiText.Get("Height reference is missing"));
+                        var result = new BoltHeightResult(DateTimeOffset.Now, sample,
+                            plane.HeightAt(sample.X, sample.Y), minimum, maximum);
+                        assembly.RecordHeight(bolt.Id, result);
+                        _log?.LogInformation("Height {Pcb}/{Bolt}: raw={Raw}, reference={Reference}, height={Height}, limits={Minimum}..{Maximum}, OK={Success}.",
+                            pcb, bolt.Id, sample.Value, result.ReferenceHeight, result.Height, minimum, maximum, result.Success);
+                    }
+                    else
+                    {
+                        var reference = _recipes.Current.BoltInspection.GetHeightReference(pcb);
+                        EnterStep(state, $"{pcb.GetDescription()} / Reference 1", job.Id);
+                        var p1 = await MeasureHeightAtAsync(assembly.Alignment?.Transform(reference.Point1!) ?? reference.Point1!, token);
+                        EnterStep(state, $"{pcb.GetDescription()} / Reference 2", job.Id);
+                        var p2 = await MeasureHeightAtAsync(assembly.Alignment?.Transform(reference.Point2!) ?? reference.Point2!, token);
+                        EnterStep(state, $"{pcb.GetDescription()} / Reference 3", job.Id);
+                        var p3 = await MeasureHeightAtAsync(assembly.Alignment?.Transform(reference.Point3!) ?? reference.Point3!, token);
+                        token.ThrowIfCancellationRequested();
+                        Station.RequireCurrentJob(job);
+                        var plane = new HeightReferencePlane(DateTimeOffset.Now, p1, p2, p3);
+                        _ = plane.HeightAt(p1.X, p1.Y);
+                        assembly.RecordHeightReference(plane);
+                    }
+                    _pointIndex++;
+                    NotifyChanged();
+                    return true;
+                }
                 case InspectionStationState.InspectingPoint:
                 {
                     var target = InspectionTarget;
@@ -446,8 +588,8 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     Station.RequireCurrentJob(job);
                     var assembly = Station.GetAssembly(job, pcb);
                     var capture = bolt is null
-                        ? await ReadBarcodeAsync(pcb, token)
-                        : await InspectAsync(bolt, token);
+                        ? await ReadBarcodeAsync(pcb, token, Station.GetAssembly(pcb).Alignment)
+                        : await CaptureBoltAsync(bolt, token, Station.GetAssembly(pcb).Alignment);
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     if (bolt is null)
@@ -455,8 +597,6 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                         assembly.IsDataMatrixNgExcluded = _gantrySettings.ExcludeDataMatrixFromNg;
                         assembly.PcbBarcode = capture.Barcode;
                     }
-                    else
-                        assembly.RecordBoltPresence(bolt.Id, capture.Success);
                     assembly.RecordInspectionCapture(capture);
                     _pointIndex++;
                     NotifyChanged();
@@ -704,6 +844,8 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     private void EnsureCanMove(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (!Io.GetInput(InputIo.InspectionProbeUp) || Io.GetInput(InputIo.InspectionProbeDown))
+            throw new MotionInterlockException(UiText.Get("Raise the inspection probe before XY movement"));
         if (!IsRaised)
         {
             throw new MotionInterlockException("NG carrier pickup must be raised before inspection XY movement.");
@@ -715,6 +857,37 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     }
 
     public event Action? LiveViewChanged;
+
+    internal async Task<FiducialObservation> FindFiducialAsync(FiducialMark mark, CancellationToken cancellationToken)
+    {
+        await MoveToAsync(mark.CameraPosition!, cancellationToken: cancellationToken);
+        var image = await CaptureCurrentAsync(cancellationToken, lightLevel: mark.LightLevel ?? _recipes.Current.BoltInspection.LightLevel);
+        var detection = await Task.Run(() => FiducialDetector.Detect(image, mark), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var current = _motion.Position;
+        var measured = _gantrySettings.ToMachinePosition(new() { X = current.X, Y = current.Y },
+            detection.Center, image.Width, image.Height);
+        var reference = _gantrySettings.ToMachinePosition(mark.CameraPosition!,
+            FiducialDetector.FitCircle(mark.Contour), mark.ImageWidth, mark.ImageHeight);
+        return new(reference, measured, detection.ShapeError);
+    }
+
+    internal async Task<HeightSample> MeasureHeightAtAsync(AxisPosition cameraPosition, CancellationToken cancellationToken)
+    {
+        var position = new AxisPosition
+        {
+            X = cameraPosition.X + _gantrySettings.ProbeOffsetX,
+            Y = cameraPosition.Y + _gantrySettings.ProbeOffsetY,
+        };
+        await MoveToAsync(position, cancellationToken: cancellationToken);
+        await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, true, cancellationToken);
+        var result = await _measurement.MeasureAsync(cancellationToken);
+        if (result.Measurements.Count != 1)
+            throw new InvalidOperationException(UiText.Get("ML-CP must return one height value"));
+        var sample = new HeightSample(position.X, position.Y, (double)result.Measurements[0].Value);
+        await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false, cancellationToken);
+        return sample;
+    }
 
     public event Action<ImageFrame, HeatSinkSlot, Guid?>? InspectionCaptured;
 
@@ -819,12 +992,13 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         }
     }
 
-    internal async Task<InspectionCapture> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
+    internal async Task<InspectionCapture> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken, PcbAlignment? alignment = null)
     {
         if (!HasBarcodeRegion(pcb))
             throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
         var fov = GetBarcodeFov(pcb);
-        await MoveToAsync(_recipes.Current.GetInspectionPosition(fov), cancellationToken: cancellationToken);
+        var position = _recipes.Current.GetInspectionPosition(fov);
+        await MoveToAsync(alignment?.Transform(position) ?? position, cancellationToken: cancellationToken);
         var image = await CaptureCurrentAsync(cancellationToken,
             lightLevel: _recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel
                 ?? _recipes.Current.BoltInspection.LightLevel);
@@ -846,14 +1020,6 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             return new InspectionCapture(null, capturedAt, image, region, !string.IsNullOrEmpty(result.Text),
                 Barcode: result.Text, Threshold: result.Threshold, Dilated: result.Dilated);
         }, cancellationToken);
-    }
-
-    public bool HasRegion(BoltPoint point)
-    {
-        var size = _camera.FrameSize;
-        return point.InspectionPosition is not null
-            && _recipes.Current.FindInspectionImage(point.HeatSink, point.Id)?.Region is { } region
-            && region.IsInside(size.Width, size.Height);
     }
 
     public Task MoveToBoltAsync(BoltPoint point, CancellationToken cancellationToken = default)
@@ -891,29 +1057,15 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         }
     }
 
-    internal async Task<InspectionCapture> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
+    internal async Task<InspectionCapture> CaptureBoltAsync(BoltPoint point, CancellationToken cancellationToken = default, PcbAlignment? alignment = null)
     {
-        if (!HasRegion(point))
-            throw new InvalidOperationException($"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Id}.");
-        var fov = _recipes.Current.FindInspectionImage(point.HeatSink, point.Id)
-            ?? throw new InvalidOperationException(
-                $"Record a position for {point.HeatSink.GetDescription()} bolt {point.Id}.");
-        await MoveToAsync(_recipes.Current.GetInspectionPosition(fov), cancellationToken: cancellationToken).ConfigureAwait(false);
+        var position = point.InspectionPosition ?? throw new InvalidOperationException(UiText.Get("Not taught"));
+        await MoveToAsync(alignment?.Transform(position) ?? position, cancellationToken: cancellationToken).ConfigureAwait(false);
         var image = await CaptureCurrentAsync(cancellationToken,
             lightLevel: point.LightLevel ?? _recipes.Current.BoltInspection.LightLevel).ConfigureAwait(false);
         var capturedAt = DateTimeOffset.Now;
         InspectionCaptured?.Invoke(image, point.HeatSink, point.Id);
-        return await Task.Run(() =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var region = fov.Region!;
-            var ratio = BinaryRegionAnalyzer.Check(image, region,
-                point.BrightnessThreshold ?? _recipes.Current.BoltInspection.BrightnessThreshold).BrightRatio;
-            var minimum = point.MinimumBrightRatio ?? _recipes.Current.BoltInspection.MinimumBrightRatio;
-            cancellationToken.ThrowIfCancellationRequested();
-            return new InspectionCapture(point.Id, capturedAt, image, region, ratio >= minimum,
-                BrightRatio: ratio, MinimumBrightRatio: minimum);
-        }, cancellationToken);
+        return new(point.Id, capturedAt, image, null, null);
     }
 
     public async Task<CarrierImage> CaptureCarrierImageAsync(

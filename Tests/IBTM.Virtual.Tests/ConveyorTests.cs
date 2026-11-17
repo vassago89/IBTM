@@ -1279,7 +1279,6 @@ public sealed class ConveyorTests
         foreach (var slot in Enum.GetValues<HeatSinkSlot>().Where(destination.Station.IsHeatSinkPresent))
         {
             var inspected = destination.Station.GetAssembly(slot);
-            inspected.RecordBoltPresence(VirtualTestSupport.BoltId(1), true);
             inspected.CompleteInspection();
         }
         destination.Station.Complete(destination.Station.CurrentJob);
@@ -1828,7 +1827,7 @@ public sealed class ConveyorTests
             InputIo.InspectionHeatSink1Present,
             OutputIo.InspectionBackupPlateUp);
         var assembly = inspectionWork.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBoltPresence(VirtualTestSupport.BoltId(1), false);
+        assembly.PcbBarcode = null;
         assembly.CompleteInspection();
         inspectionWork.Station.Complete(inspectionWork.Station.CurrentJob);
         Assert.True(inspectionWork.HasNg);

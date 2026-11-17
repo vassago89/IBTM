@@ -20,6 +20,108 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbHistoryTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FiducialFailurePolicySurvivesReloadAndDoesNotExcludeHeightNg(bool excludeFromNg)
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var history = services.GetRequiredService<PcbHistoryWriter>();
+        var store = services.GetRequiredService<MachineStore>();
+        var settings = services.GetRequiredService<MachineSettings>();
+        settings.PcbHistory.Directory = store.DatabaseFile + ".results";
+        settings.InspectionGantry.ExcludeFiducialFromNg = excludeFromNg;
+        store.SaveSettings([settings.InspectionGantry]);
+        Assert.Equal(excludeFromNg, store.LoadSettings().Get<InspectionGantrySettings>().ExcludeFiducialFromNg);
+        var assembly = services.GetRequiredService<InspectionStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordAlignment(new(DateTimeOffset.Now, new(new(0, 0), new(1, 2), 0), new(new(10, 0), new(11, 2), 0)));
+        assembly.RecordFiducialFailure("Fiducial 2: not found", excludeFromNg);
+        assembly.CompleteInspection();
+        await history.FlushAsync();
+
+        settings.InspectionGantry.ExcludeFiducialFromNg = !excludeFromNg;
+        var reopened = new MachineStore(store.DatabaseFile);
+        var record = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        var loaded = reopened.LoadPcb(record);
+        Assert.Null(loaded.Alignment);
+        Assert.Equal("Fiducial 2: not found", loaded.FiducialError);
+        Assert.Equal(excludeFromNg, loaded.IsFiducialNgExcluded);
+        Assert.Equal(excludeFromNg ? AssemblyResult.Ok : AssemblyResult.Ng, loaded.Result);
+
+        assembly.RecordHeight(VirtualTestSupport.BoltId(1), new(DateTimeOffset.Now, new(3, 4, 10), 0, 1, 2));
+        assembly.CompleteInspection();
+        await history.FlushAsync();
+        Assert.Equal(AssemblyResult.Ng, Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory)).Result);
+        assembly.ClearInspectionResults();
+        await history.FlushAsync();
+        var cleared = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.Null(cleared.FiducialError);
+        Assert.False(cleared.IsFiducialNgExcluded);
+        Assert.Equal(AssemblyResult.Pending, cleared.Result);
+
+        var newAlignment = new PcbAlignment(DateTimeOffset.Now,
+            new(new(0, 0), new(3, 4), 0), new(new(10, 0), new(13, 4), 0));
+        assembly.RecordAlignment(newAlignment);
+        assembly.CompleteInspection();
+        await history.FlushAsync();
+        var reinspected = reopened.LoadPcb(Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory)));
+        Assert.Null(reinspected.FiducialError);
+        Assert.False(reinspected.IsFiducialNgExcluded);
+        Assert.Equal(newAlignment, reinspected.Alignment);
+        Assert.Equal(AssemblyResult.Ok, reinspected.Result);
+        Assert.Equal("Fiducial 2: not found", loaded.FiducialError);
+        Assert.Equal(excludeFromNg, loaded.IsFiducialNgExcluded);
+    }
+
+    [Fact]
+    public async Task HeightHistoryRetainsRawPlaneLimitsAndVerdictAfterReload()
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var history = services.GetRequiredService<PcbHistoryWriter>();
+        var store = services.GetRequiredService<MachineStore>();
+        var settings = services.GetRequiredService<MachineSettings>();
+        settings.PcbHistory.Directory = store.DatabaseFile + ".results";
+        var assembly = services.GetRequiredService<InspectionStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        var boltId = VirtualTestSupport.BoltId(1);
+        var plane = new HeightReferencePlane(DateTimeOffset.Now, new(0, 0, 10), new(10, 0, 11), new(0, 10, 12));
+        var result = new BoltHeightResult(DateTimeOffset.Now, new(3, 4, 12.6), plane.HeightAt(3, 4), 1.4, 1.6);
+        var alignment = new PcbAlignment(DateTimeOffset.Now,
+            new(new(0, 0), new(1, 2), 0.001), new(new(10, 0), new(11, 2), 0.002));
+        assembly.RecordAlignment(alignment);
+        assembly.RecordHeightReference(plane);
+        assembly.RecordHeight(boltId, result);
+        assembly.CompleteInspection();
+        await history.FlushAsync();
+
+        var reopened = new MachineStore(store.DatabaseFile);
+        var record = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.Equal(plane, record.HeightReference);
+        Assert.Equal(alignment, record.Alignment);
+        Assert.Equal(result, Assert.Single(record.HeightResults).Value);
+        Assert.Equal(1.5, record.HeightResults[boltId].Height, 8);
+        Assert.True(record.HeightResults[boltId].Success);
+        var loaded = reopened.LoadPcb(record);
+        Assert.Equal(plane, loaded.HeightReference);
+        Assert.Equal(alignment, loaded.Alignment);
+        Assert.Equal(result, loaded.HeightResults[boltId]);
+        var details = services.GetRequiredService<PcbResultsViewModel>();
+        details.Record = loaded;
+        Assert.Equal(result, Assert.Single(details.HeightResults).Result);
+        Assert.Empty(details.BoltResults); // Height results do not require a fastening result.
+
+        assembly.ClearInspectionResults();
+        Assert.Equal(result, record.HeightResults[boltId]); // Saved snapshots cannot change with runtime state.
+        await history.FlushAsync();
+        var cleared = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.Empty(cleared.HeightResults);
+        Assert.Null(cleared.HeightReference);
+        Assert.Null(cleared.Alignment);
+        Assert.Equal(AssemblyResult.Pending, cleared.InspectionResult);
+        details.Record = cleared;
+        Assert.Empty(details.HeightResults);
+        await details.ShutdownAsync();
+    }
+
     [Fact]
     public async Task DataMatrixNgExclusionPersistsWithFailedReadAndPassingInspection()
     {
@@ -37,7 +139,6 @@ public sealed class PcbHistoryTests
         var assembly = services.GetRequiredService<InspectionStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.IsDataMatrixNgExcluded = true;
         assembly.PcbBarcode = null;
-        assembly.RecordBoltPresence(Guid.NewGuid(), true);
         assembly.CompleteInspection();
         assembly.RecordInspectionCapture(new(null, DateTimeOffset.Now,
             new ImageFrame(1, 1, 3, [20, 20, 20]), new(0, 0, 1, 1), false));
@@ -170,7 +271,7 @@ public sealed class PcbHistoryTests
         var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
             "ORIGINAL", AssemblyResult.Ok, AssemblyResult.Ok, AssemblyResult.Pending,
             new Dictionary<Guid, BoltResult> { [boltId] = shooting },
-            new Dictionary<Guid, BoltResult> { [boltId] = pickup }, new Dictionary<Guid, bool>(), [boltId])
+            new Dictionary<Guid, BoltResult> { [boltId] = pickup }, [boltId])
         {
             DatabaseFile = file,
         };
@@ -213,7 +314,7 @@ public sealed class PcbHistoryTests
         Assert.Equal(0L, query.ExecuteScalar());
         query.CommandText = "SELECT COUNT(*) FROM PcbBoltCurves WHERE PcbNumber=2";
         Assert.Equal(2L, query.ExecuteScalar());
-        var image = new PcbInspectionImage(boltId, record.CreatedAt, new(0, 0, 1, 1), true, null, 1, 0.5, [1]);
+        var image = new PcbInspectionImage(boltId, record.CreatedAt, new(0, 0, 1, 1), true, null, [1]);
         Assert.Throws<SqliteException>(() => store.SavePcbImage(file, 999, image));
         store.SavePcbImage(file, 2, image);
         query.CommandText = "DELETE FROM Pcbs WHERE Number=2";
@@ -241,7 +342,7 @@ public sealed class PcbHistoryTests
             {
                 [boltId] = new(true, 4) { TorqueCurve = new(1, 5, [0, 4], 10, 4, 4, 1, 0) },
             },
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [boltId])
+            new Dictionary<Guid, BoltResult>(), [boltId])
         {
             DatabaseFile = file,
         };
@@ -335,7 +436,7 @@ public sealed class PcbHistoryTests
         await recipes.RecordProductionAsync(1, 2);
         Assert.Equal(3, recipes.Counts.TotalCount);
         Assert.Equal(new ProductionCounts(1, 2), recipes.Counts);
-        assembly.RecordBoltPresence(Guid.NewGuid(), false);
+        assembly.PcbBarcode = null;
         await history.FlushAsync();
         Assert.Equal(3, recipes.Counts.TotalCount);
 
@@ -401,12 +502,12 @@ public sealed class PcbHistoryTests
         var capturedAt = DateTimeOffset.Now;
         var record = new PcbRecord(1, capturedAt, capturedAt, "Default", HeatSinkSlot.HeatSink1,
             "PCB-123", AssemblyResult.Ok, AssemblyResult.Pending, AssemblyResult.Pending,
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), [])
         {
             DatabaseFile = file,
         };
         store.SavePcb(file, record);
-        var dataMatrix = new PcbInspectionImage(null, capturedAt, new(0, 0, 1, 1), true, "PCB-123", null, null, [1, 2, 3]);
+        var dataMatrix = new PcbInspectionImage(null, capturedAt, new(0, 0, 1, 1), true, "PCB-123", [1, 2, 3]);
         store.SavePcbImage(file, record.Number, dataMatrix);
 
         var invalid = dataMatrix with { BoltId = Guid.Empty, Barcode = null, Success = false, Png = [4, 5, 6] };
@@ -450,7 +551,6 @@ public sealed class PcbHistoryTests
                 MaximumTurns = bolt.MaximumTurns,
                 Controller = dryRun ? null : new("Virtual", 1, 1, 1000, 1, 8, 800, 100, 200, 1800, 1, 0, 0, 1, 0, null),
             });
-            assembly.RecordBoltPresence(bolt.Id, true);
         }
         assembly.CompleteFastening();
         assembly.CompleteInspection();
@@ -474,7 +574,6 @@ public sealed class PcbHistoryTests
         Assert.All(details.BoltResults, row =>
         {
             Assert.Equal(dryRun ? UiText.Get("Dry run · NG") : "OK", row.Verdict);
-            Assert.Equal("OK", row.VisionVerdict);
         });
         await details.LoadImagesCommand.ExecuteAsync(null);
     }
@@ -510,12 +609,10 @@ public sealed class PcbHistoryTests
         {
             assembly.RecordBolt(bolts[index].Head, bolts[index].Id,
                 new(index != 4, index == 4 ? null : 8 + index, Error: index == 4 ? "ADC response error" : null));
-            assembly.RecordBoltPresence(bolts[index].Id, index != 4);
         }
         assembly.CompleteFastening();
         assembly.RecordInspectionCapture(new(bolts[4].Id, DateTimeOffset.Now,
-            new ImageFrame(2, 1, 6, [0, 0, 255, 0, 255, 0]), new PixelRegion(0, 0, 1, 1), false,
-            BrightRatio: 0.1, MinimumBrightRatio: 0.8));
+            new ImageFrame(2, 1, 6, [0, 0, 255, 0, 255, 0]), null, null));
         recipes.Current.Pcb.BoltPoints.Move(0, 5);
         bolts[4].Name = "변경된 이름";
         await recipes.SaveAsync(recipe.Name);
@@ -547,7 +644,6 @@ public sealed class PcbHistoryTests
         await details.LoadCurvesCommand.ExecutionTask!;
         record = details.Record!;
         Assert.Equal(6, details.BoltResults.Count);
-        Assert.Empty(details.InspectionOnlyResults);
         for (var index = 0; index < bolts.Length; index++)
         {
             var row = details.BoltResults[index];
@@ -563,7 +659,6 @@ public sealed class PcbHistoryTests
                 5 => "Bolt 6",
                 _ => "고정",
             }, row.BoltLabel);
-            Assert.Equal(index != 4, row.Present);
         }
         details.SelectedBolt = details.BoltResults[4];
         Assert.Equal("ADC response error", details.SelectedBolt.Result.Error);
@@ -610,8 +705,6 @@ public sealed class PcbHistoryTests
             PickupBoltResults = new Dictionary<Guid, BoltResult>(),
         };
         Assert.Empty(details.BoltResults);
-        Assert.Equal(6, details.InspectionOnlyResults.Count);
-        Assert.Equal("Bolt 5", details.InspectionOnlyResults.Single(row => row.BoltId == bolts[4].Id).BoltLabel);
     }
 
     [Fact]
@@ -749,11 +842,11 @@ public sealed class PcbHistoryTests
         {
             await Assert.ThrowsAsync<IOException>(history.FlushAsync);
             Assert.Equal(1, assembly.PcbNumber);
+            assembly.RecordFiducialFailure("Fiducial 1: multiple marks", excludeFromNg: true);
             var pixels = new byte[] { 0, 0, 255, 0, 255, 0 };
             assembly.RecordInspectionCapture(new(VirtualTestSupport.BoltId(1), DateTimeOffset.Now,
-                new ImageFrame(2, 1, 6, pixels), new(0, 0, 1, 1), true));
+                new ImageFrame(2, 1, 6, pixels), null, null));
             Array.Clear(pixels); // Encoding must use the image captured when the event was raised.
-            assembly.RecordBoltPresence(VirtualTestSupport.BoltId(1), true);
             assembly.CompleteInspection();
             Assert.Equal(4, history.PendingCount);
             Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
@@ -769,7 +862,9 @@ public sealed class PcbHistoryTests
         var record = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory));
         Assert.Equal(1, record.Number);
         Assert.Equal(AssemblyResult.Ok, record.InspectionResult);
-        Assert.True(record.BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
+        Assert.Null(record.Alignment);
+        Assert.Equal("Fiducial 1: multiple marks", record.FiducialError);
+        Assert.True(record.IsFiducialNgExcluded);
         var image = Assert.Single(store.LoadPcbImages(record));
         using var stream = new MemoryStream(image.Png);
         var decoded = new System.Windows.Media.Imaging.FormatConvertedBitmap(
@@ -816,7 +911,7 @@ public sealed class PcbHistoryTests
             HeatSinkSlot.HeatSink1, null, AssemblyResult.Pending, AssemblyResult.Pending,
             AssemblyResult.Pending, new System.Collections.Generic.Dictionary<Guid, BoltResult>(),
             new System.Collections.Generic.Dictionary<Guid, BoltResult>(),
-            new System.Collections.Generic.Dictionary<Guid, bool>(), [VirtualTestSupport.BoltId(1), VirtualTestSupport.BoltId(2)]);
+            [VirtualTestSupport.BoltId(1), VirtualTestSupport.BoltId(2)]);
         var oldFile = Path.Combine(directory, "PCB-2026-09.db");
         var newFile = Path.Combine(directory, "PCB-2026-10.db");
         store.SavePcb(oldFile, first);
@@ -841,7 +936,6 @@ public sealed class PcbHistoryTests
                 },
             },
             PickupBoltResults = new System.Collections.Generic.Dictionary<Guid, BoltResult> { [VirtualTestSupport.BoltId(2)] = new(true, 1.2) },
-            BoltPresenceResults = new System.Collections.Generic.Dictionary<Guid, bool> { [VirtualTestSupport.BoltId(1)] = false, [VirtualTestSupport.BoltId(2)] = true },
         });
 
         var reopened = new MachineStore(store.DatabaseFile);
@@ -860,7 +954,6 @@ public sealed class PcbHistoryTests
         Assert.Equal(new ushort[] { 21, 876, 3, 120, 75, 950, 3156, 19, 3175, 9, 42, 0, 6, 87 },
             saved.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Controller!.Registers);
         Assert.Equal(1.2, saved.PickupBoltResults[VirtualTestSupport.BoltId(2)].Torque);
-        Assert.False(saved.BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
         Assert.Equal(2, Directory.GetFiles(directory, "*.db").Length);
         Assert.Equal(4, reopened.NextPcbNumber(directory));
     }
@@ -878,7 +971,7 @@ public sealed class PcbHistoryTests
             var createdAt = number <= 65 ? september : september.AddDays(1);
             var record = new PcbRecord(number, createdAt, createdAt, "Default", HeatSinkSlot.HeatSink1,
                 $"PCB-{number:000}", AssemblyResult.Ok, AssemblyResult.Ok, AssemblyResult.Ok,
-                new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), []);
+                new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), []);
             store.SavePcb(Path.Combine(results.HistoryDirectory, $"PCB-{createdAt:yyyy-MM}.db"), record);
         }
 
@@ -945,13 +1038,13 @@ public sealed class PcbHistoryTests
         var october = september.AddDays(1);
         var record = new PcbRecord(207, september, september, "Default", HeatSinkSlot.HeatSink1,
             null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), []);
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), []);
         store.SavePcb(Path.Combine(directory, "PCB-2026-09.db"), record);
         var file = Path.Combine(directory, "PCB-2026-10.db");
         var existing = record with { Number = 203, CreatedAt = october, UpdatedAt = october };
         store.SavePcb(file, existing);
         store.SavePcbImage(file, existing.Number, new(null, october, new(0, 0, 1, 1), true,
-            "ORIGINAL", null, null, [1, 2, 3]));
+            "ORIGINAL", [1, 2, 3]));
 
         // The settings counter is still zero. All retained months must be considered.
         Assert.Equal(208, store.NextPcbNumber(directory));
@@ -974,7 +1067,7 @@ public sealed class PcbHistoryTests
         var timestamp = DateTimeOffset.Now;
         var record = new PcbRecord(207, timestamp, timestamp, "Default", HeatSinkSlot.HeatSink1,
             null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), []);
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), []);
         store.SavePcb(Path.Combine(directory, "PCB-2026-09.db"), record);
         Assert.Equal(208, store.NextPcbNumber(directory));
 
@@ -1077,17 +1170,14 @@ public sealed class PcbHistoryTests
         Assert.Same(first, inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1));
         Assert.Same(second, inspection.Station.GetAssembly(HeatSinkSlot.HeatSink2));
         first.PcbBarcode = null;
-        first.RecordBoltPresence(VirtualTestSupport.BoltId(1), false);
         first.RecordInspectionCapture(new(VirtualTestSupport.BoltId(1), DateTimeOffset.Now,
-            new ImageFrame(2, 1, 6, [0, 0, 255, 0, 255, 0]), new PixelRegion(0, 0, 1, 1), false,
-            BrightRatio: 0.1, MinimumBrightRatio: 0.8));
+            new ImageFrame(2, 1, 6, [0, 0, 255, 0, 255, 0]), new PixelRegion(0, 0, 1, 1), null));
         first.CompleteInspection();
         await history.FlushAsync();
         Assert.Equal(first.PcbNumber, view.PcbDetails.Record!.Number);
         Assert.Equal(AssemblyResult.Ng, view.PcbDetails.Record.PcbBarcodeResult);
         Assert.Equal("NG torque", view.PcbDetails.Record.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
         Assert.Equal(1.1, view.PcbDetails.Record.PickupBoltResults[VirtualTestSupport.BoltId(2)].Torque);
-        Assert.False(view.PcbDetails.Record.BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
         await view.LoadOlderPcbsCommand.ExecuteAsync(null);
         Assert.Equal(3, view.PcbRecords.Count);
         Assert.Null(view.PcbHistoryError);
@@ -1097,10 +1187,11 @@ public sealed class PcbHistoryTests
         Assert.Equal(1, image.Ordinal);
         Assert.Equal(new[] { VirtualTestSupport.BoltId(1), VirtualTestSupport.BoltId(2) }, view.PcbDetails.Record!.BoltIds);
         Assert.Equal(2, recipe.Pcb.GetBoltOrdinal(VirtualTestSupport.BoltId(1)));
-        Assert.Equal(0.1, image.Record.BrightRatio);
         Assert.NotNull(image.Image);
         Assert.Equal(2, image.Image.PixelWidth);
-        Assert.False(image.Record.Success);
+        Assert.Null(image.Record.Success);
+        Assert.Null(image.Verdict);
+        Assert.Null(image.Region);
         view.PcbDetails.SelectedBolt = view.PcbDetails.BoltResults.Single(bolt => bolt.BoltId == VirtualTestSupport.BoltId(2));
         Assert.Null(view.PcbDetails.SelectedImage);
         await view.PcbDetails.LoadImagesCommand.ExecuteAsync(null);
@@ -1197,7 +1288,7 @@ public sealed class PcbHistoryTests
             null, AssemblyResult.Ok, AssemblyResult.Ok, AssemblyResult.Ok,
             new Dictionary<Guid, BoltResult> { [bolt] = result },
             new Dictionary<Guid, BoltResult> { [bolt] = result with { Torque = 6 } },
-            new Dictionary<Guid, bool> { [bolt] = true }, [bolt])
+            [bolt])
         {
             DatabaseFile = Path.Combine(store.DatabaseFile + ".results", "PCB-2026-10.db"),
         };
@@ -1209,7 +1300,7 @@ public sealed class PcbHistoryTests
         store.SavePcb(record.DatabaseFile, record);
         foreach (var imageBolt in new Guid?[] { null, bolt })
             store.SavePcbImage(record.DatabaseFile, record.Number,
-                new(imageBolt, record.CreatedAt, new(0, 0, 1, 1), true, null, 1, 0.5, stream.ToArray()));
+                new(imageBolt, record.CreatedAt, new(0, 0, 1, 1), true, null, stream.ToArray()));
         details.Record = record;
         await details.LoadImagesCommand.ExecutionTask!;
         details.SelectedImage = details.Images.Single(image => image.Record.BoltId is null);
@@ -1233,7 +1324,7 @@ public sealed class PcbHistoryTests
         var operation = services.GetRequiredService<OperationViewModel>();
         var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
             null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), [])
         {
             DatabaseFile = Path.Combine(store.DatabaseFile + ".results", "PCB-2026-10.db"),
         };
@@ -1292,7 +1383,7 @@ public sealed class PcbHistoryTests
         var details = services.GetRequiredService<PcbResultsViewModel>();
         var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
             null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), [])
         {
             DatabaseFile = Path.Combine(store.DatabaseFile + ".results", "PCB-2026-09.db"),
         };
@@ -1304,10 +1395,10 @@ public sealed class PcbHistoryTests
         store.SavePcb(record.DatabaseFile, record);
         store.SavePcbImage(record.DatabaseFile, record.Number,
             new(null, earlierPcbImage ? record.CreatedAt.AddMinutes(-8) : record.CreatedAt,
-                new(0, 0, 1, 1), true, "PCB-1", null, null,
+                new(0, 0, 1, 1), true, "PCB-1",
                 corruptImage ? [1, 2, 3] : stream.ToArray()));
         store.SavePcbImage(record.DatabaseFile, record.Number,
-            new(VirtualTestSupport.BoltId(1), record.CreatedAt, new(0, 0, 1, 1), true, null, 1, 0.5, stream.ToArray()));
+            new(VirtualTestSupport.BoltId(1), record.CreatedAt, new(0, 0, 1, 1), true, null, stream.ToArray()));
         var next = record with { Number = 2 };
         store.SavePcb(next.DatabaseFile!, next);
 

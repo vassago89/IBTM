@@ -50,6 +50,7 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
         _inputs[(int)InputIo.PickupHeadUp] = true;
         _inputs[(int)InputIo.ShootingHeadUp] = true;
         _inputs[(int)InputIo.NgCarrierPickupUp] = true;
+        _inputs[(int)InputIo.InspectionProbeUp] = true;
         _inputs[(int)InputIo.NgCarrierGripperOpen] = true;
         _inputs[(int)InputIo.NgShuttleUp] = true;
     }

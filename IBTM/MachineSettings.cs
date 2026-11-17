@@ -12,6 +12,7 @@ using IBTM.Device;
 using IBTM.Fastech;
 using IBTM.Hantas;
 using IBTM.Inspection;
+using IBTM.Mlcp;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
@@ -32,12 +33,12 @@ public sealed class MachineSettings
         RecipeSelection = values.Get<RecipeSelectionSettings>();
         PcbHistory = values.Get<PcbHistorySettings>();
         Logging = values.Get<LogSettings>();
-        CarrierReference = values.Get<CarrierReferenceSettings>();
         Ajin = values.Get<AjinSettings>();
         AlphaMotion = values.Get<AlphaMotionSettings>();
         Fastech = values.Get<FastechSettings>();
         BoltFasteningBackup = values.Get<BackupPlateSettings>();
         Hantas = values.Get<HantasSettings>();
+        Mlcp = values.Get<MlcpSettings>();
         InspectionCamera = values.Get<InspectionCameraSettings>();
         Lighting = values.Get<LightingSettings>();
         NgCarrierTransfer = values.Get<NgCarrierTransferSettings>();
@@ -57,6 +58,12 @@ public sealed class MachineSettings
         InspectionGantry = values.Get<InspectionGantrySettings>();
         InspectionGantryHardware = values.Get<InspectionGantryHardwareSettings>();
         InspectionStationHardware = values.Get<InspectionStationHardwareSettings>();
+        // Retain saved mappings and add newly installed LVDT signals.
+        var probeHardware = new InspectionGantryHardwareSettings();
+        foreach (var (signal, address) in probeHardware.Inputs)
+            InspectionGantryHardware.Inputs.TryAdd(signal, address);
+        foreach (var (signal, output) in probeHardware.Outputs)
+            InspectionGantryHardware.Outputs.TryAdd(signal, output);
         MachineHardware = values.Get<MachineHardwareSettings>();
         ConveyorHardware = values.Get<ConveyorHardwareSettings>();
         NgCarrierTransferHardware = values.Get<NgCarrierTransferHardwareSettings>();
@@ -96,7 +103,6 @@ public sealed class MachineSettings
     public RecipeSelectionSettings RecipeSelection { get; set; }
     public PcbHistorySettings PcbHistory { get; set; }
     public LogSettings Logging { get; set; }
-    public CarrierReferenceSettings CarrierReference { get; set; }
     public AjinSettings Ajin { get; set; }
     public AlphaMotionSettings AlphaMotion { get; set; }
     public FastechSettings Fastech { get; set; }
@@ -124,6 +130,7 @@ public sealed class MachineSettings
     public InspectionStationHardwareSettings InspectionStationHardware { get; set; }
 
     public MachineHardwareSettings MachineHardware { get; set; }
+    public MlcpSettings Mlcp { get; set; }
     public ConveyorHardwareSettings ConveyorHardware { get; set; }
     public NgCarrierTransferHardwareSettings NgCarrierTransferHardware { get; set; }
     public NgShuttleHardwareSettings NgShuttleHardware { get; set; }
@@ -176,7 +183,6 @@ public sealed class MachineSettings
                 // Recipe selection is committed by RecipeManager with the recipe operation.
                 PcbHistory,
                 Logging,
-                CarrierReference,
                 Ajin,
                 AlphaMotion,
                 Fastech,
@@ -184,6 +190,7 @@ public sealed class MachineSettings
                 InspectionCamera,
                 Lighting,
                 Hantas,
+                Mlcp,
                 NgCarrierTransfer,
                 NgConveyor,
                 Conveyor,

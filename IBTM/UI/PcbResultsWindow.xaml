@@ -85,11 +85,6 @@
                 <TextBlock Text="{Binding Record.FasteningResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding Record.FasteningResult}" Style="{StaticResource ResultValueStyle}"/>
                 <TextBlock Text="{Binding BoltResults.Count, StringFormat={ui:Text '{}{0} results'}}" Foreground="{StaticResource TextMutedBrush}" Margin="8,0,0,0"/>
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,0,24,4">
-                <TextBlock Text="{ui:Text 'Vision inspection'}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBlock Text="{Binding Record.InspectionResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding Record.InspectionResult}" Style="{StaticResource ResultValueStyle}"/>
-                <TextBlock Text="{Binding Images.Count, StringFormat={ui:Text '{}{0} images'}}" Foreground="{StaticResource TextMutedBrush}" Margin="8,0,0,0"/>
-            </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                 <TextBlock Text="{ui:Text 'Turns result'}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <TextBlock Text="{Binding Record.TurnsResult, Converter={StaticResource UiTextConverter}, TargetNullValue={ui:Text 'Not set'}}" Tag="{Binding Record.TurnsResult}" Style="{StaticResource ResultValueStyle}"/>
@@ -125,6 +120,41 @@
                         </DockPanel>
                         <TextBlock Style="{StaticResource DetailTextStyle}" Text="{ui:Text 'Excluded from NG'}"
                             Visibility="{Binding Record.IsDataMatrixNgExcluded, Converter={StaticResource BoolToVis}}"/>
+                        <StackPanel Margin="0,8,0,0">
+                            <StackPanel.Style><Style TargetType="StackPanel">
+                                <Style.Triggers><MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Record.Alignment}" Value="{x:Null}"/>
+                                        <Condition Binding="{Binding Record.FiducialError}" Value="{x:Null}"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </MultiDataTrigger></Style.Triggers>
+                            </Style></StackPanel.Style>
+                            <TextBlock Text="{ui:Text 'Fiducial alignment'}" Style="{StaticResource CaptionTextStyle}"/>
+                            <StackPanel Margin="0,4,0,0">
+                                <StackPanel.Style><Style TargetType="StackPanel">
+                                    <Style.Triggers><DataTrigger Binding="{Binding Record.FiducialError}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger></Style.Triggers>
+                                </Style></StackPanel.Style>
+                                <WrapPanel>
+                                    <TextBlock Text="{ui:Text 'Failed · alignment not applied'}" Foreground="{StaticResource AccentRedBrush}" Margin="0,0,12,0"/>
+                                    <TextBlock Text="{ui:Text 'Excluded from NG'}" Foreground="{StaticResource TextMutedBrush}"
+                                        Visibility="{Binding Record.IsFiducialNgExcluded, Converter={StaticResource BoolToVis}}"/>
+                                </WrapPanel>
+                                <TextBlock x:Name="FiducialErrorText" Text="{Binding Record.FiducialError}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <TextBlock Margin="0,4,0,0">
+                                <TextBlock.Style><Style TargetType="TextBlock">
+                                    <Style.Triggers><DataTrigger Binding="{Binding Record.Alignment}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger></Style.Triggers>
+                                </Style></TextBlock.Style>
+                                <Run Text="{ui:Text 'Applied'}" Foreground="{StaticResource AccentGreenBrush}"/><Run Text=" · "/>
+                                <Run Text="{ui:Text 'Rotation (°)'}"/><Run Text="  "/>
+                                <Run Text="{Binding Record.Alignment.AngleDegrees, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/>
+                            </TextBlock>
+                        </StackPanel>
                     </StackPanel>
                     <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}" CornerRadius="4" MinHeight="160">
                         <Grid>
@@ -159,7 +189,7 @@
                             <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedImage.Verdict}" Tag="{Binding SelectedImage.Verdict}" Style="{StaticResource ResultValueStyle}" Margin="8,0,0,0"/>
                             <TextBlock Text="{Binding SelectedImage.Title, TargetNullValue={ui:Text 'Inspection capture'}, FallbackValue={ui:Text 'Inspection capture'}}" Height="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedImage.Title}"/>
                         </DockPanel>
-                        <TextBlock Text="{Binding SelectedImage.Details}" Height="36" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedImage.Details}" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="{Binding SelectedImage.Details}" Style="{StaticResource StatusMessageStyle}" MaxHeight="36" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedImage.Details}" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
                         <DockPanel Height="20" TextBlock.FontSize="13" TextBlock.Foreground="{StaticResource TextMutedBrush}">
                             <TextBlock Text="{Binding SelectedImage.Record.CapturedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}'}"/>
                             <TextBlock Text="{Binding SelectedImage.Resolution}" HorizontalAlignment="Right"/>
@@ -174,11 +204,14 @@
                                 <Grid Height="56">
                                     <Image Source="{Binding Image}" Stretch="Uniform"/>
                                     <Border Background="{StaticResource ImageBackgroundBrush}" Padding="4,1" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                        <Border.Style><Style TargetType="Border"><Style.Triggers>
+                                            <DataTrigger Binding="{Binding Verdict}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                        </Style.Triggers></Style></Border.Style>
                                         <TextBlock Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource ResultValueStyle}" FontSize="12"/>
                                     </Border>
                                 </Grid>
                                 <TextBlock Text="{Binding Title}" Height="36" FontSize="13" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
-                                <TextBlock Text="{Binding Error}" Height="18" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" Foreground="{StaticResource AccentAmberBrush}"/>
+                                <TextBlock Text="{Binding Error}" Style="{StaticResource StatusMessageStyle}" MaxHeight="36" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" Foreground="{StaticResource AccentAmberBrush}"/>
                             </StackPanel>
                         </DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
@@ -186,22 +219,13 @@
                         <StackPanel>
                             <TextBlock Text="{ui:Text 'Loading…'}" Foreground="{StaticResource TextMutedBrush}" Visibility="{Binding LoadImagesCommand.IsRunning, Converter={StaticResource BoolToVis}}"/>
                             <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding ImageError}"/>
-                            <ItemsControl ItemsSource="{Binding InspectionOnlyResults}">
-                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbBoltPresenceView}">
-                                    <StackPanel Orientation="Horizontal" Margin="0,3,12,0"><TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding BoltLabel, StringFormat='{}{0}: '}"/>
-                                        <TextBlock x:Name="Presence" Text="NG" Foreground="{StaticResource AccentRedBrush}" FontSize="13"/>
-                                    </StackPanel>
-                                    <DataTemplate.Triggers><DataTrigger Binding="{Binding Present}" Value="True">
-                                        <Setter TargetName="Presence" Property="Text" Value="OK"/><Setter TargetName="Presence" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                    </DataTrigger></DataTemplate.Triggers>
-                                </DataTemplate></ItemsControl.ItemTemplate>
-                            </ItemsControl>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
             </Border>
-            <Border Grid.Column="2" Style="{StaticResource Card}">
+            <TabControl Grid.Column="2">
+                <TabItem Header="{ui:Text 'Bolt fastening'}">
+            <Border Style="{StaticResource Card}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -226,9 +250,6 @@
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTextColumn Header="{ui:Text 'Torque'}" Binding="{Binding Result.CompensatedTorque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="85"/>
                             <DataGridTextColumn Header="{ui:Text 'Z feed distance (mm)'}" Binding="{Binding Result.ZFeedDistance, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="Auto" MinWidth="110"/>
-                            <DataGridTemplateColumn Header="{ui:Text 'VISION'}" Width="62"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock Text="{Binding VisionVerdict}" Tag="{Binding VisionVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
-                            </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="{ui:Text 'Turns'}" Width="105"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                 <StackPanel>
                                     <TextBlock Text="{Binding TurnsVerdict}" Tag="{Binding TurnsVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
@@ -423,6 +444,42 @@
                     </Border>
                 </Grid>
             </Border>
+                </TabItem>
+                <TabItem Header="{ui:Text 'Height measurement'}">
+                    <Border Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <DataGrid ItemsSource="{Binding HeightResults}" SelectedItem="{Binding SelectedHeight, Mode=TwoWay}" IsSynchronizedWithCurrentItem="False" AutoGenerateColumns="False" IsReadOnly="True"
+                                CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single" SelectionUnit="FullRow">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="{ui:Text 'Bolt name'}" Binding="{Binding BoltLabel}" Width="*"/>
+                                    <DataGridTemplateColumn Header="{ui:Text 'Result'}" Width="70">
+                                        <DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbHeightResultView}">
+                                            <TextBlock><TextBlock.Style><Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="NG"/><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                                <Style.Triggers><DataTrigger Binding="{Binding Result.Success}" Value="True">
+                                                    <Setter Property="Text" Value="OK"/><Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                                </DataTrigger></Style.Triggers>
+                                            </Style></TextBlock.Style></TextBlock>
+                                        </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="{ui:Text 'Height (mm)'}" Binding="{Binding Result.Height, StringFormat=0.###}" Width="*"/>
+                                    <DataGridTextColumn Header="{ui:Text 'Minimum height (mm)'}" Binding="{Binding Result.Minimum, StringFormat=0.###}" Width="*"/>
+                                    <DataGridTextColumn Header="{ui:Text 'Maximum height (mm)'}" Binding="{Binding Result.Maximum, StringFormat=0.###}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                                <TextBlock Text="{ui:Text 'Reference plane'}" Style="{StaticResource PanelTitleStyle}"/>
+                                <UniformGrid Columns="3" Margin="0,8,0,0">
+                                    <TextBlock Text="{Binding Record.HeightReference.Point1.Value, StringFormat='1: {0:0.###} mm', TargetNullValue='—', FallbackValue='—'}"/>
+                                    <TextBlock Text="{Binding Record.HeightReference.Point2.Value, StringFormat='2: {0:0.###} mm', TargetNullValue='—', FallbackValue='—'}"/>
+                                    <TextBlock Text="{Binding Record.HeightReference.Point3.Value, StringFormat='3: {0:0.###} mm', TargetNullValue='—', FallbackValue='—'}"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </TabItem>
+            </TabControl>
         </Grid>
         <Grid Grid.Row="3" Margin="0,8,0,0" Height="24">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

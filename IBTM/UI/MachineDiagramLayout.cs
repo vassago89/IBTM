@@ -9,15 +9,9 @@ public static class MachineDiagramLayout
     public const double PcbSlotPadding = 4;
     public const double CarrierWidth = 268;
     public const double CarrierHeight = 84;
-    public const double NgPickerWidth = 100;
     public const double PlatePadding = 8;
-    public const double CameraSize = 48;
-    public const double CameraGap = 20;
-    public const double CameraLeft = (CarrierWidth - CameraSize) / 2;
-    public const double CameraTop = CarrierHeight + CameraGap;
     public const double NgPositionGap = 6;
     public const double PositionLabelGap = 12;
-    public const double CarrierWorkInset = 18;
     public const double StationPitch = 410;
     public const double MainLeft = 24;
     public const double MainTop = 360;
@@ -34,12 +28,7 @@ public static class MachineDiagramLayout
     public const double CarrierBorder = 2;
     public const double CarrierPadding = 9;
     public const double HeatSinkGap = 9;
-    public const double BoltTargetSize = 20;
     public const double FasteningHeaderOffset = 18;
-    public const double HeadSize = 34;
-    public const double HeadTop = 84;
-    public const double PickupHeadLeft = 20.5;
-    public const double HeadPitch = 51;
     public const double SupplyWidth = 100;
     public const double SupplyHeight = 112;
     public const double PlacementWidth = 104;
@@ -71,11 +60,6 @@ public static class MachineDiagramLayout
     public const double FasteningStopperLeft = PlacementStopperLeft + StationPitch;
     public const double InspectionStopperLeft = PlacementStopperLeft + StationPitch * 2;
     public const double StopperTop = PlateTop + (PlateHeight - 28) / 2 - 1;
-    public const double ShootingHeadLeft = PickupHeadLeft + HeadPitch;
-    public const double HeadCenterY = HeadTop + HeadSize / 2;
-    public const double PickupHeadCenterX = PickupHeadLeft + HeadSize / 2;
-    public const double BoltTargetRadius = BoltTargetSize / 2;
-    public const double BoltTargetOffset = -BoltTargetRadius;
     public const double PlateWidth = CarrierWidth + PlatePadding * 2;
     public const double PlateHeight = CarrierHeight + PlatePadding * 2;
     public const double PcbSlotWidth = PcbWidth + PcbSlotPadding * 2;
@@ -113,21 +97,9 @@ public static class MachineDiagramLayout
         PlacementHeatSink1 = new Point(
             PlacementCarrierLeft + CarrierContentInset + (CarrierWidth - CarrierContentInset * 2 - HeatSinkGap) / 4,
             MainTop + CarrierTop + CarrierHeight / 2);
-        PickupToolCenter = new Point(PickupHeadCenterX, HeadCenterY);
-        ShootingToolCenter = new Point(ShootingHeadLeft + HeadSize / 2, HeadCenterY);
-        FasteningUpperLeft = new Point(
-            MainLeft + FasteningCarrierLeft - FasteningLeft + CarrierWorkInset,
-            MainTop + CarrierTop + CarrierWorkInset);
-        FasteningContentOrigin = new Point(
-            MainLeft + FasteningCarrierLeft - FasteningLeft + CarrierContentInset,
-            MainTop + CarrierTop + CarrierContentInset);
         InspectionCarrierCenter = new Point(
             HeaderInset + PlateWidth / 2,
             MainTop + PlateTop + PlateHeight / 2);
-        NgPickerCenter = new Point(CarrierWidth / 2, CarrierHeight / 2);
-        CameraCenter = new Point(
-            CarrierWidth / 2,
-            CarrierHeight + CameraGap + CameraSize / 2);
         SupplyPcb2Center = new Point(
             SupplyPcb1Center.X
                 + (SupplyCarrierWidth - (CarrierBorder + SupplyCarrierPadding) * 2 + SupplySlotGap) / 2,
@@ -135,22 +107,7 @@ public static class MachineDiagramLayout
         PlacementHeatSink2 = new Point(
             PlacementCarrierLeft + CarrierWidth - (PlacementHeatSink1.X - PlacementCarrierLeft),
             PlacementHeatSink1.Y);
-        FasteningLowerRight = new Point(
-            FasteningUpperLeft.X + CarrierWidth - CarrierWorkInset * 2,
-            FasteningUpperLeft.Y + CarrierHeight - CarrierWorkInset * 2);
-        InspectionContentOrigin = new Point(
-            InspectionCarrierCenter.X - CarrierWidth / 2 + CarrierContentInset,
-            MainTop + CarrierTop + CarrierContentInset);
         NgConveyorLeft = InspectionCarrierCenter.X - NgConveyorWidth / 2;
-        NgShuttleCenter = new Point(
-            InspectionCarrierCenter.X,
-            NgConveyorTop + PlatePadding + NgPositionHeight / 2);
-        InspectionUpperLeft = new Point(
-            InspectionCarrierCenter.X - CarrierWidth / 2 + CarrierWorkInset,
-            InspectionCarrierCenter.Y - CarrierHeight / 2 + CarrierWorkInset);
-        InspectionLowerRight = new Point(
-            InspectionCarrierCenter.X + CarrierWidth / 2 - CarrierWorkInset,
-            InspectionCarrierCenter.Y + CarrierHeight / 2 - CarrierWorkInset);
         NgStatusLeft = NgConveyorLeft + NgConveyorWidth + PositionLabelGap;
     }
 
@@ -176,35 +133,13 @@ public static class MachineDiagramLayout
 
     public static Point PlacementHeatSink1 { get; }
 
-    public static Point PickupToolCenter { get; }
-
-    public static Point ShootingToolCenter { get; }
-
-    public static Point FasteningUpperLeft { get; }
-
-    public static Point FasteningContentOrigin { get; }
-
     public static Point InspectionCarrierCenter { get; }
-
-    public static Point NgPickerCenter { get; }
-
-    public static Point CameraCenter { get; }
 
     public static Point SupplyPcb2Center { get; }
 
     public static Point PlacementHeatSink2 { get; }
 
-    public static Point FasteningLowerRight { get; }
-
-    public static Point InspectionContentOrigin { get; }
-
     public static double NgConveyorLeft { get; }
-
-    public static Point NgShuttleCenter { get; }
-
-    public static Point InspectionUpperLeft { get; }
-
-    public static Point InspectionLowerRight { get; }
 
     public static double NgStatusLeft { get; }
 

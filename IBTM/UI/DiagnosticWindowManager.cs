@@ -6,6 +6,7 @@ using System.Windows;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
+using IBTM.Mlcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -25,11 +26,13 @@ public sealed class DiagnosticWindowManager
     private readonly ILoggerFactory _loggerFactory;
     private readonly IAdcBus _pickupAdcBus;
     private readonly IAdcBus _shootingAdcBus;
+    private readonly MlcpController _mlcp;
     private InputWindow? _input;
     private OutputWindow? _output;
     private MotionDiagnosticsWindow? _motion;
-    private AdcProtocolWindow? _adc;
+    private ProtocolWindow? _protocol;
     private AdcProtocolViewModel? _adcViewModel;
+    private MlcpProtocolViewModel? _mlcpViewModel;
     private LogWindow? _logs;
 
     public DiagnosticWindowManager(
@@ -40,6 +43,7 @@ public sealed class DiagnosticWindowManager
         MachineState state,
         MotionDiagnosticsViewModel motionViewModel,
         ApplicationLog applicationLog,
+        MlcpController mlcp,
         ILoggerFactory loggerFactory,
         [FromKeyedServices(FasteningHead.Pickup)] IAdcBus pickupAdcBus,
         [FromKeyedServices(FasteningHead.Shooting)] IAdcBus shootingAdcBus)
@@ -55,6 +59,7 @@ public sealed class DiagnosticWindowManager
         _log = loggerFactory.CreateLogger<DiagnosticWindowManager>();
         _pickupAdcBus = pickupAdcBus;
         _shootingAdcBus = shootingAdcBus;
+        _mlcp = mlcp;
     }
 
     public Window? Owner { private get; set; }
@@ -97,7 +102,7 @@ public sealed class DiagnosticWindowManager
     {
         _output?.Close();
         _motion?.Close();
-        _adc?.Close();
+        _protocol?.Close();
     }
 
     public void OpenMotion()
@@ -119,13 +124,13 @@ public sealed class DiagnosticWindowManager
         _log.LogInformation("Motion monitor opened.");
     }
 
-    public void OpenAdcProtocol()
+    public void OpenProtocol()
     {
         if (_state.AutoMode)
             return;
-        if (_adc is not null)
+        if (_protocol is not null)
         {
-            _adc.Activate();
+            _protocol.Activate();
             return;
         }
         _adcViewModel = new(
@@ -137,22 +142,26 @@ public sealed class DiagnosticWindowManager
             _state,
             _loggerFactory.CreateLogger<AdcProtocolViewModel>(),
             _loggerFactory.CreateLogger<IBTM.Hantas.AdcBoltHead>());
+        _mlcpViewModel = new(_mlcp, _state, _machine, _loggerFactory.CreateLogger<MlcpProtocolViewModel>());
         try
         {
-            _adc = new(_adcViewModel);
+            _protocol = new(_adcViewModel, _mlcpViewModel);
         }
         catch
         {
             _adcViewModel.Dispose();
             _adcViewModel = null;
+            _mlcpViewModel.Dispose();
+            _mlcpViewModel = null;
             throw;
         }
-        _adc.Closed += (_, _) =>
+        _protocol.Closed += (_, _) =>
         {
-            _adc = null;
+            _protocol = null;
             _adcViewModel = null;
+            _mlcpViewModel = null;
         };
-        ShowWindow(_adc);
+        ShowWindow(_protocol);
     }
 
     public void OpenLogs()
@@ -206,7 +215,7 @@ public sealed class DiagnosticWindowManager
         foreach (var window in Owner.OwnedWindows.Cast<Window>().ToArray())
         {
             window.IsEnabled = false;
-            if (window is not AdcProtocolWindow and not OutputWindow and not MotionDiagnosticsWindow)
+            if (window is not ProtocolWindow and not OutputWindow and not MotionDiagnosticsWindow)
                 window.Close();
         }
     }
@@ -215,6 +224,7 @@ public sealed class DiagnosticWindowManager
     {
         return CommandShutdown.WaitAsync(
             _adcViewModel?.ShutdownAsync() ?? Task.CompletedTask,
+            _mlcpViewModel?.ShutdownAsync() ?? Task.CompletedTask,
             _motion is null ? Task.CompletedTask : _motionViewModel.ShutdownAsync());
     }
 }

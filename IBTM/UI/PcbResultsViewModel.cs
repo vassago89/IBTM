@@ -37,6 +37,7 @@ public partial class PcbResultsViewModel : ObservableObject
         LoadCurvesCommand = new AsyncRelayCommand(LoadCurvesAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         ExportCsvCommand = new AsyncRelayCommand(ExportCsvAsync);
         BoltResults = [];
+        HeightResults = [];
         BoltStages = [];
         Images = [];
         recipes.Changed += OnRecipeChanged;
@@ -50,10 +51,14 @@ public partial class PcbResultsViewModel : ObservableObject
     public partial PcbRecord? Record { get; set; }
 
     public ObservableCollection<PcbBoltResultView> BoltResults { get; }
+    public ObservableCollection<PcbHeightResultView> HeightResults { get; }
     public ObservableCollection<PcbBoltResultView> BoltStages { get; }
 
     [ObservableProperty]
     public partial PcbBoltResultView? SelectedBolt { get; set; }
+
+    [ObservableProperty]
+    public partial PcbHeightResultView? SelectedHeight { get; set; }
 
     [ObservableProperty]
     public partial PcbBoltResultView? SelectedBoltStage { get; set; }
@@ -73,24 +78,6 @@ public partial class PcbResultsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? ExportMessage { get; private set; }
 
-    public IReadOnlyList<PcbBoltPresenceView> InspectionOnlyResults
-    {
-        get
-        {
-            if (Record is not { } record)
-                return [];
-            var recipe = MachineStore.IsSameRecipeName(record.RecipeName, _recipes.Current.Name)
-                ? _recipes.Current : null;
-            return record.BoltPresenceResults
-                .Where(pair => !record.ShootingBoltResults.ContainsKey(pair.Key)
-                    && !record.PickupBoltResults.ContainsKey(pair.Key))
-                .Select(pair => new PcbBoltPresenceView(
-                    pair.Key, record.GetBoltOrdinal(pair.Key), pair.Value, recipe))
-                .OrderBy(row => row.Ordinal)
-                .ToArray();
-        }
-    }
-
     partial void OnRecordChanged(PcbRecord? oldValue, PcbRecord? newValue)
     {
         if (_shuttingDown)
@@ -100,7 +87,9 @@ public partial class PcbResultsViewModel : ObservableObject
         if (oldValue?.Number != newValue?.Number || oldValue?.DatabaseFile != newValue?.DatabaseFile)
         {
             SelectedBolt = null;
+            SelectedHeight = null;
             BoltResults.Clear();
+            HeightResults.Clear();
             ExportMessage = null;
             Images = [];
             SelectedImage = null;
@@ -118,9 +107,29 @@ public partial class PcbResultsViewModel : ObservableObject
     private void RefreshResults()
     {
         var record = Record;
-        OnPropertyChanged(nameof(InspectionOnlyResults));
         var recipe = record is not null && MachineStore.IsSameRecipeName(record.RecipeName, _recipes.Current.Name)
             ? _recipes.Current : null;
+        var heights = record?.HeightResults.OrderBy(row => record.GetBoltOrdinal(row.Key)).ToArray() ?? [];
+        for (var index = 0; index < heights.Length; index++)
+        {
+            var height = heights[index];
+            var ordinal = record!.GetBoltOrdinal(height.Key);
+            var label = recipe?.Pcb.GetBoltName(height.Key, ordinal) ?? BoltPoint.GetDisplayName(null, ordinal);
+            var row = HeightResults.FirstOrDefault(row => row.BoltId == height.Key);
+            if (row is null)
+                HeightResults.Insert(index, new(height.Key, ordinal, label, height.Value));
+            else
+            {
+                if (HeightResults.IndexOf(row) != index)
+                    HeightResults.Move(HeightResults.IndexOf(row), index);
+                row.Result = height.Value;
+                row.BoltLabel = label;
+            }
+        }
+        while (HeightResults.Count > heights.Length)
+            HeightResults.RemoveAt(HeightResults.Count - 1);
+        if (SelectedHeight is not null && !HeightResults.Contains(SelectedHeight))
+            SelectedHeight = null;
         var results = record is null ? [] : record.ShootingBoltResults
             .Select(pair => (pair.Key, pair.Value, Head: FasteningHead.Shooting))
             .Concat(record.PickupBoltResults.Select(pair => (pair.Key, pair.Value, Head: FasteningHead.Pickup)))
@@ -131,18 +140,16 @@ public partial class PcbResultsViewModel : ObservableObject
         {
             var result = results[index];
             var row = BoltResults.FirstOrDefault(row => row.BoltId == result.Key && row.Head == result.Head);
-            bool? present = record!.BoltPresenceResults.TryGetValue(result.Key, out var value) ? value : null;
             if (row is null)
             {
-                BoltResults.Insert(index, new(result.Key, record.GetBoltOrdinal(result.Key), result.Head,
-                    result.Value, present, recipe));
+                BoltResults.Insert(index, new(result.Key, record!.GetBoltOrdinal(result.Key), result.Head,
+                    result.Value, recipe));
             }
             else
             {
                 if (BoltResults.IndexOf(row) != index)
                     BoltResults.Move(BoltResults.IndexOf(row), index);
                 row.Result = result.Value;
-                row.Present = present;
                 row.Recipe = recipe;
             }
         }
@@ -164,14 +171,13 @@ public partial class PcbResultsViewModel : ObservableObject
             if (row is null)
             {
                 BoltStages.Insert(index, new(stage.BoltId, stage.Ordinal, stage.Head,
-                    stage.Result, stage.Present, stage.Recipe));
+                    stage.Result, stage.Recipe));
             }
             else
             {
                 if (BoltStages.IndexOf(row) != index)
                     BoltStages.Move(BoltStages.IndexOf(row), index);
                 row.Result = stage.Result;
-                row.Present = stage.Present;
                 row.Recipe = stage.Recipe;
             }
         }
@@ -187,13 +193,27 @@ public partial class PcbResultsViewModel : ObservableObject
         BoltStages.Clear();
         RefreshStages();
         if (value is not null)
+        {
             SelectedImage = Images.FirstOrDefault(image => image.Record.BoltId == value.BoltId);
+            SelectedHeight = HeightResults.FirstOrDefault(row => row.BoltId == value.BoltId);
+        }
+    }
+
+    partial void OnSelectedHeightChanged(PcbHeightResultView? value)
+    {
+        if (value is null)
+            return;
+        SelectedImage = Images.FirstOrDefault(image => image.Record.BoltId == value.BoltId);
+        if (SelectedBolt?.BoltId != value.BoltId)
+            SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == value.BoltId);
     }
 
     partial void OnSelectedImageChanged(PcbInspectionImageItem? value)
     {
         if (value is not null && SelectedBolt?.BoltId != value.Record.BoltId)
             SelectedBolt = BoltResults.FirstOrDefault(bolt => bolt.BoltId == value.Record.BoltId);
+        if (value is not null && SelectedHeight?.BoltId != value.Record.BoltId)
+            SelectedHeight = HeightResults.FirstOrDefault(row => row.BoltId == value.Record.BoltId);
     }
 
     private void OnRecipeChanged()
@@ -245,14 +265,13 @@ public partial class PcbResultsViewModel : ObservableObject
             if (record.IsDataMatrixNgExcluded)
                 AppendRow(UiText.Get("Data Matrix"), UiText.Get("Excluded from NG"));
             AppendRow(UiText.Get("Bolt fastening"), UiText.Get(record.FasteningResult));
-            AppendRow(UiText.Get("Vision inspection"), UiText.Get(record.InspectionResult));
             AppendRow(UiText.Get("Turns result"), record.TurnsResult is { } turns ? UiText.Get(turns) : UiText.Get("Not set"));
             AppendRow(UiText.Get("Torque (controller unit)"));
             AppendRow(UiText.Get("Blank = not recorded"));
             csv.AppendLine();
             AppendRow(UiText.Get("Bolt results"));
             AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Fastening type"),
-                UiText.Get("Stage"), UiText.Get("Fasten"), UiText.Get("Vision inspection"), UiText.Get("Combined turns"),
+                UiText.Get("Stage"), UiText.Get("Fasten"), UiText.Get("Combined turns"),
                 UiText.Get("Minimum turns"), UiText.Get("Maximum turns"), UiText.Get("Turns result"), UiText.Get("Torque"),
                 UiText.Get("Target torque"), UiText.Get("Target speed (rpm)"), UiText.Get("Time (ms)"),
                 UiText.Get("Angle A3 (°)"), UiText.Get("Recorded at"), UiText.Get("Result source"),
@@ -262,7 +281,7 @@ public partial class PcbResultsViewModel : ObservableObject
             {
                 var result = bolt.Result;
                 var controller = result.Controller;
-                AppendRow(++number, bolt.BoltLabel, bolt.HeadLabel, UiText.Get(result.Stage), bolt.Verdict, bolt.VisionVerdict,
+                AppendRow(++number, bolt.BoltLabel, bolt.HeadLabel, UiText.Get(result.Stage), bolt.Verdict,
                     result.TotalTurns,
                     result.MinimumTurns, result.MaximumTurns, bolt.TurnsVerdict, result.CompensatedTorque,
                     controller?.CompensatedTargetTorque, controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds,
@@ -270,12 +289,6 @@ public partial class PcbResultsViewModel : ObservableObject
                     string.Join(" ", new[] { result.Error, controller?.ErrorCode > 0 ? bolt.ControllerErrorDescription : null }
                         .Where(message => !string.IsNullOrWhiteSpace(message))), result.ZFeedDistance);
             }
-            foreach (var bolt in InspectionOnlyResults)
-            {
-                AppendRow(++number, bolt.BoltLabel, null, null, UiText.Get("Not recorded"), bolt.Present ? "OK" : "NG",
-                    null, null, null, UiText.Get("Not recorded"), null, null, null, null, null, null, null, null, null, null);
-            }
-
             csv.AppendLine();
             AppendRow(UiText.Get("Fastening stages"));
             AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Stage"), UiText.Get("Preset"),
@@ -294,6 +307,41 @@ public partial class PcbResultsViewModel : ObservableObject
                     result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
                     string.Join(" ", new[] { result.Error, controller?.ErrorCode > 0 ? stage.ControllerErrorDescription : null }
                         .Where(message => !string.IsNullOrWhiteSpace(message))), result.ZFeedDistance);
+            }
+
+            csv.AppendLine();
+            if (record.FiducialError is { } fiducialError)
+            {
+                AppendRow(UiText.Get("Fiducial alignment"), "NG", fiducialError,
+                    UiText.Get("Exclude fiducial from NG"), record.IsFiducialNgExcluded);
+                csv.AppendLine();
+            }
+            else if (record.Alignment is { } alignment)
+            {
+                AppendRow(UiText.Get("Fiducial alignment"), UiText.Get("Rotation (°)"), alignment.AngleDegrees, alignment.RecordedAt);
+                AppendRow(UiText.Get("No."), UiText.Get("Reference X (mm)"), UiText.Get("Reference Y (mm)"),
+                    UiText.Get("Measured X (mm)"), UiText.Get("Measured Y (mm)"), UiText.Get("Shape error"));
+                AppendRow(1, alignment.First.Reference.X, alignment.First.Reference.Y, alignment.First.Measured.X, alignment.First.Measured.Y, alignment.First.ShapeError);
+                AppendRow(2, alignment.Second.Reference.X, alignment.Second.Reference.Y, alignment.Second.Measured.X, alignment.Second.Measured.Y, alignment.Second.ShapeError);
+                csv.AppendLine();
+            }
+            AppendRow(UiText.Get("Reference plane"), UiText.Get("X (mm)"), UiText.Get("Y (mm)"),
+                UiText.Get("Measured height (mm)"), UiText.Get("Recorded at"));
+            if (record.HeightReference is { } plane)
+            {
+                AppendRow(1, plane.Point1.X, plane.Point1.Y, plane.Point1.Value, plane.RecordedAt);
+                AppendRow(2, plane.Point2.X, plane.Point2.Y, plane.Point2.Value, plane.RecordedAt);
+                AppendRow(3, plane.Point3.X, plane.Point3.Y, plane.Point3.Value, plane.RecordedAt);
+            }
+            csv.AppendLine();
+            AppendRow(UiText.Get("Height measurement"), UiText.Get("Result"), UiText.Get("Height (mm)"),
+                UiText.Get("Minimum height (mm)"), UiText.Get("Maximum height (mm)"),
+                UiText.Get("Measured height (mm)"), UiText.Get("Reference height (mm)"), UiText.Get("Recorded at"));
+            foreach (var row in HeightResults)
+            {
+                var height = row.Result;
+                AppendRow(row.Ordinal, height.Success ? "OK" : "NG", height.Height, height.Minimum, height.Maximum,
+                    height.Sample.Value, height.ReferenceHeight, height.RecordedAt);
             }
 
             if (dialog.ShowDialog() != true)
@@ -409,21 +457,15 @@ public partial class PcbResultsViewModel : ObservableObject
     }
 }
 
-public sealed record PcbBoltPresenceView(Guid BoltId, int? Ordinal, bool Present, Recipe? Recipe)
-{
-    public string BoltLabel => Recipe?.Pcb.GetBoltName(BoltId, Ordinal) ?? BoltPoint.GetDisplayName(null, Ordinal);
-}
-
 public sealed partial class PcbBoltResultView : ObservableObject
 {
     public PcbBoltResultView(Guid boltId, int? ordinal, FasteningHead head,
-        BoltResult result, bool? present, Recipe? recipe)
+        BoltResult result, Recipe? recipe)
     {
         BoltId = boltId;
         Ordinal = ordinal;
         Head = head;
         Result = result;
-        Present = present;
         Recipe = recipe;
     }
 
@@ -435,10 +477,6 @@ public sealed partial class PcbBoltResultView : ObservableObject
     [NotifyPropertyChangedFor(nameof(HeadLabel), nameof(Title), nameof(Verdict), nameof(StageVerdict),
         nameof(TurnsVerdict), nameof(ControllerStatus), nameof(Direction), nameof(ControllerErrorDescription), nameof(RegisterText))]
     public partial BoltResult Result { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VisionVerdict))]
-    public partial bool? Present { get; set; }
 
     public Recipe? Recipe
     {
@@ -461,7 +499,6 @@ public sealed partial class PcbBoltResultView : ObservableObject
         : Result.Source == BoltResultSource.DryRun ? StageVerdict
         : Result.Stage == BoltFasteningStage.Preliminary ? UiText.Get("Pre-tightening NG")
         : StageVerdict;
-    public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
 
     public string StageVerdict => Result.Source == BoltResultSource.Interrupted ? UiText.Get("Fastening interrupted")
         : Result.Source == BoltResultSource.DryRun
@@ -472,9 +509,9 @@ public sealed partial class PcbBoltResultView : ObservableObject
         get
         {
             if ((Result.PreliminaryResult ?? Result.PreviousFinalResult?.PreliminaryResult) is { } preliminary)
-                yield return new(BoltId, Ordinal, Head, preliminary, Present, Recipe);
+                yield return new(BoltId, Ordinal, Head, preliminary, Recipe);
             if (Result.PreviousFinalResult is { } previousFinal)
-                yield return new(BoltId, Ordinal, Head, previousFinal, Present, Recipe);
+                yield return new(BoltId, Ordinal, Head, previousFinal, Recipe);
             yield return this;
         }
     }
@@ -535,4 +572,23 @@ public sealed partial class PcbBoltResultView : ObservableObject
                 : UiText.Get("Not recorded");
         }
     }
+}
+
+public partial class PcbHeightResultView : ObservableObject
+{
+    public PcbHeightResultView(Guid boltId, int? ordinal, string boltLabel, BoltHeightResult result)
+    {
+        BoltId = boltId;
+        Ordinal = ordinal;
+        BoltLabel = boltLabel;
+        Result = result;
+    }
+
+    public Guid BoltId { get; }
+    public int? Ordinal { get; }
+    [ObservableProperty]
+    public partial string BoltLabel { get; set; }
+
+    [ObservableProperty]
+    public partial BoltHeightResult Result { get; set; }
 }

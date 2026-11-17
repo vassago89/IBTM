@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using IBTM.Core;
@@ -7,8 +6,6 @@ namespace IBTM.UI;
 
 public sealed class CarrierView : Control
 {
-    public static readonly DependencyProperty BoltTargetsProperty;
-
     public static readonly DependencyProperty HeatSink1PresentProperty;
     public static readonly DependencyProperty HeatSink2PresentProperty;
     public static readonly DependencyProperty Pcb1PlacedProperty;
@@ -20,10 +17,6 @@ public sealed class CarrierView : Control
 
     static CarrierView()
     {
-        BoltTargetsProperty = DependencyProperty.Register(
-            nameof(BoltTargets),
-            typeof(IReadOnlyList<BoltDiagramMarker>),
-            typeof(CarrierView));
         HeatSink1PresentProperty = DependencyProperty.Register(
             nameof(HeatSink1Present),
             typeof(bool?),
@@ -56,12 +49,6 @@ public sealed class CarrierView : Control
             nameof(HeatSink2Result),
             typeof(AssemblyResult),
             typeof(CarrierView));
-    }
-
-    public IReadOnlyList<BoltDiagramMarker>? BoltTargets
-    {
-        get => (IReadOnlyList<BoltDiagramMarker>?)GetValue(BoltTargetsProperty);
-        set => SetValue(BoltTargetsProperty, value);
     }
 
     public bool? HeatSink1Present

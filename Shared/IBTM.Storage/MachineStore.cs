@@ -174,8 +174,6 @@ public sealed class MachineStore
         var saved = JsonSerializer.Deserialize<Recipe>(row.Value)
             ?? throw new InvalidDataException($"Recipe '{edited.Name}' is empty.");
         saved.ValidateBoltIds();
-        saved.BoltInspection.BrightnessThreshold = edited.BoltInspection.BrightnessThreshold;
-        saved.BoltInspection.MinimumBrightRatio = edited.BoltInspection.MinimumBrightRatio;
         foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
         {
             var target = saved.BoltInspection.GetDataMatrix(pcb);
@@ -194,19 +192,13 @@ public sealed class MachineStore
             var changed = edited.Pcb.BoltPoints.SingleOrDefault(item => item.Id == bolt.Id);
             if (changed is null)
                 continue;
-            bolt.BrightnessThreshold = changed.BrightnessThreshold;
-            bolt.MinimumBrightRatio = changed.MinimumBrightRatio;
             bolt.MinimumTurns = changed.MinimumTurns;
             bolt.MaximumTurns = changed.MaximumTurns;
+            bolt.MinimumHeight = changed.MinimumHeight;
+            bolt.MaximumHeight = changed.MaximumHeight;
         }
-        foreach (var tile in saved.CarrierImages)
+        foreach (var tile in saved.CarrierImages.Where(tile => tile.IsBarcode))
         {
-            if (!tile.IsBarcode)
-            {
-                var bolt = saved.Pcb.BoltPoints.SingleOrDefault(item => item.Id == tile.BoltId);
-                if (bolt is null || !edited.Pcb.BoltPoints.Any(item => item.Id == bolt.Id))
-                    continue;
-            }
             var changed = edited.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
                 && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
             if (changed is not null)

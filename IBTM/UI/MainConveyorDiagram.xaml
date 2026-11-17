@@ -163,8 +163,7 @@
                 HeatSink1Present="{Binding Signals.Inputs[BoltFasteningHeatSink1Present].IsOn}"
                 HeatSink2Present="{Binding Signals.Inputs[BoltFasteningHeatSink2Present].IsOn}"
                 HeatSink1Result="{Binding BoltFasteningHeatSink1Result}"
-                HeatSink2Result="{Binding BoltFasteningHeatSink2Result}"
-                BoltTargets="{Binding BoltTargets}">
+                HeatSink2Result="{Binding BoltFasteningHeatSink2Result}">
                 <ui:CarrierView.Style>
                     <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -191,8 +190,7 @@
                 HeatSink2Present="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn}"
                 HeatSink1Result="{Binding InspectionHeatSink1Result}"
                 HeatSink2Result="{Binding InspectionHeatSink2Result}"
-                ActiveHeatSink="{Binding InspectionActivePcb}"
-                BoltTargets="{Binding InspectionTargets}">
+                ActiveHeatSink="{Binding InspectionActivePcb}">
                 <ui:CarrierView.Style>
                     <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
                         <Setter Property="Visibility" Value="Collapsed"/>

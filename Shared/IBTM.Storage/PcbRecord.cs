@@ -17,11 +17,15 @@ public sealed record PcbRecord(
     AssemblyResult InspectionResult,
     IReadOnlyDictionary<Guid, BoltResult> ShootingBoltResults,
     IReadOnlyDictionary<Guid, BoltResult> PickupBoltResults,
-    IReadOnlyDictionary<Guid, bool> BoltPresenceResults,
     IReadOnlyList<Guid> BoltIds)
 {
     public AssemblyResult? TurnsResult { get; init; }
     public bool IsDataMatrixNgExcluded { get; init; }
+    public PcbAlignment? Alignment { get; init; }
+    public string? FiducialError { get; init; }
+    public bool IsFiducialNgExcluded { get; init; }
+    public HeightReferencePlane? HeightReference { get; init; }
+    public IReadOnlyDictionary<Guid, BoltHeightResult> HeightResults { get; init; } = new Dictionary<Guid, BoltHeightResult>();
 
     // The order belongs to this recorded PCB, independent of later recipe edits.
     public int? GetBoltOrdinal(Guid boltId)

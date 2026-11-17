@@ -528,8 +528,11 @@ public sealed class BoltFasteningStation : AutoUnit
                     var isFinal = stage is BoltFasteningStage.Final or BoltFasteningStage.FinalBeforeRetightening
                         or BoltFasteningStage.Retightening;
                     var toolHead = isFinal ? FasteningHead.Pickup : FasteningHead.Shooting;
-                    var feedDistance = isPreliminary ? bolt.PreliminaryFeedDistance : bolt.FeedDistance;
-                    var feedSeconds = isPreliminary ? bolt.PreliminaryFeedSeconds : bolt.FeedSeconds;
+                    var feeds = _recipes.Current.BoltFastening;
+                    var feed = isPreliminary ? feeds.ShootingIpmFeed
+                        : isFinal ? feeds.PickupIpmFeed : feeds.ShootingPcbFeed;
+                    var feedDistance = feed.Distance;
+                    var feedSeconds = feed.Seconds;
                     var assembly = Station.GetAssembly(job, bolt.HeatSink);
                     BoltResult? preliminary = null;
                     BoltResult? previousFinal = null;

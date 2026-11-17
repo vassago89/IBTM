@@ -2609,7 +2609,7 @@ public sealed class MachineController : INotifyPropertyChanged
             or OutputIo.PickupHeadVacuumPump or OutputIo.ShootingHeadVacuumPump or OutputIo.ShootBolt
             or OutputIo.BoltFasteningStopperUp
             or OutputIo.NgCarrierPickupDown or OutputIo.NgCarrierGripperClose or OutputIo.NgShuttleDown
-            or OutputIo.InspectionStopperUp or OutputIo.InspectionBackupPlateUp;
+            or OutputIo.InspectionStopperUp or OutputIo.InspectionBackupPlateUp or OutputIo.InspectionProbeDown;
     }
 
     internal bool IsSetTeachingOutputAllowed(IoOutputStatus output)
@@ -2688,7 +2688,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 case OutputIo.PcbSupplyGripperClosed
                     or OutputIo.PickupTableDown or OutputIo.PcbPlacementBackupPlateUp
                     or OutputIo.InspectionBackupPlateUp or OutputIo.PcbPlacementStopperUp or OutputIo.BoltFasteningStopperUp
-                    or OutputIo.InspectionStopperUp:
+                    or OutputIo.InspectionStopperUp or OutputIo.InspectionProbeDown:
                     await _io.SetOutputAndWaitAsync(output.Signal, value, operation.Token);
                     break;
                 default:

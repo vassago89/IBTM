@@ -95,9 +95,6 @@ public sealed class LightingTests
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
         var inspector = services.GetRequiredService<InspectionStation>();
-        var reference = services.GetRequiredService<CarrierReferenceSettings>();
-        reference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
-        reference.LowerRightLocatingPin = new() { X = 20, Y = 20 };
         foreach (var action in new Func<Task>[]
         {
             async () =>
@@ -202,10 +199,10 @@ public sealed class LightingTests
         Assert.Equal(31, light.LastLevel);
         await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None);
         Assert.Equal(62, light.LastLevel);
-        await inspector.InspectAsync(bolt);
+        await inspector.CaptureBoltAsync(bolt);
         Assert.Equal(123, light.LastLevel);
         bolt.LightLevel = null;
-        await inspector.InspectAsync(bolt);
+        await inspector.CaptureBoltAsync(bolt);
         Assert.Equal(91, light.LastLevel);
 
         await inspector.StartLiveViewAsync(lightLevel: 45);
@@ -223,39 +220,6 @@ public sealed class LightingTests
         Assert.Equal(offCalls, light.OffCalls);
         await inspector.StopLiveViewAsync();
         Assert.False(light.IsOn);
-    }
-
-    [Fact]
-    public async Task InspectionReadsCurrentSettingsAfterCapture()
-    {
-        var light = new RecordingLight { FailOn = false };
-        var camera = new TestCamera();
-        var settings = new MachineSettings();
-        settings.Lighting.StabilizationDelayMilliseconds = 0;
-        await using var services = new ServiceCollection()
-            .AddSingleton(VirtualTestSupport.OpenMachineStore())
-            .AddVirtualApplication(settings)
-            .AddSingleton<ILightController>(light)
-            .AddSingleton<ICamera>(camera)
-            .BuildServiceProvider();
-        var inspector = services.GetRequiredService<InspectionStation>();
-        var recipes = services.GetRequiredService<RecipeManager>();
-        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
-        motion.Initialize();
-        Assert.True(await inspector.HomeHorizontalAsync());
-        var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1), X = 0, Y = 0, LightLevel = 23, BrightnessThreshold = 128, MinimumBrightRatio = 0.5 };
-        recipes.Current.Pcb.BoltPoints.Add(bolt);
-        recipes.Current.CarrierImages = [new() { BoltId = VirtualTestSupport.BoltId(1), Region = new(0, 0, 1, 1) }];
-        camera.OnCapture = () =>
-        {
-            bolt.BrightnessThreshold = 0;
-            bolt.MinimumBrightRatio = 0;
-        };
-
-        var result = await inspector.InspectAsync(bolt);
-        Assert.Equal(23, light.LastLevel);
-        Assert.True(result.Success);
-        Assert.Equal(0, result.MinimumBrightRatio);
     }
 
     [Fact]
@@ -473,7 +437,7 @@ public sealed class LightingTests
             settings.LightTestLevel = 80;
             await settings.TestLightCommand.ExecuteAsync(null);
             Assert.Contains("off:2", light.Calls);
-            Assert.Contains("state is unknown", settings.LightTestMessage);
+            Assert.Contains("state unknown", settings.LightTestMessage);
             Assert.False(services.GetRequiredService<MachineState>().IsRunning);
             Assert.Equal(2, settings.PendingLightOffChannel);
             Assert.True(settings.IsOffTestLightAllowed);

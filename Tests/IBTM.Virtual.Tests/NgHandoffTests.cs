@@ -250,7 +250,7 @@ public sealed class NgHandoffTests
         using var motion = system.Motion;
         var transfer = system.Inspection;
         transfer.Station.GetAssembly(HeatSinkSlot.HeatSink1)
-            .RecordBoltPresence(VirtualTestSupport.BoltId(1), false);
+            .PcbBarcode = null;
         transfer.Station.Complete(transfer.Station.CurrentJob);
 
         Assert.False(system.Conveyor.IsReceiveAllowed);
@@ -593,7 +593,7 @@ public sealed class NgHandoffTests
             Assert.False(run.IsCompleted);
             Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
             var assembly = system.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-            assembly.RecordBoltPresence(VirtualTestSupport.BoltId(1), false);
+            assembly.PcbBarcode = null;
             assembly.CompleteInspection();
             system.Inspection.Station.Complete(system.Inspection.Station.CurrentJob);
             // No transfer or carrier sensor changes: releasing the button alone must wake the loop.
@@ -643,7 +643,7 @@ public sealed class NgHandoffTests
             new VirtualCamera(() => (0, 0, 0), () => []),
             new VirtualLightController(),
             new(),
-            recipes);
+            recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await inspection.Station.SeatAsync(CancellationToken.None);
         return (io, motion, inspection, conveyor);

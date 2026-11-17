@@ -13,6 +13,7 @@ using IBTM.Fastech;
 using IBTM.Hantas;
 using IBTM.Hik;
 using IBTM.Inspection;
+using IBTM.Mlcp;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
@@ -63,7 +64,6 @@ public static class DependencyInjection
             .AddSingleton(settings.Options)
             .AddSingleton(settings.RecipeSelection)
             .AddSingleton(settings.PcbHistory)
-            .AddSingleton(settings.CarrierReference)
             .AddSingleton(settings.PcbSupply)
             .AddSingleton(settings.PcbPlacementHandler)
             .AddSingleton(settings.BoltFeeder)
@@ -76,6 +76,7 @@ public static class DependencyInjection
             .AddSingleton(settings.NgConveyor)
             .AddSingleton(settings.Conveyor)
             .AddSingleton(settings.Hantas)
+            .AddSingleton(settings.Mlcp)
             .AddSingleton<OperationCancellation>();
 
         services
@@ -122,6 +123,7 @@ public static class DependencyInjection
 
         services
             .AddSingleton<RecipeEditorViewModel>()
+            .AddSingleton<MlcpController>()
             .AddSingleton<MachineDiagramMapper>()
             .AddSingleton<OperationViewModel>()
             .AddSingleton<SettingsViewModel>()

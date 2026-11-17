@@ -71,7 +71,7 @@ public partial class MainViewModel : ObservableObject
         OpenInputsCommand = new RelayCommand(windows.OpenInputs, () => IsOpenDiagnosticAllowed);
         OpenOutputsCommand = new RelayCommand(windows.OpenOutputs, () => IsOpenDiagnosticAllowed);
         OpenMotionCommand = new RelayCommand(windows.OpenMotion, () => IsOpenDiagnosticAllowed);
-        OpenAdcProtocolCommand = new RelayCommand(windows.OpenAdcProtocol, () => IsOpenDiagnosticAllowed);
+        OpenProtocolCommand = new RelayCommand(windows.OpenProtocol, () => IsOpenDiagnosticAllowed);
         OpenLogsCommand = new RelayCommand(windows.OpenLogs, () => IsOpenDiagnosticAllowed);
         NavigateCommand = new AsyncRelayCommand<AppPage>(NavigateAsync);
 
@@ -168,7 +168,7 @@ public partial class MainViewModel : ObservableObject
 
     public IRelayCommand OpenMotionCommand { get; }
 
-    public IRelayCommand OpenAdcProtocolCommand { get; }
+    public IRelayCommand OpenProtocolCommand { get; }
 
     public IRelayCommand OpenLogsCommand { get; }
 

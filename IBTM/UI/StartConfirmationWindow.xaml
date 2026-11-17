@@ -263,8 +263,13 @@
                 BorderBrush="{StaticResource DividerBrush}" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <TextBlock x:Name="SelectedAreaTitle" Text="{Binding SelectedStartArea, Converter={StaticResource UiTextConverter}}"
-                        FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                    <ComboBox x:Name="StartAreaSelector" SelectedItem="{Binding SelectedStartArea, Mode=OneWay}"
+                        SelectionChanged="OnStartAreaChanged" Margin="0,0,0,10" MinHeight="34"
+                        AutomationProperties.Name="{ui:Text 'Control target'}">
+                        <ComboBox.ItemTemplate><DataTemplate DataType="{x:Type app:StartArea}">
+                            <TextBlock Text="{Binding Converter={StaticResource UiTextConverter}}"/>
+                        </DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
                     <TextBlock Grid.Row="1" Text="{Binding StartActionMessage}" TextWrapping="Wrap" Margin="0,0,0,12"
                         Foreground="{StaticResource AccentAmberBrush}" Style="{StaticResource StatusMessageStyle}"/>
                     <TabControl Grid.Row="2">
@@ -344,7 +349,7 @@
                                                         <Setter Property="Content" Value="{ui:Text 'Raise both heads / table'}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station3}">
-                                                        <Setter Property="Content" Value="{ui:Text 'Raise pickup'}"/>
+                                                        <Setter Property="Content" Value="{ui:Text 'NG pickup up'}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -363,7 +368,16 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
-                                            <TextBlock Text="{ui:Text 'Raise/lower carrier support'}" TextWrapping="Wrap" TextAlignment="Center"/>
+                                            <TextBlock TextWrapping="Wrap" TextAlignment="Center">
+                                                <TextBlock.Style><Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{ui:Text 'Raise/lower carrier support'}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding StartStation.BackupPlate}" Value="{x:Static device:StationCylinderState.Down}"><Setter Property="Text" Value="{ui:Text 'Raise carrier support'}"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding StartStation.BackupPlate}" Value="{x:Static device:StationCylinderState.Up}"><Setter Property="Text" Value="{ui:Text 'Lower carrier support'}"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False"><Setter Property="Text" Value="{ui:Text 'Raise/lower carrier support'}"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style></TextBlock.Style>
+                                            </TextBlock>
                                         </Button>
                                         <Button Content="{ui:Text 'Transfer height'}" Command="{Binding PrepareStartAreaCommand}"
                                             CommandParameter="{x:Static app:StartPreparationAction.MoveBackupToTransfer}" Margin="0,0,4,6" MinHeight="40">
@@ -393,7 +407,16 @@
                                             Tag="{Binding StartStation.Stopper}"
                                             Command="{Binding PrepareStartAreaCommand}" CommandParameter="{x:Static app:StartPreparationAction.ToggleStopper}"
                                             Style="{StaticResource CarrierCylinderButton}" MinHeight="40" Padding="8,7" Margin="4,0,0,6">
-                                            <TextBlock Text="{ui:Text 'Raise/lower stopper'}" TextWrapping="Wrap" TextAlignment="Center"/>
+                                            <TextBlock TextWrapping="Wrap" TextAlignment="Center">
+                                                <TextBlock.Style><Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{ui:Text 'Raise/lower stopper'}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding StartStation.Stopper}" Value="{x:Static device:StationCylinderState.Down}"><Setter Property="Text" Value="{ui:Text 'Raise stopper'}"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding StartStation.Stopper}" Value="{x:Static device:StationCylinderState.Up}"><Setter Property="Text" Value="{ui:Text 'Lower stopper'}"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False"><Setter Property="Text" Value="{ui:Text 'Raise/lower stopper'}"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style></TextBlock.Style>
+                                            </TextBlock>
                                         </Button>
                                     </UniformGrid>
                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
@@ -681,7 +704,7 @@
                                     </StackPanel>
                                 </ScrollViewer>
                                 <UniformGrid Grid.Row="1" Style="{StaticResource CarrierActions}" Margin="0,12,0,0" Columns="2">
-                                    <Button x:Name="CompleteWorkButton" Content="{ui:Text 'Mark all complete'}" Command="{Binding ChangeCarrierWorkCommand}"
+                                    <Button x:Name="CompleteWorkButton" Content="{ui:Text 'Mark all complete'}" ToolTip="{ui:Text 'Mark work on this carrier complete'}" Command="{Binding ChangeCarrierWorkCommand}"
                                         CommandParameter="{x:Static app:CarrierWorkAction.Complete}" Margin="0,0,4,0" Height="40">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -702,7 +725,7 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button x:Name="ClearWorkButton" Content="{ui:Text 'Rework all'}" ToolTip="{ui:Text 'Clear results'}" Command="{Binding ChangeCarrierWorkCommand}"
+                                    <Button x:Name="ClearWorkButton" Content="{ui:Text 'Rework all'}" ToolTip="{ui:Text 'Clear work records for this carrier'}" Command="{Binding ChangeCarrierWorkCommand}"
                                         CommandParameter="{x:Static app:CarrierWorkAction.Clear}" Margin="4,0,0,0" Height="40">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -725,13 +748,23 @@
                                 </UniformGrid>
                             </Grid>
                         </TabItem>
-                        <TabItem Header="{ui:Text 'Individual review'}">
+                        <TabItem Header="{ui:Text 'Individual review'}" IsVisibleChanged="OnIndividualReviewVisibilityChanged">
                             <TabItem.Style>
                                 <Style TargetType="TabItem" BasedOn="{StaticResource SectionTab}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station1}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
                                         <DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                        <DataTrigger Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.Empty}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                        <DataTrigger Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.Disabled}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                        <DataTrigger Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.Unknown}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station1}"/>
+                                                <Condition Binding="{Binding StartMaterialState}" Value="{x:Static app:StartCheckState.Completed}"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </MultiDataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TabItem.Style>
@@ -784,7 +817,7 @@
                                             </TextBlock.Style>
                                         </TextBlock>
                                         <UniformGrid Columns="2">
-                                            <Button Content="{ui:Text 'Complete'}" Command="{Binding CompleteBoltCommand}" CommandParameter="{Binding SelectedFasteningResumeBolt}" Margin="0,0,4,0" Height="36" Padding="4,5">
+                                            <Button Content="{ui:Text 'Complete'}" ToolTip="{ui:Text 'Record the selected bolt as manually completed (OK)'}" Command="{Binding CompleteBoltCommand}" CommandParameter="{Binding SelectedFasteningResumeBolt}" Margin="0,0,4,0" Height="36" Padding="4,5">
                                                 <Button.Style>
                                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                                         <Style.Triggers>

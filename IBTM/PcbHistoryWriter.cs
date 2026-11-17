@@ -68,11 +68,15 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
         var initial = new PcbRecord(0, createdAt, createdAt, recipe.Name, assembly.HeatSink,
             assembly.PcbBarcode, assembly.PcbBarcodeResult, assembly.FasteningResult, assembly.InspectionResult,
             assembly.ShootingBoltResults.ToDictionary(), assembly.PickupBoltResults.ToDictionary(),
-            assembly.BoltPresenceResults.ToDictionary(),
             recipe.Pcb.BoltPoints.Where(point => point.HeatSink == assembly.HeatSink).Select(bolt => bolt.Id).ToArray())
         {
             TurnsResult = assembly.TurnsResult,
             IsDataMatrixNgExcluded = assembly.IsDataMatrixNgExcluded,
+            HeightReference = assembly.HeightReference,
+            Alignment = assembly.Alignment,
+            FiducialError = assembly.FiducialError,
+            IsFiducialNgExcluded = assembly.IsFiducialNgExcluded,
+            HeightResults = assembly.HeightResults.ToDictionary(),
         };
 
         // The station records results after this creation callback returns.
@@ -89,12 +93,16 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                 PcbBarcode = source.PcbBarcode,
                 PcbBarcodeResult = source.PcbBarcodeResult,
                 IsDataMatrixNgExcluded = source.IsDataMatrixNgExcluded,
+                HeightReference = source.HeightReference,
+                Alignment = source.Alignment,
+                FiducialError = source.FiducialError,
+                IsFiducialNgExcluded = source.IsFiducialNgExcluded,
+                HeightResults = source.HeightResults.ToDictionary(),
                 FasteningResult = source.FasteningResult,
                 InspectionResult = source.InspectionResult,
                 TurnsResult = source.TurnsResult,
                 ShootingBoltResults = source.ShootingBoltResults.ToDictionary(),
                 PickupBoltResults = source.PickupBoltResults.ToDictionary(),
-                BoltPresenceResults = source.BoltPresenceResults.ToDictionary(),
             };
             Enqueue(new(source, directory, record));
         }
@@ -165,7 +173,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                     using var output = new MemoryStream();
                     encoder.Save(output);
                     var image = new PcbInspectionImage(capture.BoltId, capture.CapturedAt, capture.Region,
-                        capture.Success, capture.Barcode, capture.BrightRatio, capture.MinimumBrightRatio, output.ToArray(),
+                        capture.Success, capture.Barcode, output.ToArray(),
                         capture.Threshold, capture.Dilated);
                     _store.SavePcbImage(file, number, image);
                     ImageSaved?.Invoke(file, number);

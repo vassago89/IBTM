@@ -1,9 +1,11 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using IBTM.Core;
+using IBTM.Inspection;
 
 namespace IBTM.UI;
 
@@ -15,6 +17,7 @@ public sealed class InspectionImageView : FrameworkElement
     private static readonly Pen s_crosshairPen;
 
     private Point? _dragPoint;
+    private Point? _dragOrigin;
 
     public static readonly DependencyProperty SourceProperty;
 
@@ -25,6 +28,8 @@ public sealed class InspectionImageView : FrameworkElement
     public static readonly DependencyProperty ShowCrosshairProperty;
 
     public static readonly DependencyProperty RegionCommandProperty;
+    public static readonly DependencyProperty CenterRegionProperty;
+    public static readonly DependencyProperty DetectedFiducialProperty;
 
     static InspectionImageView()
     {
@@ -55,6 +60,11 @@ public sealed class InspectionImageView : FrameworkElement
             nameof(RegionCommand),
             typeof(ICommand),
             typeof(InspectionImageView));
+        CenterRegionProperty = DependencyProperty.Register(
+            nameof(CenterRegion), typeof(bool), typeof(InspectionImageView), new PropertyMetadata(true));
+        DetectedFiducialProperty = DependencyProperty.Register(
+            nameof(DetectedFiducial), typeof(FiducialDetection), typeof(InspectionImageView),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
     }
 
     public InspectionImageView()
@@ -92,6 +102,18 @@ public sealed class InspectionImageView : FrameworkElement
         set => SetValue(RegionCommandProperty, value);
     }
 
+    public bool CenterRegion
+    {
+        get => (bool)GetValue(CenterRegionProperty);
+        set => SetValue(CenterRegionProperty, value);
+    }
+
+    public FiducialDetection? DetectedFiducial
+    {
+        get => (FiducialDetection?)GetValue(DetectedFiducialProperty);
+        set => SetValue(DetectedFiducialProperty, value);
+    }
+
     protected override void OnRender(DrawingContext drawing)
     {
         base.OnRender(drawing);
@@ -114,7 +136,18 @@ public sealed class InspectionImageView : FrameworkElement
             drawing.DrawRectangle(null, s_regionPen, bounds);
         }
 
-        if (!ShowCrosshair)
+        if (DetectedFiducial is { Contour.Length: > 0 } found && _dragPoint is null)
+        {
+            var radius = Math.Sqrt(found.Contour.Average(point =>
+                Math.Pow(point.X - found.Center.X, 2) + Math.Pow(point.Y - found.Center.Y, 2))) * scale;
+            var detectedCenter = new Point(fitted.X + found.Center.X * scale, fitted.Y + found.Center.Y * scale);
+            drawing.DrawEllipse(null, s_crosshairOutlinePen, detectedCenter, radius, radius);
+            drawing.DrawEllipse(null, s_regionPen, detectedCenter, radius, radius);
+            drawing.DrawLine(s_regionPen, new(detectedCenter.X - 8, detectedCenter.Y), new(detectedCenter.X + 8, detectedCenter.Y));
+            drawing.DrawLine(s_regionPen, new(detectedCenter.X, detectedCenter.Y - 8), new(detectedCenter.X, detectedCenter.Y + 8));
+        }
+
+        if (!ShowCrosshair || DetectedFiducial is not null)
             return;
 
         var center = new Point(fitted.X + fitted.Width / 2, fitted.Y + fitted.Height / 2);
@@ -142,6 +175,7 @@ public sealed class InspectionImageView : FrameworkElement
             return;
 
         Focus();
+        _dragOrigin = point;
         _dragPoint = point;
         CaptureMouse();
         InvalidateVisual();
@@ -164,8 +198,8 @@ public sealed class InspectionImageView : FrameworkElement
         if (_dragPoint is null || Source is null)
             return;
         var end = GetImagePoint(e.GetPosition(this));
-        CancelDrag();
         var region = GetRegion(end);
+        CancelDrag();
         if (region is { Width: > 0, Height: > 0 } && RegionCommand?.CanExecute(region) == true)
             RegionCommand.Execute(region);
         e.Handled = true;
@@ -185,12 +219,14 @@ public sealed class InspectionImageView : FrameworkElement
     {
         base.OnLostMouseCapture(e);
         _dragPoint = null;
+        _dragOrigin = null;
         InvalidateVisual();
     }
 
     private void CancelDrag()
     {
         _dragPoint = null;
+        _dragOrigin = null;
         if (IsMouseCaptured)
             ReleaseMouseCapture();
         InvalidateVisual();
@@ -221,6 +257,13 @@ public sealed class InspectionImageView : FrameworkElement
     private Rect GetRegion(Point point)
     {
         var source = Source!;
+        if (!CenterRegion && _dragOrigin is { } origin)
+        {
+            var left = Math.Floor(Math.Min(origin.X, point.X));
+            var top = Math.Floor(Math.Min(origin.Y, point.Y));
+            return new(left, top, Math.Ceiling(Math.Max(origin.X, point.X)) - left,
+                Math.Ceiling(Math.Max(origin.Y, point.Y)) - top);
+        }
         var halfSize = Math.Max(
             Math.Abs(point.X - source.PixelWidth / 2.0),
             Math.Abs(point.Y - source.PixelHeight / 2.0));
@@ -231,6 +274,10 @@ public sealed class InspectionImageView : FrameworkElement
 
     private static void OnSourceChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
     {
+        // Live frames of the same size must not interrupt an operator's ROI drag.
+        if (e.OldValue is BitmapSource oldImage && e.NewValue is BitmapSource newImage
+            && oldImage.PixelWidth == newImage.PixelWidth && oldImage.PixelHeight == newImage.PixelHeight)
+            return;
         ((InspectionImageView)sender).CancelDrag();
     }
 

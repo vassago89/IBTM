@@ -22,14 +22,14 @@ public sealed class HeatSinkAssembly
 {
     private readonly ConcurrentDictionary<Guid, BoltResult> _shootingBoltResults;
     private readonly ConcurrentDictionary<Guid, BoltResult> _pickupBoltResults;
-    private readonly ConcurrentDictionary<Guid, bool> _boltPresenceResults;
+    private readonly ConcurrentDictionary<Guid, BoltHeightResult> _heightResults;
     private string? _pcbBarcode;
 
     public HeatSinkAssembly(HeatSinkSlot heatSink)
     {
         _shootingBoltResults = new();
         _pickupBoltResults = new();
-        _boltPresenceResults = new();
+        _heightResults = new();
         HeatSink = heatSink;
     }
 
@@ -47,8 +47,44 @@ public sealed class HeatSinkAssembly
     public IReadOnlyDictionary<Guid, BoltResult> ShootingBoltResults => _shootingBoltResults;
 
     public IReadOnlyDictionary<Guid, BoltResult> PickupBoltResults => _pickupBoltResults;
+    public IReadOnlyDictionary<Guid, BoltHeightResult> HeightResults => _heightResults;
+    public PcbAlignment? Alignment { get; private set; }
+    public string? FiducialError { get; private set; }
+    public bool IsFiducialNgExcluded { get; private set; }
 
-    public IReadOnlyDictionary<Guid, bool> BoltPresenceResults => _boltPresenceResults;
+    public void RecordAlignment(PcbAlignment alignment)
+    {
+        Alignment = alignment;
+        FiducialError = null;
+        IsFiducialNgExcluded = false;
+        ResultsChanged?.Invoke(this);
+    }
+
+    public void RecordFiducialFailure(string error, bool excludeFromNg)
+    {
+        Alignment = null;
+        FiducialError = error;
+        IsFiducialNgExcluded = excludeFromNg;
+        if (!excludeFromNg)
+            InspectionResult = AssemblyResult.Ng;
+        ResultsChanged?.Invoke(this);
+    }
+
+    public HeightReferencePlane? HeightReference { get; private set; }
+
+    public void RecordHeightReference(HeightReferencePlane reference)
+    {
+        HeightReference = reference;
+        ResultsChanged?.Invoke(this);
+    }
+
+    public void RecordHeight(Guid boltId, BoltHeightResult result)
+    {
+        _heightResults[boltId] = result;
+        if (!result.Success)
+            InspectionResult = AssemblyResult.Ng;
+        ResultsChanged?.Invoke(this);
+    }
 
     public AssemblyResult FasteningResult { get; private set; }
     public AssemblyResult InspectionResult { get; private set; }
@@ -145,16 +181,6 @@ public sealed class HeatSinkAssembly
         ResultsChanged?.Invoke(this);
     }
 
-    public void RecordBoltPresence(Guid boltId, bool present)
-    {
-        _boltPresenceResults[boltId] = present;
-        if (!present)
-        {
-            InspectionResult = AssemblyResult.Ng;
-        }
-        ResultsChanged?.Invoke(this);
-    }
-
     public void CompleteInspection()
     {
         if (InspectionResult != AssemblyResult.Ng)
@@ -180,7 +206,11 @@ public sealed class HeatSinkAssembly
 
     public void ClearInspectionResults()
     {
-        _boltPresenceResults.Clear();
+        _heightResults.Clear();
+        HeightReference = null;
+        Alignment = null;
+        FiducialError = null;
+        IsFiducialNgExcluded = false;
         _pcbBarcode = null;
         PcbBarcodeResult = AssemblyResult.Pending;
         IsDataMatrixNgExcluded = false;

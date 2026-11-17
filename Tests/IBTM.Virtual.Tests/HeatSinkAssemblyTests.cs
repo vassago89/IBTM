@@ -7,6 +7,39 @@ namespace IBTM.Virtual.Tests;
 public sealed class HeatSinkAssemblyTests
 {
     [Fact]
+    public void FiducialExclusionKeepsBarcodeFasteningAndTurnsNg()
+    {
+        var barcode = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
+        barcode.PcbBarcode = null;
+        barcode.RecordFiducialFailure("Not found", excludeFromNg: true);
+        barcode.CompleteInspection();
+        Assert.Equal(AssemblyResult.Ng, barcode.PcbBarcodeResult);
+        Assert.Equal(AssemblyResult.Ng, barcode.Result);
+
+        var fastening = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
+        fastening.RecordBolt(FasteningHead.Pickup, Guid.NewGuid(), new(false, 8));
+        fastening.RecordFiducialFailure("Not found", excludeFromNg: true);
+        fastening.CompleteFastening();
+        fastening.CompleteInspection();
+        Assert.Equal(AssemblyResult.Ok, fastening.InspectionResult);
+        Assert.Equal(AssemblyResult.Ng, fastening.Result);
+
+        var turns = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
+        turns.RecordFiducialFailure("Not found", excludeFromNg: true);
+        turns.RecordBolt(FasteningHead.Pickup, Guid.NewGuid(), new(true, 8)
+        {
+            MinimumTurns = 2,
+            Controller = new("COM9", 1, 1, 1000, 1, 8, 800, 0, 0, 360, 1, 0, 0, 1, 0, null),
+        });
+        turns.CompleteFastening();
+        turns.CompleteInspection();
+        Assert.Equal(AssemblyResult.Ok, turns.FasteningResult);
+        Assert.Equal(AssemblyResult.Ok, turns.InspectionResult);
+        Assert.Equal(AssemblyResult.Ng, turns.TurnsResult);
+        Assert.Equal(AssemblyResult.Ng, turns.Result);
+    }
+
+    [Fact]
     public void OperatorBoltEditsClearOnlyTheSelectedFailureAndKeepInspectionResults()
     {
         var assembly = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
@@ -22,7 +55,7 @@ public sealed class HeatSinkAssemblyTests
         assembly.RecordBolt(FasteningHead.Pickup, pickup, new(false, 2));
         assembly.RecordBolt(FasteningHead.Shooting, shooting, measured);
         assembly.RecordBolt(FasteningHead.Shooting, good, goodResult);
-        assembly.RecordBoltPresence(good, false);
+        assembly.PcbBarcode = null;
         assembly.CompleteInspection();
         assembly.CompleteFastening();
         Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
@@ -51,9 +84,9 @@ public sealed class HeatSinkAssemblyTests
     [InlineData(3601, null, 10d, true, true, AssemblyResult.Ng, AssemblyResult.Ng)]
     [InlineData(3240, 8d, 10d, true, true, AssemblyResult.Ok, AssemblyResult.Ok)]
     [InlineData(2879, 8d, 10d, true, true, AssemblyResult.Ng, AssemblyResult.Ng)]
-    public void TurnsLimitsAreIndependentOfControllerAndVisionResults(
+    public void TurnsLimitsAreIndependentOfControllerAndDataMatrixResults(
         double angle, double? minimum, double? maximum,
-        bool controllerOk, bool visionOk, AssemblyResult turnsResult, AssemblyResult finalResult)
+        bool controllerOk, bool barcodeOk, AssemblyResult turnsResult, AssemblyResult finalResult)
     {
         var id = Guid.NewGuid();
         var result = new BoltResult(controllerOk, 8)
@@ -65,14 +98,14 @@ public sealed class HeatSinkAssemblyTests
         var assembly = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordBolt(FasteningHead.Pickup, id, result);
         assembly.CompleteFastening();
-        assembly.RecordBoltPresence(id, visionOk);
+        assembly.PcbBarcode = barcodeOk ? "PCB-OK" : null;
         assembly.CompleteInspection();
 
         Assert.Equal(angle / 360, result.TotalTurns);
         Assert.Equal(turnsResult, result.TurnsResult);
         Assert.Equal(turnsResult, assembly.TurnsResult);
         Assert.Equal(controllerOk ? AssemblyResult.Ok : AssemblyResult.Ng, assembly.FasteningResult);
-        Assert.Equal(visionOk ? AssemblyResult.Ok : AssemblyResult.Ng, assembly.InspectionResult);
+        Assert.Equal(barcodeOk ? AssemblyResult.Ok : AssemblyResult.Ng, assembly.InspectionResult);
         Assert.Equal(finalResult, assembly.Result);
     }
 

@@ -21,17 +21,17 @@ public sealed class InspectionTests
     [Theory]
     [InlineData(false, true, false, true)]
     [InlineData(true, true, false, false)]
-    [InlineData(true, false, false, true)]
+    [InlineData(true, false, false, false)]
     [InlineData(true, true, true, true)]
     public async Task DataMatrixNgExclusionKeepsReadResultsAndOtherNgRouting(
         bool excludeDataMatrix, bool boltPresent, bool fasteningNg, bool routeToNg)
     {
-        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new InspectionGantryHardwareSettings()), new());
         io.Initialize();
         var settings = new InspectionGantrySettings { ExcludeDataMatrixFromNg = excludeDataMatrix };
         using var motion = new VirtualMotionService(settings.Motion, new(), hasZ: false);
         motion.Initialize();
-        var bolt = new BoltPoint { X = 0, Y = 0, BrightnessThreshold = 128, MinimumBrightRatio = 0.5 };
+        var bolt = new BoltPoint { X = 0, Y = 0 };
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.Pcb.BoltPoints = [bolt];
         recipes.Current.CarrierImages = [
@@ -44,9 +44,10 @@ public sealed class InspectionTests
         };
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
         var work = BackupPlateStation.CreateInspection(io);
+        TeachInspectionHeights(recipes.Current);
         var station = new InspectionStation(work, motion, new(motion), new NgCarrierConveyor(io, new(), units),
             settings, new() { WaitingPosition = new(), CarrierPickupPosition = new() }, io, units,
-            camera, new VirtualLightController(), new() { StabilizationDelayMilliseconds = 0 }, recipes);
+            camera, new VirtualLightController(), new() { StabilizationDelayMilliseconds = 0 }, recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true),
@@ -71,7 +72,10 @@ public sealed class InspectionTests
         Assert.Equal(AssemblyResult.Ng, assembly.PcbBarcodeResult);
         Assert.Equal(excludeDataMatrix, assembly.IsDataMatrixNgExcluded);
         Assert.False(Assert.Single(captures, capture => capture.BoltId is null).Success);
-        Assert.Equal(boltPresent, assembly.BoltPresenceResults[bolt.Id]);
+        var photo = Assert.Single(captures, capture => capture.BoltId == bolt.Id);
+        Assert.Null(photo.Success);
+        Assert.Null(photo.Region);
+        Assert.Equal(camera.SourceImage.Pixels, photo.Frame.Pixels);
         Assert.Equal(routeToNg ? AssemblyResult.Ng : AssemblyResult.Ok, assembly.Result);
         Assert.Equal(routeToNg, station.RouteToNg);
         Assert.Equal(routeToNg ? new ProductionCounts(0, 1) : new ProductionCounts(1, 0), recipes.Counts);
@@ -90,7 +94,7 @@ public sealed class InspectionTests
     public void CompletedInspectionRoutesDryRunAndMissingRequiredMeasurementsToNg(
         double? minimumTurns, double? maximumTurns, bool dryRun, bool routeToNg)
     {
-        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new InspectionGantryHardwareSettings()), new());
         io.Initialize();
         using var motion = new VirtualMotionService(new(), new(), hasZ: false);
         var station = CreateNgTransfer(io, motion);
@@ -116,7 +120,7 @@ public sealed class InspectionTests
     [Fact]
     public async Task StartupNotificationFailureClearsInspectionRun()
     {
-        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new InspectionGantryHardwareSettings()), new());
         using var motion = new VirtualMotionService(new(), new(), hasZ: false);
         var station = CreateNgTransfer(io, motion);
         var failure = new InvalidOperationException("Run-start notification failed.");
@@ -149,9 +153,10 @@ public sealed class InspectionTests
         motion.Initialize();
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
         var carrier = BackupPlateStation.CreateInspection(io);
+        TeachInspectionHeights(recipes.Current);
         var station = new InspectionStation(carrier, motion, new(motion), new NgCarrierConveyor(io, new(), units),
             settings, transfer, io, units,
-            new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes);
+            new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true),
@@ -178,7 +183,7 @@ public sealed class InspectionTests
     [Fact]
     public async Task InspectionProcessesOnePcbAtATimeAndRestartsAtItsBarcode()
     {
-        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new InspectionGantryHardwareSettings()), new());
         io.Initialize();
         var store = OpenMachineStore();
         var recipes = new RecipeManager(store, new());
@@ -202,6 +207,7 @@ public sealed class InspectionTests
         motion.Initialize();
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
         var work = BackupPlateStation.CreateInspection(io);
+        TeachInspectionHeights(recipes.Current);
         var station = new InspectionStation(
             work,
             motion,
@@ -214,7 +220,7 @@ public sealed class InspectionTests
             new VirtualCamera(() => motion.Position, () => []),
             new VirtualLightController(),
             new(),
-            recipes);
+            recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true),
@@ -222,9 +228,16 @@ public sealed class InspectionTests
             (InputIo.InspectionStopperDown, false), (InputIo.InspectionStopperUp, true),
             (InputIo.NgCarrierPickupUp, true), (InputIo.NgCarrierPickupDown, false),
             (InputIo.NgCarrierGripperOpen, true), (InputIo.NgCarrierGripperClosed, false));
+        var photos = new List<Guid>();
+        foreach (var slot in Enum.GetValues<HeatSinkSlot>())
+            work.GetAssembly(slot).InspectionCaptured += capture =>
+            {
+                if (capture.BoltId is { } id)
+                    photos.Add(id);
+            };
         var visited = new System.Collections.Generic.List<(HeatSinkSlot?, Guid?)>();
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        using var secondStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var secondStop = new CancellationTokenSource();
         var interrupt = true;
         station.Trace += message =>
         {
@@ -245,8 +258,8 @@ public sealed class InspectionTests
             (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTestSupport.BoltId(1)),
             (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTestSupport.BoltId(2)),
         }, visited);
-        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
-        Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
+        Assert.Single(photos, id => id == VirtualTestSupport.BoltId(1));
+        Assert.DoesNotContain(VirtualTestSupport.BoltId(2), photos);
         Assert.False(work.Completed);
         Assert.Null(station.ActivePcb);
         Assert.Null(station.ActiveBolt);
@@ -262,6 +275,7 @@ public sealed class InspectionTests
             command.ExecuteNonQuery();
             try
             {
+                secondStop.CancelAfter(TimeSpan.FromSeconds(8));
                 var error = await Assert.ThrowsAsync<SqliteException>(() => station.RunAsync(secondStop.Token));
                 Assert.Contains("count save failed", error.Message);
                 Assert.False(work.Completed);
@@ -277,13 +291,15 @@ public sealed class InspectionTests
             }
         }
         visited.Clear();
+        photos.Clear();
+        secondStop.CancelAfter(TimeSpan.FromSeconds(8));
         await station.RunAsync(secondStop.Token);
         Assert.Equal(new (HeatSinkSlot?, Guid?)[] {
             (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTestSupport.BoltId(1)),
             (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTestSupport.BoltId(2)),
         }, visited);
         Assert.True(work.Completed);
-        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
+        Assert.Single(photos, id => id == VirtualTestSupport.BoltId(2));
         Assert.True(work.LastCycleSeconds > 0);
         Assert.Equal(new ProductionCounts(0, 2), recipes.Counts);
         var cycleTime = work.LastCycleSeconds;
@@ -316,7 +332,7 @@ public sealed class InspectionTests
     [InlineData(false, true, true)]
     public async Task PcbPresenceChangeStopsInspectionWithoutRestarting(bool secondPcbArrives, bool betweenPoints, bool removeCarrier)
     {
-        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new InspectionGantryHardwareSettings()), new());
         io.Initialize();
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.Pcb.BoltPoints = [
@@ -340,9 +356,10 @@ public sealed class InspectionTests
         motion.Initialize();
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
         var carrier = BackupPlateStation.CreateInspection(io);
+        TeachInspectionHeights(recipes.Current);
         var station = new InspectionStation(carrier, motion, new(motion), new NgCarrierConveyor(io, new(), units),
             settings, new() { WaitingPosition = new(), CarrierPickupPosition = new() }, io, units,
-            new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes);
+            new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, !removeCarrier), (InputIo.InspectionHeatSink2Present, !secondPcbArrives),
@@ -373,14 +390,14 @@ public sealed class InspectionTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task EditingInspectionRegionWakesTeachingWaitWithoutSaving(bool barcode)
+    public async Task EditingInspectionTeachingWakesWaitWithoutSaving(bool barcode)
     {
-        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new InspectionGantryHardwareSettings()), new());
         io.Initialize();
         var store = OpenMachineStore();
         var recipes = new RecipeManager(store, new());
         recipes.Current.Name = "Teaching wait";
-        recipes.Current.Pcb.BoltPoints = [new() { Id = VirtualTestSupport.BoltId(1), X = 0, Y = 0 }];
+        recipes.Current.Pcb.BoltPoints = [new() { Id = VirtualTestSupport.BoltId(1), X = barcode ? 0 : null, Y = 0 }];
         recipes.Current.CarrierImages = [
             new() { Number = 1, IsBarcode = true, Center = new(), Region = barcode ? null : new(0, 0, 20, 20) },
             new() { Number = 2, BoltId = VirtualTestSupport.BoltId(1), Center = new(), Region = barcode ? new(0, 0, 20, 20) : null },
@@ -397,6 +414,7 @@ public sealed class InspectionTests
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
         var work = BackupPlateStation.CreateInspection(io);
         var conveyor = new NgCarrierConveyor(io, new(), units);
+        TeachInspectionHeights(recipes.Current);
         var station = new InspectionStation(
             work,
             motion,
@@ -409,7 +427,7 @@ public sealed class InspectionTests
             new VirtualCamera(() => motion.Position, () => []),
             new VirtualLightController(),
             new(),
-            recipes);
+            recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, false),
@@ -435,7 +453,10 @@ public sealed class InspectionTests
         try
         {
             await waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            recipes.Current.CarrierImages[barcode ? 0 : 1].Region = new(0, 0, 20, 20);
+            if (barcode)
+                recipes.Current.CarrierImages[0].Region = new(0, 0, 20, 20);
+            else
+                recipes.Current.Pcb.BoltPoints[0].X = 0;
             recipes.NotifyInspectionChanged();
             await resumed.Task.WaitAsync(TimeSpan.FromSeconds(2));
         }
@@ -464,7 +485,7 @@ public sealed class InspectionTests
                     ? (byte)(255 - image.Pixels[row * image.Stride + column])
                     : image.Pixels[row * image.Stride + column];
         var padded = new ImageFrame(image.Width, image.Height, stride, pixels);
-        var binary = BinaryRegionAnalyzer.Check(padded, new(180, 40, 80, 80), 128).Image;
+        var binary = ImageBinarizer.Binarize(padded, new(180, 40, 80, 80), 128);
         Assert.Equal((80, 80), (binary.Width, binary.Height));
         Assert.All(binary.Pixels, pixel => Assert.True(pixel is 0 or 255));
         Assert.Equal("PCB-000123", DataMatrixReader.Read(binary, new(0, 0, 80, 80), new())?.Text);
@@ -478,19 +499,18 @@ public sealed class InspectionTests
     }
 
     [Fact]
-    public void BinaryCheckerUsesInclusiveBrightnessThresholdAndBgrLuminance()
+    public void BinarizerUsesInclusiveBrightnessThresholdAndBgrLuminance()
     {
         var image = new ImageFrame(5, 1, 15,
             [127, 127, 127, 128, 128, 128, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
-        var result = BinaryRegionAnalyzer.Check(image, new(0, 0, 5, 1), 128);
+        var result = ImageBinarizer.Binarize(image, new(0, 0, 5, 1), 128);
 
-        Assert.Equal(0.4, result.BrightRatio);
-        Assert.Equal(new byte[] { 0, 0, 0, 255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0 }, result.Image.Pixels);
+        Assert.Equal(new byte[] { 0, 0, 0, 255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0 }, result.Pixels);
         Assert.Equal(127, image.Pixels[0]);
     }
 
     [Fact]
-    public void BinaryCheckerUsesOnlyDrawnRectangleAndIgnoresRowPadding()
+    public void BinarizerUsesOnlyDrawnRectangleAndIgnoresRowPadding()
     {
         // White surroundings and padding must not count toward this 2 x 3 ROI.
         var pixels = Enumerable.Repeat((byte)255, 14 * 5).ToArray();
@@ -501,15 +521,14 @@ public sealed class InspectionTests
                     pixels[y * 14 + x * 3 + channel] = y == 2 ? (byte)200 : (byte)20;
         var image = new ImageFrame(4, 5, 14, pixels);
 
-        var result = BinaryRegionAnalyzer.Check(image, region, 128);
+        var result = ImageBinarizer.Binarize(image, region, 128);
 
-        Assert.Equal((2, 3, 6), (result.Image.Width, result.Image.Height, result.Image.Stride));
-        Assert.Equal(1.0 / 3, result.BrightRatio);
-        Assert.Equal(6, result.Image.Pixels.Count(value => value == 255));
-        Assert.Throws<ArgumentOutOfRangeException>(() => BinaryRegionAnalyzer.Check(image, region with { X = 3 }, 128));
-        Assert.Throws<ArgumentOutOfRangeException>(() => BinaryRegionAnalyzer.Check(image, region, 256));
-        Assert.Throws<ArgumentException>(() => BinaryRegionAnalyzer.Check(image with { Stride = 11 }, region, 128));
-        Assert.Throws<ArgumentException>(() => BinaryRegionAnalyzer.Check(image with { Pixels = new byte[14] }, region, 128));
+        Assert.Equal((2, 3, 6), (result.Width, result.Height, result.Stride));
+        Assert.Equal(6, result.Pixels.Count(value => value == 255));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ImageBinarizer.Binarize(image, region with { X = 3 }, 128));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ImageBinarizer.Binarize(image, region, 256));
+        Assert.Throws<ArgumentException>(() => ImageBinarizer.Binarize(image with { Stride = 11 }, region, 128));
+        Assert.Throws<ArgumentException>(() => ImageBinarizer.Binarize(image with { Pixels = new byte[14] }, region, 128));
     }
 
     [Theory]
@@ -526,7 +545,7 @@ public sealed class InspectionTests
             settings.Motion,
             operations,
             hasZ: false);
-        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new InspectionGantryHardwareSettings()), new());
         io.Initialize();
         motion.Initialize();
         var recipe = new BoltInspectionRecipe();
@@ -544,6 +563,7 @@ public sealed class InspectionTests
             Current = { BoltInspection = recipe, CarrierImages = [fov] },
         };
         var work = BackupPlateStation.CreateInspection(io);
+        TeachInspectionHeights(recipes.Current);
         var inspector = new InspectionStation(
             work,
             motion,
@@ -559,7 +579,7 @@ public sealed class InspectionTests
                 () => [new(new() { X = 15, Y = 7 }, 4, 4, "PCB-000123")]),
             new VirtualLightController(),
             new LightingSettings(),
-            recipes);
+            recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
         Assert.True(await inspector.HomeHorizontalAsync());
         if (live)
             await inspector.StartLiveViewAsync();
@@ -582,24 +602,17 @@ public sealed class InspectionTests
         recipes.Current.Pcb.BoltPoints.Add(bolt);
         var taughtPosition = fov.Center!;
         fov.Center = null;
-        var capturedFov = await inspector.InspectAsync(bolt);
+        var capturedFov = await inspector.CaptureBoltAsync(bolt);
         Assert.True(VirtualTestSupport.IsAt(inspector.Motion.Feedback, taughtPosition)); // ROI pixels do not alter the taught camera XY.
-        Assert.Equal(fov.Region, capturedFov.Region);
+        Assert.Null(capturedFov.Region);
+        Assert.Null(capturedFov.Success);
         Assert.NotEmpty(capturedFov.Frame.Pixels);
-        Assert.NotNull(bolt.InspectionPosition);
-        Assert.True(inspector.HasRegion(bolt));
         fov.Region = new(310, 30, 60, 80);
-        Assert.NotNull(bolt.InspectionPosition);
-        Assert.False(inspector.HasRegion(bolt));
-        movements = 0;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.InspectAsync(bolt));
-        Assert.Equal(0, movements);
+        Assert.Null((await inspector.CaptureBoltAsync(bolt)).Region);
+        recipes.Current.CarrierImages.Remove(fov);
+        Assert.NotEmpty((await inspector.CaptureBoltAsync(bolt)).Frame.Pixels);
+        recipes.Current.CarrierImages.Add(fov);
         fov.Region = null;
-        Assert.NotNull(bolt.InspectionPosition);
-        Assert.False(inspector.HasRegion(bolt));
-        movements = 0;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.InspectAsync(bolt));
-        Assert.Equal(0, movements);
 
         fov.Center = taughtPosition;
         fov.IsBarcode = true;
@@ -635,7 +648,7 @@ public sealed class InspectionTests
     public async Task InspectionUsesCurrentCarrierSensorsAndPreservesOwnedResults()
     {
         var io = new VirtualIoService(
-            new NgCarrierTransferHardwareSettings().Outputs,
+            Outputs(new NgCarrierTransferHardwareSettings(), new InspectionGantryHardwareSettings()),
             new MachineOptions());
         var gantrySettings = new InspectionGantrySettings
         {
@@ -686,6 +699,7 @@ public sealed class InspectionTests
                 },
             ];
         var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), units);
+        TeachInspectionHeights(recipes.Current);
         var station = new InspectionStation(
             work,
             motion,
@@ -698,7 +712,7 @@ public sealed class InspectionTests
             camera,
             new VirtualLightController(),
             new LightingSettings(),
-            recipes);
+            recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
 
         io.Initialize();
         motion.Initialize();
@@ -723,26 +737,36 @@ public sealed class InspectionTests
         Assert.True(VirtualTestSupport.IsAt(station.Motion.Feedback, recipes.Current.GetInspectionPosition(station.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-2", barcodeResult.Barcode);
-        var boltResult = await station.InspectAsync(bolts[0]);
+        var boltResult = await station.CaptureBoltAsync(bolts[0]);
         Assert.True(VirtualTestSupport.IsAt(station.Motion.Feedback, bolts[0].InspectionPosition!));
         Assert.NotEmpty(boltResult.Frame.Pixels);
         Assert.Empty(work.Assemblies);
 
+        var photos = new System.Collections.Concurrent.ConcurrentDictionary<HeatSinkAssembly, System.Collections.Concurrent.ConcurrentBag<Guid>>();
+        work.AssemblyCreated += assembly =>
+        {
+            photos[assembly] = new();
+            assembly.InspectionCaptured += capture =>
+            {
+                if (capture.BoltId is { } id)
+                    photos[assembly].Add(id);
+            };
+        };
         using var firstStop = new CancellationTokenSource();
         var firstRun = station.RunAsync(firstStop.Token);
         Assert.True(
             await WaitUntilAsync(
-                () => work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults.Count == 1,
+                () => photos[work.GetAssembly(HeatSinkSlot.HeatSink1)].Count == 1,
                 TimeSpan.FromSeconds(2)));
         firstStop.Cancel();
         await firstRun;
 
         Assert.False(work.Completed);
-        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Single(photos[work.GetAssembly(HeatSinkSlot.HeatSink1)]);
 
         var firstBarcode = work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode;
         await station.RunAsync(firstStop.Token);
-        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Single(photos[work.GetAssembly(HeatSinkSlot.HeatSink1)]);
         Assert.Equal(firstBarcode, work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
 
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
@@ -750,9 +774,9 @@ public sealed class InspectionTests
         var run = station.RunAsync(cancellation.Token);
         Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
 
-        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Single(photos[work.GetAssembly(HeatSinkSlot.HeatSink1)]);
         Assert.Equal(firstBarcode, work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
-        Assert.Equal(2, work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Count);
+        Assert.Equal(2, photos[work.GetAssembly(HeatSinkSlot.HeatSink2)].Count);
         Assert.Equal(AssemblyResult.Ok, work.GetAssembly(HeatSinkSlot.HeatSink2).InspectionResult);
         VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         work.ClearJob();
@@ -761,11 +785,10 @@ public sealed class InspectionTests
 
         var heatSink1 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1);
         var heatSink2 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2);
-        Assert.Equal(AssemblyResult.Ng, heatSink1.InspectionResult);
-        Assert.True(heatSink1.BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
-        Assert.False(heatSink1.BoltPresenceResults[VirtualTestSupport.BoltId(2)]);
+        Assert.Equal(AssemblyResult.Ok, heatSink1.InspectionResult);
+        Assert.Equal(2, photos[heatSink1].Count);
         Assert.Equal(AssemblyResult.Ok, heatSink2.InspectionResult);
-        Assert.All(heatSink2.BoltPresenceResults.Values, Assert.True);
+        Assert.Equal(2, photos[heatSink2].Count);
 
         VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         work.ClearJob();
@@ -787,7 +810,7 @@ public sealed class InspectionTests
 
         var interruptedAssembly = Assert.Single(interruptedAssemblies);
         Assert.Null(interruptedAssembly.PcbBarcode);
-        Assert.Empty(interruptedAssembly.BoltPresenceResults);
+        Assert.Empty(photos[interruptedAssembly]);
         Assert.Empty(work.Assemblies);
         Assert.False(work.Completed);
 
@@ -811,7 +834,7 @@ public sealed class InspectionTests
             camera,
             new VirtualLightController(),
             new LightingSettings(),
-            recipes);
+            recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);

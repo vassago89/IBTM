@@ -13,6 +13,12 @@ public enum InspectionStationState
     [Description("Inspecting")]
     InspectingPoint,
 
+    [Description("Finding fiducials")]
+    FindingFiducials,
+
+    [Description("Measuring height")]
+    MeasuringHeight,
+
     [Description("Returning / completing inspection")]
     CompletingInspection,
 
@@ -45,4 +51,12 @@ public enum InspectionStationState
 
     [Description("Waiting for NG Shuttle Down")]
     WaitingForShuttleDown,
+}
+
+internal enum InspectionPointKind
+{
+    Photo,
+    Fiducials,
+    ReferencePlane,
+    Height,
 }

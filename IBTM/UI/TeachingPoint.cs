@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 using IBTM.Storage;
 
 namespace IBTM.UI;
@@ -12,6 +13,7 @@ public class TeachingPoint : ObservableObject
     private readonly MachineSettings _settings;
     private readonly RecipeManager _recipes;
     private readonly TeachingPosition _definition;
+    private readonly HeatSinkSlot _pcb;
 
     public double FasteningZOffset
     {
@@ -46,11 +48,19 @@ public class TeachingPoint : ObservableObject
         _definition = definition;
         _settings = settings;
         _recipes = recipes;
+        _pcb = pcb;
         Inspection = definition.Target is TeachingTarget.DataMatrix or TeachingTarget.BoltReference
             ? new(recipes.Current, pcb, definition.Bolt) : null;
     }
 
     public InspectionPoint? Inspection { get; }
+
+    public FiducialMark? Fiducial => _definition.Target switch
+    {
+        TeachingTarget.Fiducial1 => _recipes.Current.BoltInspection.GetFiducials(_pcb).First,
+        TeachingTarget.Fiducial2 => _recipes.Current.BoltInspection.GetFiducials(_pcb).Second,
+        _ => null,
+    };
 
     public TeachingPosition Position => _definition with { HasPosition = Coordinates is not null };
 
@@ -79,12 +89,8 @@ public class TeachingPoint : ObservableObject
                         ? _settings.PcbSupply : _settings.BoltFastening;
                 case TeachingTarget.BoltPickup
                     or TeachingTarget.ShootingHeadPreliminaryZ
-                    or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
-                    or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
-                    or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin:
+                    or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ:
                     return _settings.BoltFastening;
-                case TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin:
-                    return _settings.CarrierReference;
                 case TeachingTarget.BackupTransferHeight or TeachingTarget.BackupFasteningHeight:
                     return _settings.BoltFasteningBackup;
                 case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
@@ -136,20 +142,16 @@ public class TeachingPoint : ObservableObject
                     return new() { Z = _settings.BoltFastening.ShootingHead.FasteningZ };
                 case TeachingTarget.PickupHeadFasteningZ:
                     return new() { Z = _settings.BoltFastening.PickupHead.FasteningZ };
-                case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
-                    return _settings.BoltFastening.ShootingHead.UpperLeftLocatingPin;
-                case TeachingTarget.ShootingHeadLowerRightLocatingPin:
-                    return _settings.BoltFastening.ShootingHead.LowerRightLocatingPin;
-                case TeachingTarget.PickupHeadUpperLeftLocatingPin:
-                    return _settings.BoltFastening.PickupHead.UpperLeftLocatingPin;
-                case TeachingTarget.PickupHeadLowerRightLocatingPin:
-                    return _settings.BoltFastening.PickupHead.LowerRightLocatingPin;
-                case TeachingTarget.CarrierUpperLeftLocatingPin:
-                    return _settings.CarrierReference.UpperLeftLocatingPin;
-                case TeachingTarget.CarrierLowerRightLocatingPin:
-                    return _settings.CarrierReference.LowerRightLocatingPin;
                 case TeachingTarget.InspectionWaiting:
                     return _settings.NgCarrierTransfer.WaitingPosition;
+                case TeachingTarget.HeightReference1:
+                    return recipe.BoltInspection.GetHeightReference(_pcb).Point1;
+                case TeachingTarget.Fiducial1 or TeachingTarget.Fiducial2:
+                    return Fiducial!.CameraPosition;
+                case TeachingTarget.HeightReference2:
+                    return recipe.BoltInspection.GetHeightReference(_pcb).Point2;
+                case TeachingTarget.HeightReference3:
+                    return recipe.BoltInspection.GetHeightReference(_pcb).Point3;
                 case TeachingTarget.NgCarrierPickup:
                     return _settings.NgCarrierTransfer.CarrierPickupPosition;
                 case TeachingTarget.NgShuttlePlace:
@@ -229,10 +231,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.BackupTransferHeight or TeachingTarget.BackupFasteningHeight:
                     return TeachingPointGroup.Backup;
                 case TeachingTarget.SafeZ or TeachingTarget.ShootingHeadPreliminaryZ
-                    or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
-                    or TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin
-                    or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
-                    or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin:
+                    or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ:
                     return TeachingPointGroup.MachineReference;
                 default:
                     return TeachingPointGroup.Work;
@@ -336,26 +335,21 @@ public class TeachingPoint : ObservableObject
             case TeachingTarget.PickupHeadFasteningZ:
                 _settings.BoltFastening.PickupHead.FasteningZ = position.Z;
                 break;
-            case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
-                _settings.BoltFastening.ShootingHead.UpperLeftLocatingPin = position;
-                break;
-            case TeachingTarget.ShootingHeadLowerRightLocatingPin:
-                _settings.BoltFastening.ShootingHead.LowerRightLocatingPin = position;
-                break;
-            case TeachingTarget.PickupHeadUpperLeftLocatingPin:
-                _settings.BoltFastening.PickupHead.UpperLeftLocatingPin = position;
-                break;
-            case TeachingTarget.PickupHeadLowerRightLocatingPin:
-                _settings.BoltFastening.PickupHead.LowerRightLocatingPin = position;
-                break;
-            case TeachingTarget.CarrierUpperLeftLocatingPin:
-                _settings.CarrierReference.UpperLeftLocatingPin = position;
-                break;
-            case TeachingTarget.CarrierLowerRightLocatingPin:
-                _settings.CarrierReference.LowerRightLocatingPin = position;
-                break;
             case TeachingTarget.InspectionWaiting:
                 _settings.NgCarrierTransfer.WaitingPosition = position;
+                break;
+            case TeachingTarget.HeightReference1:
+                _recipes.Current.BoltInspection.GetHeightReference(_pcb).Point1 = position;
+                break;
+            case TeachingTarget.Fiducial1 or TeachingTarget.Fiducial2:
+                Fiducial!.CameraPosition = position;
+                Fiducial.Contour = [];
+                break;
+            case TeachingTarget.HeightReference2:
+                _recipes.Current.BoltInspection.GetHeightReference(_pcb).Point2 = position;
+                break;
+            case TeachingTarget.HeightReference3:
+                _recipes.Current.BoltInspection.GetHeightReference(_pcb).Point3 = position;
                 break;
             case TeachingTarget.NgCarrierPickup:
                 _settings.NgCarrierTransfer.CarrierPickupPosition = position;

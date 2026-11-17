@@ -193,9 +193,15 @@
                                 </Style.Triggers>
                             </Style>
                         </Border.Style>
-                        <Button Style="{StaticResource StartAreaTarget}" Command="{Binding SelectStartAreaCommand}"
-                            CommandParameter="{x:Static app:StartArea.Supply}"
-                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Supply}, Converter={StaticResource UiTextConverter}}"/>
+                        <Button Command="{Binding SelectStartAreaCommand}" CommandParameter="{x:Static app:StartArea.Supply}"
+                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Supply}, Converter={StaticResource UiTextConverter}}">
+                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource StartAreaTarget}">
+                                <Style.Triggers><DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Supply}">
+                                    <Setter Property="Background" Value="#305E9BC6"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></Button.Style>
+                        </Button>
                     </Border>
                     <Border Tag="{Binding Machine.StartChecks[Placement]}">
                         <Border.Style>
@@ -219,108 +225,94 @@
                                 </Style.Triggers>
                             </Style>
                         </Border.Style>
-                        <Button Style="{StaticResource StartAreaTarget}" Command="{Binding SelectStartAreaCommand}"
-                            CommandParameter="{x:Static app:StartArea.Placement}"
-                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Placement}, Converter={StaticResource UiTextConverter}}"/>
+                        <Button Command="{Binding SelectStartAreaCommand}" CommandParameter="{x:Static app:StartArea.Placement}"
+                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Placement}, Converter={StaticResource UiTextConverter}}">
+                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource StartAreaTarget}">
+                                <Style.Triggers><DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Placement}">
+                                    <Setter Property="Background" Value="#305E9BC6"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></Button.Style>
+                        </Button>
                     </Border>
                 </Canvas>
                 <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningLeft}">
-                    <Border Tag="{Binding Machine.StartChecks[PickupHead]}">
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource StartCheckOutline}">
-                                <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.HeadSize}"/>
-                                <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.HeadSize}"/>
-                                <Setter Property="RenderTransform">
-                                    <Setter.Value>
-                                        <TransformGroup>
-                                            <TranslateTransform X="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Y="{x:Static ui:MachineDiagramLayout.HeadTop}"/>
-                                            <TranslateTransform X="{Binding PickupHeadMapPosition.X, TargetNullValue=0, FallbackValue=0}" Y="{Binding PickupHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
-                                        </TransformGroup>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding FasteningPositionKnown}" Value="False">
-                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
-                                        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"/>
-                                        <Setter Property="BorderThickness" Value="2"/>
-                                        <Setter Property="RenderTransform">
-                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.PickupControllerRowTop}"/></Setter.Value>
-                                        </Setter>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding PickupHeadMapPosition}" Value="{x:Null}">
-                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
-                                        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"/>
-                                        <Setter Property="BorderThickness" Value="2"/>
-                                        <Setter Property="RenderTransform">
-                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.PickupControllerRowTop}"/></Setter.Value>
-                                        </Setter>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <Button Style="{StaticResource StartAreaTarget}" Command="{Binding SelectStartAreaCommand}"
-                            CommandParameter="{x:Static app:StartArea.PickupHead}"
-                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.PickupHead}, Converter={StaticResource UiTextConverter}}"/>
+                    <Border Tag="{Binding Machine.StartChecks[PickupHead]}"
+                        Width="{x:Static ui:MachineDiagramLayout.PlateWidth}"
+                        Height="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"
+                        BorderThickness="2" Style="{StaticResource StartCheckOutline}">
+                        <Border.RenderTransform>
+                            <TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}"
+                                Y="{x:Static ui:MachineDiagramLayout.PickupControllerRowTop}"/>
+                        </Border.RenderTransform>
+                        <Button Command="{Binding SelectStartAreaCommand}" CommandParameter="{x:Static app:StartArea.PickupHead}"
+                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.PickupHead}, Converter={StaticResource UiTextConverter}}">
+                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource StartAreaTarget}">
+                                <Style.Triggers><DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.PickupHead}">
+                                    <Setter Property="Background" Value="#305E9BC6"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></Button.Style>
+                        </Button>
                     </Border>
-                    <Border Tag="{Binding Machine.StartChecks[ShootingHead]}">
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource StartCheckOutline}">
-                                <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.HeadSize}"/>
-                                <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.HeadSize}"/>
-                                <Setter Property="RenderTransform">
-                                    <Setter.Value>
-                                        <TransformGroup>
-                                            <TranslateTransform X="{x:Static ui:MachineDiagramLayout.ShootingHeadLeft}" Y="{x:Static ui:MachineDiagramLayout.HeadTop}"/>
-                                            <TranslateTransform X="{Binding ShootingHeadMapPosition.X, TargetNullValue=0, FallbackValue=0}" Y="{Binding ShootingHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
-                                        </TransformGroup>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding FasteningPositionKnown}" Value="False">
-                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
-                                        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"/>
-                                        <Setter Property="BorderThickness" Value="2"/>
-                                        <Setter Property="RenderTransform">
-                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.ShootingControllerRowTop}"/></Setter.Value>
-                                        </Setter>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ShootingHeadMapPosition}" Value="{x:Null}">
-                                        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.PlateWidth}"/>
-                                        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"/>
-                                        <Setter Property="BorderThickness" Value="2"/>
-                                        <Setter Property="RenderTransform">
-                                            <Setter.Value><TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}" Y="{x:Static ui:MachineDiagramLayout.ShootingControllerRowTop}"/></Setter.Value>
-                                        </Setter>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <Button Style="{StaticResource StartAreaTarget}" Command="{Binding SelectStartAreaCommand}"
-                            CommandParameter="{x:Static app:StartArea.ShootingHead}"
-                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.ShootingHead}, Converter={StaticResource UiTextConverter}}"/>
+                    <Border Tag="{Binding Machine.StartChecks[ShootingHead]}"
+                        Width="{x:Static ui:MachineDiagramLayout.PlateWidth}"
+                        Height="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"
+                        BorderThickness="2" Style="{StaticResource StartCheckOutline}">
+                        <Border.RenderTransform>
+                            <TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}"
+                                Y="{x:Static ui:MachineDiagramLayout.ShootingControllerRowTop}"/>
+                        </Border.RenderTransform>
+                        <Button Command="{Binding SelectStartAreaCommand}" CommandParameter="{x:Static app:StartArea.ShootingHead}"
+                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.ShootingHead}, Converter={StaticResource UiTextConverter}}">
+                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource StartAreaTarget}">
+                                <Style.Triggers><DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.ShootingHead}">
+                                    <Setter Property="Background" Value="#305E9BC6"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></Button.Style>
+                        </Button>
                     </Border>
                 </Canvas>
                 <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.MainTop}">
                     <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.PlacementCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
                         Width="{x:Static ui:MachineDiagramLayout.CarrierWidth}" Height="{x:Static ui:MachineDiagramLayout.CarrierHeight}"
                         Tag="{Binding Machine.StartChecks[Station1]}" Style="{StaticResource StartCheckOutline}">
-                        <Button Style="{StaticResource StartAreaTarget}" Command="{Binding SelectStartAreaCommand}"
-                            CommandParameter="{x:Static app:StartArea.Station1}"
-                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Station1}, Converter={StaticResource UiTextConverter}}"/>
+                        <Button Command="{Binding SelectStartAreaCommand}" CommandParameter="{x:Static app:StartArea.Station1}"
+                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Station1}, Converter={StaticResource UiTextConverter}}">
+                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource StartAreaTarget}">
+                                <Style.Triggers><DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station1}">
+                                    <Setter Property="Background" Value="#305E9BC6"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></Button.Style>
+                        </Button>
                     </Border>
                     <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
                         Width="{x:Static ui:MachineDiagramLayout.CarrierWidth}" Height="{x:Static ui:MachineDiagramLayout.CarrierHeight}"
                         Tag="{Binding Machine.StartChecks[Station2]}" Style="{StaticResource StartCheckOutline}">
-                        <Button Style="{StaticResource StartAreaTarget}" Command="{Binding SelectStartAreaCommand}"
-                            CommandParameter="{x:Static app:StartArea.Station2}"
-                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Station2}, Converter={StaticResource UiTextConverter}}"/>
+                        <Button Command="{Binding SelectStartAreaCommand}" CommandParameter="{x:Static app:StartArea.Station2}"
+                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Station2}, Converter={StaticResource UiTextConverter}}">
+                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource StartAreaTarget}">
+                                <Style.Triggers><DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station2}">
+                                    <Setter Property="Background" Value="#305E9BC6"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></Button.Style>
+                        </Button>
                     </Border>
                     <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
                         Width="{x:Static ui:MachineDiagramLayout.CarrierWidth}" Height="{x:Static ui:MachineDiagramLayout.CarrierHeight}"
                         Tag="{Binding Machine.StartChecks[Station3]}" Style="{StaticResource StartCheckOutline}">
-                        <Button Style="{StaticResource StartAreaTarget}" Command="{Binding SelectStartAreaCommand}"
-                            CommandParameter="{x:Static app:StartArea.Station3}"
-                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Station3}, Converter={StaticResource UiTextConverter}}"/>
+                        <Button Command="{Binding SelectStartAreaCommand}" CommandParameter="{x:Static app:StartArea.Station3}"
+                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.Station3}, Converter={StaticResource UiTextConverter}}">
+                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource StartAreaTarget}">
+                                <Style.Triggers><DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.Station3}">
+                                    <Setter Property="Background" Value="#305E9BC6"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></Button.Style>
+                        </Button>
                     </Border>
                 </Canvas>
             </Canvas>

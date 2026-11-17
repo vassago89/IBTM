@@ -151,6 +151,7 @@ public partial class OperationViewModel : ObservableObject
             [StartArea.Station3] = [
                 new(signals.Outputs[OutputIo.InspectionBackupPlateUp], machine),
                 new(signals.Outputs[OutputIo.InspectionStopperUp], machine),
+                new(signals.Outputs[OutputIo.InspectionProbeDown], machine),
                 new(signals.Outputs[OutputIo.NgCarrierPickupDown], machine),
                 new(signals.Outputs[OutputIo.NgCarrierGripperClose], machine),
                 new(signals.Outputs[OutputIo.NgShuttleDown], machine),
@@ -280,14 +281,6 @@ public partial class OperationViewModel : ObservableObject
 
     public Point? PcbPlacementMapPosition => _map.GetPlacementPosition(Placement.Motion.Position);
 
-    public Point? ShootingHeadMapPosition => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Shooting);
-
-    public Point? PickupHeadMapPosition => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Pickup);
-
-    public Point? NgPickupMapPosition => _map.GetNgPickupPosition(Inspection.Motion.Position);
-
-    public Point? InspectionCameraMapPosition => _map.GetInspectionCameraPosition(Inspection.Motion.Position);
-
     public bool PcbPlacementHeatSink1Completed
     {
         get
@@ -346,69 +339,6 @@ public partial class OperationViewModel : ObservableObject
         {
             return InspectionActiveBolt is { } bolt
                 ? Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
-        }
-    }
-
-    public IReadOnlyList<BoltDiagramMarker> BoltTargets
-    {
-        get
-        {
-            if (!Units.BoltFastening || !_map.IsFasteningDefined)
-                return [];
-
-            var active = BoltFasteningActiveBolt;
-            var assemblies = Fastening.Station.Assemblies;
-            var targets = new List<BoltDiagramMarker>();
-            foreach (var bolt in Recipes.Current.Pcb.BoltPoints)
-            {
-                if (!Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)
-                    || _map.GetFasteningTargetPosition(bolt) is not { } position)
-                    continue;
-
-                var assembly = assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
-                var results = bolt.Head == FasteningHead.Shooting ? assembly?.ShootingBoltResults : assembly?.PickupBoltResults;
-                var state = BoltTargetState.Pending;
-                if (bolt.Id == active?.Id)
-                    state = BoltTargetState.Active;
-                else if (results is not null && results.TryGetValue(bolt.Id, out var result))
-                    state = result switch
-                    {
-                        { Source: BoltResultSource.DryRun } or { Success: false }
-                            or { TurnsResult: AssemblyResult.Ng } => BoltTargetState.Ng,
-                        { IsComplete: false } or { TurnsResult: AssemblyResult.Pending } => BoltTargetState.Pending,
-                        _ => BoltTargetState.Ok,
-                    };
-                targets.Add(new(Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
-            }
-            return targets;
-        }
-    }
-
-    public IReadOnlyList<BoltDiagramMarker> InspectionTargets
-    {
-        get
-        {
-            if (!Units.Inspection || !_map.Carrier.IsDefined)
-                return [];
-
-            var active = InspectionActiveBolt;
-            var assemblies = Inspection.Station.Assemblies;
-            var targets = new List<BoltDiagramMarker>();
-            foreach (var bolt in Recipes.Current.Pcb.BoltPoints)
-            {
-                if (!Inspection.Station.IsHeatSinkPresent(bolt.HeatSink)
-                    || _map.GetInspectionTargetPosition(bolt) is not { } position)
-                    continue;
-
-                var assembly = assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
-                var state = BoltTargetState.Pending;
-                if (bolt.Id == active?.Id)
-                    state = BoltTargetState.Active;
-                else if (assembly is not null && assembly.BoltPresenceResults.TryGetValue(bolt.Id, out var present))
-                    state = present ? BoltTargetState.Ok : BoltTargetState.Ng;
-                targets.Add(new(Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
-            }
-            return targets;
         }
     }
 
@@ -978,13 +908,6 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
             OnBoltFasteningChanged();
-
-        if (e.PropertyName == nameof(MotionStatus.Position))
-        {
-            OnPropertyChanged(nameof(FasteningPositionKnown));
-            OnPropertyChanged(nameof(ShootingHeadMapPosition));
-            OnPropertyChanged(nameof(PickupHeadMapPosition));
-        }
     }
 
     private void OnInspectionGantryMotionChanged(object? sender, PropertyChangedEventArgs e)
@@ -994,13 +917,6 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
             OnInspectionChanged();
-
-        if (e.PropertyName == nameof(MotionStatus.Position))
-        {
-            OnPropertyChanged(nameof(InspectionPositionKnown));
-            OnPropertyChanged(nameof(NgPickupMapPosition));
-            OnPropertyChanged(nameof(InspectionCameraMapPosition));
-        }
     }
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
@@ -1095,10 +1011,6 @@ public partial class OperationViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PcbSupplyMapPosition));
         OnPropertyChanged(nameof(PcbPlacementMapPosition));
-        OnPropertyChanged(nameof(ShootingHeadMapPosition));
-        OnPropertyChanged(nameof(PickupHeadMapPosition));
-        OnPropertyChanged(nameof(NgPickupMapPosition));
-        OnPropertyChanged(nameof(InspectionCameraMapPosition));
     }
 
     // Devices expose Changed events; notifying their property also refreshes nested XAML bindings.
@@ -1183,13 +1095,11 @@ public partial class OperationViewModel : ObservableObject
             return;
 
         OnPropertyChanged(nameof(FasteningState));
-        OnPropertyChanged(nameof(FasteningPositionKnown));
         OnPropertyChanged(nameof(Fastening));
         if (SelectedStartArea == StartArea.Station2)
             OnPropertyChanged(nameof(StartStation));
         OnPropertyChanged(nameof(BoltFasteningActiveBolt));
         OnPropertyChanged(nameof(BoltFasteningActiveOrdinal));
-        OnPropertyChanged(nameof(BoltTargets));
         OnPropertyChanged(nameof(FasteningStateVisible));
         OnPropertyChanged(nameof(BoltFasteningHeatSink1Result));
         OnPropertyChanged(nameof(BoltFasteningHeatSink2Result));
@@ -1214,14 +1124,12 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(nameof(StartStation));
 
         OnPropertyChanged(nameof(InspectionState));
-        OnPropertyChanged(nameof(InspectionPositionKnown));
         OnPropertyChanged(nameof(InspectionActiveBolt));
         OnPropertyChanged(nameof(InspectionActiveOrdinal));
         OnPropertyChanged(nameof(InspectionActivePcb));
         OnPropertyChanged(nameof(InspectionActiveBarcode));
         OnPropertyChanged(nameof(InspectionPcb1Barcode));
         OnPropertyChanged(nameof(InspectionPcb2Barcode));
-        OnPropertyChanged(nameof(InspectionTargets));
         OnPropertyChanged(nameof(InspectionHeatSink1Result));
         OnPropertyChanged(nameof(InspectionHeatSink2Result));
         OnPropertyChanged(nameof(InspectionDisplayState));
@@ -1307,24 +1215,6 @@ public partial class OperationViewModel : ObservableObject
         {
             return Placement.Motion.XyHomed && _map.IsPlacementDefined
                 && Placement.Motion.Position is { X: not null, Y: not null, Z: not null };
-        }
-    }
-
-    public bool FasteningPositionKnown
-    {
-        get
-        {
-            return Fastening.Motion.XyHomed && _map.IsFasteningDefined
-                && Fastening.Motion.Position is { X: not null, Y: not null, Z: not null };
-        }
-    }
-
-    public bool InspectionPositionKnown
-    {
-        get
-        {
-            return Inspection.Motion.XyHomed && _map.Carrier.IsDefined
-                && Inspection.Motion.Position is { X: not null, Y: not null };
         }
     }
 

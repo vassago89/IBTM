@@ -3,11 +3,9 @@ using IBTM.Core;
 
 namespace IBTM.Inspection;
 
-public sealed record BinaryRegionResult(ImageFrame Image, double BrightRatio);
-
-public static class BinaryRegionAnalyzer
+public static class ImageBinarizer
 {
-    public static BinaryRegionResult Check(ImageFrame image, PixelRegion region, int threshold)
+    public static ImageFrame Binarize(ImageFrame image, PixelRegion region, int threshold)
     {
         if (threshold < 0 || threshold > 255)
             throw new ArgumentOutOfRangeException(nameof(threshold), "Use a brightness threshold from 0 to 255.");
@@ -19,7 +17,6 @@ public static class BinaryRegionAnalyzer
 
         var stride = checked(region.Width * ImageFrame.ColorChannelCount);
         var pixels = new byte[checked(stride * region.Height)];
-        var brightPixels = 0;
         for (var y = 0; y < region.Height; y++)
         {
             for (var x = 0; x < region.Width; x++)
@@ -29,15 +26,11 @@ public static class BinaryRegionAnalyzer
                     + 587 * image.Pixels[source + ImageFrame.GreenChannel]
                     + 114 * image.Pixels[source + ImageFrame.BlueChannel] + 500) / 1000;
                 var bright = brightness >= threshold;
-                if (bright)
-                    brightPixels++;
                 var target = y * stride + x * ImageFrame.ColorChannelCount;
                 pixels[target] = pixels[target + 1] = pixels[target + 2] = bright ? (byte)255 : (byte)0;
             }
         }
 
-        return new(
-            new ImageFrame(region.Width, region.Height, stride, pixels),
-            (double)brightPixels / (region.Width * region.Height));
+        return new ImageFrame(region.Width, region.Height, stride, pixels);
     }
 }

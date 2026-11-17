@@ -19,6 +19,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.Inspection;
+using IBTM.Mlcp;
 using IBTM.Storage;
 using IBTM.UI;
 using Microsoft.Extensions.DependencyInjection;
@@ -235,7 +236,7 @@ public sealed class UiBindingTests
                 var axisList = ((Grid)motionWindow.Content).Children.OfType<ListBox>().Single();
                 var axisView = (Grid)axisList.ItemTemplate.LoadContent();
                 axisView.DataContext = axis;
-                var buttons = axisView.Children.OfType<StackPanel>().Single().Children.OfType<Button>().ToArray();
+                var buttons = axisView.Children.OfType<Grid>().Single().Children.OfType<Button>().ToArray();
                 await Dispatcher.Yield(DispatcherPriority.DataBind);
                 Assert.Same(axis.ToggleServoCommand, buttons[0].Command);
                 Assert.Same(axis.HomeCommand, buttons[1].Command);
@@ -255,7 +256,7 @@ public sealed class UiBindingTests
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => !jog.IsEnabled && !step.IsEnabled, TimeSpan.FromSeconds(2)));
             teaching.SelectedPoint = teaching.FilteredPoints.Single(
-                point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+                point => point.Position.Target == TeachingTarget.InspectionWaiting);
             var taughtPoint = teaching.SelectedPoint;
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => !teaching.IsStepXPlusAllowed,
@@ -564,9 +565,14 @@ public sealed class UiBindingTests
             ShowActivated = false, ShowInTaskbar = false, Opacity = 0 };
         var originalTimeout = settingsModel.Settings.Options.TimeoutMilliseconds;
         var originalLanguage = settingsModel.Settings.Options.Language;
+        var originalResolution = settingsModel.Settings.InspectionGantry.CameraResolution;
+        var originalFiducialExclusion = settingsModel.Settings.InspectionGantry.ExcludeFiducialFromNg;
         try
         {
             settingsWindow.Show();
+            var excludeFiducial = (CheckBox)settingsView.FindName("ExcludeFiducialFromNgInput");
+            excludeFiducial.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, !originalFiducialExclusion);
+            Assert.Equal(!originalFiducialExclusion, settingsModel.Settings.InspectionGantry.ExcludeFiducialFromNg);
             var timeout = (TextBox)settingsView.FindName("IoTimeoutInput");
             var save = (Button)settingsView.FindName("SaveSettingsButton");
             var language = (ComboBox)settingsView.FindName("LanguageSelector");
@@ -587,11 +593,26 @@ public sealed class UiBindingTests
             Assert.False(Validation.GetHasError(settingsView));
             Assert.True(save.IsEnabled);
             Assert.Equal(1250, settingsModel.Settings.Options.TimeoutMilliseconds);
+            var resolution = (TextBox)settingsView.FindName("CameraResolutionInput");
+            resolution.Text = "-0.01";
+            resolution.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.True(Validation.GetHasError(resolution));
+            Assert.False(save.IsEnabled);
+            Assert.Equal(originalResolution, settingsModel.Settings.InspectionGantry.CameraResolution);
+            resolution.Text = "0.0125";
+            resolution.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.False(Validation.GetHasError(settingsView));
+            Assert.True(save.IsEnabled);
+            Assert.Equal(0.0125, settingsModel.Settings.InspectionGantry.CameraResolution);
         }
         finally
         {
             settingsModel.Settings.Options.TimeoutMilliseconds = originalTimeout;
             settingsModel.Settings.Options.Language = originalLanguage;
+            settingsModel.Settings.InspectionGantry.CameraResolution = originalResolution;
+            settingsModel.Settings.InspectionGantry.ExcludeFiducialFromNg = originalFiducialExclusion;
             settingsWindow.Close();
         }
 
@@ -658,7 +679,7 @@ public sealed class UiBindingTests
             await review.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
             Assert.Equal(Visibility.Collapsed, rotateAndRelease.Visibility);
             Assert.Same(services.GetRequiredService<BoltFasteningStation>().Station, operation.StartStation);
-            Assert.Equal(UiText.Get(StartArea.Station2), ((TextBlock)review.FindName("SelectedAreaTitle")).Text);
+            Assert.Equal(StartArea.Station2, ((ComboBox)review.FindName("StartAreaSelector")).SelectedItem);
             var resumeConfirmation = (CheckBox)review.FindName("ConfirmFasteningResume");
             Assert.False(resumeConfirmation.IsChecked);
             operation.IsFasteningResumeConfirmed = true;
@@ -846,7 +867,7 @@ public sealed class UiBindingTests
         var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Test", HeatSinkSlot.HeatSink1,
             null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
             new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult> { [boltId] = result },
-            new Dictionary<Guid, bool>(), []);
+            []) { FiducialError = "Fiducial 2: not found", IsFiducialNgExcluded = true };
         var selection = new SelectionChangedEventArgs(System.Windows.Controls.Primitives.Selector.SelectionChangedEvent,
             Array.Empty<PcbRecord>(), new[] { record });
         try
@@ -867,11 +888,13 @@ public sealed class UiBindingTests
                 Assert.Same(record, operation.PcbDetails.Record);
                 detailsWindow.UpdateLayout();
                 await Dispatcher.Yield(DispatcherPriority.ContextIdle);
+                Assert.Equal(record.FiducialError, ((TextBlock)detailsWindow.FindName("FiducialErrorText")).Text);
                 var results = (DataGrid)detailsWindow.FindName("BoltResultsGrid");
                 var selected = Assert.Single(operation.PcbDetails.BoltResults);
                 Assert.Same(selected, results.SelectedItem);
                 Assert.Equal(selected.HeadLabel, Assert.IsType<TextBlock>(results.Columns[1].GetCellContent(selected)).Text);
-                var turnsCell = Assert.IsType<ContentPresenter>(results.Columns[5].GetCellContent(selected));
+                var turnsColumn = results.Columns.Single(column => Equals(column.Header, UiText.Get("Turns")));
+                var turnsCell = Assert.IsType<ContentPresenter>(turnsColumn.GetCellContent(selected));
                 var turns = Assert.IsType<StackPanel>(VisualTreeHelper.GetChild(turnsCell, 0));
                 Assert.Equal(new[] { "OK", "12.889" }, turns.Children.OfType<TextBlock>().Select(text => text.Text));
                 detailsWindow.Close();
@@ -893,7 +916,7 @@ public sealed class UiBindingTests
         var machineState = services.GetRequiredService<MachineState>();
         var maintenanceButtons = new[]
         {
-            navigation.OpenOutputsCommand, navigation.OpenMotionCommand, navigation.OpenAdcProtocolCommand,
+            navigation.OpenOutputsCommand, navigation.OpenMotionCommand, navigation.OpenProtocolCommand,
         }.Select(command =>
         {
             var button = new Button { Command = command };
@@ -906,7 +929,7 @@ public sealed class UiBindingTests
             (typeof(InputWindow), diagnostics.OpenInputs),
             (typeof(OutputWindow), diagnostics.OpenOutputs),
             (typeof(MotionDiagnosticsWindow), diagnostics.OpenMotion),
-            (typeof(AdcProtocolWindow), diagnostics.OpenAdcProtocol),
+            (typeof(ProtocolWindow), diagnostics.OpenProtocol),
             (typeof(LogWindow), diagnostics.OpenLogs),
         })
         {
@@ -1066,7 +1089,14 @@ public sealed class UiBindingTests
         var bus = new VirtualAdcBus();
         bus.Open("Virtual", 19200);
         var adcModel = new AdcProtocolViewModel(bus, new VirtualAdcBus(), services.GetRequiredService<IIoService>(), new HantasSettings(), machine, services.GetRequiredService<MachineState>());
-        var adc = new AdcProtocolWindow(adcModel);
+        var mlcpConnection = new MlcpTests.TestConnection();
+        using var mlcpController = new MlcpController(mlcpConnection);
+        var mlcpModel = new MlcpProtocolViewModel(mlcpController, machineState, services.GetRequiredService<MachineController>(),
+            services.GetRequiredService<ILogger<MlcpProtocolViewModel>>());
+        var adc = new ProtocolWindow(adcModel, mlcpModel)
+        {
+            ShowActivated = false, ShowInTaskbar = false, Opacity = 0,
+        };
         var frames = (TextBox)adc.FindName("FrameLogBox");
         var uiThread = Environment.CurrentManagedThreadId;
         var updates = new List<int>();
@@ -1108,6 +1138,60 @@ public sealed class UiBindingTests
                 () => bus.IsOpen && connect.IsEnabled,
                 TimeSpan.FromSeconds(2)));
             Assert.Equal("Virtual | 19200", adcModel.ConnectionStatus);
+
+            adc.Show();
+            var deviceTabs = (TabControl)adc.FindName("DeviceTabs");
+            deviceTabs.SelectedIndex = 1;
+            adc.UpdateLayout();
+            await Dispatcher.Yield(DispatcherPriority.ContextIdle);
+            var mlcpView = (MlcpProtocolView)adc.FindName("MlcpView");
+            Assert.Same(mlcpModel, mlcpView.DataContext);
+            var measure = (Button)mlcpView.FindName("MeasureButton");
+            var recall = (Button)mlcpView.FindName("ReadLastButton");
+            var cancel = (Button)mlcpView.FindName("CancelButton");
+            var mlcpFrames = (TextBox)mlcpView.FindName("FrameLogBox");
+            var measurements = (DataGrid)mlcpView.FindName("MeasurementsGrid");
+            Assert.Same(mlcpModel.MeasureCommand, measure.Command);
+            Assert.True(measure.IsEnabled);
+            var measuring = mlcpModel.MeasureCommand.ExecuteAsync(null);
+            Assert.Equal("START\r\n", await mlcpConnection.Commands.Reader.ReadAsync());
+            Assert.False(measure.IsEnabled);
+            Assert.False(recall.IsEnabled);
+            Assert.True(cancel.IsEnabled);
+            mlcpConnection.Reply(System.Text.Encoding.ASCII.GetBytes("\x05NG,02,+0.043,OK,-0.025,NG\x03@@\r\n"));
+            await measuring;
+            await Dispatcher.Yield(DispatcherPriority.ContextIdle);
+            Assert.False(mlcpModel.Result!.Success);
+            Assert.Equal(2, measurements.Items.Count);
+            Assert.Equal(0.043m, ((MlcpMeasurement)measurements.Items[0]).Value);
+            Assert.Equal("NG", ((TextBlock)mlcpView.FindName("ResultHeader")).Text);
+            Assert.Contains("START\\r\\n", mlcpFrames.Text);
+            Assert.Contains("<ENQ>NG,02", mlcpFrames.Text);
+            var verdictCell = Assert.IsType<ContentPresenter>(measurements.Columns[1].GetCellContent(measurements.Items[0]));
+            Assert.Equal("OK", Assert.IsType<TextBlock>(VisualTreeHelper.GetChild(verdictCell, 0)).Text);
+
+            // Bad numeric input must not send a command or leave the previous result visible.
+            mlcpModel.ResponseTimeoutText = "invalid";
+            await mlcpModel.ReadLastCommand.ExecuteAsync(null);
+            Assert.NotNull(mlcpModel.ErrorMessage);
+            Assert.Null(mlcpModel.Result);
+            Assert.False(mlcpConnection.Commands.Reader.TryRead(out _));
+            mlcpModel.ResponseTimeoutText = "3";
+            var reading = mlcpModel.ReadLastCommand.ExecuteAsync(null);
+            Assert.Equal("RECALL\r\n", await mlcpConnection.Commands.Reader.ReadAsync());
+            mlcpConnection.Reply(System.Text.Encoding.ASCII.GetBytes("\x05OK,01,+1.25\x03@@\r\n"));
+            await reading;
+            Assert.True(mlcpModel.Result!.Success);
+            Assert.Equal(1.25m, Assert.Single(mlcpModel.Result.Measurements).Value);
+
+            var waiting = mlcpModel.MeasureCommand.ExecuteAsync(null);
+            await mlcpConnection.Commands.Reader.ReadAsync();
+            adc.Close();
+            await waiting;
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => !adc.IsVisible, TimeSpan.FromSeconds(2)));
+            Assert.False(mlcpController.IsOpen);
+            Assert.True(mlcpConnection.IsDisposed);
+            Assert.Null(mlcpModel.Result);
         }
         finally
         {
@@ -1132,10 +1216,106 @@ public sealed class UiBindingTests
         page.SetBinding(
             UIElement.IsEnabledProperty,
             new Binding(nameof(MainViewModel.CurrentPageEnabled)) { Source = main });
-        page.Child = new TeachingView { DataContext = teaching };
+        var teachingView = new TeachingView { DataContext = teaching };
+        page.Child = teachingView;
         page.Measure(new Size(1600, 900));
         page.Arrange(new Rect(0, 0, 1600, 900));
         page.UpdateLayout();
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.Fiducial1);
+        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        var fiducialInput = (TextBox)teachingView.FindName("FiducialThresholdInput");
+        fiducialInput.Text = "155";
+        fiducialInput.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        Assert.Equal(155, teaching.SelectedPoint.Fiducial!.Threshold);
+        teaching.DrawFiducialRegionCommand.Execute(new Rect(75, 75, 50, 50));
+        Assert.Equal(new PixelRegion(75, 75, 50, 50), teaching.SelectedPoint.Fiducial.Region);
+        teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        Assert.Equal("127", fiducialInput.Text);
+        Assert.Null(teaching.FiducialRegion);
+        teaching.SelectedPcb = HeatSinkSlot.HeatSink1;
+        var fiducialCamera = services.GetRequiredService<VirtualCamera>();
+        var holeImage = FiducialTests.CircleImage((100, 100, 14));
+        for (var index = 0; index < holeImage.Pixels.Length; index++)
+            holeImage.Pixels[index] = (byte)(255 - holeImage.Pixels[index]);
+        fiducialCamera.SourceImage = holeImage;
+        var cameraSettings = services.GetRequiredService<MachineSettings>().InspectionGantry;
+        cameraSettings.CameraResolution = 0.1;
+        await services.GetRequiredService<InspectionStation>().HomeHorizontalAsync();
+        await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => teaching.IsFiducialCaptureAllowed, TimeSpan.FromSeconds(2)));
+        await teaching.RegisterFiducialCommand.ExecuteAsync(null);
+        Assert.Null(teaching.CameraError);
+        Assert.NotEmpty(teaching.SelectedPoint!.Fiducial!.Contour);
+        Assert.True(teaching.Inspection.IsLiveView);
+        Assert.NotNull(teaching.DetectedFiducial);
+        Assert.Same(teaching.FiducialImage, teaching.CameraImage);
+        var registeredName = teaching.Recipes.Current.Name;
+        var teachingStore = services.GetRequiredService<MachineStore>();
+        Assert.Equal(teaching.SelectedPoint.Fiducial.Contour,
+            teachingStore.LoadRecipe(registeredName).BoltInspection.Fiducials1.First.Contour);
+        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        var teachingCameraView = (InspectionImageView)teachingView.FindName("TeachingCameraView");
+        Assert.Same(teaching.DetectedFiducial, teachingCameraView.DetectedFiducial);
+        Assert.False(teachingCameraView.CenterRegion);
+        teaching.LiveImage = InspectionPreviewViewModel.CreateBitmap(FiducialTests.CircleImage((110, 95, 14)));
+        Assert.Same(teaching.FiducialImage, teaching.CameraImage);
+        teaching.ShowLiveImageCommand.Execute(null);
+        Assert.Null(teaching.DetectedFiducial);
+        Assert.Same(teaching.LiveImage, teaching.CameraImage);
+        await teaching.FindFiducialCommand.ExecuteAsync(null);
+        Assert.Null(teaching.CameraError);
+        Assert.Contains("X ", teaching.FiducialMessage);
+        Assert.True(teaching.Inspection.IsLiveView);
+        fiducialCamera.SourceImage = FiducialTests.CircleImage();
+        await teaching.FindFiducialCommand.ExecuteAsync(null);
+        Assert.NotNull(teaching.CameraError);
+        Assert.Null(teaching.DetectedFiducial);
+        fiducialCamera.SourceImage = holeImage;
+        teaching.RecipeEditor.Name = "";
+        await teaching.RegisterFiducialCommand.ExecuteAsync(null);
+        Assert.NotNull(teaching.SaveError);
+        Assert.Equal(UiText.Get("Contour registered; save the recipe"), teaching.FiducialMessage);
+        teaching.RecipeEditor.Name = registeredName;
+        await teaching.SaveCommand.ExecuteAsync(null);
+        Assert.Null(teaching.SaveError);
+        Assert.Equal(UiText.Get("Recipe saved"), teaching.FiducialMessage);
+        await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+        fiducialCamera.SourceImage = null;
+        var feedInputs = new[]
+        {
+            (Name: "ShootingIpmFeedDistanceInput", Value: "2.25", Default: "0"),
+            (Name: "ShootingIpmFeedSecondsInput", Value: "0.5", Default: "1"),
+            (Name: "PickupIpmFeedDistanceInput", Value: "4.5", Default: "0"),
+            (Name: "PickupIpmFeedSecondsInput", Value: "0.8", Default: "1"),
+            (Name: "ShootingPcbFeedDistanceInput", Value: "3.75", Default: "0"),
+            (Name: "ShootingPcbFeedSecondsInput", Value: "1.2", Default: "1"),
+        };
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        foreach (var feedInput in feedInputs)
+        {
+            var text = (TextBox)teachingView.FindName(feedInput.Name);
+            Assert.True(text.IsEnabled);
+            text.Text = feedInput.Value;
+            text.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+            Assert.False(Validation.GetHasError(text));
+        }
+        var feedRecipeName = teaching.Recipes.Current.Name;
+        await teaching.Recipes.SaveAsync(feedRecipeName);
+        await teaching.Recipes.NewAsync();
+        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        foreach (var feedInput in feedInputs)
+        {
+            var text = (TextBox)teachingView.FindName(feedInput.Name);
+            Assert.Equal(feedInput.Default, text.Text);
+            Assert.True(text.IsEnabled);
+        }
+        await teaching.Recipes.LoadAsync(feedRecipeName);
+        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        foreach (var feedInput in feedInputs)
+            Assert.Equal(feedInput.Value, ((TextBox)teachingView.FindName(feedInput.Name)).Text);
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         var preview = new Image();
         preview.SetBinding(
             Image.SourceProperty,
@@ -1256,9 +1436,6 @@ public sealed class UiBindingTests
             Assert.True(light.IsOn);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
 
-            var reference = services.GetRequiredService<CarrierReferenceSettings>();
-            reference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
-            reference.LowerRightLocatingPin = new() { X = 1, Y = 1 };
             await services.GetRequiredService<InspectionStation>().HomeHorizontalAsync();
             teaching.RecipeEditor.Name = "ThreadingScan";
             await teaching.AddBoltPointCommand.ExecuteAsync(null);
@@ -1291,7 +1468,10 @@ public sealed class UiBindingTests
             releaseStop.Set();
             await scan.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Null(teaching.CameraError);
-            Assert.True(liveButton.IsEnabled);
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                () => liveButton.IsEnabled, TimeSpan.FromSeconds(2)),
+                $"Live allowed={teaching.IsToggleLiveViewAllowed}; manual={state.ManualMode}; "
+                + $"unit={teaching.SelectedTeachingUnit}; capture={teaching.TeachCurrentPositionCommand.IsRunning}");
 
             // A committed record stays with its original point even if selection changes during notification.
             light.BeforeOn = null;

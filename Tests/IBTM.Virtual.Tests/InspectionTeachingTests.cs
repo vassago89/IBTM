@@ -103,7 +103,7 @@ public sealed class InspectionTeachingTests
         var recipe = store.LoadRecipe("Inspection");
         var bolt = recipe.Pcb.BoltPoints[0];
         bolt.Name = "Connector bolt";
-        bolt.BrightnessThreshold = 91;
+        bolt.MinimumTurns = 91;
         recipe.CarrierImages[1].BoltId = null;
         store.SaveRecipe(recipe);
         var recipes = new RecipeManager(store, new());
@@ -122,7 +122,7 @@ public sealed class InspectionTeachingTests
         Assert.Equal(teaching.PositionLabel, editor.SelectedPoint.PositionLabel);
         Assert.Equal((10d, 20d), (editor.SelectedPoint.Position!.X, editor.SelectedPoint.Position.Y));
         Assert.Equal("Connector bolt", editor.SelectedPoint.Name);
-        Assert.Equal(91, editor.Preview.BrightnessThreshold);
+        Assert.Equal(91, editor.SelectedPoint!.Bolt!.MinimumTurns);
         Assert.False(editor.Preview.HasImage);
         Assert.False(editor.IsInspectAllowed);
         Assert.False(editor.IsDrawRegionAllowed);
@@ -130,10 +130,10 @@ public sealed class InspectionTeachingTests
         Assert.False(string.IsNullOrWhiteSpace(editor.Message));
         await editor.InspectCommand.ExecuteAsync(null);
         Assert.Null(editor.Preview.Result);
-        editor.Preview.BrightnessThreshold = 173;
+        editor.SelectedPoint!.Bolt!.MinimumTurns = 173;
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
-        Assert.Equal(173, store.LoadRecipe("Inspection").Pcb.BoltPoints[0].BrightnessThreshold);
+        Assert.Equal(173, store.LoadRecipe("Inspection").Pcb.BoltPoints[0].MinimumTurns);
 
         var tiles = recipes.Current.CarrierImages.ToList();
         tiles.Add(new() { Number = 3, BoltId = bolt.Id, Region = new(2, 2, 10, 10) });
@@ -145,9 +145,9 @@ public sealed class InspectionTeachingTests
         Assert.Equal(teaching.PositionLabel, editor.SelectedPoint.PositionLabel);
         Assert.Equal(InspectionPreviewViewModel.CreateFrame(teaching.Inspection!.FindImage(loadedImages)!.Image!).Pixels,
             InspectionPreviewViewModel.CreateFrame(editor.Preview.Image!).Pixels);
-        Assert.NotNull(editor.Preview.Overlay);
-        Assert.True(editor.IsInspectAllowed);
-        Assert.True(editor.IsDrawRegionAllowed);
+        Assert.Null(editor.Preview.Overlay);
+        Assert.False(editor.IsInspectAllowed);
+        Assert.False(editor.IsDrawRegionAllowed);
         Assert.Null(store.LoadRecipe("Inspection").CarrierImages.Single(tile => tile.Number == 2).BoltId);
     }
 
@@ -161,13 +161,13 @@ public sealed class InspectionTeachingTests
         var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         var removedId = editor.Preview.Recipe.Pcb.BoltPoints[0].Id;
-        editor.Preview.Recipe.Pcb.BoltPoints[0].BrightnessThreshold = 91;
+        editor.Preview.Recipe.Pcb.BoltPoints[0].MinimumTurns = 91;
         editor.Preview.Recipe.CarrierImages[1].Region = new(2, 2, 10, 10);
         editor.Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 73;
 
         recipes.Current.Pcb.BoltPoints.Clear();
         recipes.Current.CarrierImages.RemoveAll(tile => !tile.IsBarcode);
-        var replacement = new BoltPoint { X = 100, Y = 200, BrightnessThreshold = 180 };
+        var replacement = new BoltPoint { X = 100, Y = 200, MinimumTurns = 180 };
         recipes.Current.Pcb.BoltPoints.Add(replacement);
         var tile = new CarrierImageTile { Number = 2, BoltId = replacement.Id };
         await recipes.SaveAsync("Inspection", [recipes.Current.CarrierImages[0], tile], [new(1, png), new(2, png)]);
@@ -175,21 +175,21 @@ public sealed class InspectionTeachingTests
         // Saving before refreshing the point list must leave the replacement untouched.
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
-        Assert.Equal(180, recipes.Current.Pcb.BoltPoints[0].BrightnessThreshold);
+        Assert.Equal(180, recipes.Current.Pcb.BoltPoints[0].MinimumTurns);
         Assert.Null(recipes.Current.CarrierImages[1].Region);
 
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
         Assert.NotEqual(removedId, editor.Preview.Recipe.Pcb.BoltPoints[0].Id);
         Assert.Equal(replacement.Id, editor.Preview.Recipe.Pcb.BoltPoints[0].Id);
-        Assert.Equal(180, editor.Preview.Recipe.Pcb.BoltPoints[0].BrightnessThreshold);
+        Assert.Equal(180, editor.Preview.Recipe.Pcb.BoltPoints[0].MinimumTurns);
         Assert.Null(editor.Preview.Recipe.CarrierImages[1].Region);
         Assert.Equal(73, editor.Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum);
 
         await editor.SaveCommand.ExecuteAsync(null);
         var saved = store.LoadRecipe("Inspection");
         Assert.Equal(replacement.Id, saved.Pcb.BoltPoints[0].Id);
-        Assert.Equal(180, saved.Pcb.BoltPoints[0].BrightnessThreshold);
+        Assert.Equal(180, saved.Pcb.BoltPoints[0].MinimumTurns);
         Assert.Null(saved.CarrierImages[1].Region);
     }
 
@@ -336,9 +336,9 @@ public sealed class InspectionTeachingTests
         recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 51;
         recipe.BoltInspection.DataMatrix2.ThresholdMinimum = 180;
         recipe.BoltInspection.DataMatrix2.TryInverted = false;
-        recipe.Pcb.BoltPoints[0].BrightnessThreshold = 91;
-        recipe.Pcb.BoltPoints[0].MinimumBrightRatio = 0.25;
-        recipe.Pcb.BoltPoints.Add(new() { Id = VirtualTestSupport.BoltId(2), BrightnessThreshold = 172, MinimumBrightRatio = 0.75 });
+        recipe.Pcb.BoltPoints[0].MinimumTurns = 9.1;
+        recipe.Pcb.BoltPoints[0].MaximumTurns = 25;
+        recipe.Pcb.BoltPoints.Add(new() { Id = VirtualTestSupport.BoltId(2), MinimumTurns = 17.2, MaximumTurns = 75 });
         recipe.CarrierImages.Add(new() { Number = 3, BoltId = VirtualTestSupport.BoltId(2), Region = new(2, 2, 10, 10) });
         recipe.CarrierImages.Add(new() { Number = 4, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(2, 2, 10, 10) });
         store.SaveRecipe(recipe, images: [new(1, png), new(2, png), new(3, png), new(4, png)]);
@@ -354,13 +354,13 @@ public sealed class InspectionTeachingTests
             list.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(editor.Points)));
             list.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedItemProperty,
                 new Binding(nameof(editor.SelectedPoint)) { BindingGroupName = null });
-            var threshold = new TextBox();
-            threshold.SetBinding(TextBox.TextProperty, new Binding("Preview.BrightnessThreshold")
+            var minimumTurns = new TextBox();
+            minimumTurns.SetBinding(TextBox.TextProperty, new Binding("SelectedPoint.Bolt.MinimumTurns")
             {
                 BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
             });
-            var minimum = new TextBox();
-            minimum.SetBinding(TextBox.TextProperty, new Binding("Preview.MinimumBrightPercent")
+            var maximumTurns = new TextBox();
+            maximumTurns.SetBinding(TextBox.TextProperty, new Binding("SelectedPoint.Bolt.MaximumTurns")
             {
                 BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
             });
@@ -373,8 +373,8 @@ public sealed class InspectionTeachingTests
             inverted.SetBinding(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
                 new Binding("DataMatrix.TryInverted") { BindingGroupName = null });
             panel.Children.Add(list);
-            panel.Children.Add(threshold);
-            panel.Children.Add(minimum);
+            panel.Children.Add(minimumTurns);
+            panel.Children.Add(maximumTurns);
             panel.Children.Add(matrixThreshold);
             panel.Children.Add(inverted);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -391,15 +391,15 @@ public sealed class InspectionTeachingTests
             list.SelectedItem = editor.Points.Single(point => point.Bolt?.Id == VirtualTestSupport.BoltId(1));
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             Assert.Equal(VirtualTestSupport.BoltId(1), editor.SelectedPoint!.Bolt!.Id);
-            Assert.Equal("91", threshold.Text);
-            Assert.Equal("25", minimum.Text);
-            threshold.Text = "103";
+            Assert.Equal("9.1", minimumTurns.Text);
+            Assert.Equal("25", maximumTurns.Text);
+            minimumTurns.Text = "10.3";
             list.SelectedItem = editor.Points.Single(point => point.Bolt?.Id == VirtualTestSupport.BoltId(2));
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             Assert.Equal(VirtualTestSupport.BoltId(2), editor.SelectedPoint!.Bolt!.Id);
-            Assert.Equal("172", threshold.Text);
-            Assert.Equal("75", minimum.Text);
-            Assert.Equal(103, editor.Preview.Recipe.Pcb.BoltPoints[0].BrightnessThreshold);
+            Assert.Equal("17.2", minimumTurns.Text);
+            Assert.Equal("75", maximumTurns.Text);
+            Assert.Equal(10.3, editor.Preview.Recipe.Pcb.BoltPoints[0].MinimumTurns);
             GC.KeepAlive(root);
         });
     }
@@ -506,8 +506,6 @@ public sealed class InspectionTeachingTests
     public async Task BinaryPreviewFollowsSelectedPointThresholdAndRoi()
     {
         var recipe = new Recipe();
-        var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1), BrightnessThreshold = 128 };
-        recipe.Pcb.BoltPoints.Add(bolt);
         recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 128;
         var pixels = Enumerable.Repeat((byte)90, 20 * 20 * 3).ToArray();
         var frame = new ImageFrame(20, 20, 60, pixels);
@@ -525,16 +523,10 @@ public sealed class InspectionTeachingTests
         Assert.Same(original, preview.Image);
         preview.SetSavedImage(original, new(1, 1, 6, 8));
         Assert.Equal((6, 8), (preview.Overlay!.PixelWidth, preview.Overlay.PixelHeight));
-        preview.Clear(bolt: bolt);
-        preview.SetSavedImage(original, new(2, 3, 10, 12));
-        Assert.All(InspectionPreviewViewModel.CreateFrame(preview.Overlay!).Pixels, pixel => Assert.Equal(0, pixel));
-        preview.BrightnessThreshold = 80;
-        Assert.All(InspectionPreviewViewModel.CreateFrame(preview.Overlay!).Pixels, pixel => Assert.Equal(255, pixel));
-        preview.MinimumBrightPercent = 42.5;
-        Assert.Equal(0.425, bolt.MinimumBrightRatio);
-        Assert.Throws<ArgumentOutOfRangeException>(() => preview.MinimumBrightPercent = 101);
-        Assert.Throws<ArgumentOutOfRangeException>(() => preview.MinimumBrightPercent = double.NaN);
-        Assert.Equal(0.425, bolt.MinimumBrightRatio);
+        preview.Clear();
+        preview.SetSavedImage(original, null);
+        Assert.Null(preview.Overlay);
+        Assert.Null(preview.Result);
         Assert.Same(original, preview.Image);
         Assert.Equal(pixels, InspectionPreviewViewModel.CreateFrame(preview.Image!).Pixels);
     }
@@ -558,13 +550,10 @@ public sealed class InspectionTeachingTests
         editor.DataMatrix.ThresholdStep = 5;
         editor.DataMatrix.DilationRadius = 2;
         editor.SelectedPoint = editor.Points.Single(point => !point.IsDataMatrix);
-        editor.Preview.BrightnessThreshold = 214;
-        editor.Preview.MinimumBrightPercent = 40;
         editor.SelectedPoint.Bolt!.MinimumTurns = 12.5;
         editor.SelectedPoint.Bolt.MaximumTurns = 15.75;
         Assert.Equal(12.5, recipes.Current.Pcb.BoltPoints[0].MinimumTurns);
         Assert.Equal(15.75, recipes.Current.Pcb.BoltPoints[0].MaximumTurns);
-        Assert.Equal(214, recipes.Current.Pcb.BoltPoints[0].BrightnessThreshold);
         Assert.Null(recipes.Current.Pcb.BoltPoints[0].LightLevel);
         Assert.Equal(255, recipes.Current.BoltInspection.LightLevel);
         Assert.False(recipes.Current.BoltInspection.DataMatrix1.TryInverted);
@@ -607,8 +596,6 @@ public sealed class InspectionTeachingTests
             Assert.Equal(2, recipe.BoltInspection.DataMatrix1.DilationRadius);
             Assert.Equal(0, recipe.BoltInspection.DataMatrix2.ThresholdMinimum);
             Assert.Equal(87, recipe.Pcb.BoltPoints[0].LightLevel);
-            Assert.Equal(214, recipe.Pcb.BoltPoints[0].BrightnessThreshold);
-            Assert.Equal(0.4, recipe.Pcb.BoltPoints[0].MinimumBrightRatio);
             Assert.Equal(12.5, recipe.Pcb.BoltPoints[0].MinimumTurns);
             Assert.Equal(18.75, recipe.Pcb.BoltPoints[0].MaximumTurns);
         }
@@ -648,7 +635,7 @@ public sealed class InspectionTeachingTests
     }
 
     [Fact]
-    public async Task SavedProductionImagesCanBeReinspectedWithoutChangingRecordedResults()
+    public async Task SavedBoltPhotosCanBeViewedWithoutChangingRecordedResults()
     {
         var store = VirtualTestSupport.OpenMachineStore();
         var png = await SaveRecipeAsync(store);
@@ -658,8 +645,8 @@ public sealed class InspectionTeachingTests
         var databaseFile = Path.Combine(directory, "PCB-2026-09.db");
         var record = new PcbRecord(7, DateTimeOffset.Now, DateTimeOffset.Now, "INSPECTION", HeatSinkSlot.HeatSink1,
             "ABC", AssemblyResult.Ok, AssemblyResult.Ok, AssemblyResult.Ng, new Dictionary<Guid, BoltResult>(),
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool> { [VirtualTestSupport.BoltId(1)] = false }, [VirtualTestSupport.BoltId(1)]);
-        var image = new PcbInspectionImage(VirtualTestSupport.BoltId(1), DateTimeOffset.Now, new(2, 2, 10, 10), false, null, 0, 0.5, png);
+            new Dictionary<Guid, BoltResult>(), [VirtualTestSupport.BoltId(1)]);
+        var image = new PcbInspectionImage(VirtualTestSupport.BoltId(1), DateTimeOffset.Now, null, null, null, png);
         store.SavePcb(databaseFile, record);
         store.SavePcbImage(databaseFile, record.Number, image);
         var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new() { Directory = directory },
@@ -673,7 +660,7 @@ public sealed class InspectionTeachingTests
         Assert.NotNull(editor.HistoryImageTarget);
         Assert.Equal(VirtualTestSupport.BoltId(1), editor.SelectedPoint!.Bolt?.Id);
         Assert.Contains("PCB 7", editor.ImageSource);
-        Assert.Contains("NG", editor.OriginalResult);
+        Assert.Null(editor.OriginalResult);
         var selectedImage = editor.SelectedHistoryImage!;
         var imageLoad = editor.LoadRecordCommand.ExecutionTask;
         editor.Activate();
@@ -687,18 +674,17 @@ public sealed class InspectionTeachingTests
         Assert.Same(selectedImage.Record, editor.SelectedHistoryImage!.Record);
         Assert.Same(selectedImage.Image, editor.Preview.Image);
         Assert.Same(imageLoad, editor.LoadRecordCommand.ExecutionTask);
-        editor.Preview.BrightnessThreshold = 0;
-        editor.Preview.MinimumBrightPercent = 0;
+        Assert.False(editor.IsInspectAllowed);
+        Assert.False(editor.IsDrawRegionAllowed);
         await editor.InspectCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
-        Assert.StartsWith("OK", editor.Preview.Result);
+        Assert.Null(editor.Preview.Result);
         await editor.SaveCommand.ExecuteAsync(null);
 
         var saved = Assert.Single(store.LoadPcbs(directory));
         Assert.Equal(AssemblyResult.Ng, saved.InspectionResult);
-        Assert.False(saved.BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
         var savedImage = Assert.Single(store.LoadPcbImages(saved));
-        Assert.False(savedImage.Success);
+        Assert.Null(savedImage.Success);
         Assert.Equal(image.Region, savedImage.Region);
         Assert.Equal(png, savedImage.Png);
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 2));
@@ -733,8 +719,6 @@ public sealed class InspectionTeachingTests
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         editor.SelectedPoint = editor.Points.Single(point => point.Bolt?.Id == VirtualTestSupport.BoltId(1));
         editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
-        editor.Preview.BrightnessThreshold = 173;
-        editor.Preview.MinimumBrightPercent = 42;
         editor.SelectedPoint.Bolt!.MinimumTurns = 8.25;
         editor.Preview.Recipe.BoltInspection.DataMatrix1.TryInverted = false;
         var previousImage = editor.Preview.Image;
@@ -747,9 +731,7 @@ public sealed class InspectionTeachingTests
         Assert.Equal(VirtualTestSupport.BoltId(1), editor.SelectedPoint!.Bolt?.Id);
         Assert.NotSame(previousImage, editor.Preview.Image);
         Assert.All(InspectionPreviewViewModel.CreateFrame(editor.Preview.Image!).Pixels, pixel => Assert.Equal(90, pixel));
-        Assert.Equal(new PixelRegion(6, 6, 8, 8), editor.SelectedPoint.Metadata!.Region);
-        Assert.Equal(173, editor.Preview.BrightnessThreshold);
-        Assert.Equal(42, editor.Preview.MinimumBrightPercent);
+        Assert.Null(editor.Preview.Region);
         Assert.Equal(8.25, editor.SelectedPoint.Bolt!.MinimumTurns);
         Assert.False(editor.Preview.Recipe.BoltInspection.DataMatrix1.TryInverted);
         await editor.SaveCommand.ExecuteAsync(null);
@@ -1002,7 +984,7 @@ public sealed class InspectionTeachingTests
         var editor = services.GetRequiredService<InspectionTeachingViewModel>();
         var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
             null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), [])
         {
             DatabaseFile = Path.Combine(store.DatabaseFile + ".results", "PCB-2026-10.db"),
         };
@@ -1056,7 +1038,7 @@ public sealed class InspectionTeachingTests
         var directory = Path.Combine(Path.GetTempPath(), $"IBTM-history-switch-{Guid.NewGuid():N}");
         var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
             null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), [])
         {
             DatabaseFile = Path.Combine(directory, "PCB-2026-09.db"),
         };

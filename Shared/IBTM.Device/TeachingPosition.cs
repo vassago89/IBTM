@@ -62,24 +62,6 @@ public enum TeachingTarget
     [Description("Carrier Placement (Shuttle)")]
     NgShuttlePlace,
 
-    [Description("Backup Plate Pin - Upper Left")]
-    CarrierUpperLeftLocatingPin,
-
-    [Description("Backup Plate Pin - Lower Right")]
-    CarrierLowerRightLocatingPin,
-
-    [Description("Shooting Head Pin - Upper Left")]
-    ShootingHeadUpperLeftLocatingPin,
-
-    [Description("Shooting Head Pin - Lower Right")]
-    ShootingHeadLowerRightLocatingPin,
-
-    [Description("Pickup Head Pin - Upper Left")]
-    PickupHeadUpperLeftLocatingPin,
-
-    [Description("Pickup Head Pin - Lower Right")]
-    PickupHeadLowerRightLocatingPin,
-
     [Description("Bolt Pickup (Feeder)")]
     BoltPickup,
 
@@ -110,6 +92,18 @@ public enum TeachingTarget
     BackupTransferHeight,
     [Description("Fastening height")]
     BackupFasteningHeight,
+
+    [Description("Height reference 1")]
+    HeightReference1,
+    [Description("Height reference 2")]
+    HeightReference2,
+    [Description("Height reference 3")]
+    HeightReference3,
+
+    [Description("Fiducial 1")]
+    Fiducial1,
+    [Description("Fiducial 2")]
+    Fiducial2,
 }
 
 // Command metadata only. Teaching values and writes are owned by the teaching UI.

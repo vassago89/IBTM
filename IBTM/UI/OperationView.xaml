@@ -61,7 +61,7 @@
                     <TextBlock Text="NG" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}"/>
                     <TextBlock Text="{Binding Recipes.Counts.NgCount, StringFormat=N0}" Margin="8,0,16,0" FontSize="22" FontWeight="SemiBold"
                         Foreground="{StaticResource AccentRedBrush}"/>
-                    <Button Content="{ui:Text 'Clear'}" Command="{Binding ClearCountsCommand}" Padding="12,2" MinHeight="24" VerticalAlignment="Center"/>
+                    <Button Content="{ui:Text 'Reset counts'}" Command="{Binding ClearCountsCommand}" Padding="12,2" MinHeight="24" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding CountResetError}" ToolTip="{Binding CountResetError}"
                     TextAlignment="Right" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" TextWrapping="NoWrap" Style="{StaticResource ErrorStatusMessageStyle}"/>
@@ -108,6 +108,7 @@
                         </TextBlock.Style>
                         <Run Text="{Binding RecentFastening.HeatSink, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                         <Run Text=" "/><Run Text="{Binding RecentFastening.BoltName, Mode=OneWay}"/>
+                        <Run Text=" "/><Run Text="{Binding RecentFastening.Head, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                         <Run Text=" "/><Run Text="{Binding RecentFastening.Result.Stage, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                     </TextBlock>
                     <Grid Grid.Row="1" Margin="0,0,0,10">
@@ -130,6 +131,19 @@
                                         <DataTrigger Binding="{Binding RecentFastening.Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Ng}">
                                             <Setter Property="Text" Value="NG"/>
                                             <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                        </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding RecentFastening.Result.Success}" Value="True"/>
+                                                <Condition Binding="{Binding RecentFastening.Result.IsComplete}" Value="True"/>
+                                                <Condition Binding="{Binding RecentFastening.Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Pending}"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Text" Value="{ui:Text 'Turns unavailable'}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                                        </MultiDataTrigger>
+                                        <DataTrigger Binding="{Binding RecentFastening.Result.Source}" Value="{x:Static core:BoltResultSource.Manual}">
+                                            <Setter Property="Text" Value="{ui:Text 'Manual completion'}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding RecentFastening.Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}">
                                             <Setter Property="Text" Value="NG"/>
@@ -247,6 +261,9 @@
                                                     <DataTrigger Binding="{Binding ElementName=PcbHistoryScroll, Path=HorizontalOffset}" Value="0">
                                                         <Setter Property="IsEnabled" Value="False"/>
                                                     </DataTrigger>
+                                                    <DataTrigger Binding="{Binding ElementName=PcbHistoryScroll, Path=ScrollableWidth}" Value="0">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
@@ -257,7 +274,7 @@
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding ElementName=PcbHistoryScroll, Path=ScrollableWidth}" Value="0">
-                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -268,6 +285,13 @@
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                                 <Setter Property="Content" Value="{ui:Text 'Retry loading'}"/>
                                                 <Style.Triggers>
+                                                    <MultiDataTrigger><MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding HasOlderPcbs}" Value="False"/>
+                                                        <Condition Binding="{Binding PcbHistoryError}" Value="{x:Null}"/>
+                                                        <Condition Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="False"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </MultiDataTrigger>
                                                     <DataTrigger Binding="{Binding PcbHistoryError}" Value="{x:Null}">
                                                         <Setter Property="Content" Value="{ui:Text 'Load older'}"/>
                                                     </DataTrigger>

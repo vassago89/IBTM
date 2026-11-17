@@ -17,6 +17,16 @@ public sealed class InspectionGantryHardwareSettings : MotionHardwareSettings
             MachineAxis.InspectionGantryY,
             10))
     {
+        Inputs = new()
+        {
+            [InputIo.InspectionProbeUp] = -1,
+            [InputIo.InspectionProbeDown] = -1,
+        };
+        Outputs = new()
+        {
+            [OutputIo.InspectionProbeDown] = CreateOutput(
+                77, InputIo.InspectionProbeDown, InputIo.InspectionProbeUp),
+        };
     }
 
     [JsonIgnore]

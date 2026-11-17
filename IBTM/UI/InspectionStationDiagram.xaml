@@ -134,44 +134,6 @@
                 </TextBlock>
             </StackPanel>
 
-            <Canvas Width="{StaticResource CarrierWidth}"
-                Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}"
-                Panel.ZIndex="20">
-                <Canvas.RenderTransform>
-                    <TranslateTransform X="{Binding NgPickupMapPosition.X, TargetNullValue=0, FallbackValue=0}"
-                        Y="{Binding NgPickupMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
-                </Canvas.RenderTransform>
-                <Grid Width="{StaticResource CarrierWidth}" Height="{StaticResource CarrierHeight}"
-                    VerticalAlignment="Top">
-                    <ui:CarrierView Visibility="{Binding Signals.Inputs[NgCarrierDetected].IsOn, Converter={StaticResource BoolToVis}}"
-                        ToolTip="{ui:Text 'Carrier presence sensor · not grip feedback'}" Opacity="0.5"/>
-                    <Grid Width="{x:Static ui:MachineDiagramLayout.NgPickerWidth}" HorizontalAlignment="Center" Opacity="0.6">
-                        <Border Margin="-8,-6" Background="{StaticResource MachineGhostBrush}"
-                            Tag="{Binding Inspection.Motion.IsMoving}"
-                            Style="{StaticResource OverheadBodyStyle}"/>
-                        <Border Tag="{Binding Inspection.Lift}" Style="{StaticResource DownFootprintStyle}"/>
-                        <Border Tag="{Binding Inspection.Gripper}" Style="{StaticResource CarrierPickerTopJawStyle}"/>
-                        <Border Tag="{Binding Inspection.Gripper}" Style="{StaticResource CarrierPickerBottomJawStyle}"/>
-                    </Grid>
-                    <TextBlock Margin="0,5,0,0" VerticalAlignment="Top" HorizontalAlignment="Center"
-                        Text="{ui:Text 'NG Pick'}" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-                </Grid>
-            </Canvas>
-            <Canvas Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
-                <Canvas.RenderTransform>
-                    <TranslateTransform X="{Binding InspectionCameraMapPosition.X, TargetNullValue=0, FallbackValue=0}"
-                        Y="{Binding InspectionCameraMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
-                </Canvas.RenderTransform>
-                <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.CameraLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CameraTop}"
-                    Orientation="Horizontal">
-                    <Grid x:Name="InspectionCamera" Width="{x:Static ui:MachineDiagramLayout.CameraSize}" Height="{x:Static ui:MachineDiagramLayout.CameraSize}" Opacity="0.6">
-                        <Ellipse Width="42" Height="42" Fill="{StaticResource MachineGhostBrush}" Stroke="{StaticResource AccentBlueBrush}"
-                            StrokeThickness="2"/>
-                        <Ellipse Width="16" Height="16" Fill="Transparent" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1"/>
-                    </Grid>
-                    <TextBlock Margin="8,0,0,0" Text="{ui:Text 'Camera'}" VerticalAlignment="Center" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-                </StackPanel>
-            </Canvas>
         </Canvas>
     </Grid>
 </UserControl>

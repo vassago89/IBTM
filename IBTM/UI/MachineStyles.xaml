@@ -384,88 +384,6 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="ToolHeadFootprintStyle" TargetType="Border">
-        <Setter Property="Width" Value="34"/>
-        <Setter Property="Height" Value="34"/>
-        <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-        <Setter Property="BorderThickness" Value="3"/>
-        <Setter Property="CornerRadius" Value="17"/>
-        <Setter Property="ToolTip" Value="{ui:Text 'Unknown'}"/>
-        <Style.Triggers>
-            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Up}">
-                <Setter Property="BorderBrush" Value="{StaticResource HeatSinkBrush}"/>
-                <Setter Property="ToolTip" Value="{ui:Text 'Up'}"/>
-            </Trigger>
-            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Down}">
-                <Setter Property="Background" Value="{StaticResource ActiveStateBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-                <Setter Property="BorderThickness" Value="4"/>
-                <Setter Property="ToolTip" Value="{ui:Text 'Down'}"/>
-            </Trigger>
-            <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
-                <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-                <Setter Property="BorderThickness" Value="3"/>
-                <Setter Property="ToolTip" Value="{ui:Text 'Unknown'}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="VacuumDetectedVisualStyle" TargetType="Ellipse">
-        <Setter Property="Width" Value="10"/>
-        <Setter Property="Height" Value="10"/>
-        <Setter Property="HorizontalAlignment" Value="Center"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
-        <Setter Property="Fill" Value="{StaticResource AccentBlueBrush}"/>
-        <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="StrokeThickness" Value="1"/>
-    </Style>
-
-    <Style x:Key="BoltTargetStyle" TargetType="Border">
-        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.BoltTargetSize}"/>
-        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.BoltTargetSize}"/>
-        <Setter Property="RenderTransform">
-            <Setter.Value>
-                <TranslateTransform X="{x:Static ui:MachineDiagramLayout.BoltTargetOffset}" Y="{x:Static ui:MachineDiagramLayout.BoltTargetOffset}"/>
-            </Setter.Value>
-        </Setter>
-        <Setter Property="CornerRadius" Value="10"/>
-        <Setter Property="Background" Value="{StaticResource MachineStructureBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource MachineStructureBorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Style.Triggers>
-            <Trigger Property="Tag" Value="{x:Static ui:BoltTargetState.Active}">
-                <Setter Property="Background" Value="{StaticResource ActiveStateBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-                <Setter Property="BorderThickness" Value="2"/>
-            </Trigger>
-            <Trigger Property="Tag" Value="{x:Static ui:BoltTargetState.Ok}">
-                <Setter Property="Background" Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-            </Trigger>
-            <Trigger Property="Tag" Value="{x:Static ui:BoltTargetState.Ng}">
-                <Setter Property="Background" Value="{StaticResource AlarmStateBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-            </Trigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="DownFootprintStyle" TargetType="Border">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderBrush" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="2"/>
-        <Setter Property="CornerRadius" Value="2"/>
-        <Style.Triggers>
-            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Down}">
-                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </Trigger>
-            <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
-                <Setter Property="BorderBrush" Value="Transparent"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
     <Style x:Key="PlacementBodyStyle" TargetType="Border" BasedOn="{StaticResource OverheadBodyStyle}">
         <Style.Triggers>
             <MultiDataTrigger>
@@ -508,44 +426,6 @@
                 </Trigger.Value>
                 <Setter Property="Margin" Value="0,0,11,4"/>
             </Trigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="CarrierPickerTopJawStyle" TargetType="Border">
-        <Setter Property="Height" Value="4"/>
-        <Setter Property="VerticalAlignment" Value="Top"/>
-        <Setter Property="Margin" Value="8,-6,8,0"/>
-        <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
-        <Setter Property="CornerRadius" Value="1"/>
-        <Setter Property="ToolTip" Value="{ui:Text 'Unknown'}"/>
-        <Style.Triggers>
-            <Trigger Property="Tag" Value="{x:Static inspection:NgTransferGripperState.Open}">
-                <Setter Property="Background" Value="{StaticResource TextMutedBrush}"/>
-                <Setter Property="ToolTip" Value="{ui:Text 'Open'}"/>
-            </Trigger>
-            <Trigger Property="Tag" Value="{x:Static inspection:NgTransferGripperState.Closed}">
-                <Setter Property="Margin" Value="8,-2,8,0"/>
-                <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
-                <Setter Property="ToolTip" Value="{ui:Text 'Closed'}"/>
-            </Trigger>
-            <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
-                <Setter Property="Margin" Value="8,-6,8,0"/>
-                <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
-                <Setter Property="ToolTip" Value="{ui:Text 'Unknown'}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="CarrierPickerBottomJawStyle" TargetType="Border" BasedOn="{StaticResource CarrierPickerTopJawStyle}">
-        <Setter Property="VerticalAlignment" Value="Bottom"/>
-        <Setter Property="Margin" Value="8,0,8,-6"/>
-        <Style.Triggers>
-            <Trigger Property="Tag" Value="{x:Static inspection:NgTransferGripperState.Closed}">
-                <Setter Property="Margin" Value="8,0,8,-2"/>
-            </Trigger>
-            <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
-                <Setter Property="Margin" Value="8,0,8,-6"/>
-            </DataTrigger>
         </Style.Triggers>
     </Style>
 

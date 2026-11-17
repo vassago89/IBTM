@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="IBTM.Virtual.Tests" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.0" />
+    <ProjectReference Include="..\..\Shared\IBTM.Core\IBTM.Core.csproj" />
+  </ItemGroup>
+
+</Project>

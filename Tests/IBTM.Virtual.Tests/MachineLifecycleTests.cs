@@ -713,7 +713,8 @@ public sealed class MachineLifecycleTests
         foreach (var bolt in recipe.Pcb.BoltPoints)
         {
             bolt.Head = head;
-            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
+            if (bolt.Head == FasteningHead.Pickup)
+                bolt.PreliminaryFasteningPosition ??= new() { X = bolt.FasteningX!.Value, Y = bolt.FasteningY!.Value };
         }
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -760,13 +761,11 @@ public sealed class MachineLifecycleTests
         settings.BoltFeeder.PickupTimeoutMilliseconds = 300;
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        var first = new BoltPoint { Head = FasteningHead.Shooting, X = 10, Y = 10 };
-        var second = new BoltPoint { Head = FasteningHead.Shooting, X = 20, Y = 10 };
-        var last = new BoltPoint { Head = FasteningHead.Shooting, X = 30, Y = 10 };
-        var pickup = new BoltPoint { Head = FasteningHead.Pickup, X = 40, Y = 10 };
+        var first = new BoltPoint { Head = FasteningHead.Shooting, X = 10, Y = 10, FasteningX = 10, FasteningY = 10 };
+        var second = new BoltPoint { Head = FasteningHead.Shooting, X = 20, Y = 10, FasteningX = 20, FasteningY = 10 };
+        var last = new BoltPoint { Head = FasteningHead.Shooting, X = 30, Y = 10, FasteningX = 30, FasteningY = 10 };
+        var pickup = new BoltPoint { Head = FasteningHead.Pickup, X = 40, Y = 10, FasteningX = 40, FasteningY = 10, PreliminaryFasteningPosition = new() { X = 40, Y = 10 } };
         recipe.Pcb.BoltPoints = [first, second, last, pickup];
-        foreach (var bolt in recipe.Pcb.BoltPoints)
-            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -877,7 +876,6 @@ public sealed class MachineLifecycleTests
         {
             bolt.PreliminaryFasteningPosition = settings.BoltFastening.GetBoltPosition(bolt);
             bolt.Head = FasteningHead.Pickup;
-            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
         }
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -1454,8 +1452,6 @@ public sealed class MachineLifecycleTests
         var work = services.GetRequiredService<InspectionStation>();
         var camera = services.GetRequiredService<VirtualCamera>();
         var io = services.GetRequiredService<VirtualIoService>();
-        settings.CarrierReference.UpperLeftLocatingPin = null;
-        settings.CarrierReference.LowerRightLocatingPin = null;
         foreach (var bolt in recipe.Pcb.BoltPoints)
         {
             bolt.FasteningX = null;
@@ -1499,7 +1495,7 @@ public sealed class MachineLifecycleTests
             Assert.False(transfer.Motion.Feedback.IsMoving);
             Assert.Equal(pcb, inspector.ActivePcb);
             Assert.Equal(boltId, inspector.ActiveBolt?.Id);
-            Assert.Equal($"{pcb.GetDescription()} · " + (boltId is null ? "Data Matrix" : $"Bolt {recipe.Pcb.GetBoltOrdinal(boltId.Value)}"),
+            Assert.Equal($"{pcb.GetDescription()} " + (boltId is null ? "Data Matrix" : $"Bolt {recipe.Pcb.GetBoltOrdinal(boltId.Value)}"),
                 view.InspectionImageCaption);
             if (boltId is null && pcb != unreadPcb)
                 Assert.Equal(pcb == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2",
@@ -1527,14 +1523,11 @@ public sealed class MachineLifecycleTests
                 var assembly = work.Station.GetAssembly(pcb);
                 Assert.Equal(pcb == unreadPcb ? AssemblyResult.Ng : AssemblyResult.Ok, assembly.PcbBarcodeResult);
                 Assert.Equal(pcb == unreadPcb ? null : pcb == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2", assembly.PcbBarcode);
-                Assert.Equal(2, assembly.BoltPresenceResults.Count);
-                Assert.Equal(pcb == unreadPcb || pcb == HeatSinkSlot.HeatSink1 ? AssemblyResult.Ng : AssemblyResult.Ok,
+                Assert.Equal(2, captures.Count(capture => capture.Pcb == pcb && capture.Bolt is not null));
+                Assert.Equal(pcb == unreadPcb ? AssemblyResult.Ng : AssemblyResult.Ok,
                     assembly.InspectionResult);
             }
-            Assert.True(work.Station.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
-            Assert.False(work.Station.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults[VirtualTestSupport.BoltId(3)]);
-            Assert.All(work.Station.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Values, Assert.True);
-            Assert.Equal("NG · Not Read", unreadPcb == HeatSinkSlot.HeatSink1 ? view.InspectionPcb1Barcode : view.InspectionPcb2Barcode);
+            Assert.Equal(UiText.Get("NG · Not Read"), unreadPcb == HeatSinkSlot.HeatSink1 ? view.InspectionPcb1Barcode : view.InspectionPcb2Barcode);
             Assert.True(work.HasNg);
             Assert.True(work.RouteToNg);
             Assert.True(state.AutomaticRunning);
@@ -1830,7 +1823,7 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
         await work.Station.SeatAsync(CancellationToken.None);
         var assembly = work.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBoltPresence(VirtualTestSupport.BoltId(1), !ng);
+        assembly.PcbBarcode = ng ? null : "PCB-OK";
         assembly.CompleteInspection();
         work.Station.Complete(work.Station.CurrentJob);
 
@@ -2670,8 +2663,6 @@ public sealed class MachineLifecycleTests
                 && notifications.Contains(nameof(OperationViewModel.MachineDisplayState)));
             Assert.Equal(MachineDisplayState.ServoOff, view.MachineDisplayState);
             Assert.Contains(nameof(OperationViewModel.SupplyDisplayState), notifications);
-            Assert.DoesNotContain(nameof(OperationViewModel.BoltTargets), notifications);
-            Assert.DoesNotContain(nameof(OperationViewModel.InspectionTargets), notifications);
             Assert.DoesNotContain(nameof(OperationViewModel.ModeText), notifications);
             Assert.Contains(nameof(OperationViewModel.Alarm), notifications);
         }
@@ -3308,11 +3299,6 @@ public sealed class MachineLifecycleTests
             };
             Assert.Equal(positions, descents.ToArray());
             Assert.Equal(positions, starts.ToArray());
-            var operation = services.GetRequiredService<OperationViewModel>();
-            Assert.All(operation.BoltTargets, bolt => Assert.Equal(
-                (bolt.Head == FasteningHead.Pickup ? pickupFeeding : shootingFeeding)
-                    ? BoltTargetState.Ok : BoltTargetState.Ng,
-                bolt.State));
             Assert.True(visitedPickupFeeder);
             if (pickupFeeding)
                 Assert.Equal(new[] { (100d, 50d, 10d), (100d, 50d, 10d) }, pickups.ToArray());
@@ -3531,7 +3517,7 @@ public sealed class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Station3ConfigurationRunsWithoutUpstreamHardware(bool missingBolts)
+    public async Task Station3ConfigurationRunsWithoutUpstreamHardware(bool unreadBarcode)
     {
         var settings = new MachineSettings
         {
@@ -3551,8 +3537,6 @@ public sealed class MachineLifecycleTests
         settings.InspectionGantry.Motion = FastMotion();
         settings.Conveyor.CarrierStopDelaySeconds = 0;
         settings.NgConveyor.CarrierStopDelaySeconds = 0;
-        settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
-        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 5, Y = 20 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 100, Y = 20 };
         settings.NgCarrierTransfer.WaitingPosition = new() { X = 5, Y = 20 };
@@ -3608,10 +3592,10 @@ public sealed class MachineLifecycleTests
             if (input == InputIo.MainConveyorReadyFromRear && !value && entered)
                 exited = true;
         };
-        if (missingBolts)
+        if (unreadBarcode)
         {
             var camera = services.GetRequiredService<VirtualCamera>();
-            camera.BoltsPresent = false;
+            camera.SourceImage = new(320, 240, 960, new byte[960 * 240]);
         }
 
         await machine.InitializeAsync();
@@ -3627,20 +3611,19 @@ public sealed class MachineLifecycleTests
                 await VirtualTestSupport.WaitUntilAsync(() => inspection.Station.Completed, TimeSpan.FromSeconds(10)),
                 $"Arrived={arrived}; Inspection={inspection.Step}; Main={services.GetRequiredService<MainConveyor>().Step}; {state.AlarmDetail}");
             Assert.Equal(7, arrived);
-            Assert.Equal(missingBolts, inspection.HasNg);
+            Assert.Equal(unreadBarcode, inspection.HasNg);
             Assert.Equal(2, inspection.Station.Assemblies.Count());
             Assert.All(
                 inspection.Station.Assemblies,
                 assembly =>
                 {
                     Assert.Equal(
-                        assembly.HeatSink == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2",
+                        unreadBarcode ? null : assembly.HeatSink == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2",
                         assembly.PcbBarcode);
                     Assert.Empty(assembly.ShootingBoltResults);
                     Assert.Empty(assembly.PickupBoltResults);
-                    Assert.Equal(!missingBolts, Assert.Single(assembly.BoltPresenceResults).Value);
                 });
-            if (missingBolts)
+            if (unreadBarcode)
             {
                 Assert.True(
                     await VirtualTestSupport.WaitUntilAsync(
@@ -4090,7 +4073,6 @@ public sealed class MachineLifecycleTests
             Assert.True(beltForcedOn);
             Assert.False(work.Station.Completed);
             Assert.False(work.IsRearDischargeReady);
-            Assert.Empty(assembly.BoltPresenceResults);
         }
         finally
         {
@@ -4577,10 +4559,10 @@ public sealed class MachineLifecycleTests
                 assembly.RecordBolt(FasteningHead.Shooting, BoltId(1), new(true, 8));
                 assembly.RecordBolt(FasteningHead.Pickup, BoltId(2), new(false, 2) { MinimumTurns = 3 });
                 assembly.CompleteFastening();
-                assembly.RecordBoltPresence(BoltId(1), false);
+                assembly.PcbBarcode = null;
                 assembly.CompleteInspection();
                 assembly.RecordInspectionCapture(new(null, DateTimeOffset.Now,
-                    new ImageFrame(1, 1, 3, [1, 2, 3]), new PixelRegion(0, 0, 1, 1), true, assembly.PcbBarcode));
+                    new ImageFrame(1, 1, 3, [1, 2, 3]), new PixelRegion(0, 0, 1, 1), false, assembly.PcbBarcode));
             }
             await history.FlushAsync();
             var numbers = assemblies.Select(assembly => assembly.PcbNumber).ToArray();
@@ -4634,14 +4616,12 @@ public sealed class MachineLifecycleTests
                 {
                     Assert.Null(record.PcbBarcode);
                     Assert.Equal(AssemblyResult.Pending, record.PcbBarcodeResult);
-                    Assert.Empty(record.BoltPresenceResults);
                     Assert.Equal(AssemblyResult.Pending, record.InspectionResult);
                     Assert.Empty(store.LoadPcbImages(record));
                 }
                 else
                 {
-                    Assert.Equal($"PCB-{assembly.HeatSink}", record.PcbBarcode);
-                    Assert.Single(record.BoltPresenceResults);
+                    Assert.Null(record.PcbBarcode);
                     Assert.Equal(AssemblyResult.Ng, record.InspectionResult);
                     Assert.Single(store.LoadPcbImages(record));
                 }
@@ -5842,14 +5822,12 @@ public sealed class MachineLifecycleTests
         settings.BoltFastening.PickupPosition = new() { X = 30, Y = 40, Z = 10 };
         await using var services = CreateServices(settings);
         var recipes = services.GetRequiredService<RecipeManager>();
-        var recorded = new BoltPoint { Head = FasteningHead.Pickup, X = 5, Y = 5 };
-        var first = new BoltPoint { X = 10, Y = 10 };
-        var last = new BoltPoint { X = 20, Y = 20 };
-        var absent = new BoltPoint { HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 30 };
+        var recorded = new BoltPoint { Head = FasteningHead.Pickup, X = 5, Y = 5, FasteningX = 5, FasteningY = 5, PreliminaryFasteningPosition = new() { X = 5, Y = 5 } };
+        var first = new BoltPoint { X = 10, Y = 10, FasteningX = 10, FasteningY = 10 };
+        var last = new BoltPoint { X = 20, Y = 20, FasteningX = 20, FasteningY = 20 };
+        var absent = new BoltPoint { HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 30, FasteningX = 30, FasteningY = 30 };
         recipes.Current.Pcb.BoltPoints = [recorded, last, first, absent];
         recipes.Current.Pcb.FasteningOrder = [first.Id, last.Id, recorded.Id, absent.Id];
-        foreach (var bolt in recipes.Current.Pcb.BoltPoints)
-            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -5982,12 +5960,10 @@ public sealed class MachineLifecycleTests
         settings.BoltFastening.PickupPosition = new() { X = 5, Y = 5, Z = 0 };
         await using var services = CreateServices(settings);
         var recipes = services.GetRequiredService<RecipeManager>();
-        var manual = new BoltPoint { Head = head, X = 10, Y = 10 };
-        var rework = new BoltPoint { Head = head, X = 20, Y = 20 };
+        var manual = new BoltPoint { Head = head, X = 10, Y = 10, FasteningX = 10, FasteningY = 10, PreliminaryFasteningPosition = new() { X = 10, Y = 10 } };
+        var rework = new BoltPoint { Head = head, X = 20, Y = 20, FasteningX = 20, FasteningY = 20, PreliminaryFasteningPosition = new() { X = 20, Y = 20 } };
         var other = new BoltPoint { Head = head == FasteningHead.Pickup ? FasteningHead.Shooting : FasteningHead.Pickup };
         recipes.Current.Pcb.BoltPoints = [manual, rework, other];
-        foreach (var bolt in recipes.Current.Pcb.BoltPoints)
-            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -6083,7 +6059,7 @@ public sealed class MachineLifecycleTests
             Assert.Null(saved.Torque);
             Assert.Null(saved.Controller);
             Assert.Null(saved.TorqueCurve);
-            Assert.Equal("OK", new PcbBoltResultView(manual.Id, 1, head, saved, null, null).Verdict);
+            Assert.Equal("OK", new PcbBoltResultView(manual.Id, 1, head, saved, null).Verdict);
             var savedOther = (other.Head == FasteningHead.Pickup ? record.PickupBoltResults : record.ShootingBoltResults)[other.Id];
             Assert.Equal(BoltResultSource.Controller, savedOther.Source);
             Assert.Equal(kept.TorqueCurve!.Torques, savedOther.TorqueCurve!.Torques);

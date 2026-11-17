@@ -12,6 +12,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.Inspection;
+using IBTM.Mlcp;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
@@ -132,7 +133,28 @@ internal static class VirtualTestSupport
         var conveyor = new NgCarrierConveyor(io, new(), units);
         return new(work, motion, new(motion), conveyor, motionSettings, settings, io, units,
             new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(),
-            new RecipeManager(OpenMachineStore(), new()));
+            new RecipeManager(OpenMachineStore(), new()), CreateHeightController(), new() { PortName = "Virtual" });
+    }
+
+    public static void TeachInspectionHeights(Recipe recipe)
+    {
+        foreach (var bolt in recipe.Pcb.BoltPoints)
+        {
+            bolt.MinimumHeight = -0.1;
+            bolt.MaximumHeight = 0.1;
+        }
+        foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
+        {
+            var reference = recipe.BoltInspection.GetHeightReference(pcb);
+            reference.Point1 = new() { X = 0, Y = 0 };
+            reference.Point2 = new() { X = 1, Y = 0 };
+            reference.Point3 = new() { X = 0, Y = 1 };
+        }
+    }
+
+    public static MlcpController CreateHeightController()
+    {
+        return new(new MlcpTests.TestConnection { ResponseBody = "OK,01,+0.000" });
     }
 
     private sealed class UnavailableSupply : IPcbSupplyHandoff
@@ -171,6 +193,8 @@ internal static class VirtualTestSupport
     {
         var outputs = settings.SelectMany(section => section.Outputs).ToDictionary();
         foreach (var (signal, hardware) in new IoBoltHardwareSettings().Outputs)
+            outputs.TryAdd(signal, hardware);
+        foreach (var (signal, hardware) in new InspectionGantryHardwareSettings().Outputs)
             outputs.TryAdd(signal, hardware);
         return outputs;
     }

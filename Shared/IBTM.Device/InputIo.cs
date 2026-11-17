@@ -271,4 +271,10 @@ public enum InputIo
 
     [Description("Pickup Table Up")]
     PickupTableUp = 90,
+
+    [Description("Inspection Probe Up")]
+    InspectionProbeUp = 91,
+
+    [Description("Inspection Probe Down")]
+    InspectionProbeDown = 92,
 }

@@ -225,55 +225,19 @@ tightening controllers on one RS-422 bus. The pickup head uses its own vacuum pu
 and vacuum sensor to pick a screw from the fixed ZEDA KS1069C-S pickup index.
 Slave address 1 belongs to the pickup head and slave address 2 belongs to the
 shooting head by default; those addresses are independent from mechanical head
-numbering. The operator view shows one moving gantry body with two heads, not two
-independent motion systems.
+numbering. Both heads share one gantry. The operator view shows their controller
+status without projecting head positions from locating pins.
 
-Bolt X/Y positions are taught with the Station 3 camera and stored as actual Inspection
-Gantry coordinates in millimetres. Record Position writes the captured axis XY directly;
-it does not subtract a reference pin. Station 3 teaches both locating pins on the carrier
-image; Station 2 teaches the same two pins separately for each fastening head. The Station 3-to-Station 2
-conversion subtracts the camera Upper reference from the recorded camera XY, rotates this offset by
-the difference between the head and camera Upper-to-Lower directions, then adds the head Upper reference.
-Each reference pair must contain distinct points. The conversion applies rotation and translation
-without scaling. Stored bolt coordinates and SDK Unit/Pulse are unchanged. Each bolt
-point identifies Heat Sink 1 or Heat Sink 2 so the station can use its heat sink-present
-inputs as the work mask.
+Adding a bolt in Station 3 records its inspection gantry XY and reference image.
+It leaves the bolt's preliminary and final fastening XY untaught. Teach those
+positions separately at Station 2; no locating-pin teaching or cross-station
+coordinate transform is used. Existing taught fastening positions are retained
+when the inspection reference image is replaced.
 
-The Station 3 teaching screen scans between taught upper-left and lower-right gantry
-positions in a snake path. The step is calculated from the physical camera FOV minus
-one overlap setting, then distributed so the final taught position is included. The
-scan path does not depend on the millimetres-per-pixel value that is adjusted
-afterward. Every original camera frame is stored in the recipe's
-`Carrier` directory with its capture-centre XY in `Recipe.json`. WPF draws the frames
-at those machine coordinates; no stitched bitmap is created. The operator adjusts
-millimetres per pixel until overlapping frames align, then clicks the carrier locating
-pins and bolt points directly on the map. Clicks therefore produce Station 3 machine
-XY immediately, and bolt points remain stored as actual Inspection Gantry coordinates.
-The last successfully saved or loaded recipe is restored at startup. Creating a new
-unsaved recipe does not replace that active selection.
-
-Commission the image map in this order:
-
-1. Mount the camera so image X/Y matches the machine X/Y directions.
-2. Scan once and confirm the X/Y pitches leave visible overlap.
-3. Adjust millimetres per pixel until features in the overlap coincide.
-4. Click the upper-left and lower-right locating pins. Before both pins are taught,
-   the image map does not display machine coordinates. Afterward it displays only
-   upper-left-relative carrier X/Y. Each locating pin can be re-taught independently;
-   re-teaching the upper-left pin preserves the existing lower-right pin. The same
-   rule applies to both Station 2 fastening heads. Untaught pins and bolts are not
-   drawn as markers.
-5. Teach one bolt in Station 3, teach the matching head references in Station 2, and
-   verify that transformed point before adding the remaining bolts.
-
-Set millimetres per pixel before teaching the locating pins and bolts. If that value
-was wrong when the points were taught, teach those points again after correcting it.
-Upper and Lower must have different X and Y coordinates so both axis spans are defined.
-
-Automatic start is blocked until the recipe contains at least one bolt point, the
-shared carrier pins and every bolt X/Y are taught, and, when Bolt Fastening is
-enabled, the locating pins for each used fastening head are taught. Each head
-has its own machine-taught Fastening Z; there is no per-bolt Z teaching.
+Each bolt identifies Heat Sink 1 or Heat Sink 2 so the station can use its
+heat sink-present inputs as the work mask. Fastening Z is the corresponding
+head's shared height plus the bolt's start offset. S2 backup transfer and
+fastening heights remain separate machine settings.
 
 Station 2 starts incomplete work with the carrier present, backup plate raised and
 stopper lowered. It selects the currently detected heat sinks at the start of each
@@ -391,8 +355,8 @@ the shuttle waits for Carrier Pickup Up, confirmed gripper Open and no pending
 transfer before lowering, including when Inspection is disabled. Reading this feedback does not enable
 the transfer axes or its automatic operation.
 
-The two locating-pin positions belong to the shared Carrier Reference because
-Station 2 and Station 3 use the same datum without referencing each other's projects.
+Inspection and fastening XY are taught independently for each bolt. Adding an
+inspection bolt does not initialize preliminary or final fastening coordinates.
 Inspection waiting, S3 pickup and NG shuttle placement are separately taught positions
 in the NG Carrier Transfer settings. Bolt inspection XY belongs to each recipe bolt;
 Data Matrix XY, ROI and image metadata belong to the recipe image tiles.

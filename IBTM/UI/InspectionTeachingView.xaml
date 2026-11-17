@@ -24,6 +24,14 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,0,0,10" IsEnabled="{Binding IsIdle}">
+            <Button Command="{Binding CloseReinspectionCommand}" Content="{ui:Text 'Close reinspection'}" Margin="0,0,8,0">
+                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers><DataTrigger Binding="{Binding ImageMode}" Value="{x:Static ui:InspectionImageMode.Recorded}">
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </DataTrigger></Style.Triggers>
+                </Style></Button.Style>
+            </Button>
             <Button Command="{Binding SaveCommand}" MinWidth="100" ToolTip="{ui:Text 'Changes apply immediately. Save inspection settings to the current recipe.'}">
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
@@ -128,7 +136,7 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
                         <WrapPanel IsEnabled="{Binding IsIdle}">
-                            <Button Command="{Binding InspectCommand}" Margin="0,0,8,6">
+                            <Button Command="{Binding InspectCommand}" Margin="0,0,8,6" Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                         <Setter Property="Content" Value="{ui:Text 'Inspect This Image'}"/>
@@ -210,50 +218,59 @@
                                         </Style.Triggers>
                                     </Style>
                                 </WrapPanel.Style>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,24,6">
-                                    <TextBlock Text="{ui:Text 'Min. turns (0 = no check)'}" VerticalAlignment="Center" Margin="0,0,8,0"
-                                        ToolTip="{ui:Text 'Total turns = sum of all fastening stages'}"/>
-                                    <TextBox Width="70" Text="{Binding SelectedPoint.Bolt.MinimumTurns, Mode=TwoWay, BindingGroupName=InspectionInputs, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
-                                        SourceUpdated="OnInspectionSettingChanged"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,24,6">
+                                        <TextBlock Text="{ui:Text 'Minimum height (mm)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBox Width="80" Text="{Binding SelectedPoint.Bolt.MinimumHeight, BindingGroupName=InspectionInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}" SourceUpdated="OnInspectionSettingChanged"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,24,6">
+                                        <TextBlock Text="{ui:Text 'Maximum height (mm)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBox Width="80" Text="{Binding SelectedPoint.Bolt.MaximumHeight, BindingGroupName=InspectionInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}" SourceUpdated="OnInspectionSettingChanged"/>
+                                    </StackPanel>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
-                                    <TextBlock Text="{ui:Text 'Max. turns (0 = no check)'}" VerticalAlignment="Center" Margin="0,0,8,0"
-                                        ToolTip="{ui:Text 'Total turns = sum of all fastening stages'}"/>
-                                    <TextBox Width="70" Text="{Binding SelectedPoint.Bolt.MaximumTurns, Mode=TwoWay, BindingGroupName=InspectionInputs, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
-                                        SourceUpdated="OnInspectionSettingChanged"/>
-                                </StackPanel>
-                                <TextBlock Text="{ui:Text 'Bolt presence'}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
-                                    <TextBlock Text="{ui:Text 'Threshold (0–255)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox Width="70" Text="{Binding Preview.BrightnessThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
-                                        SourceUpdated="OnInspectionSettingChanged"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <TextBlock Text="{ui:Text 'Minimum bright (%)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox Width="70" Text="{Binding Preview.MinimumBrightPercent, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
-                                        SourceUpdated="OnInspectionSettingChanged"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,24,6">
+                                        <TextBlock Text="{ui:Text 'Min. turns (0 = no check)'}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                            ToolTip="{ui:Text 'Total turns = sum of all fastening stages'}"/>
+                                        <TextBox Width="70" Text="{Binding SelectedPoint.Bolt.MinimumTurns, Mode=TwoWay, BindingGroupName=InspectionInputs, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
+                                            SourceUpdated="OnInspectionSettingChanged"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
+                                        <TextBlock Text="{ui:Text 'Max. turns (0 = no check)'}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                            ToolTip="{ui:Text 'Total turns = sum of all fastening stages'}"/>
+                                        <TextBox Width="70" Text="{Binding SelectedPoint.Bolt.MaximumTurns, Mode=TwoWay, BindingGroupName=InspectionInputs, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, NotifyOnSourceUpdated=True}"
+                                            SourceUpdated="OnInspectionSettingChanged"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </WrapPanel>
                         </StackPanel>
                     </StackPanel>
                     <Grid Grid.Row="1">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition><ColumnDefinition.Style><Style TargetType="ColumnDefinition">
+                                <Setter Property="Width" Value="0"/>
+                                <Style.Triggers><DataTrigger Binding="{Binding IsDataMatrixSelected}" Value="True">
+                                    <Setter Property="Width" Value="*"/>
+                                </DataTrigger></Style.Triggers>
+                            </Style></ColumnDefinition.Style></ColumnDefinition>
+                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                        <TextBlock Text="{ui:Text 'Original · edit ROI'}" FontWeight="SemiBold" Margin="0,0,6,6"/>
-                        <TextBlock Grid.Column="1" Text="{Binding Preview.BinaryDescription}" FontWeight="SemiBold" Height="20"
+                        <TextBlock Text="{ui:Text 'Image'}" FontWeight="SemiBold" Margin="0,0,6,6"/>
+                        <TextBlock Grid.Column="1" Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}" Text="{Binding Preview.BinaryDescription}" FontWeight="SemiBold" Height="20"
                             TextTrimming="CharacterEllipsis" ToolTip="{Binding Preview.BinaryDescription}" Margin="6,0,0,6"/>
                         <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}" Margin="0,0,6,0">
                             <ui:InspectionImageView x:Name="InspectionImage" Source="{Binding Preview.Image}"
                                 SourceRegion="{Binding Preview.Region}" RegionCommand="{Binding DrawRegionCommand}"
-                                IsEnabled="{Binding IsDrawRegionAllowed}" ShowCrosshair="True" Cursor="Cross"/>
+                                IsEnabled="{Binding IsIdle}" ShowCrosshair="{Binding IsDataMatrixSelected}"/>
                         </Border>
-                        <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource ImageBackgroundBrush}" Margin="6,0,0,0">
+                        <Border Grid.Row="1" Grid.Column="1" Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}" Background="{StaticResource ImageBackgroundBrush}" Margin="6,0,0,0">
                             <ui:InspectionImageView Source="{Binding Preview.Image}" SourceRegion="{Binding Preview.Region}"
                                 SourceOverlay="{Binding Preview.Overlay}" ShowCrosshair="False"
                                 RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                         </Border>
                     </Grid>
-                    <StackPanel Grid.Row="2">
+                    <StackPanel Grid.Row="2" Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
                         <TextBlock Margin="0,8,0,0">
                             <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource DetailTextStyle}">
                                 <Setter Property="Text" Value="{ui:Text 'Inspection result'}"/>

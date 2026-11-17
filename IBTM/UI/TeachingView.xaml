@@ -231,54 +231,44 @@
                             </StackPanel>
                         </WrapPanel>
                         <Border Margin="0,12,0,0" Padding="0,10,0,0" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0"
+                            Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"
                             IsEnabled="{Binding State.SetupEditingEnabled}">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPosition}">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPreliminaryPosition}">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
                             <StackPanel>
-                                <TextBlock Text="{ui:Text 'Z feed during fastening'}" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                <Grid Width="320" HorizontalAlignment="Left">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Text="{ui:Text 'Distance (+mm)'}" Margin="0,0,0,4"/>
-                                        <TextBox ToolTip="{ui:Text '0 = no movement'}">
-                                            <TextBox.Style>
-                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                                    <Setter Property="Text" Value="{Binding SelectedPoint.Position.Bolt.FeedDistance, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPreliminaryPosition}">
-                                                            <Setter Property="Text" Value="{Binding SelectedPoint.Position.Bolt.PreliminaryFeedDistance, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBox.Style>
-                                        </TextBox>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="{ui:Text 'Time (s)'}" Margin="0,0,0,4"/>
-                                        <TextBox>
-                                            <TextBox.Style>
-                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                                    <Setter Property="Text" Value="{Binding SelectedPoint.Position.Bolt.FeedSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPreliminaryPosition}">
-                                                            <Setter Property="Text" Value="{Binding SelectedPoint.Position.Bolt.PreliminaryFeedSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBox.Style>
-                                        </TextBox>
-                                    </StackPanel>
+                                <TextBlock Text="{ui:Text 'Z feed during fastening'}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="92"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="92"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Column="2" Text="{ui:Text 'Distance (+mm)'}" Margin="0,0,0,4" TextWrapping="Wrap"/>
+                                    <TextBlock Grid.Column="4" Text="{ui:Text 'Time (s)'}" Margin="0,0,0,4"/>
+                                    <TextBlock Grid.Row="1" Text="{ui:Text 'Shooting IPM preliminary'}" VerticalAlignment="Center" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                    <TextBox x:Name="ShootingIpmFeedDistanceInput" Grid.Row="1" Grid.Column="2" Margin="0,0,0,8"
+                                        ToolTip="{ui:Text '0 = no movement'}"
+                                        Text="{Binding Recipes.Current.BoltFastening.ShootingIpmFeed.Distance, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    <TextBox x:Name="ShootingIpmFeedSecondsInput" Grid.Row="1" Grid.Column="4" Margin="0,0,0,8"
+                                        Text="{Binding Recipes.Current.BoltFastening.ShootingIpmFeed.Seconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    <TextBlock Grid.Row="2" Text="{ui:Text 'Pickup IPM final'}" VerticalAlignment="Center" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                    <TextBox x:Name="PickupIpmFeedDistanceInput" Grid.Row="2" Grid.Column="2" Margin="0,0,0,8"
+                                        ToolTip="{ui:Text '0 = no movement'}"
+                                        Text="{Binding Recipes.Current.BoltFastening.PickupIpmFeed.Distance, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    <TextBox x:Name="PickupIpmFeedSecondsInput" Grid.Row="2" Grid.Column="4" Margin="0,0,0,8"
+                                        Text="{Binding Recipes.Current.BoltFastening.PickupIpmFeed.Seconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    <TextBlock Grid.Row="3" Text="{ui:Text 'Shooting PCB final'}" VerticalAlignment="Center" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                    <TextBox x:Name="ShootingPcbFeedDistanceInput" Grid.Row="3" Grid.Column="2" Margin="0,0,0,8"
+                                        ToolTip="{ui:Text '0 = no movement'}"
+                                        Text="{Binding Recipes.Current.BoltFastening.ShootingPcbFeed.Distance, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                    <TextBox x:Name="ShootingPcbFeedSecondsInput" Grid.Row="3" Grid.Column="4" Margin="0,0,0,8"
+                                        Text="{Binding Recipes.Current.BoltFastening.ShootingPcbFeed.Seconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -291,60 +281,113 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
-                                <WrapPanel Margin="0,0,0,4">
-                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" Width="96" Padding="12,7">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                                <Setter Property="IsEnabled" Value="{Binding IsToggleLiveViewAllowed}"/>
-                                                <Setter Property="Content" Value="{ui:Text 'Start Live'}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
-                                                        <Setter Property="Content" Value="{ui:Text 'Stop Live'}"/>
-                                                    </DataTrigger>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"/>
-                                                            <Condition Binding="{Binding Inspection.IsLiveView}" Value="False"/>
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="IsEnabled" Value="False"/>
-                                                    </MultiDataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button Content="{ui:Text 'Update Image + Light'}" Command="{Binding GrabCommand}" Margin="0,0,12,4" Padding="12,7">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Setter Property="IsEnabled" Value="{Binding IsGrabAllowed}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True">
-                                                        <Setter Property="IsEnabled" Value="False"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding State.SetupEditingEnabled}">
-                                        <TextBlock Text="{ui:Text 'Light (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                        <TextBox x:Name="LiveLightInput" Width="55" Margin="0,0,8,0"
-                                            Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                        <Button Content="{ui:Text 'Apply Light'}" Command="{Binding ApplyLightCommand}" Padding="12,7">
+                                <StackPanel>
+                                    <WrapPanel Margin="0,0,0,4">
+                                        <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" Width="96" Padding="12,7">
                                             <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsApplyLightAllowed}"/>
+                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                    <Setter Property="IsEnabled" Value="{Binding IsToggleLiveViewAllowed}"/>
+                                                    <Setter Property="Content" Value="{ui:Text 'Start Live'}"/>
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True">
-                                                            <Setter Property="IsEnabled" Value="False"/>
+                                                        <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
+                                                            <Setter Property="Content" Value="{ui:Text 'Stop Live'}"/>
                                                         </DataTrigger>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"/>
+                                                                <Condition Binding="{Binding Inspection.IsLiveView}" Value="False"/>
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="IsEnabled" Value="False"/>
+                                                        </MultiDataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
                                         </Button>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding State.SetupEditingEnabled}">
+                                            <TextBlock Text="{ui:Text 'Light (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBox x:Name="LiveLightInput" Width="55" Margin="0,0,8,0"
+                                                Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                            <Button Content="{ui:Text 'Apply Light'}" Command="{Binding ApplyLightCommand}" Padding="12,7">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                        <Setter Property="IsEnabled" Value="{Binding IsApplyLightAllowed}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True">
+                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </StackPanel>
+                                    </WrapPanel>
+                                    <StackPanel x:Name="FiducialPanel" Visibility="{Binding IsFiducialSelected, Converter={StaticResource BoolToVis}}" IsEnabled="{Binding State.SetupEditingEnabled}">
+                                        <StackPanel.BindingGroup><BindingGroup Name="FiducialInputs"/></StackPanel.BindingGroup>
+                                        <WrapPanel Margin="0,0,0,6">
+                                            <CheckBox Content="{ui:Text 'Fiducial alignment'}" IsChecked="{Binding SelectedFiducials.Enabled, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0"/>
+                                            <CheckBox Content="{ui:Text 'White mark'}" IsChecked="{Binding SelectedPoint.Fiducial.WhiteMark, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0"/>
+                                            <TextBlock Text="{ui:Text 'Threshold (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBox x:Name="FiducialThresholdInput" Width="50" Text="{Binding SelectedPoint.Fiducial.Threshold, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Margin="0,0,12,0"/>
+                                        </WrapPanel>
+                                        <Expander Header="{ui:Text 'Search settings'}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6">
+                                            <WrapPanel Margin="0,4,0,0">
+                                                <TextBlock Text="{ui:Text 'Search margin (px)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBox Width="55" Text="{Binding SelectedPoint.Fiducial.SearchMarginPixels, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{ui:Text 'Maximum shape error'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBox Width="65" Text="{Binding SelectedPoint.Fiducial.MaximumShapeError, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{ui:Text 'Size tolerance (%)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBox Width="55" Text="{Binding SelectedPoint.Fiducial.SizeTolerancePercent, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                            </WrapPanel>
+                                        </Expander>
+                                        <WrapPanel Margin="0,0,0,6">
+                                            <Button Content="{ui:Text 'Register + save'}" Command="{Binding RegisterFiducialCommand}" Padding="12,7" Margin="0,0,8,0">
+                                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                    <Setter Property="IsEnabled" Value="{Binding IsFiducialCaptureAllowed}"/>
+                                                    <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger></Style.Triggers>
+                                                </Style></Button.Style>
+                                            </Button>
+                                            <Button Content="{ui:Text 'Find mark'}" Command="{Binding FindFiducialCommand}" Padding="12,7" Margin="0,0,8,0">
+                                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Setter Property="IsEnabled" Value="{Binding IsFiducialCaptureAllowed}"/>
+                                                    <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger></Style.Triggers>
+                                                </Style></Button.Style>
+                                            </Button>
+                                            <TextBlock Text="{Binding FiducialRegistration}" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                        </WrapPanel>
+                                        <TextBlock Text="{ui:Text 'Drag around the circular mark in the image'}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6" TextWrapping="Wrap">
+                                            <TextBlock.Style><Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers><DataTrigger Binding="{Binding FiducialRegion}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger></Style.Triggers>
+                                            </Style></TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding FiducialMessage}" TextWrapping="Wrap" Margin="0,0,0,6"/>
                                     </StackPanel>
-                                </WrapPanel>
+                                </StackPanel>
                                 <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
                                     <Grid>
-                                        <ui:InspectionImageView Source="{Binding CameraImage}" ShowCrosshair="True"/>
+                                        <ui:InspectionImageView x:Name="TeachingCameraView" Source="{Binding CameraImage}" ShowCrosshair="True"
+                                            SourceRegion="{Binding FiducialRegion}" RegionCommand="{Binding DrawFiducialRegionCommand}"
+                                            CenterRegion="False" DetectedFiducial="{Binding DetectedFiducial}"/>
+                                        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Padding="8,4"
+                                            Background="{StaticResource ImageBackgroundBrush}">
+                                            <Border.Style><Style TargetType="Border">
+                                                <Style.Triggers><DataTrigger Binding="{Binding FiducialImage}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger></Style.Triggers>
+                                            </Style></Border.Style>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{ui:Text 'Captured image'}" VerticalAlignment="Center"/>
+                                                <Button Content="{ui:Text 'Show live'}" Command="{Binding ShowLiveImageCommand}" Margin="12,0,0,0" Padding="10,5"
+                                                    Visibility="{Binding Inspection.IsLiveView, Converter={StaticResource BoolToVis}}"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                            </StackPanel>
+                                        </Border>
                                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
                                             Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False">
                                             <TextBlock.Style>
@@ -390,6 +433,9 @@
                                     <Setter Property="IsEnabled" Value="{Binding IsTeachCurrentPositionAllowed}"/>
                                     <Setter Property="Content" Value="{ui:Text 'Record Position'}"/>
                                     <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFiducialSelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
                                         <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.Full}">
                                             <Setter Property="Content" Value="{ui:Text 'Record X/Y/Z'}"/>
                                         </DataTrigger>

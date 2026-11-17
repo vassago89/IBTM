@@ -24,6 +24,7 @@ public partial class StartConfirmationWindow : Window
     {
         _viewModel = viewModel;
         InitializeComponent();
+        StartAreaSelector.ItemsSource = Enum.GetValues<StartArea>();
         DataContext = viewModel;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         // Binding delivers the production state change on this window's dispatcher.
@@ -47,10 +48,22 @@ public partial class StartConfirmationWindow : Window
         FasteningHeatSinkSelector.SelectedValue = _viewModel.SelectedFasteningResumeBolt?.HeatSink ?? HeatSinkSlot.HeatSink1;
     }
 
+    private void OnStartAreaChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (StartAreaSelector.SelectedItem is StartArea area && area != _viewModel.SelectedStartArea)
+            _viewModel.SelectStartAreaCommand.Execute(area);
+    }
+
     private void OnFasteningRowsFilter(object sender, FilterEventArgs e)
     {
         var heatSink = FasteningHeatSinkSelector?.SelectedValue is HeatSinkSlot selected ? selected : HeatSinkSlot.HeatSink1;
         e.Accepted = e.Item is FasteningResumeRow row && row.HeatSink == heatSink;
+    }
+
+    private void OnIndividualReviewVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is TabItem { IsVisible: false, IsSelected: true })
+            ReviewTabs.SelectedIndex = 0;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

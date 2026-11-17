@@ -204,64 +204,6 @@
                 </StackPanel>
             </Grid>
 
-            <Canvas Visibility="{Binding FasteningPositionKnown, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
-                <Grid Width="126" Height="138">
-                    <Grid.Style>
-                        <Style TargetType="Grid">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding PickupHeadMapPosition}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <Grid.RenderTransform>
-                        <TranslateTransform X="{Binding PickupHeadMapPosition.X, TargetNullValue=0, FallbackValue=0}"
-                            Y="{Binding PickupHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
-                    </Grid.RenderTransform>
-                    <Canvas>
-                        <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Canvas.Top="125"
-                            Text="{ui:Text 'Pickup'}" FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-                        <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeadTop}"
-                            Width="{x:Static ui:MachineDiagramLayout.HeadSize}" Height="{x:Static ui:MachineDiagramLayout.HeadSize}" Opacity="0.6">
-                            <Border Margin="-6" Tag="{Binding Fastening.Motion.IsMoving}" Style="{StaticResource OverheadBodyStyle}"/>
-                            <Border Tag="{Binding Fastening.PickupHeadPosition}" Style="{StaticResource ToolHeadFootprintStyle}"/>
-                            <Border Width="14" Height="4" Background="{StaticResource TextMutedBrush}" CornerRadius="2"/>
-                            <Ellipse Style="{StaticResource VacuumDetectedVisualStyle}"
-                                Visibility="{Binding Signals.Inputs[PickupHeadVacuumDetected].IsOn, Converter={StaticResource BoolToVis}}"/>
-                        </Grid>
-                    </Canvas>
-                </Grid>
-                <Grid Width="126" Height="138">
-                    <Grid.Style>
-                        <Style TargetType="Grid">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShootingHeadMapPosition}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <Grid.RenderTransform>
-                        <TranslateTransform X="{Binding ShootingHeadMapPosition.X, TargetNullValue=0, FallbackValue=0}"
-                            Y="{Binding ShootingHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
-                    </Grid.RenderTransform>
-                    <Canvas>
-                        <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.ShootingHeadLeft}" Canvas.Top="65" Text="{ui:Text 'Shooting'}"
-                            FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-                        <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.ShootingHeadLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeadTop}"
-                            Width="{x:Static ui:MachineDiagramLayout.HeadSize}" Height="{x:Static ui:MachineDiagramLayout.HeadSize}" Opacity="0.6">
-                            <Border Margin="-6" Tag="{Binding Fastening.Motion.IsMoving}" Style="{StaticResource OverheadBodyStyle}"/>
-                            <Border Tag="{Binding Fastening.ShootingHeadPosition}" Style="{StaticResource ToolHeadFootprintStyle}"/>
-                            <Ellipse Width="12" Height="12" Fill="{StaticResource EquipBgBrush}"
-                                Stroke="{StaticResource TextMutedBrush}" StrokeThickness="2"/>
-                            <Ellipse Style="{StaticResource VacuumDetectedVisualStyle}"
-                                ToolTip="{ui:Text 'Shooting vacuum'}"
-                                Visibility="{Binding Signals.Inputs[ShootingHeadVacuumDetected].IsOn, Converter={StaticResource BoolToVis}}"/>
-                        </Grid>
-                    </Canvas>
-                </Grid>
-            </Canvas>
         </Canvas>
         <Grid Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="138" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,192,0,0">
             <Grid.RenderTransform>

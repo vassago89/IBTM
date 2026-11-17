@@ -120,7 +120,20 @@ AJIN은 `AxlOpen` 후 DIO 모듈을 확인하며 .mot를 로드하지 않는다.
 
 가상 장치는 테스트에서만 주입하며, 테스트 저장소는 임시 DB를 사용한다. 앱은 데모 데이터를 생성하지 않는다.
 
-볼트 검사는 레시피의 각 `Pcb.TaughtBolts` 항목에 BrightnessThreshold(0–255)와 MinimumBrightRatio(0–1)를 저장한다.
-개별 값이 없는 기존 볼트는 `BoltInspection`의 종전 공통값을 사용한다. 편집한 볼트는 개별 값으로 저장하며 다른 볼트의 값은 바뀌지 않는다.
-옛 모델의 마스크 비율은 밝은 면적 비율로 변환하지 않는다. 기존 레시피를 열면 새 항목의 기본값을 사용하므로 실제 영상으로 기준을 맞춘 뒤 저장한다.
-학습·모델 프로젝트는 제거되었으며, 기존 학습 DB와 이미지 파일은 읽거나 삭제하지 않는다.
+볼트 위치별 촬영은 검사 XY와 조명값을 사용한다. 볼트 사진의 ROI·밝기 기준·합격 비율은 사용하지 않는다.
+데이터 매트릭스의 ROI와 판독 설정은 레시피에 저장한다.
+생산 사진은 PcbImages에 원본 PNG와 볼트 GUID·촬영 시각을 저장한다. 볼트 사진의 Region·Success는 null이다.
+데이터 매트릭스 사진에는 판독 결과·ROI·Threshold·Dilated를 함께 저장한다.
+
+LVDT(ML-CP): 포트·전송속도·응답 제한 시간·명령 형식은 장비 공통 MlcpSettings에 저장한다.
+InspectionGantrySettings의 ProbeOffsetX/Y는 카메라 티칭 위치에서 LVDT 위치로 움직일 축 이동량(mm)이다.
+레시피 BoltInspection.HeightReference1/2에 PCB별 기준면 세 XY를, BoltPoint.MinimumHeight/MaximumHeight에 상대 높이 범위를 저장한다.
+PcbRecord.HeightReference/HeightResults는 PCB 결과 JSON에 저장한다. 토크 그래프나 이미지 데이터와는 별개다.
+
+피듀셜: 레시피 BoltInspection.Fiducials1/2에 사용 여부와 두 원형 구멍의 카메라 XY·윤곽 픽셀·등록 해상도·조명·검출 조건을 저장한다.
+InspectionGantrySettings.CameraResolution은 촬영면 기준 해상도(mm/pixel)다. 설정 → 카메라 조명에서 양수 하나를 입력하며 레시피와 별개로 두 PCB에 공통 적용한다.
+영상 오른쪽은 장비 X+, 아래쪽은 Y−로 변환한다. 해상도 미설정 상태에서는 피듀셜 좌표를 계산하지 않는다.
+PcbRecord.Alignment에는 해당 검사에서 측정한 두 기준 좌표·검출 좌표·형상 오차·시각을 저장한다.
+검출 실패 시 Alignment는 null이며 PcbRecord.FiducialError에 실패 원인, IsFiducialNgExcluded에 당시 NG 제외 설정을 저장한다. 나중에 장비 설정을 바꿔도 과거 판정은 바뀌지 않는다.
+InspectionGantrySettings.ExcludeFiducialFromNg는 피듀셜 실패만 최종 NG에서 제외하는 공통 설정이며 기본 OFF다. 실패한 PCB는 옵션과 관계없이 보정 없이 나머지 검사를 계속한다.
+검사 재시작은 기존 보정을 지우고 두 구멍부터 다시 찾는다. 결과 재조회는 당시 기록을 그대로 읽으며 레시피 좌표를 수정하지 않는다.

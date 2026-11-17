@@ -666,7 +666,7 @@ public sealed class TeachingTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+            point => point.Position.Target == TeachingTarget.InspectionWaiting);
         await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         var point = teaching.SelectedPoint;
         Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
@@ -700,7 +700,7 @@ public sealed class TeachingTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+            point => point.Position.Target == TeachingTarget.InspectionWaiting);
         var point = teaching.SelectedPoint;
         point.Teach(1, 2, 0);
         await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 3, Y = 4 }, 10_000);
@@ -969,18 +969,12 @@ public sealed class TeachingTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         settings.Units.BoltFastening = true;
-        settings.CarrierReference.UpperLeftLocatingPin = new() { X = 100, Y = 200 };
-        settings.CarrierReference.LowerRightLocatingPin = new() { X = 140, Y = 200 };
         settings.BoltFastening.ShootingHead = new()
         {
-            UpperLeftLocatingPin = new() { X = 300, Y = 400 },
-            LowerRightLocatingPin = new() { X = 300, Y = 440 },
             FasteningZ = 12,
         };
         settings.BoltFastening.PickupHead = new()
         {
-            UpperLeftLocatingPin = new() { X = -50, Y = 250 },
-            LowerRightLocatingPin = new() { X = -50, Y = 210 },
             FasteningZ = 16,
         };
         await using var services = CreateServices(settings);
@@ -996,16 +990,14 @@ public sealed class TeachingTests
         await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var bolt = teaching.SelectedPoint!.Position.Bolt!;
         Assert.NotEqual(Guid.Empty, bolt.Id);
-        if (head == FasteningHead.Pickup)
-        {
-            Assert.NotNull(bolt.PreliminaryFasteningPosition);
-            Assert.Equal((280d, 410d), (bolt.PreliminaryFasteningPosition.X, bolt.PreliminaryFasteningPosition.Y));
-            var saved = services.GetRequiredService<MachineStore>().LoadRecipe(teaching.RecipeEditor.ActiveName);
-            var savedPosition = Assert.Single(saved.Pcb.BoltPoints).PreliminaryFasteningPosition!;
-            Assert.Equal((280d, 410d), (savedPosition.X, savedPosition.Y));
-        }
-        else
-            Assert.Null(bolt.PreliminaryFasteningPosition);
+        Assert.Null(bolt.FasteningX);
+        Assert.Null(bolt.FasteningY);
+        Assert.Null(bolt.PreliminaryFasteningPosition);
+        var saved = services.GetRequiredService<MachineStore>().LoadRecipe(teaching.RecipeEditor.ActiveName);
+        var savedBolt = Assert.Single(saved.Pcb.BoltPoints);
+        Assert.Null(savedBolt.FasteningX);
+        Assert.Null(savedBolt.FasteningY);
+        Assert.Null(savedBolt.PreliminaryFasteningPosition);
         await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var temporaryBolt = teaching.SelectedPoint!.Position.Bolt!;
         Assert.NotEqual(Guid.Empty, temporaryBolt.Id);
@@ -1031,15 +1023,26 @@ public sealed class TeachingTests
         Assert.Contains(position, teaching.FilteredPoints);
         Assert.Equal(TeachingTarget.BoltPosition, position.Position.Target);
         Assert.Same(bolt, position.Position.Bolt);
+        Assert.False(position.Position.HasPosition);
+        Assert.Null(position.Coordinates);
+        Assert.False(teaching.IsMoveToPointAllowed);
+        var fastening = services.GetRequiredService<BoltFasteningStation>();
+        await fastening.MoveToXYAsync(expectedX, expectedY);
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.True(position.Position.HasPosition);
         Assert.Equal((expectedX, expectedY, expectedZ), (position.Coordinates!.X, position.Coordinates.Y, position.Coordinates.Z));
         Assert.False(teaching.IsAddBoltPointAllowed);
         Assert.False(teaching.IsRemoveBoltPointAllowed);
 
-        var fastening = services.GetRequiredService<BoltFasteningStation>();
         if (head == FasteningHead.Pickup)
         {
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltPreliminaryPosition);
+            Assert.False(teaching.SelectedPoint.Position.HasPosition);
+            Assert.False(teaching.IsMoveToPointAllowed);
+            await fastening.MoveToXYAsync(280, 410);
+            await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
             await teaching.MoveToPointCommand.ExecuteAsync(null);
             Assert.Equal((280d, 410d, settings.BoltFastening.ShootingPreliminaryZ!.Value), fastening.Motion.Feedback.Position);
@@ -1104,7 +1107,7 @@ public sealed class TeachingTests
 
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == (head == FasteningHead.Shooting
-                ? TeachingTarget.ShootingHeadUpperLeftLocatingPin : TeachingTarget.PickupHeadUpperLeftLocatingPin));
+                ? TeachingTarget.ShootingHeadFasteningZ : TeachingTarget.PickupHeadFasteningZ));
         teaching.SelectedPoint = position;
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         Assert.Same(bolt, teaching.SelectedPoint!.Position.Bolt);
@@ -1266,7 +1269,7 @@ public sealed class TeachingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task GantryGrabSavesImageAndLightWithoutChangingPositionOrRoiOrStoppingLive(bool barcode)
+    public async Task GantryCaptureSavesImageAndLightWithoutChangingPositionOrRoiOrStoppingLive(bool barcode)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -1280,7 +1283,6 @@ public sealed class TeachingTests
         if (barcode)
         {
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
-            Assert.False(teaching.IsGrabAllowed);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         }
         else
@@ -1307,8 +1309,7 @@ public sealed class TeachingTests
         Assert.Equal(recipeBeforePreview, JsonSerializer.Serialize(teaching.Recipes.Current));
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
 
-        await WaitUntilAsync(() => teaching.IsGrabAllowed);
-        await teaching.GrabCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
 
         Assert.Null(teaching.CameraError);
@@ -1498,7 +1499,6 @@ public sealed class TeachingTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
-        settings.BoltFastening.ShootingHead.LowerRightLocatingPin = null;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         await machine.InitializeAsync();
@@ -1511,7 +1511,6 @@ public sealed class TeachingTests
         var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
         var store = services.GetRequiredService<MachineStore>();
         var imageBefore = store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number);
-        settings.BoltFastening.ShootingHead.LowerRightLocatingPin = new() { X = 100, Y = 100 };
         await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 17, Y = 29 });
         using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
         connection.Open();
@@ -1652,7 +1651,8 @@ public sealed class TeachingTests
                 await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
                 Assert.Equal((recipe.GetInspectionPosition(fov).X, recipe.GetInspectionPosition(fov).Y), (teaching.SelectedPoint.Coordinates!.X, teaching.SelectedPoint.Coordinates!.Y));
                 Assert.DoesNotContain("Not taught", teaching.SelectedPoint.PositionLabel);
-                Assert.False(barcode ? gantry.HasBarcodeRegion(HeatSinkSlot.HeatSink1) : gantry.HasRegion(bolt));
+                if (barcode)
+                    Assert.False(gantry.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
 
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
 
@@ -1661,7 +1661,8 @@ public sealed class TeachingTests
             }
 
             fov.Region = new(0, 0, 20, 20);
-            Assert.True(barcode ? gantry.HasBarcodeRegion(HeatSinkSlot.HeatSink1) : gantry.HasRegion(bolt));
+            if (barcode)
+                Assert.True(gantry.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
 
             await gantry.SetLiftUpAsync(false);
             Assert.False(teaching.IsMoveToPointAllowed);
@@ -1671,8 +1672,8 @@ public sealed class TeachingTests
             await gantry.SetLiftUpAsync(true);
 
             recipe.CarrierImages.Remove(fov);
-            Assert.False(barcode ? gantry.HasBarcodeRegion(HeatSinkSlot.HeatSink1) : gantry.HasRegion(bolt));
-            Assert.False(teaching.IsGrabAllowed);
+            if (barcode)
+                Assert.False(gantry.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
             if (barcode)
             {
                 Assert.False(teaching.SelectedPoint.Position.HasPosition);
@@ -1716,16 +1717,15 @@ public sealed class TeachingTests
         var preview = new InspectionPreviewViewModel(recipes.Current);
         var frame = new ImageFrame(1, 1, 3, [160, 160, 160]);
         var region = new PixelRegion(0, 0, 1, 1);
-        recipes.Current.BoltInspection.BrightnessThreshold = 128;
-        preview.Clear(bolt: new());
+        recipes.Current.BoltInspection.DataMatrix1.ThresholdMinimum = 128;
+        preview.Clear(HeatSinkSlot.HeatSink1);
         preview.SetSavedImage(InspectionPreviewViewModel.CreateBitmap(frame), region);
-        await preview.InspectAsync(CancellationToken.None);
-        Assert.StartsWith("OK", preview.Result);
+        Assert.All(InspectionPreviewViewModel.CreateFrame(preview.Overlay!).Pixels, pixel => Assert.Equal(255, pixel));
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
         var saved = new Recipe
         {
             Name = "Other",
-            BoltInspection = new() { BrightnessThreshold = 200 },
+            BoltInspection = new() { DataMatrix1 = new() { ThresholdMinimum = 200 } },
             Pcb = new() { BoltPoints = [untaughtBolt] },
             CarrierImages = [new() { Number = 1, IsBarcode = true, Center = new(), Region = region }],
         };
@@ -1735,9 +1735,9 @@ public sealed class TeachingTests
 
         Assert.Equal("Other", editor.ActiveName);
         Assert.Equal("Other", editor.Name);
-        Assert.Equal(200, preview.BrightnessThreshold);
+        Assert.Equal(200, preview.DataMatrixThresholdMinimum);
         await preview.InspectAsync(CancellationToken.None);
-        Assert.StartsWith("NG", preview.Result);
+        Assert.False(preview.Success);
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
         Assert.Same(recipes.Current.CarrierImages[0], inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1));
         var loadedBolt = Assert.Single(recipes.Current.Pcb.BoltPoints);
@@ -2322,7 +2322,7 @@ public sealed class TeachingTests
                 OutputIo.PcbPlacementBackupPlateUp),
             (
                 HardwareArea.InspectionGantry,
-                TeachingTarget.CarrierUpperLeftLocatingPin,
+                TeachingTarget.InspectionWaiting,
                 InputIo.InspectionBackupPlateUp,
                 InputIo.InspectionBackupPlateDown,
                 OutputIo.InspectionBackupPlateUp),

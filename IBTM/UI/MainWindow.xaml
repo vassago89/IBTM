@@ -187,8 +187,8 @@
                     <Button Content="{ui:Text 'MOTION'}" Style="{StaticResource SidebarToolButtonStyle}"
                         Command="{Binding OpenMotionCommand}" IsEnabled="{Binding IsMaintenanceAccessAllowed}"/>
 
-                    <Button Content="{ui:Text 'ADC TEST'}" Style="{StaticResource SidebarToolButtonStyle}"
-                        Command="{Binding OpenAdcProtocolCommand}" IsEnabled="{Binding IsMaintenanceAccessAllowed}"/>
+                    <Button Content="{ui:Text 'Protocol test'}" Style="{StaticResource SidebarToolButtonStyle}"
+                        Command="{Binding OpenProtocolCommand}" IsEnabled="{Binding IsMaintenanceAccessAllowed}"/>
                     <Button Content="{ui:Text 'LOGS'}" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenLogsCommand}"/>
                 </StackPanel>
             </Grid>

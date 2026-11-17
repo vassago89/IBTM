@@ -218,35 +218,6 @@ public sealed class BoltFasteningSettings : Setting
         }
     }
 
-    public void InitializeBoltPosition(BoltPoint bolt, CarrierReferenceSettings reference)
-    {
-        if (bolt.InspectionPosition is not { } inspectionPosition || !reference.IsDefined)
-            return;
-        var head = GetHead(bolt.Head);
-        if (bolt.FasteningX is null && bolt.FasteningY is null
-            && CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin))
-        {
-            var position = CarrierCoordinates.ToMachine(
-                inspectionPosition,
-                reference.UpperLeftLocatingPin!,
-                reference.LowerRightLocatingPin!,
-                head.UpperLeftLocatingPin!,
-                head.LowerRightLocatingPin!);
-            bolt.FasteningX = position.X;
-            bolt.FasteningY = position.Y;
-        }
-        if (bolt.Head == FasteningHead.Pickup && bolt.PreliminaryFasteningPosition is null
-            && CarrierCoordinates.IsDefined(ShootingHead.UpperLeftLocatingPin, ShootingHead.LowerRightLocatingPin))
-        {
-            bolt.PreliminaryFasteningPosition = CarrierCoordinates.ToMachine(
-                inspectionPosition,
-                reference.UpperLeftLocatingPin!,
-                reference.LowerRightLocatingPin!,
-                ShootingHead.UpperLeftLocatingPin!,
-                ShootingHead.LowerRightLocatingPin!);
-        }
-    }
-
     public AxisPosition GetBoltPosition(BoltPoint bolt, bool preliminary = false)
     {
         if (preliminary)
@@ -272,6 +243,4 @@ public sealed class BoltFasteningSettings : Setting
 public sealed class BoltHeadSettings
 {
     public double FasteningZ { get; set; }
-    public AxisPosition? UpperLeftLocatingPin { get; set; }
-    public AxisPosition? LowerRightLocatingPin { get; set; }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
@@ -9,13 +10,14 @@ using IBTM.PcbSupply;
 
 namespace IBTM;
 
-public sealed class Recipe
+public sealed partial class Recipe : ObservableObject
 {
     public Recipe()
     {
         PcbSupply = new();
         PcbPlacement = new();
         Pcb = new();
+        BoltFastening = new();
         BoltInspection = new();
         CarrierImages = [];
     }
@@ -24,6 +26,10 @@ public sealed class Recipe
     public PcbSupplyRecipe PcbSupply { get; set; }
     public PcbPlacementRecipe PcbPlacement { get; set; }
     public PcbLayout Pcb { get; set; }
+
+    [ObservableProperty]
+    public partial BoltFasteningRecipe BoltFastening { get; set; }
+
     public BoltInspectionRecipe BoltInspection { get; set; }
     public List<CarrierImageTile> CarrierImages { get; set; }
 
@@ -64,6 +70,7 @@ public sealed class Recipe
         PcbPlacement = recipe.PcbPlacement;
         Pcb.BoltPoints = recipe.Pcb.BoltPoints;
         Pcb.FasteningOrder = recipe.Pcb.FasteningOrder;
+        BoltFastening = recipe.BoltFastening;
         BoltInspection = recipe.BoltInspection;
         CarrierImages = recipe.CarrierImages;
     }
