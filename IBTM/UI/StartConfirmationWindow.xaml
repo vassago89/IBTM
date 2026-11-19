@@ -247,7 +247,17 @@
                             </ScrollViewer>
                         </StackPanel>
                     </Border>
-                    <ui:MachineDiagramView Grid.Row="1" ShowStartCheck="True"/>
+                    <ui:MachineDiagramView Grid.Row="1" ShowStartCheck="True">
+                        <ui:MachineDiagramView.Style>
+                            <Style TargetType="ui:MachineDiagramView">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsVisible, ElementName=FasteningBoltList}" Value="True">
+                                        <Setter Property="SelectedReviewBolt" Value="{Binding SelectedFasteningResumeBolt}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:MachineDiagramView.Style>
+                    </ui:MachineDiagramView>
                 </Grid>
             </Border>
             <Border Grid.Column="1" Padding="12" Margin="0,0,12,0" Background="{StaticResource PanelBgBrush}"

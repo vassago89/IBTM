@@ -28,6 +28,7 @@ public static class MachineDiagramLayout
     public const double CarrierBorder = 2;
     public const double CarrierPadding = 9;
     public const double HeatSinkGap = 9;
+    public const double BoltMarkerSize = 24;
     public const double FasteningHeaderOffset = 18;
     public const double SupplyWidth = 100;
     public const double SupplyHeight = 112;

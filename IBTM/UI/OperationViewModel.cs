@@ -34,6 +34,10 @@ public sealed record PlacementResumeRow(
 public sealed record FasteningResumeRow(
     Guid BoltId, string Label, HeatSinkSlot HeatSink, FasteningHead Head, BoltResult? Result)
 {
+    public int Order { get; init; }
+    public Point? MarkerPosition { get; init; }
+    public IoInputStatus? HeatSinkPresence { get; init; }
+
     public string Status => Result is null ? "Not recorded"
         : Result.Source == BoltResultSource.Interrupted ? "Fastening interrupted"
         : !Result.IsComplete ? Result.Stage == BoltFasteningStage.FinalBeforeRetightening
@@ -533,13 +537,55 @@ public partial class OperationViewModel : ObservableObject
         _reviewedFasteningJob = Fastening.Station.CurrentJob;
         var selectedId = advanceAfterBoltId ?? SelectedFasteningResumeBolt?.BoltId;
         FasteningResumeBolts.Clear();
-        foreach (var bolt in Recipes.Current.Pcb.GetFasteningPoints(_fasteningSettings.FirstFasteningHead)
-            .Where(bolt => State.Available && Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)))
+        var bolts = Recipes.Current.Pcb.GetFasteningPoints(_fasteningSettings.FirstFasteningHead)
+            .Where(bolt => State.Available && Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)).ToArray();
+        var markerPositions = new Dictionary<Guid, Point>();
+        foreach (var pocket in bolts.GroupBy(bolt => bolt.HeatSink))
+        {
+            // Use one head's XY for the whole pocket so its offsets cancel.
+            var shooting = new Dictionary<Guid, Point>();
+            var inspection = new Dictionary<Guid, Point>();
+            foreach (var bolt in pocket)
+            {
+                if (bolt.Head == FasteningHead.Pickup && bolt.PreliminaryFasteningPosition is { } xy
+                    && double.IsFinite(xy.X) && double.IsFinite(xy.Y))
+                    shooting[bolt.Id] = new(xy.X, xy.Y);
+                else if (bolt.Head == FasteningHead.Shooting && bolt.IsFasteningPositionDefined)
+                    shooting[bolt.Id] = new(bolt.FasteningX!.Value, bolt.FasteningY!.Value);
+                if (bolt.InspectionPosition is { } camera)
+                    inspection[bolt.Id] = new(camera.X, camera.Y);
+            }
+            var points = shooting.Count >= inspection.Count ? shooting : inspection;
+            if (points.Count == 0)
+                continue;
+            var bounds = Rect.Empty;
+            foreach (var point in points.Values)
+                bounds.Union(point);
+            const double inset = MachineDiagramLayout.CarrierContentInset;
+            const double pocketWidth = (MachineDiagramLayout.CarrierWidth - 2 * inset - MachineDiagramLayout.HeatSinkGap) / 2;
+            const double plotWidth = pocketWidth - MachineDiagramLayout.BoltMarkerSize;
+            const double plotHeight = MachineDiagramLayout.CarrierHeight - 2 * inset - MachineDiagramLayout.BoltMarkerSize;
+            var mmPerUnit = Math.Max(bounds.Width / plotWidth, bounds.Height / plotHeight);
+            var scale = mmPerUnit > 0 ? 1 / mmPerUnit : 0;
+            var center = new Point(bounds.Left + bounds.Width / 2, bounds.Top + bounds.Height / 2);
+            var left = inset + (pocket.Key == HeatSinkSlot.HeatSink2 ? pocketWidth + MachineDiagramLayout.HeatSinkGap : 0);
+            foreach (var (id, point) in points)
+                markerPositions[id] = new(
+                    left + plotWidth / 2 + (point.X - center.X) * scale,
+                    inset + plotHeight / 2 + (center.Y - point.Y) * scale);
+        }
+        foreach (var bolt in bolts)
         {
             var assembly = Fastening.Station.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
             var result = assembly?.ShootingBoltResults.GetValueOrDefault(bolt.Id)
                 ?? assembly?.PickupBoltResults.GetValueOrDefault(bolt.Id);
-            FasteningResumeBolts.Add(new(bolt.Id, Recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, bolt.Head, result));
+            FasteningResumeBolts.Add(new(bolt.Id, Recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, bolt.Head, result)
+            {
+                Order = FasteningResumeBolts.Count + 1,
+                MarkerPosition = markerPositions.TryGetValue(bolt.Id, out var position) ? position : null,
+                HeatSinkPresence = Signals.Inputs.GetValueOrDefault(bolt.HeatSink == HeatSinkSlot.HeatSink1
+                    ? InputIo.BoltFasteningHeatSink1Present : InputIo.BoltFasteningHeatSink2Present),
+            });
         }
         var selected = FasteningResumeBolts.FirstOrDefault(row => row.BoltId == selectedId);
         if (advanceAfterBoltId.HasValue && selected is not null)

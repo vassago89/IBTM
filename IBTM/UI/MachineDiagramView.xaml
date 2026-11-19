@@ -4,6 +4,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI" xmlns:app="clr-namespace:IBTM"
+    xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
     mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}">
     <UserControl.Resources>
         <Style x:Key="StartCheckOutline" TargetType="Border">
@@ -283,6 +284,57 @@
                             </Style></Button.Style>
                         </Button>
                     </Border>
+                    <ListBox x:Name="ReviewBoltMap" Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningCarrierLeft}"
+                        Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
+                        Width="{x:Static ui:MachineDiagramLayout.CarrierWidth}" Height="{x:Static ui:MachineDiagramLayout.CarrierHeight}"
+                        IsHitTestVisible="False" Focusable="False" IsSynchronizedWithCurrentItem="False"
+                        SelectedItem="{Binding SelectedReviewBolt, ElementName=Diagram, Mode=OneWay}">
+                        <ListBox.Style>
+                            <Style TargetType="ListBox">
+                                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBox"><ItemsPresenter/></ControlTemplate></Setter.Value></Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ShowStartCheck, ElementName=Diagram}" Value="True">
+                                        <Setter Property="ItemsSource" Value="{Binding FasteningResumeBolts}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.Style>
+                        <ListBox.ItemsPanel><ItemsPanelTemplate><Canvas/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Canvas.Left" Value="{Binding MarkerPosition.X}"/>
+                                <Setter Property="Canvas.Top" Value="{Binding MarkerPosition.Y}"/>
+                                <Setter Property="Visibility" Value="{Binding HeatSinkPresence.IsOn, Converter={StaticResource BoolToVis}}"/>
+                                <Setter Property="Focusable" Value="False"/>
+                                <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.BoltMarkerSize}"/>
+                                <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.BoltMarkerSize}"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Grid>
+                                                <Ellipse x:Name="Ring" StrokeThickness="3"/>
+                                                <Ellipse x:Name="Bolt" Margin="3" Fill="{StaticResource ControlBgBrush}" Stroke="{StaticResource TextMutedBrush}"/>
+                                                <TextBlock Text="{Binding Order}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="Bold"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding Result.Success}" Value="True"><Setter TargetName="Bolt" Property="Stroke" Value="{StaticResource AccentGreenBrush}"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding Result.IsComplete}" Value="False"><Setter TargetName="Bolt" Property="Stroke" Value="{StaticResource AccentAmberBrush}"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding Result.Success}" Value="False"><Setter TargetName="Bolt" Property="Stroke" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}"><Setter TargetName="Bolt" Property="Stroke" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding Result.Source}" Value="{x:Static core:BoltResultSource.Interrupted}"><Setter TargetName="Bolt" Property="Stroke" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
+                                                <Trigger Property="IsSelected" Value="True"><Setter TargetName="Ring" Property="Stroke" Value="{StaticResource AccentBlueBrush}"/></Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding MarkerPosition}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                    <Trigger Property="IsSelected" Value="True"><Setter Property="Panel.ZIndex" Value="1"/></Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
                     <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
                         Width="{x:Static ui:MachineDiagramLayout.CarrierWidth}" Height="{x:Static ui:MachineDiagramLayout.CarrierHeight}"
                         Tag="{Binding Machine.StartChecks[Station3]}" Style="{StaticResource StartCheckOutline}">
