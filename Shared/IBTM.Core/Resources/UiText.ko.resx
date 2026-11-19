@@ -2096,7 +2096,7 @@
     <value>시작</value>
   </data>
   <data name="start live" xml:space="preserve">
-    <value>라이브</value>
+    <value>라이브 시작</value>
   </data>
   <data name="start off sent; see controller feedback." xml:space="preserve">
     <value>START OFF 전송 체결기 상태 확인</value>

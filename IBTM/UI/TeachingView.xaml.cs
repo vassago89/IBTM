@@ -16,6 +16,12 @@ public partial class TeachingView : UserControl
         _xamlMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
     }
 
+    private void OnCapturedTabVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is TabItem { IsSelected: true, Visibility: Visibility.Collapsed })
+            CameraTab.IsSelected = true;
+    }
+
     private void OnViewLoaded(object sender, RoutedEventArgs e)
     {
         var loadedAt = Stopwatch.GetTimestamp();

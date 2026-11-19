@@ -154,12 +154,19 @@
                     </ui:TeachingPointListBox>
                     <StackPanel Grid.Row="2" Margin="0,8,0,0"
                         Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{ui:Text 'Fastening order'}" Margin="0,0,0,6"/>
-                        <UniformGrid Columns="2">
-                            <Button Content="{ui:Text '↑ Earlier'}" Command="{Binding MoveFasteningEarlierCommand}" IsEnabled="{Binding IsMoveFasteningEarlierAllowed}" Padding="8,6" Margin="0,0,3,0"/>
-                            <Button Content="{ui:Text '↓ Later'}" Command="{Binding MoveFasteningLaterCommand}" IsEnabled="{Binding IsMoveFasteningLaterAllowed}" Padding="8,6" Margin="3,0,0,0"/>
-                        </UniformGrid>
-                        <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,10,0,0">
+                        <StackPanel Margin="0,0,0,8">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel"><Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedPoint.Position.Bolt}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                </Style.Triggers></Style>
+                            </StackPanel.Style>
+                            <TextBlock Text="{ui:Text 'Fastening order'}" Margin="0,0,0,6"/>
+                            <UniformGrid Columns="2">
+                                <Button Content="{ui:Text '↑ Earlier'}" Command="{Binding MoveFasteningEarlierCommand}" IsEnabled="{Binding IsMoveFasteningEarlierAllowed}" Padding="8,6" Margin="0,0,3,0"/>
+                                <Button Content="{ui:Text '↓ Later'}" Command="{Binding MoveFasteningLaterCommand}" IsEnabled="{Binding IsMoveFasteningLaterAllowed}" Padding="8,6" Margin="3,0,0,0"/>
+                            </UniformGrid>
+                        </StackPanel>
+                        <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,8,0,0">
                             <StackPanel>
                                 <ComboBox ItemsSource="{Binding FasteningHeads}"
                                     SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"
@@ -194,9 +201,9 @@
                     </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,10">
                         <TextBlock Text="{Binding SelectedPoint.Name}" Style="{StaticResource PanelTitleStyle}"
-                            Height="20" TextTrimming="CharacterEllipsis"/>
+                            TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding SelectedPoint.PositionLabel, TargetNullValue=—}"
-                            Height="36" ToolTip="{Binding SelectedPoint.PositionLabel}" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" Margin="0,4,0,0"
+                            ToolTip="{Binding SelectedPoint.PositionLabel}" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" Margin="0,2,0,0"
                             TextWrapping="Wrap"/>
                         <WrapPanel Margin="0,8,0,0" IsEnabled="{Binding State.SetupEditingEnabled}">
                             <WrapPanel.Style>
