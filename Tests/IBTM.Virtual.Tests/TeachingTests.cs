@@ -127,7 +127,7 @@ public sealed class TeachingTests
         {
             mark.CameraPosition = new() { X = ReferenceEquals(mark, fiducials.First) ? 0 : 10 };
             mark.WhiteMark = true;
-            mark.ReferenceRadiusMm = 1.4;
+            mark.ReferenceDiameterMm = 2.8;
             mark.Contour = FiducialDetector.Detect(referenceImage, mark, settings.InspectionGantry.CameraResolution, registering: true).Contour;
             mark.ImageWidth = mark.ImageHeight = 200;
         }

@@ -159,7 +159,7 @@ internal static class VirtualTestSupport
         {
             var frame = VirtualImageFactory.CreateInspection((x, y, 0), [], []);
             mark.CameraPosition = new() { X = x, Y = y };
-            mark.ReferenceRadiusMm = 0.6;
+            mark.ReferenceDiameterMm = 1.2;
             mark.SearchSizePixels = 48;
             mark.WhiteMark = true;
             mark.Contour = FiducialDetector.Detect(frame, mark, VirtualImageFactory.InspectionMillimetersPerPixel, registering: true).Contour;

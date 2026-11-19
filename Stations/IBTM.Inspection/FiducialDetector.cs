@@ -6,7 +6,7 @@ using OpenCvSharp;
 
 namespace IBTM.Inspection;
 
-public sealed record FiducialDetection(Point2D Center, double RadiusPixels, double ShapeError, Point2D[] Contour);
+public sealed record FiducialDetection(Point2D Center, double RadiusPixels, double Circularity, double ShapeError, Point2D[] Contour);
 
 public sealed class FiducialDetectionException : InvalidOperationException
 {
@@ -17,6 +17,8 @@ public sealed class FiducialDetectionException : InvalidOperationException
 
 public static class FiducialDetector
 {
+    public const double MinimumCircularity = 0.8;
+
     public static PcbAlignment GetAlignment(FiducialObservation first, FiducialObservation second)
     {
         if (double.Hypot(second.Reference.X - first.Reference.X, second.Reference.Y - first.Reference.Y) < 0.001
@@ -25,10 +27,10 @@ public static class FiducialDetector
         return new(DateTimeOffset.Now, first, second);
     }
 
-    public static double? GetReferenceRadiusMm(FiducialMark mark, double? mmPerPixel)
+    public static double? GetReferenceDiameterMm(FiducialMark mark, double? mmPerPixel)
     {
-        if (mark.ReferenceRadiusMm is { } radius)
-            return radius;
+        if (mark.ReferenceDiameterMm is { } diameter)
+            return diameter;
         // Older recipes used the area of the registered contour as the size reference.
         if (mark.Contour.Length < 5 || mmPerPixel is not > 0)
             return null;
@@ -40,7 +42,7 @@ public static class FiducialDetector
             previous = point;
         }
         var area = Math.Abs(twiceArea) / 2;
-        return double.IsFinite(area) && area >= 4 ? Math.Sqrt(area / Math.PI) * mmPerPixel : null;
+        return double.IsFinite(area) && area >= 4 ? 2 * Math.Sqrt(area / Math.PI) * mmPerPixel : null;
     }
 
     public static FiducialDetection Detect(ImageFrame frame, FiducialMark mark, double? mmPerPixel, bool registering = false)
@@ -52,8 +54,8 @@ public static class FiducialDetector
             throw new InvalidOperationException(UiText.Get("Register the fiducial contour"));
         if (mmPerPixel is not { } resolution || !double.IsFinite(resolution) || resolution <= 0)
             throw new InvalidOperationException(UiText.Get("Set camera resolution"));
-        var referenceRadius = GetReferenceRadiusMm(mark, resolution)
-            ?? throw new InvalidOperationException(UiText.Get("Enter a positive fiducial radius"));
+        var referenceDiameter = GetReferenceDiameterMm(mark, resolution)
+            ?? throw new InvalidOperationException(UiText.Get("Enter a positive fiducial diameter"));
 
         var region = PixelRegion.CenteredSquare(frame.Width, frame.Height, mark.SearchSizePixels);
         var search = new Rect(region.X, region.Y, region.Width, region.Height);
@@ -71,41 +73,79 @@ public static class FiducialDetector
                 throw new InvalidOperationException(UiText.Get("Register the fiducial contour"));
         }
         var accepted = new List<FiducialDetection>();
+        var clipped = 0;
+        double? closestDiameter = null;
+        double? bestCircularity = null;
+        double? lowestShapeError = null;
+        var tolerance = referenceDiameter * mark.SizeTolerancePercent / 100;
         foreach (var contour in contours)
         {
             var bounds = Cv2.BoundingRect(contour);
             if (contour.Length < 5)
                 continue;
             var area = Cv2.ContourArea(contour);
-            if (area < 4
-                || bounds.Left <= search.Left || bounds.Top <= search.Top
+            if (area < 4)
+                continue;
+            if (bounds.Left <= search.Left || bounds.Top <= search.Top
                 || bounds.Right >= search.Right || bounds.Bottom >= search.Bottom)
+            {
+                clipped++;
                 continue;
+            }
             var radiusPixels = Math.Sqrt(area / Math.PI);
-            var radiusMm = radiusPixels * resolution;
-            if (Math.Abs(radiusMm - referenceRadius) > referenceRadius * mark.SizeTolerancePercent / 100)
+            var diameterMm = 2 * radiusPixels * resolution;
+            if (Math.Abs(diameterMm - referenceDiameter) > tolerance)
+            {
+                if (closestDiameter is null || Math.Abs(diameterMm - referenceDiameter) < Math.Abs(closestDiameter.Value - referenceDiameter))
+                    closestDiameter = diameterMm;
                 continue;
+            }
             var perimeter = Cv2.ArcLength(contour, true);
-            if (4 * Math.PI * area / (perimeter * perimeter) < 0.8)
+            var circularity = 4 * Math.PI * area / (perimeter * perimeter);
+            if (circularity < MinimumCircularity)
+            {
+                bestCircularity = Math.Max(bestCircularity ?? 0, circularity);
                 continue;
+            }
             var error = 0d;
             if (!registering)
             {
                 using var candidate = InputArray.Create(contour);
                 error = Cv2.MatchShapes(reference!, candidate, ShapeMatchModes.I3);
                 if (!double.IsFinite(error) || error > mark.MaximumShapeError)
+                {
+                    if (double.IsFinite(error))
+                        lowestShapeError = Math.Min(lowestShapeError ?? error, error);
+                    else
+                        lowestShapeError ??= double.PositiveInfinity;
                     continue;
+                }
             }
 
             var points = contour.Select(point => new Point2D(point.X, point.Y)).ToArray();
-            accepted.Add(new(FitCircle(points), radiusPixels, error, points));
+            accepted.Add(new(FitCircle(points), radiusPixels, circularity, error, points));
         }
-        return accepted.Count switch
-        {
-            1 => accepted[0],
-            0 => throw new FiducialDetectionException(UiText.Get("Fiducial not found")),
-            _ => throw new FiducialDetectionException(UiText.Get("Multiple fiducials found in the search region")),
-        };
+        if (accepted.Count == 1)
+            return accepted[0];
+        if (accepted.Count > 1)
+            throw new FiducialDetectionException(UiText.Format($"{accepted.Count} circles meet the criteria; narrow the search area"));
+
+        var reasons = new List<string>();
+        if (clipped > 0)
+            reasons.Add(UiText.Format($"{clipped} contours touch the edge of the {region.Width} px search area"));
+        if (closestDiameter is { } closest)
+            reasons.Add(UiText.Format($"Closest diameter {closest:0.###} mm (allowed {referenceDiameter - tolerance:0.###}–{referenceDiameter + tolerance:0.###} mm)"));
+        if (bestCircularity is { } best)
+            reasons.Add(UiText.Format($"Best circularity {best:0.###} (minimum {MinimumCircularity:0.###})"));
+        if (lowestShapeError is { } lowest)
+            reasons.Add(double.IsFinite(lowest)
+                ? UiText.Format($"Lowest shape error {lowest:G4} (maximum {mark.MaximumShapeError:G4})")
+                : UiText.Get("Shape comparison produced no finite score"));
+        if (reasons.Count == 0)
+            reasons.Add(contours.Length == 0
+                ? UiText.Format($"No foreground contour at threshold {mark.Threshold}")
+                : UiText.Format($"Only small contours at threshold {mark.Threshold} (minimum 5 points and 4 px²)"));
+        throw new FiducialDetectionException(string.Join(" · ", reasons));
     }
 
     public static Mat Binarize(Mat bgr, int threshold, bool whiteMark)

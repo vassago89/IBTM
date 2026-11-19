@@ -181,8 +181,8 @@
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Border Grid.Row="0" Padding="12" Margin="0,0,0,12" Background="{StaticResource ControlBgBrush}">
-                        <StackPanel>
-                            <TextBlock TextWrapping="Wrap" TextTrimming="CharacterEllipsis" FontSize="17"
+                        <DockPanel Height="128">
+                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" FontSize="17"
                                 FontWeight="SemiBold" MinHeight="24" MaxHeight="48">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -213,39 +213,24 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                            <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                                <ItemsControl x:Name="StartBlockList" ItemsSource="{Binding StartBlockMessages}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}" Margin="0,6,0,0"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                            <ScrollViewer Margin="0,8,0,0" MaxHeight="100" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                                <ScrollViewer.Style>
-                                    <Style TargetType="ScrollViewer">
-                                        <Style.Triggers>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding HasAlarm}" Value="False"/>
-                                                    <Condition Binding="{Binding ResetError}" Value="{x:Null}"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </MultiDataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ScrollViewer.Style>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}"
                                         FontWeight="SemiBold"
                                         Visibility="{Binding HasAlarm, Converter={StaticResource BoolToVis}}"/>
-                                    <TextBlock Style="{StaticResource WarningTextStyle}" Text="{Binding AlarmAction}" Margin="0,6,0,8"/>
-                                    <TextBlock Style="{StaticResource ErrorTextStyle}" x:Name="StartAlarmMessage" Text="{Binding AlarmMessage}"/>
-                                    <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding ResetError}"/>
+                                    <TextBlock Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource AccentAmberBrush}" Text="{Binding AlarmAction}" Margin="0,6,0,8"/>
+                                    <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" x:Name="StartAlarmMessage" Text="{Binding AlarmMessage}"/>
+                                    <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding ResetError}"/>
+                                    <ItemsControl x:Name="StartBlockList" ItemsSource="{Binding StartBlockMessages}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}" Margin="0,6,0,0"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
                             </ScrollViewer>
-                        </StackPanel>
+                        </DockPanel>
                     </Border>
                     <ui:MachineDiagramView Grid.Row="1" ShowStartCheck="True">
                         <ui:MachineDiagramView.Style>
@@ -271,8 +256,9 @@
                             <TextBlock Text="{Binding Converter={StaticResource UiTextConverter}}"/>
                         </DataTemplate></ComboBox.ItemTemplate>
                     </ComboBox>
-                    <TextBlock Grid.Row="1" Text="{Binding StartActionMessage}" TextWrapping="Wrap" Margin="0,0,0,12"
-                        Foreground="{StaticResource AccentAmberBrush}" Style="{StaticResource StatusMessageStyle}"/>
+                    <ScrollViewer Grid.Row="1" Style="{StaticResource MessageAreaStyle}" Height="40" Margin="0,0,0,4">
+                        <TextBlock Text="{Binding StartActionMessage}" TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}"/>
+                    </ScrollViewer>
                     <TabControl Grid.Row="2">
                         <TabItem Header="{ui:Text 'Main controls'}">
                             <Grid>

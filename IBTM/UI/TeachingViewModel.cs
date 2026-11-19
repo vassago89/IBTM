@@ -564,7 +564,7 @@ public partial class TeachingViewModel : ObservableObject
         InspectionTestMessage = null;
         InspectionTestError = null;
         OnPropertyChanged(nameof(IsFiducialSelected));
-        OnPropertyChanged(nameof(FiducialReferenceRadiusMm));
+        OnPropertyChanged(nameof(FiducialReferenceDiameterMm));
         OnPropertyChanged(nameof(FiducialReferenceRadiusPixels));
         OnPropertyChanged(nameof(FiducialRegistration));
         if (PositionUpdatesActive)
@@ -1726,21 +1726,21 @@ public partial class TeachingViewModel : ObservableObject
     }
 
     public bool IsFiducialSelected => SelectedPoint?.Fiducial is not null;
-    public double? FiducialReferenceRadiusMm
+    public double? FiducialReferenceDiameterMm
     {
         get => SelectedPoint?.Fiducial is { } mark
-            ? FiducialDetector.GetReferenceRadiusMm(mark, _settings.InspectionGantry.CameraResolution) : null;
+            ? FiducialDetector.GetReferenceDiameterMm(mark, _settings.InspectionGantry.CameraResolution) : null;
         set
         {
             if (SelectedPoint?.Fiducial is not { } mark)
                 return;
-            mark.ReferenceRadiusMm = value ?? throw new ArgumentException(UiText.Get("Enter a positive fiducial radius"));
+            mark.ReferenceDiameterMm = value ?? throw new ArgumentException(UiText.Get("Enter a positive fiducial diameter"));
             OnPropertyChanged();
             OnPropertyChanged(nameof(FiducialReferenceRadiusPixels));
         }
     }
 
-    public double? FiducialReferenceRadiusPixels => FiducialReferenceRadiusMm / _settings.InspectionGantry.CameraResolution;
+    public double? FiducialReferenceRadiusPixels => FiducialReferenceDiameterMm / (2 * _settings.InspectionGantry.CameraResolution);
 
     public string FiducialRegistration
     {
@@ -1807,7 +1807,7 @@ public partial class TeachingViewModel : ObservableObject
             if (registering)
             {
                 // Keep the original size reference when re-registering a legacy recipe.
-                mark.ReferenceRadiusMm ??= FiducialDetector.GetReferenceRadiusMm(mark, resolution);
+                mark.ReferenceDiameterMm ??= FiducialDetector.GetReferenceDiameterMm(mark, resolution);
                 mark.CameraPosition = captured.Center;
                 mark.Contour = found.Contour;
                 mark.ImageWidth = captured.Frame.Width;
@@ -1833,7 +1833,8 @@ public partial class TeachingViewModel : ObservableObject
                 if (!learnContour)
                     FiducialMessage += $"   {UiText.Get("Shape error")} {found.ShapeError:F5}";
             }
-            FiducialMessage += "   " + UiText.Format($"Measured radius: {found.RadiusPixels * resolution:0.###} mm");
+            FiducialMessage += "   " + UiText.Format($"Measured diameter: {found.RadiusPixels * 2 * resolution:0.###} mm");
+            FiducialMessage += "   " + UiText.Format($"Circularity {found.Circularity:0.###}");
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested || viewToken.IsCancellationRequested)
         {

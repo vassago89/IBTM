@@ -480,11 +480,11 @@
                                     </WrapPanel>
                                     <WrapPanel Margin="0,0,0,4">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
-                                            <TextBlock Text="{ui:Text 'Reference radius (mm)'}" Foreground="DeepSkyBlue" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox x:Name="FiducialRadiusInput" Width="72" Text="{Binding FiducialReferenceRadiusMm, StringFormat={}{0:0.####}, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                            <TextBlock Text="{ui:Text 'Reference diameter (mm)'}" Foreground="DeepSkyBlue" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBox x:Name="FiducialDiameterInput" Width="72" Text="{Binding FiducialReferenceDiameterMm, StringFormat={}{0:0.####}, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
-                                            <TextBlock Text="{ui:Text 'Radius tolerance (±%)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="{ui:Text 'Diameter tolerance (±%)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                             <TextBox x:Name="FiducialToleranceInput" Width="55" Text="{Binding SelectedPoint.Fiducial.SizeTolerancePercent, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
@@ -499,7 +499,7 @@
                                                 <DataTrigger Binding="{Binding ElementName=FiducialSizeInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=FiducialShapeInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=FiducialToleranceInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
-                                                <DataTrigger Binding="{Binding ElementName=FiducialRadiusInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=FiducialDiameterInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                             </Style.Triggers>
                                         </Style></WrapPanel.Style>
@@ -510,10 +510,7 @@
                                         <Button x:Name="CheckAlignmentButton" Content="{ui:Text 'Check both marks'}" Command="{Binding CheckAlignmentCommand}"
                                             Style="{StaticResource SecondaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
                                     </WrapPanel>
-                                    <WrapPanel>
-                                        <TextBlock Text="{Binding FiducialRegistration}" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
-                                        <TextBlock Text="{Binding FiducialMessage}" Style="{StaticResource StatusMessageStyle}"/>
-                                    </WrapPanel>
+                                    <TextBlock Text="{Binding FiducialRegistration}" Foreground="{StaticResource TextMutedBrush}"/>
                                 </StackPanel>
                                 <StackPanel Visibility="{Binding IsHeightTestSelected, Converter={StaticResource BoolToVis}}" Margin="0,8,0,6">
                                     <WrapPanel Margin="0,2,0,10">
@@ -553,25 +550,7 @@
                                             <DataTrigger Binding="{Binding SelectedPoint.Position.Bolt}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                         </Style.Triggers></Style></TextBlock.Style>
                                     </TextBlock>
-                                    <TextBlock x:Name="HeightTestResultText" Text="{Binding HeightTestResult}" TextWrapping="Wrap" Margin="0,6,0,0" FontWeight="SemiBold">
-                                        <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
-                                            <DataTrigger Binding="{Binding HeightTestResult}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                            <DataTrigger Binding="{Binding HeightTestSuccess}" Value="True"><Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/></DataTrigger>
-                                            <DataTrigger Binding="{Binding HeightTestSuccess}" Value="False"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
-                                        </Style.Triggers></Style></TextBlock.Style>
-                                    </TextBlock>
                                 </StackPanel>
-                                <TextBlock x:Name="AlignmentTestResultText" Text="{Binding AlignmentTestResult}" TextWrapping="Wrap" Margin="0,0,0,6">
-                                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
-                                        <DataTrigger Binding="{Binding AlignmentTestResult}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                    </Style.Triggers></Style></TextBlock.Style>
-                                </TextBlock>
-                                <TextBlock Text="{Binding InspectionTestMessage}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="InspectionTestErrorText" Text="{Binding InspectionTestError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="0,0,0,6">
-                                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
-                                        <DataTrigger Binding="{Binding InspectionTestError}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                    </Style.Triggers></Style></TextBlock.Style>
-                                </TextBlock>
                             </StackPanel>
                         </ScrollViewer>
                     </Grid>
@@ -664,7 +643,7 @@
                             </Button>
                         </StackPanel>
                     </ScrollViewer>
-                    <ScrollViewer Grid.Row="1" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Grid.Row="1" Style="{StaticResource MessageAreaStyle}" Height="42">
                         <TextBlock Margin="0,8,0,0" Foreground="{StaticResource AccentAmberBrush}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource StatusMessageStyle}">
@@ -687,12 +666,31 @@
                 </Grid>
             </Border>
         </Grid>
-        <ScrollViewer Grid.Row="2" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" Height="42" Style="{StaticResource MessageAreaStyle}">
             <StackPanel>
                 <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{ui:Text 'Check the highlighted input.'}"
                     Visibility="{Binding ElementName=TeachingRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"/>
                 <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding SaveError}"/>
                 <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding CameraError}"/>
+                <TextBlock Text="{Binding FiducialMessage}" Style="{StaticResource StatusMessageStyle}"/>
+                <TextBlock x:Name="HeightTestResultText" Text="{Binding HeightTestResult}" TextWrapping="Wrap" Margin="0,6,0,0" FontWeight="SemiBold">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
+                        <DataTrigger Binding="{Binding HeightTestResult}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                        <DataTrigger Binding="{Binding HeightTestSuccess}" Value="True"><Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/></DataTrigger>
+                        <DataTrigger Binding="{Binding HeightTestSuccess}" Value="False"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
+                    </Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
+                <TextBlock x:Name="AlignmentTestResultText" Text="{Binding AlignmentTestResult}" TextWrapping="Wrap" Margin="0,0,0,6">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
+                        <DataTrigger Binding="{Binding AlignmentTestResult}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                    </Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
+                <TextBlock Text="{Binding InspectionTestMessage}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="InspectionTestErrorText" Text="{Binding InspectionTestError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="0,0,0,6">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
+                        <DataTrigger Binding="{Binding InspectionTestError}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                    </Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
             </StackPanel>
         </ScrollViewer>
     </Grid>

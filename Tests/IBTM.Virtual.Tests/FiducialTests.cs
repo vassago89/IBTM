@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text.Json;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
@@ -15,7 +16,7 @@ public sealed class FiducialTests
     public void ContoursFindShiftedMarksAndRejectWrongSizeMissingAndAmbiguousMarks()
     {
         var reference = CircleImage((100, 100, 14));
-        var mark = new FiducialMark { SearchSizePixels = 100, ReferenceRadiusMm = 1.4, WhiteMark = true };
+        var mark = new FiducialMark { SearchSizePixels = 100, ReferenceDiameterMm = 2.8, WhiteMark = true };
         var registered = FiducialDetector.Detect(reference, mark, 0.1, registering: true);
         mark.Contour = registered.Contour;
         mark.ImageWidth = reference.Width;
@@ -40,24 +41,46 @@ public sealed class FiducialTests
     }
 
     [Fact]
-    public void CalibratedRadiusFiltersRegistrationAndOverridesLegacyContourSize()
+    public void CalibratedDiameterFiltersRegistrationAndOverridesLegacyContourSize()
     {
         var image = CircleImage((100, 100, 14));
-        var mark = new FiducialMark { ReferenceRadiusMm = 1.4, WhiteMark = true };
+        var mark = new FiducialMark { ReferenceDiameterMm = 2.8, WhiteMark = true };
         var found = FiducialDetector.Detect(image, mark, 0.1, registering: true);
         Assert.InRange(found.RadiusPixels * 0.1, 1.3, 1.4);
-        Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(image, mark, 0.05, registering: true));
+        var sizeError = Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(image, mark, 0.05, registering: true));
+        Assert.Contains("2.24", sizeError.Message);
+        Assert.Contains("3.36", sizeError.Message);
         Assert.Throws<InvalidOperationException>(() => FiducialDetector.Detect(image, mark, null, registering: true));
         mark.Contour = found.Contour;
         mark.ImageWidth = image.Width;
         mark.ImageHeight = image.Height;
-        mark.ReferenceRadiusMm = null;
-        Assert.Equal(found.RadiusPixels * 0.1, FiducialDetector.GetReferenceRadiusMm(mark, 0.1)!.Value, 8);
+        mark.ReferenceDiameterMm = null;
+        Assert.Equal(2 * found.RadiusPixels * 0.1, FiducialDetector.GetReferenceDiameterMm(mark, 0.1)!.Value, 8);
         Assert.Equal(found.Center, FiducialDetector.Detect(image, mark, 0.1).Center);
 
-        mark.ReferenceRadiusMm = 2;
+        mark.ReferenceDiameterMm = 4;
         Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(image, mark, 0.1));
         Assert.Equal(found.Center, FiducialDetector.Detect(CircleImage((100, 100, 21)), mark, 0.1).Center);
+    }
+
+    [Fact]
+    public void FailureIdentifiesClippedContourAndReportsTheSearchWidth()
+    {
+        var mark = new FiducialMark { SearchSizePixels = 26, ReferenceDiameterMm = 2.8, WhiteMark = true };
+        var clipped = Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(CircleImage((100, 100, 14)), mark, 0.1, registering: true));
+        Assert.Equal(UiText.Format($"{1} contours touch the edge of the {26} px search area"), clipped.Message);
+        var empty = Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(CircleImage(), mark, 0.1, registering: true));
+        Assert.Equal(UiText.Format($"No foreground contour at threshold {127}"), empty.Message);
+    }
+
+    [Fact]
+    public void LegacyRadiusLoadsAsDiameterAndSavesOnlyDiameter()
+    {
+        var mark = JsonSerializer.Deserialize<FiducialMark>("""{"ReferenceRadiusMm":1.25}""")!;
+        Assert.Equal(2.5, mark.ReferenceDiameterMm);
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(mark));
+        Assert.Equal(2.5, json.RootElement.GetProperty(nameof(FiducialMark.ReferenceDiameterMm)).GetDouble());
+        Assert.False(json.RootElement.TryGetProperty("ReferenceRadiusMm", out _));
     }
 
     [Fact]
@@ -79,7 +102,7 @@ public sealed class FiducialTests
             }
             return new(200, 200, 600, pixels);
         }
-        var mark = new FiducialMark { SearchSizePixels = 70, ReferenceRadiusMm = 1.65, SizeTolerancePercent = 90, MaximumShapeError = 0.05, WhiteMark = true };
+        var mark = new FiducialMark { SearchSizePixels = 70, ReferenceDiameterMm = 3.3, SizeTolerancePercent = 90, MaximumShapeError = 0.05, WhiteMark = true };
         Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(CrossImage(0, 0, 240), mark, 0.1, registering: true));
         Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(CrossImage(Math.PI / 4, 10, 170), mark, 0.1, registering: true));
     }
@@ -130,14 +153,14 @@ public sealed class FiducialTests
         recipes.Current.Pcb.BoltPoints = [bolt];
         var mark = recipes.Current.BoltInspection.Fiducials2.First;
         mark.SearchSizePixels = 80;
-        mark.ReferenceRadiusMm = 1.4;
+        mark.ReferenceDiameterMm = 2.8;
         mark.WhiteMark = true;
         mark.CameraPosition = new() { X = 30, Y = 40 };
         mark.Contour = FiducialDetector.Detect(CircleImage((100, 100, 14)), mark, 0.1, registering: true).Contour;
         mark.ImageWidth = mark.ImageHeight = 200;
         store.SaveRecipe(recipes.Current);
         var loaded = new MachineStore(store.DatabaseFile).LoadRecipe(recipes.Current.Name);
-        Assert.Equal(mark.ReferenceRadiusMm, loaded.BoltInspection.Fiducials2.First.ReferenceRadiusMm);
+        Assert.Equal(mark.ReferenceDiameterMm, loaded.BoltInspection.Fiducials2.First.ReferenceDiameterMm);
         Assert.Equal(mark.SearchSizePixels, loaded.BoltInspection.Fiducials2.First.SearchSizePixels);
         Assert.Equal(mark.Contour, loaded.BoltInspection.Fiducials2.First.Contour);
         Assert.Empty(loaded.BoltInspection.Fiducials1.First.Contour);

@@ -1266,9 +1266,9 @@ public sealed class UiBindingTests
         fiducialCamera.SourceImage = holeImage;
         var cameraSettings = services.GetRequiredService<MachineSettings>().InspectionGantry;
         cameraSettings.CameraResolution = 0.1;
-        var radiusInput = (TextBox)teachingView.FindName("FiducialRadiusInput");
-        radiusInput.Text = "1.4";
-        radiusInput.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        var diameterInput = (TextBox)teachingView.FindName("FiducialDiameterInput");
+        diameterInput.Text = "2.8";
+        diameterInput.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
         Assert.Equal(14, teaching.FiducialReferenceRadiusPixels!.Value, 8);
         await services.GetRequiredService<InspectionStation>().HomeHorizontalAsync();
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);

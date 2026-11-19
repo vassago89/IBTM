@@ -127,7 +127,7 @@ public sealed class HeightInspectionTests
             foreach (var mark in new[] { fiducials.First, fiducials.Second })
             {
                 mark.WhiteMark = true;
-                mark.ReferenceRadiusMm = 1.4;
+                mark.ReferenceDiameterMm = 2.8;
                 // The registered hole is deliberately off-centre in the camera image.
                 mark.Contour = FiducialDetector.Detect(FiducialTests.CircleImage((105, 95, 14)), mark, settings.CameraResolution, registering: true).Contour;
                 mark.ImageWidth = mark.ImageHeight = 200;

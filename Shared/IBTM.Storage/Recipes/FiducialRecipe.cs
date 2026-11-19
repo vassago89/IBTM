@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 
@@ -53,15 +54,21 @@ public sealed partial class FiducialMark : ObservableObject
         }
     } = 200;
 
-    public double? ReferenceRadiusMm
+    public double? ReferenceDiameterMm
     {
         get;
         set
         {
-            if (value is { } radius && (!double.IsFinite(radius) || radius <= 0))
-                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Enter a positive fiducial radius"));
+            if (value is { } diameter && (!double.IsFinite(diameter) || diameter <= 0))
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Enter a positive fiducial diameter"));
             field = value;
         }
+    }
+
+    [JsonInclude, JsonPropertyName("ReferenceRadiusMm")]
+    internal double? LegacyRadiusMm
+    {
+        set => ReferenceDiameterMm ??= value * 2;
     }
 
     public double MaximumShapeError
