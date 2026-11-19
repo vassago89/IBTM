@@ -276,9 +276,6 @@ public sealed class MachineLifecycleTests
             await machine.HomeAsync(default);
             await WaitUntilAsync(() => state.SetupEnabled);
             var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IAxisMotion>>();
-            var order = new ConcurrentQueue<MotionGroup>();
-            foreach (var (group, motion) in motions)
-                motion.MovingChanged += moving => { if (moving) order.Enqueue(group); };
             io.SetInputs((InputIo.PcbPlacementHeatSink1Present, true), (InputIo.PcbPlacementHeatSink2Present, true),
                 (InputIo.BoltFasteningHeatSink1Present, true));
             var station = services.GetRequiredService<PcbPlacer>().Station;
@@ -299,6 +296,9 @@ public sealed class MachineLifecycleTests
             io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
             io.SetInputs((InputIo.PcbPlacementPcbDetected, true), (InputIo.ShootingTubeBoltDetected, true),
                 (InputIo.PickupHeadVacuumDetected, true), (InputIo.ShootingHeadVacuumDetected, true));
+            var order = new ConcurrentQueue<MotionGroup>();
+            foreach (var (group, motion) in motions)
+                motion.MovingChanged += moving => { if (moving) order.Enqueue(group); };
             motions[MotionGroup.BoltFastening].MovingChanged += moving =>
             {
                 if (!moving)
@@ -5123,7 +5123,7 @@ public sealed class MachineLifecycleTests
             io.OutputChanged += (signal, value) => writes.Enqueue(signal);
             var error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.PrepareStartAreaAsync(
                 StartArea.Station1, action, CancellationToken.None));
-            Assert.Contains("Up/Down sensors", error.Message);
+            Assert.Equal(UiText.Get("Confirm the selected support or stopper Up/Down sensors before operating it."), error.Message);
             Assert.Empty(writes);
 
             // The physical cylinder is UP even though its previous UP command is OFF.

@@ -195,13 +195,7 @@ public sealed class MachineStore
             bolt.MinimumHeight = changed.MinimumHeight;
             bolt.MaximumHeight = changed.MaximumHeight;
         }
-        foreach (var tile in saved.CarrierImages.Where(tile => tile.IsBarcode))
-        {
-            var changed = edited.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
-                && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
-            if (changed is not null)
-                tile.Region = changed.Region;
-        }
+        edited.CopyImageRegionsTo(saved.CarrierImages.Where(tile => tile.IsBarcode));
         row.Value = JsonSerializer.Serialize(saved);
         cancellationToken.ThrowIfCancellationRequested();
         db.SaveChanges();

@@ -3496,7 +3496,6 @@
   <data name="fastening height (mm)" xml:space="preserve"><value>체결 높이 (mm)</value></data>
   <data name="s2 backup" xml:space="preserve"><value>S2 백업</value></data>
   <data name="set the s2 backup transfer and fastening heights" xml:space="preserve"><value>S2 백업 이송·체결 높이를 설정하세요</value></data>
-  <data name="s2 backup motion is not ready" xml:space="preserve"><value>S2 백업 모션 준비 필요</value></data>
   <data name="home detection speed (mm/s)" xml:space="preserve"><value>원점 검출 속도 (mm/s)</value></data>
   <data name="transfer height (mm)" xml:space="preserve"><value>이송 높이 (mm)</value></data>
   <data name="home acceleration (s)" xml:space="preserve"><value>원점 가감속 (s)</value></data>

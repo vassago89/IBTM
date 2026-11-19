@@ -128,9 +128,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         get
         {
-            if (!Io.IsReady || !MotionServiceBase.IsReadyAndStopped(_motion))
-                return PcbPlacementHandoff.Unavailable;
-            if (!_units.PcbPlacement || Lift != StationCylinderState.Up)
+            if (!Io.IsReady || !MotionServiceBase.IsReadyAndStopped(_motion)
+                || !_units.PcbPlacement || Lift != StationCylinderState.Up)
                 return PcbPlacementHandoff.Unavailable;
             switch (Phase)
             {
@@ -349,7 +348,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 {
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
-                    //await SetIpmDownAsync(true, operation.Token);
                     await SetLiftDownAsync(false, operation.Token);
                     await SetIpmSupportAsync(false, operation.Token);
                     await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, operation.Token);
@@ -357,10 +355,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     await MoveAxisAsync(MotionAxis.X, position.X, operation.Token);
                     await MoveAxisAsync(MotionAxis.Z, position.Z, operation.Token);
 
-                    
                     CheckPlacementFeedback();
-                    operation.Token.ThrowIfCancellationRequested();
-                    
                     operation.Token.ThrowIfCancellationRequested();
                     // PCB/vacuum feedback can turn OFF as the placement cylinder lowers the PCB.
                     carryingPcb = false;
@@ -447,7 +442,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             CheckHolding();
             preparation.Token.ThrowIfCancellationRequested();
-            //await SetIpmDownAsync(carryingPcb, preparation.Token);
             await SetLiftDownAsync(false, preparation.Token);
             await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, preparation.Token);
             if (departure is { } destination)

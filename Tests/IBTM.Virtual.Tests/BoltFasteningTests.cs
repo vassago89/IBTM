@@ -2059,7 +2059,9 @@ public sealed class BoltFasteningTests
             assembly.RecordBolt(bolt.Head, bolt.Id, new(true, 1) { Stage = BoltFasteningStage.Preliminary });
         await ((IIoService)io).SetOutputAndWaitAsync(
             OutputIo.PickupTableDown, selectedHead == FasteningHead.Pickup);
-        await station.MoveToBoltAsync(bolts[0]);
+        var firstPosition = settings.GetBoltPosition(bolts[0]);
+        await station.MoveToXYAsync(firstPosition.X, firstPosition.Y);
+        await station.MoveZAsync(firstPosition.Z);
         var (start, down, vacuum, upInput, downInput) = selectedHead == FasteningHead.Pickup
             ? (OutputIo.PickupBoltStart, OutputIo.PickupHeadDown, OutputIo.PickupHeadVacuumPump,
                 InputIo.PickupHeadUp, InputIo.PickupHeadDown)
@@ -2387,7 +2389,9 @@ public sealed class BoltFasteningTests
             work, new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
             new() { PickupBoltFeeder = false },
             new BoltFeederUnit(stationIo, new(), new() { PickupBoltFeeder = false }));
-        await station.MoveToBoltAsync(bolts[0]);
+        var firstPosition = settings.GetBoltPosition(bolts[0]);
+        await station.MoveToXYAsync(firstPosition.X, firstPosition.Y);
+        await station.MoveZAsync(firstPosition.Z);
         io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
         io.SetInput(InputIo.PickupHeadVacuumDetected, true);
         var shots = 0;

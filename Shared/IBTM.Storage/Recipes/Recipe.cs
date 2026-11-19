@@ -56,6 +56,17 @@ public sealed class Recipe
         return images.Length == 1 ? images[0] : null;
     }
 
+    internal void CopyImageRegionsTo(IEnumerable<CarrierImageTile> tiles)
+    {
+        foreach (var tile in tiles)
+        {
+            var source = CarrierImages.SingleOrDefault(item => item.Number == tile.Number
+                && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
+            if (source is not null)
+                tile.Region = source.Region;
+        }
+    }
+
     public void CopyFrom(Recipe recipe)
     {
         // Apply an owned copy/load result while retaining the bound recipe and bolt collection.

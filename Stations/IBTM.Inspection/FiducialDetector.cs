@@ -18,6 +18,14 @@ public sealed class FiducialDetectionException : InvalidOperationException
 
 public static class FiducialDetector
 {
+    public static PcbAlignment GetAlignment(FiducialObservation first, FiducialObservation second)
+    {
+        if (double.Hypot(second.Reference.X - first.Reference.X, second.Reference.Y - first.Reference.Y) < 0.001
+            || double.Hypot(second.Measured.X - first.Measured.X, second.Measured.Y - first.Measured.Y) < 0.001)
+            throw new FiducialDetectionException(UiText.Get("Fiducials must be at two different positions"));
+        return new(DateTimeOffset.Now, first, second);
+    }
+
     public static FiducialDetection Detect(ImageFrame frame, FiducialMark mark, bool registering = false)
     {
         if (mark.Region is not { } region || !region.IsInside(frame.Width, frame.Height))
@@ -50,19 +58,22 @@ public static class FiducialDetector
         foreach (var contour in contours)
         {
             var bounds = Cv2.BoundingRect(contour);
-            if (contour.Length < 5 || Cv2.ContourArea(contour) < 4
+            if (contour.Length < 5)
+                continue;
+            var area = Cv2.ContourArea(contour);
+            if (area < 4
                 || bounds.Left <= search.Left || bounds.Top <= search.Top
                 || bounds.Right >= search.Right || bounds.Bottom >= search.Bottom)
                 continue;
             // Reject non-circular features before comparing the taught hole's shape and size.
             var perimeter = Cv2.ArcLength(contour, true);
-            if (4 * Math.PI * Cv2.ContourArea(contour) / (perimeter * perimeter) < 0.8)
+            if (4 * Math.PI * area / (perimeter * perimeter) < 0.8)
                 continue;
             var error = 0d;
             if (!registering)
             {
                 // Area-derived size is independent of the mark's in-plane rotation.
-                var sizeRatio = Math.Sqrt(Math.Abs(Cv2.ContourArea(contour)) / referenceArea);
+                var sizeRatio = Math.Sqrt(area / referenceArea);
                 if (Math.Abs(sizeRatio - 1) * 100 > mark.SizeTolerancePercent)
                     continue;
                 using var candidate = InputArray.Create(contour);

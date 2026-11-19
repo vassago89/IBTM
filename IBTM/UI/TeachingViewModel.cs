@@ -1479,27 +1479,23 @@ public partial class TeachingViewModel : ObservableObject
     {
         get
         {
-            switch (SelectedPoint)
+            if (SelectedPoint is not { } point || State.IsRunning)
+                return false;
+            var group = ActiveMotionGroup;
+            if (!Machine.IsManualMotionReady(group, live: false))
+                return false;
+            switch (group)
             {
-                case null:
+                case MotionGroup.PcbPlacementHandler when _pcbPlacement.Lift != StationCylinderState.Up:
+                case MotionGroup.BoltFasteningBackup when !IsBackupMoveAllowed:
                     return false;
-                case { } when State.IsRunning
-                    || !Machine.IsManualMotionReady(ActiveMotionGroup, live: false):
-                    return false;
-                case { } when ActiveMotionGroup == MotionGroup.PcbPlacementHandler
-                    && _pcbPlacement.Lift != StationCylinderState.Up:
-                    return false;
-                case { } when ActiveMotionGroup == MotionGroup.BoltFasteningBackup && !IsBackupMoveAllowed:
-                    return false;
-                case { } point when ActiveMotionGroup == MotionGroup.PcbSupply:
+                case MotionGroup.PcbSupply:
                     return _pcbSupply.IsMoveToTeachingPositionAllowed(point.Position);
-                case { Position.Target: TeachingTarget.BoltPreliminaryPosition }
-                    when _settings.BoltFastening.ShootingPreliminaryZ is null:
-                    return false;
-                case { } point:
-                    return (point.Position.Mode == TeachMode.ZOnly || IsHorizontalMoveAllowed)
-                        && point.Position.HasPosition;
             }
+            var position = point.Position;
+            if (position.Target == TeachingTarget.BoltPreliminaryPosition && _settings.BoltFastening.ShootingPreliminaryZ is null)
+                return false;
+            return (position.Mode == TeachMode.ZOnly || IsHorizontalMoveAllowed) && position.HasPosition;
         }
     }
 
@@ -1648,10 +1644,7 @@ public partial class TeachingViewModel : ObservableObject
         InspectionTestMessage = UiText.Get("Fiducial 2");
         var second = await Inspection.FindFiducialAsync(fiducials.Second, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        if (double.Hypot(second.Reference.X - first.Reference.X, second.Reference.Y - first.Reference.Y) < 0.001
-            || double.Hypot(second.Measured.X - first.Measured.X, second.Measured.Y - first.Measured.Y) < 0.001)
-            throw new FiducialDetectionException(UiText.Get("Fiducials must be at two different positions"));
-        var alignment = new PcbAlignment(DateTimeOffset.Now, first, second);
+        var alignment = FiducialDetector.GetAlignment(first, second);
         var dx = (first.Measured.X + second.Measured.X - first.Reference.X - second.Reference.X) / 2;
         var dy = (first.Measured.Y + second.Measured.Y - first.Reference.Y - second.Reference.Y) / 2;
         AlignmentTestResult = UiText.Format($"Mark midpoint: X {dx:+0.###;-0.###;0} mm / Y {dy:+0.###;-0.###;0} mm / Rotation {alignment.AngleDegrees:+0.###;-0.###;0}°");
@@ -1677,10 +1670,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             if (bolt is not null)
             {
-                if (reference.Point1 is not { } p1 || reference.Point2 is not { } p2 || reference.Point3 is not { } p3)
-                    throw new InvalidOperationException(UiText.Get("Teach all three height reference points"));
-                _ = new HeightReferencePlane(DateTimeOffset.Now,
-                    new(p1.X, p1.Y, 0), new(p2.X, p2.Y, 0), new(p3.X, p3.Y, 0)).HeightAt(p1.X, p1.Y);
+                reference.Validate();
                 if (bolt.MinimumHeight is null || bolt.MaximumHeight is null || bolt.MinimumHeight > bolt.MaximumHeight)
                     throw new InvalidOperationException(UiText.Get("Height limits are not set"));
             }

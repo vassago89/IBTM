@@ -3498,7 +3498,6 @@ Supply: PCB 1, travel Z</value>
   <data name="fastening height (mm)" xml:space="preserve"><value>Fastening height (mm)</value></data>
   <data name="s2 backup" xml:space="preserve"><value>S2 Backup</value></data>
   <data name="set the s2 backup transfer and fastening heights" xml:space="preserve"><value>Set the S2 backup transfer and fastening heights</value></data>
-  <data name="s2 backup motion is not ready" xml:space="preserve"><value>S2 backup motion is not ready</value></data>
   <data name="home detection speed (mm/s)" xml:space="preserve"><value>Home detection speed (mm/s)</value></data>
   <data name="transfer height (mm)" xml:space="preserve"><value>Transfer height (mm)</value></data>
   <data name="home acceleration (s)" xml:space="preserve"><value>Home acceleration (s)</value></data>

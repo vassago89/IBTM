@@ -337,23 +337,16 @@ public sealed class NgCarrierConveyor : AutoUnit
                 return NgConveyorState.WaitingForEjectConfirmation;
         }
 
-        if (ShuttleLift != StationCylinderState.Up && !runCommandOn)
+        if (ShuttleLift != StationCylinderState.Up && !runCommandOn && !Io.GetInput(InputIo.NgShuttleCarrierDetected))
         {
-            var shuttleEmpty = !Io.GetInput(InputIo.NgShuttleCarrierDetected);
-            var raiseShuttle = false;
-            switch (_movement)
+            var destinationReached = _movement switch
             {
-                case Movement.None:
-                    raiseShuttle = shuttleEmpty;
-                    break;
-                case Movement.ToPosition1:
-                    raiseShuttle = shuttleEmpty && Io.GetInput(InputIo.NgConveyorPosition1Occupied);
-                    break;
-                case Movement.ToPosition2:
-                    raiseShuttle = shuttleEmpty && Io.GetInput(InputIo.NgConveyorPosition2Occupied);
-                    break;
-            }
-            if (raiseShuttle)
+                Movement.None => true,
+                Movement.ToPosition1 => Io.GetInput(InputIo.NgConveyorPosition1Occupied),
+                Movement.ToPosition2 => Io.GetInput(InputIo.NgConveyorPosition2Occupied),
+                _ => false,
+            };
+            if (destinationReached)
                 return IsTransferClear
                     ? NgConveyorState.RaisingShuttle : NgConveyorState.WaitingForTransferRelease;
         }

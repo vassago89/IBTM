@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -152,16 +151,7 @@ public sealed partial class RecipeManager : ObservableObject
         {
             var counts = await Task.Run(() => _database.LoadProductionCounts(name), cancellationToken);
             if (tiles is not null)
-            {
-                foreach (var tile in tiles)
-                {
-                    // Capture changes the image/position, not the current inspection ROI.
-                    var current = Current.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
-                        && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
-                    if (current is not null)
-                        tile.Region = current.Region;
-                }
-            }
+                Current.CopyImageRegionsTo(tiles);
             await Task.Run(
                 () => _database.SaveRecipe(
                     Current,
@@ -176,14 +166,8 @@ public sealed partial class RecipeManager : ObservableObject
             {
                 if (tiles is not null)
                 {
-                    foreach (var tile in tiles)
-                    {
-                        // Inspection edits can continue while the image is being saved.
-                        var current = Current.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
-                            && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
-                        if (current is not null)
-                            tile.Region = current.Region;
-                    }
+                    // Include region edits made while the image was being saved.
+                    Current.CopyImageRegionsTo(tiles);
                     Current.CarrierImages = tiles;
                 }
                 Current.Name = name;

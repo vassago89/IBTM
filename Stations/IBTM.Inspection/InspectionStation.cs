@@ -369,14 +369,10 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     foreach (var pcb in Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent))
                     {
                         var pcbBolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => bolt.HeatSink == pcb).ToArray();
-                        if (!pcbBolts.Any())
+                        if (pcbBolts.Length == 0)
                             throw new InvalidOperationException(
                                 UiText.Format($"{UiText.Get(pcb)} has no taught bolts. Complete bolt teaching before inspection."));
-                        var reference = _recipes.Current.BoltInspection.GetHeightReference(pcb);
-                        if (reference.Point1 is not { } p1 || reference.Point2 is not { } p2 || reference.Point3 is not { } p3)
-                            throw new InvalidOperationException(UiText.Get("Teach all three height reference points"));
-                        _ = new HeightReferencePlane(DateTimeOffset.Now,
-                            new(p1.X, p1.Y, 0), new(p2.X, p2.Y, 0), new(p3.X, p3.Y, 0)).HeightAt(p1.X, p1.Y);
+                        _recipes.Current.BoltInspection.GetHeightReference(pcb).Validate();
                         foreach (var bolt in pcbBolts)
                         {
                             if (bolt.MinimumHeight is not { } minimum || bolt.MaximumHeight is not { } maximum || minimum > maximum)
@@ -494,10 +490,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                         var second = await FindFiducialAsync(fiducials.Second, token);
                         token.ThrowIfCancellationRequested();
                         Station.RequireCurrentJob(job);
-                        if (double.Hypot(second.Reference.X - first.Reference.X, second.Reference.Y - first.Reference.Y) < 0.001
-                            || double.Hypot(second.Measured.X - first.Measured.X, second.Measured.Y - first.Measured.Y) < 0.001)
-                            throw new FiducialDetectionException(UiText.Get("Fiducials must be at two different positions"));
-                        var alignment = new PcbAlignment(DateTimeOffset.Now, first, second);
+                        var alignment = FiducialDetector.GetAlignment(first, second);
                         Station.GetAssembly(job, pcb).RecordAlignment(alignment);
                         _log?.LogInformation("Fiducials {Pcb}: angle={Angle}, first={First}, second={Second}.",
                             pcb, alignment.AngleDegrees, first, second);
@@ -573,8 +566,8 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     Station.RequireCurrentJob(job);
                     var assembly = Station.GetAssembly(job, pcb);
                     var capture = bolt is null
-                        ? await ReadBarcodeAsync(pcb, token, Station.GetAssembly(pcb).Alignment)
-                        : await CaptureBoltAsync(bolt, token, Station.GetAssembly(pcb).Alignment);
+                        ? await ReadBarcodeAsync(pcb, token, assembly.Alignment)
+                        : await CaptureBoltAsync(bolt, token, assembly.Alignment);
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     if (bolt is null)

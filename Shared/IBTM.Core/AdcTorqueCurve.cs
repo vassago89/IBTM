@@ -35,19 +35,25 @@ public sealed record AdcTorqueCurve(
     public int StartMilliseconds => Torques.Length == 200
         ? Math.Max(0, FasteningMilliseconds - Torques.Length * SampleMilliseconds) : 0;
 
+    public static int? GetSampleMilliseconds(int code)
+    {
+        return (AdcTorqueCurveSampling)code switch
+        {
+            AdcTorqueCurveSampling.Milliseconds5 => 5,
+            AdcTorqueCurveSampling.Milliseconds10 => 10,
+            AdcTorqueCurveSampling.Milliseconds15 => 15,
+            AdcTorqueCurveSampling.Milliseconds30 => 30,
+            _ => null,
+        };
+    }
+
     public static AdcTorqueCurve FromRegisters(IReadOnlyList<int> values, long receivedAt)
     {
         // 15 result registers followed by the samples for each channel.
         if (values.Count < MetadataRegisterCount)
             throw new InvalidDataException(UiText.Get("ADC graph metadata is incomplete."));
-        var sampleMilliseconds = values[2] switch
-        {
-            1 => 5,
-            2 => 10,
-            3 => 15,
-            4 => 30,
-            _ => throw new InvalidDataException(UiText.Format($"ADC graph sampling code: {values[2]}.")),
-        };
+        var sampleMilliseconds = GetSampleMilliseconds(values[2])
+            ?? throw new InvalidDataException(UiText.Format($"ADC graph sampling code: {values[2]}."));
         var length = values[4];
         var offset = MetadataRegisterCount;
         if (values[0] != 1)

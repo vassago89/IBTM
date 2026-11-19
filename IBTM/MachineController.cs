@@ -2316,6 +2316,9 @@ public sealed class MachineController : INotifyPropertyChanged
         return stopReason;
     }
 
+    private bool IsProductionIdleForSetup => !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
+        && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun);
+
     public async Task<bool> MoveToStandbyAsync(CancellationToken cancellationToken, MotionGroup? selectedGroup = null)
     {
         var groups = Enum.GetValues<MotionGroup>()
@@ -2344,8 +2347,7 @@ public sealed class MachineController : INotifyPropertyChanged
         {
             using var operation = BeginManualOperation(
                 () => _state.Available && _state.DoorInterlockReady && _state.SafetyReady
-                    && !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
-                    && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
+                    && IsProductionIdleForSetup
                     && groups.All(group => IsSetupMotionReady(group)),
                 cancellationToken);
             if (operation is null)
@@ -2441,8 +2443,6 @@ public sealed class MachineController : INotifyPropertyChanged
             };
             return await MoveToStandbyAsync(cancellationToken, group);
         }
-        var movesSupply = action == StartPreparationAction.MoveToRotationPosition;
-        var movesBackup = action is StartPreparationAction.MoveBackupToTransfer or StartPreparationAction.MoveBackupToFastening;
         var motion = area switch
         {
             StartArea.Supply => _pcbSupply.Motion.Feedback,
@@ -2451,28 +2451,37 @@ public sealed class MachineController : INotifyPropertyChanged
             StartArea.Station3 => _inspectionStation.Motion.Feedback,
             _ => throw new ArgumentOutOfRangeException(nameof(area)),
         };
+        bool IsPreparationAllowed()
+        {
+            if (!_state.Available || !_state.DoorInterlockReady || !_state.SafetyReady)
+                return false;
+            switch (action)
+            {
+                case StartPreparationAction.MoveToRotationPosition:
+                    return area == StartArea.Supply && IsSetupMotionReady(MotionGroup.PcbSupply)
+                        && IsProductionIdleForSetup;
+                case StartPreparationAction.MoveBackupToTransfer or StartPreparationAction.MoveBackupToFastening:
+                    if (area != StartArea.Station2 || !IsSetupMotionReady(MotionGroup.BoltFasteningBackup)
+                        || !IsProductionIdleForSetup)
+                        return false;
+                    break;
+                default:
+                    if (_state.IsRunningFor(includeOperations: false))
+                        return false;
+                    break;
+            }
+            return motion.IsReady && motion.Axes.All(axis => !motion.GetAxisState(axis).InMotion);
+        }
         var activeToken = cancellationToken;
         try
         {
-            using var operation = BeginManualOperation(
-                () => _state.Available && _state.DoorInterlockReady && _state.SafetyReady
-                    && (movesSupply
-                        ? area == StartArea.Supply && IsSetupMotionReady(MotionGroup.PcbSupply)
-                            && !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
-                            && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
-                        : movesBackup
-                            ? area == StartArea.Station2 && IsSetupMotionReady(MotionGroup.BoltFasteningBackup)
-                                && !_state.AutomaticRunning && !_state.IsHoming && !_state.BoltTestRunning
-                                && !_io.GetOutput(OutputIo.MainConveyorRun) && !_io.GetOutput(OutputIo.NgConveyorRun)
-                                && motion.IsReady && motion.Axes.All(axis => !motion.GetAxisState(axis).InMotion)
-                            : !_state.IsRunningFor(includeOperations: false)
-                            && motion.IsReady && motion.Axes.All(axis => !motion.GetAxisState(axis).InMotion)),
-                cancellationToken);
+            using var operation = BeginManualOperation(IsPreparationAllowed, cancellationToken);
             if (operation is null)
                 return false;
             activeToken = operation.Token;
             activeToken.ThrowIfCancellationRequested();
-            if ((movesSupply || movesBackup) && _state.IsRunningFor(includeOperations: false))
+            if ((action is StartPreparationAction.MoveToRotationPosition or StartPreparationAction.MoveBackupToTransfer
+                    or StartPreparationAction.MoveBackupToFastening) && _state.IsRunningFor(includeOperations: false))
                 return false;
             _log?.LogInformation("START preparation: {Area}, {Action} started.", area, action);
             switch (action)

@@ -698,20 +698,15 @@ public sealed class BoltFasteningStation : AutoUnit
                                     pendingCancellation?.Cancel();
                                 }
                                 // Drain both operations, including STOP/air-OFF cleanup on failure.
-                                var preparationCompleted = Task.WhenAll(moving, shooting);
-                                try
-                                {
-                                    await preparationCompleted;
-                                }
-                                catch when (preparationCompleted.Exception is { InnerExceptions.Count: > 1 } failures)
-                                {
-                                    throw failures;
-                                }
+                                await WaitForBothAsync(moving, shooting);
                                 _log?.LogInformation("Bolt timing {Bolt}: movement / shooting supply joined, elapsed={ElapsedMs:F1} ms, supplied during previous retraction={Prefed}.",
                                     bolt.Id, Stopwatch.GetElapsedTime(supplyWaitStarted).TotalMilliseconds, pendingFeed is not null);
                             }
                             else
-                                await MoveToBoltAsync(bolt, token, target: fasteningPosition, lowerShootingHead: true);
+                            {
+                                await MoveToXYAsync(fasteningPosition.X, fasteningPosition.Y, token);
+                                await LowerShootingHeadAndZAsync(fasteningPosition.Z, token);
+                            }
                             break;
                         }
                         case FasteningHead.Pickup:
@@ -1206,15 +1201,7 @@ public sealed class BoltFasteningStation : AutoUnit
         if (!first.IsCompletedSuccessfully)
             clearance.Cancel();
         // No next XY move or result publication until both operations have finished.
-        var clearanceCompleted = Task.WhenAll(moving, raising);
-        try
-        {
-            await clearanceCompleted;
-        }
-        catch when (clearanceCompleted.Exception is { InnerExceptions.Count: > 1 } failures)
-        {
-            throw failures;
-        }
+        await WaitForBothAsync(moving, raising);
         var finished = Stopwatch.GetTimestamp();
         _log?.LogInformation(
             "Bolt timing {Bolt}/{Head}: clearance complete; head/table UP={HeadMs:F1} ms, retract Z={Z} in {ZMs:F1} ms, parallel={ParallelMs:F1} ms, total including vacuum OFF={TotalMs:F1} ms.",
@@ -1271,14 +1258,19 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public async Task RaiseCylindersAsync(CancellationToken cancellationToken = default)
     {
-        var raising = Task.WhenAll(
+        await WaitForBothAsync(
             SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken),
             SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken));
+    }
+
+    private static async Task WaitForBothAsync(Task first, Task second)
+    {
+        var completed = Task.WhenAll(first, second);
         try
         {
-            await raising;
+            await completed;
         }
-        catch when (raising.Exception is { InnerExceptions.Count: > 1 } failures)
+        catch when (completed.Exception is { InnerExceptions.Count: > 1 } failures)
         {
             throw failures;
         }
@@ -1386,10 +1378,17 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public async Task MoveToXYAsync(double x, double y, CancellationToken cancellationToken = default)
     {
+        var started = Stopwatch.GetTimestamp();
+        var safeZ = _settings.SafeZ;
         EnsureCanMoveHorizontal(cancellationToken);
-        await MoveZAsync(_settings.SafeZ, cancellationToken);
+        await MoveZAsync(safeZ, cancellationToken);
+        var safeZFinished = Stopwatch.GetTimestamp();
         EnsureCanMoveHorizontal(cancellationToken);
         await _motion.MoveToXYAsync(x, y, _settings.Motion.HorizontalSpeed, cancellationToken);
+        if (ActiveBolt is { } bolt)
+            _log?.LogInformation("Bolt timing {Bolt}: travel Z={SafeZ} in {ZMs:F1} ms; XY=({X}, {Y}) in {XyMs:F1} ms.",
+                bolt.Id, safeZ, Stopwatch.GetElapsedTime(started, safeZFinished).TotalMilliseconds,
+                x, y, Stopwatch.GetElapsedTime(safeZFinished).TotalMilliseconds);
     }
 
     public Task MoveZAsync(double z, CancellationToken cancellationToken = default)
@@ -1499,38 +1498,6 @@ public sealed class BoltFasteningStation : AutoUnit
         return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
-    internal async Task MoveToBoltAsync(
-        BoltPoint bolt, CancellationToken cancellationToken = default,
-        AxisPosition? target = null, bool lowerShootingHead = false)
-    {
-        var position = target ?? _settings.GetBoltPosition(bolt);
-        _log?.LogInformation(
-            "Automatic bolt move: {HeatSink}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}.",
-            bolt.HeatSink, bolt.Id, bolt.Head, position.X, position.Y, position.Z);
-        // Heads must be raised before travelling at the common clearance height.
-        var safeZ = _settings.SafeZ;
-        var started = Stopwatch.GetTimestamp();
-        EnsureCanMoveHorizontal(cancellationToken);
-        await MoveZAsync(safeZ, cancellationToken);
-        _log?.LogInformation("Bolt timing {Bolt}: travel Z={SafeZ}, elapsed={ElapsedMs:F1} ms.",
-            bolt.Id, safeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-        started = Stopwatch.GetTimestamp();
-        EnsureCanMoveHorizontal(cancellationToken);
-        await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
-        _log?.LogInformation("Bolt timing {Bolt}: XY move, elapsed={ElapsedMs:F1} ms.",
-            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-        if (lowerShootingHead)
-            await LowerShootingHeadAndZAsync(position.Z, cancellationToken);
-        else
-        {
-            started = Stopwatch.GetTimestamp();
-            EnsureCanMoveHorizontal(cancellationToken);
-            await MoveZAsync(position.Z, cancellationToken);
-            _log?.LogInformation("Bolt timing {Bolt}: fastening Z={Z}, elapsed={ElapsedMs:F1} ms.",
-                bolt.Id, position.Z, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-        }
-    }
-
     private async Task LowerShootingHeadAndZAsync(double z, CancellationToken cancellationToken)
     {
         EnsureCanMoveHorizontal(cancellationToken);
@@ -1547,15 +1514,7 @@ public sealed class BoltFasteningStation : AutoUnit
         var firstFinished = Stopwatch.GetTimestamp();
         if (!first.IsCompletedSuccessfully)
             descent.Cancel();
-        var completed = Task.WhenAll(moving, lowering);
-        try
-        {
-            await completed;
-        }
-        catch when (completed.Exception is { InnerExceptions.Count: > 1 } failures)
-        {
-            throw failures;
-        }
+        await WaitForBothAsync(moving, lowering);
 
         var finished = Stopwatch.GetTimestamp();
         _log?.LogInformation(

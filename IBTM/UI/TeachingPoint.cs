@@ -205,13 +205,9 @@ public class TeachingPoint : ObservableObject
                     : UiText.Format($"{BoltLabel} Inspection");
             }
 
-            switch ((_definition.Target, _definition.MotionGroup))
-            {
-                case (TeachingTarget.SafeZ, MotionGroup.PcbSupply):
-                    return UiText.Get("PCB Travel Z");
-                default:
-                    return UiText.Get(_definition.Target);
-            }
+            if (_definition.Target == TeachingTarget.SafeZ && _definition.MotionGroup == MotionGroup.PcbSupply)
+                return UiText.Get("PCB Travel Z");
+            return UiText.Get(_definition.Target);
         }
     }
 

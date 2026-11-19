@@ -196,7 +196,6 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
 
     public async Task SeatAsync(CancellationToken cancellationToken)
     {
-        //await SetStopperUpAsync(true, cancellationToken);
         await SetBackupPlateUpAsync(true, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (!CarrierPresent)
@@ -214,8 +213,6 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
         }
         if (_settings!.ValidationError is { } error)
             throw new InvalidOperationException(error);
-        //if (!MotionServiceBase.IsReadyAndStopped(motion))
-        //    throw new MotionInterlockException(UiText.Get("S2 backup motion is not ready"));
         var target = up ? _settings.FasteningHeight!.Value : _settings.TransferHeight!.Value;
         await motion.MoveAxisAsync(MotionAxis.Z, target, _settings.Motion.ZSpeed, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();

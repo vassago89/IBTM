@@ -72,4 +72,11 @@ public sealed class HeightReferenceRecipe
     public AxisPosition? Point1 { get; set; }
     public AxisPosition? Point2 { get; set; }
     public AxisPosition? Point3 { get; set; }
+
+    public void Validate()
+    {
+        if (Point1 is not { } p1 || Point2 is not { } p2 || Point3 is not { } p3)
+            throw new InvalidOperationException(UiText.Get("Teach all three height reference points"));
+        HeightReferencePlane.GetTriangleDeterminant(p2.X - p1.X, p2.Y - p1.Y, p3.X - p1.X, p3.Y - p1.Y);
+    }
 }

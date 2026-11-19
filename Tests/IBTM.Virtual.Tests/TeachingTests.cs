@@ -1303,9 +1303,8 @@ public sealed class TeachingTests
 
         await teaching.MoveToPointCommand.ExecuteAsync(null);
         Assert.Equal((expectedX, expectedY, expectedZ), fastening.Motion.Feedback.Position);
-        await fastening.MoveToXYAsync(250, 390);
-        await fastening.MoveToBoltAsync(bolt);
-        Assert.Equal((expectedX, expectedY, expectedZ), fastening.Motion.Feedback.Position);
+        var automaticTarget = settings.BoltFastening.GetBoltPosition(bolt);
+        Assert.Equal((expectedX, expectedY, expectedZ), (automaticTarget.X, automaticTarget.Y, automaticTarget.Z));
 
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == (head == FasteningHead.Shooting

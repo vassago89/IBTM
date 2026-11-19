@@ -113,14 +113,8 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
                 angleChannel = controller.Registers.GetValueOrDefault((ushort)4102) == 4;
             }
             var result = AdcFasteningResult.FromRegisters(values);
-            var sampleMilliseconds = samplingCode switch
-            {
-                1 => 5,
-                2 => 10,
-                3 => 15,
-                4 => 30,
-                _ => throw new InvalidOperationException(UiText.Format($"Unsupported virtual ADC sampling code: {samplingCode}.")),
-            };
+            var sampleMilliseconds = AdcTorqueCurve.GetSampleMilliseconds(samplingCode)
+                ?? throw new InvalidOperationException(UiText.Format($"Unsupported virtual ADC sampling code: {samplingCode}."));
             var samples = Enumerable.Range(0, (FasteningMilliseconds + sampleMilliseconds - 1) / sampleMilliseconds)
                 .Select(index => result.Torque * Math.Min(1.0, index * sampleMilliseconds / 200.0)).ToArray();
             Monitor.ReceiveTorqueCurve(new(Stopwatch.GetTimestamp(), sampleMilliseconds, samples,

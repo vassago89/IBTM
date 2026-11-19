@@ -114,14 +114,11 @@ public partial class PcbResultsViewModel : ObservableObject
             var height = heights[index];
             var ordinal = record!.GetBoltOrdinal(height.Key);
             var label = recipe?.Pcb.GetBoltName(height.Key, ordinal) ?? BoltPoint.GetDisplayName(null, ordinal);
-            var row = HeightResults.FirstOrDefault(row => row.BoltId == height.Key);
+            var row = FindAndMoveRow(HeightResults, index, row => row.BoltId == height.Key);
             if (row is null)
                 HeightResults.Insert(index, new(height.Key, ordinal, label, height.Value));
             else
             {
-                var previousIndex = HeightResults.IndexOf(row);
-                if (previousIndex != index)
-                    HeightResults.Move(previousIndex, index);
                 row.Result = height.Value;
                 row.BoltLabel = label;
             }
@@ -139,7 +136,7 @@ public partial class PcbResultsViewModel : ObservableObject
         for (var index = 0; index < results.Length; index++)
         {
             var result = results[index];
-            var row = BoltResults.FirstOrDefault(row => row.BoltId == result.Key && row.Head == result.Head);
+            var row = FindAndMoveRow(BoltResults, index, row => row.BoltId == result.Key && row.Head == result.Head);
             if (row is null)
             {
                 BoltResults.Insert(index, new(result.Key, record!.GetBoltOrdinal(result.Key), result.Head,
@@ -147,9 +144,6 @@ public partial class PcbResultsViewModel : ObservableObject
             }
             else
             {
-                var previousIndex = BoltResults.IndexOf(row);
-                if (previousIndex != index)
-                    BoltResults.Move(previousIndex, index);
                 row.Result = result.Value;
                 row.Recipe = recipe;
             }
@@ -168,7 +162,7 @@ public partial class PcbResultsViewModel : ObservableObject
         for (var index = 0; index < stages.Length; index++)
         {
             var stage = stages[index];
-            var row = BoltStages.FirstOrDefault(row => row.Result.Stage == stage.Result.Stage);
+            var row = FindAndMoveRow(BoltStages, index, row => row.Result.Stage == stage.Result.Stage);
             if (row is null)
             {
                 BoltStages.Insert(index, new(stage.BoltId, stage.Ordinal, stage.Head,
@@ -176,9 +170,6 @@ public partial class PcbResultsViewModel : ObservableObject
             }
             else
             {
-                var previousIndex = BoltStages.IndexOf(row);
-                if (previousIndex != index)
-                    BoltStages.Move(previousIndex, index);
                 row.Result = stage.Result;
                 row.Recipe = stage.Recipe;
             }
@@ -187,6 +178,20 @@ public partial class PcbResultsViewModel : ObservableObject
             BoltStages.RemoveAt(BoltStages.Count - 1);
         if (SelectedBoltStage is null || !BoltStages.Contains(SelectedBoltStage))
             SelectedBoltStage = BoltStages.LastOrDefault();
+    }
+
+    private static T? FindAndMoveRow<T>(ObservableCollection<T> rows, int index, Predicate<T> matches) where T : class
+    {
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            if (!matches(row))
+                continue;
+            if (i != index)
+                rows.Move(i, index);
+            return row;
+        }
+        return null;
     }
 
     partial void OnSelectedBoltChanged(PcbBoltResultView? value)

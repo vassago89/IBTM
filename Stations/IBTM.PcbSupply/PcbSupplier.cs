@@ -175,9 +175,8 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         get
         {
-            if (!Io.IsReady || !MotionServiceBase.IsReadyAndStopped(_motion))
-                return PcbSupplyHandoff.Unavailable;
-            if (!_units.PcbSupply || Rotation != PcbSupplyRotationState.Unrotated
+            if (!Io.IsReady || !MotionServiceBase.IsReadyAndStopped(_motion)
+                || !_units.PcbSupply || Rotation != PcbSupplyRotationState.Unrotated
                 || Phase is not (PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear))
                 return PcbSupplyHandoff.Unavailable;
             return PcbSecured ? PcbSupplyHandoff.Holding

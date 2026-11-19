@@ -109,40 +109,40 @@ public sealed class HeatSinkAssembly
 
     public void RecordBolt(FasteningHead head, Guid boltId, BoltResult result)
     {
-        var results = head switch
-        {
-            FasteningHead.Shooting => _shootingBoltResults,
-            FasteningHead.Pickup => _pickupBoltResults,
-            _ => throw new ArgumentOutOfRangeException(nameof(head)),
-        };
-        results[boltId] = result;
-        if (result.Source != BoltResultSource.Interrupted
-            && (!result.Success || result.Source == BoltResultSource.DryRun))
-        {
+        GetBoltResults(head)[boltId] = result;
+        if (IsFasteningNg(result))
             FasteningResult = AssemblyResult.Ng;
-        }
         ResultsChanged?.Invoke(this);
     }
 
     public void ChangeBoltResult(FasteningHead head, Guid boltId, BoltResult? result)
     {
-        var results = head switch
-        {
-            FasteningHead.Shooting => _shootingBoltResults,
-            FasteningHead.Pickup => _pickupBoltResults,
-            _ => throw new ArgumentOutOfRangeException(nameof(head)),
-        };
+        var results = GetBoltResults(head);
         if (result is null)
             results.TryRemove(boltId, out _);
         else
             results[boltId] = result;
 
         // Explicit operator edits reopen this PCB; automatic results keep their NG latch.
-        var recorded = _shootingBoltResults.Values.Concat(_pickupBoltResults.Values).ToArray();
-        FasteningResult = recorded.Any(item => item.Source != BoltResultSource.Interrupted
-            && (!item.Success || item.Source == BoltResultSource.DryRun))
+        FasteningResult = _shootingBoltResults.Values.Concat(_pickupBoltResults.Values).Any(IsFasteningNg)
             ? AssemblyResult.Ng : AssemblyResult.Pending;
         ResultsChanged?.Invoke(this);
+    }
+
+    private ConcurrentDictionary<Guid, BoltResult> GetBoltResults(FasteningHead head)
+    {
+        return head switch
+        {
+            FasteningHead.Shooting => _shootingBoltResults,
+            FasteningHead.Pickup => _pickupBoltResults,
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
+    }
+
+    private static bool IsFasteningNg(BoltResult result)
+    {
+        return result.Source != BoltResultSource.Interrupted
+            && (!result.Success || result.Source == BoltResultSource.DryRun);
     }
 
     public void CompleteFastening()

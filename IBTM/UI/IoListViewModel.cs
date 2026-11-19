@@ -32,8 +32,8 @@ public sealed partial class IoListViewModel<TRow, TSignal> : ObservableObject
             .ThenBy(row => signal(row).Section)
             .ThenBy(row => signal(row).Signal)
             .ToArray());
-        FilteredRows.GroupDescriptions.Add(new AreaGroupDescription(signal));
-        FilteredRows.GroupDescriptions.Add(new SectionGroupDescription(signal));
+        FilteredRows.GroupDescriptions.Add(new SignalGroupDescription(row => signal(row).Area));
+        FilteredRows.GroupDescriptions.Add(new SignalGroupDescription(row => signal(row).Section));
         SelectedArea = Areas[0];
         FilteredRows.Filter = item =>
         {
@@ -66,33 +66,18 @@ public sealed partial class IoListViewModel<TRow, TSignal> : ObservableObject
         FilteredRows.Refresh();
     }
 
-    private sealed class AreaGroupDescription : GroupDescription
+    private sealed class SignalGroupDescription : GroupDescription
     {
-        private readonly Func<TRow, IoSignal<TSignal>> _signal;
+        private readonly Func<TRow, object?> _groupKey;
 
-        public AreaGroupDescription(Func<TRow, IoSignal<TSignal>> signal)
+        public SignalGroupDescription(Func<TRow, object?> groupKey)
         {
-            _signal = signal;
-        }
-
-        public override object GroupNameFromItem(object item, int level, CultureInfo culture)
-        {
-            return _signal((TRow)item).Area;
-        }
-    }
-
-    private sealed class SectionGroupDescription : GroupDescription
-    {
-        private readonly Func<TRow, IoSignal<TSignal>> _signal;
-
-        public SectionGroupDescription(Func<TRow, IoSignal<TSignal>> signal)
-        {
-            _signal = signal;
+            _groupKey = groupKey;
         }
 
         public override object? GroupNameFromItem(object item, int level, CultureInfo culture)
         {
-            return _signal((TRow)item).Section;
+            return _groupKey((TRow)item);
         }
     }
 }

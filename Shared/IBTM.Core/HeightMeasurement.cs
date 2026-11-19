@@ -14,10 +14,7 @@ public sealed record HeightReferencePlane(
         var uy = Point2.Y - Point1.Y;
         var vx = Point3.X - Point1.X;
         var vy = Point3.Y - Point1.Y;
-        var determinant = ux * vy - uy * vx;
-        var scale = Math.Sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
-        if (!double.IsFinite(scale) || scale == 0 || Math.Abs(determinant) <= scale * 1e-6)
-            throw new InvalidOperationException(UiText.Get("Reference points must form a triangle"));
+        var determinant = GetTriangleDeterminant(ux, uy, vx, vy);
         var dx = x - Point1.X;
         var dy = y - Point1.Y;
         var height = Point1.Value
@@ -26,6 +23,15 @@ public sealed record HeightReferencePlane(
         if (!double.IsFinite(height))
             throw new InvalidOperationException(UiText.Get("Invalid reference plane measurement"));
         return height;
+    }
+
+    public static double GetTriangleDeterminant(double ux, double uy, double vx, double vy)
+    {
+        var determinant = ux * vy - uy * vx;
+        var scale = Math.Sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+        if (!double.IsFinite(scale) || scale == 0 || Math.Abs(determinant) <= scale * 1e-6)
+            throw new InvalidOperationException(UiText.Get("Reference points must form a triangle"));
+        return determinant;
     }
 }
 
