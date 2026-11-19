@@ -642,7 +642,7 @@ public sealed class InspectionTests
         var gantrySettings = new InspectionGantrySettings
         {
             CameraResolution = VirtualImageFactory.InspectionMillimetersPerPixel,
-            Motion = new MotionSettings { HorizontalSpeed = 200 },
+            Motion = MachineTestSupport.FastMotion(),
         };
         var operations = new OperationCancellation();
         using var motion = new VirtualMotionService(
@@ -701,7 +701,7 @@ public sealed class InspectionTests
             units,
             camera,
             new VirtualLightController(),
-            new LightingSettings(),
+            new LightingSettings { StabilizationDelayMilliseconds = 0 },
             recipes, VirtualTestSupport.CreateHeightController(), new() { PortName = "Virtual" });
 
         io.Initialize();
@@ -762,7 +762,10 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
         using var cancellation = new CancellationTokenSource();
         var run = station.RunAsync(cancellation.Token);
-        Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
+        Assert.True(await WaitUntilAsync(() => work.Completed || run.IsCompleted, TimeSpan.FromSeconds(5)), $"Last inspection step: {station.Step}");
+        if (run.IsCompleted)
+            await run;
+        Assert.True(work.Completed);
 
         Assert.Single(photos[work.GetAssembly(HeatSinkSlot.HeatSink1)]);
         Assert.Equal(firstBarcode, work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
@@ -771,7 +774,10 @@ public sealed class InspectionTests
         VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         work.ClearJob();
         io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
-        Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
+        Assert.True(await WaitUntilAsync(() => work.Completed || run.IsCompleted, TimeSpan.FromSeconds(5)), $"Last inspection step: {station.Step}");
+        if (run.IsCompleted)
+            await run;
+        Assert.True(work.Completed);
 
         var heatSink1 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1);
         var heatSink2 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2);

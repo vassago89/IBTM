@@ -510,8 +510,10 @@
                                         <Button x:Name="CheckAlignmentButton" Content="{ui:Text 'Check both marks'}" Command="{Binding CheckAlignmentCommand}"
                                             Style="{StaticResource SecondaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
                                     </WrapPanel>
-                                    <TextBlock Text="{Binding FiducialRegistration}" Margin="0,0,0,6" Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock Text="{Binding FiducialMessage}" Style="{StaticResource StatusMessageStyle}"/>
+                                    <WrapPanel>
+                                        <TextBlock Text="{Binding FiducialRegistration}" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="{Binding FiducialMessage}" Style="{StaticResource StatusMessageStyle}"/>
+                                    </WrapPanel>
                                 </StackPanel>
                                 <StackPanel Visibility="{Binding IsHeightTestSelected, Converter={StaticResource BoolToVis}}" Margin="0,8,0,6">
                                     <WrapPanel Margin="0,2,0,10">

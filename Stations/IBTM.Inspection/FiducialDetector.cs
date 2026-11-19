@@ -64,8 +64,12 @@ public static class FiducialDetector
             new Point(search.X, search.Y));
         using var reference = registering ? null
             : InputArray.Create(mark.Contour.Select(point => new Point2f((float)point.X, (float)point.Y)).ToArray());
-        if (reference is not null && !(Math.Abs(Cv2.ContourArea(reference)) >= 4))
-            throw new InvalidOperationException(UiText.Get("Register the fiducial contour"));
+        if (reference is not null)
+        {
+            var referenceArea = Cv2.ContourArea(reference);
+            if (!double.IsFinite(referenceArea) || referenceArea < 4)
+                throw new InvalidOperationException(UiText.Get("Register the fiducial contour"));
+        }
         var accepted = new List<FiducialDetection>();
         foreach (var contour in contours)
         {
