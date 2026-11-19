@@ -24,11 +24,28 @@ public sealed partial class FiducialMark : ObservableObject
         Contour = [];
     }
 
-    public AxisPosition? CameraPosition { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AxisPosition? MarkPosition
+    {
+        get;
+        set
+        {
+            field = value;
+            if (value is not null)
+                LegacyCameraPosition = null;
+        }
+    }
+
+    [JsonPropertyName("CameraPosition"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AxisPosition? LegacyCameraPosition { get; set; }
     public Point2D[] Contour { get; set; }
     public int ImageWidth { get; set; }
     public int ImageHeight { get; set; }
     public int? LightLevel { get; set; }
+
+    [JsonIgnore]
+    public bool IsRegistered => Contour.Length >= 5 && ImageWidth > 0 && ImageHeight > 0
+        && (MarkPosition ?? LegacyCameraPosition) is { } position && double.IsFinite(position.X) && double.IsFinite(position.Y);
 
     [ObservableProperty]
     public partial bool WhiteMark { get; set; }

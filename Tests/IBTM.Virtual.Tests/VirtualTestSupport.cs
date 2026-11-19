@@ -158,7 +158,7 @@ internal static class VirtualTestSupport
         foreach (var (mark, x, y) in new[] { (marks.First, 2, 2), (marks.Second, 38, 28) })
         {
             var frame = VirtualImageFactory.CreateInspection((x, y, 0), [], []);
-            mark.CameraPosition = new() { X = x, Y = y };
+            mark.MarkPosition = new() { X = x, Y = y };
             mark.ReferenceDiameterMm = 1.2;
             mark.SearchSizePixels = 48;
             mark.WhiteMark = true;

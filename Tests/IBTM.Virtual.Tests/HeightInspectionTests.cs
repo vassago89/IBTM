@@ -122,8 +122,9 @@ public sealed class HeightInspectionTests
         {
             var fiducials = recipes.Current.BoltInspection.GetFiducials(pcb);
             var x = pcb == HeatSinkSlot.HeatSink1 ? 0 : 20;
-            fiducials.First.CameraPosition = new() { X = x };
-            fiducials.Second.CameraPosition = new() { X = x + (pcb == HeatSinkSlot.HeatSink1 ? 10 : 2) };
+            // Legacy recipe: 5 px right and 5 px up from each saved camera position.
+            fiducials.First.LegacyCameraPosition = new() { X = x };
+            fiducials.Second.LegacyCameraPosition = new() { X = x + (pcb == HeatSinkSlot.HeatSink1 ? 10 : 2) };
             foreach (var mark in new[] { fiducials.First, fiducials.Second })
             {
                 mark.WhiteMark = true;
@@ -147,10 +148,10 @@ public sealed class HeightInspectionTests
         {
             if (station.Step is not InspectionStationState.FindingFiducials)
                 return;
-            camera.SourceImage = failSecondMark && x == 10 ? FiducialTests.CircleImage()
-                : x == 22 ? FiducialTests.CircleImage((85, 80, 14))
-                : x == 20 ? FiducialTests.CircleImage((105, 100, 14))
-                : FiducialTests.CircleImage((115, 100, 14));
+            camera.SourceImage = failSecondMark && x == 10.5 ? FiducialTests.CircleImage()
+                : x == 22.5 ? FiducialTests.CircleImage((80, 85, 14))
+                : x == 20.5 ? FiducialTests.CircleImage((100, 105, 14))
+                : FiducialTests.CircleImage((110, 105, 14));
         };
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true),

@@ -147,7 +147,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.HeightReference1:
                     return recipe.BoltInspection.GetHeightReference(_pcb).Point1;
                 case TeachingTarget.Fiducial1 or TeachingTarget.Fiducial2:
-                    return Fiducial!.CameraPosition;
+                    return _settings.InspectionGantry.GetFiducialPosition(Fiducial!);
                 case TeachingTarget.HeightReference2:
                     return recipe.BoltInspection.GetHeightReference(_pcb).Point2;
                 case TeachingTarget.HeightReference3:
@@ -338,7 +338,7 @@ public class TeachingPoint : ObservableObject
                 _recipes.Current.BoltInspection.GetHeightReference(_pcb).Point1 = position;
                 break;
             case TeachingTarget.Fiducial1 or TeachingTarget.Fiducial2:
-                Fiducial!.CameraPosition = position;
+                Fiducial!.MarkPosition = position;
                 Fiducial.Contour = [];
                 break;
             case TeachingTarget.HeightReference2:

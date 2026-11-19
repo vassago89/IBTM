@@ -189,7 +189,7 @@ public sealed class FiducialTests
         mark.SearchSizePixels = 80;
         mark.ReferenceDiameterMm = 2.8;
         mark.WhiteMark = true;
-        mark.CameraPosition = new() { X = 30, Y = 40 };
+        mark.MarkPosition = new() { X = 30, Y = 40 };
         mark.MinimumMatchScore = 83;
         mark.Contour = FiducialDetector.Detect(CircleImage((100, 100, 14)), mark, 0.1, registering: true).Contour;
         mark.ImageWidth = mark.ImageHeight = 200;
@@ -207,7 +207,7 @@ public sealed class FiducialTests
             new(), recipes, HeatSinkSlot.HeatSink2);
         point.Teach(31, 41, 0);
         Assert.Empty(mark.Contour);
-        Assert.Equal((31d, 41d), (mark.CameraPosition.X, mark.CameraPosition.Y));
+        Assert.Equal((31d, 41d), (mark.MarkPosition.X, mark.MarkPosition.Y));
     }
 
     internal static ImageFrame CircleImage(params (int X, int Y, int Radius)[] circles)

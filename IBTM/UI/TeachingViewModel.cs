@@ -1630,11 +1630,10 @@ public partial class TeachingViewModel : ObservableObject
     {
         AlignmentTestResult = null;
         var fiducials = Recipes.Current.BoltInspection.GetFiducials(pcb);
-        if (fiducials.First is not { CameraPosition: not null, Contour.Length: >= 5 }
-            || fiducials.Second is not { CameraPosition: not null, Contour.Length: >= 5 })
+        if (_settings.InspectionGantry.CameraResolution is null)
+            throw new InvalidOperationException(UiText.Get("Set camera resolution"));
+        if (!fiducials.First.IsRegistered || !fiducials.Second.IsRegistered)
             throw new InvalidOperationException(UiText.Get("Register both fiducials"));
-        _ = _settings.InspectionGantry.ToMachinePosition(fiducials.First.CameraPosition,
-            new(0, 0), fiducials.First.ImageWidth, fiducials.First.ImageHeight);
         InspectionTestMessage = UiText.Get("Fiducial 1");
         var first = await Inspection.FindFiducialAsync(fiducials.First, cancellationToken);
         InspectionTestMessage = UiText.Get("Fiducial 2");
@@ -1749,8 +1748,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             string Status(FiducialMark mark)
             {
-                return UiText.Get(mark is { CameraPosition: not null, Contour.Length: >= 5 }
-                    ? "Registered" : "Not registered");
+                return UiText.Get(mark.IsRegistered ? "Registered" : "Not registered");
             }
             var marks = Recipes.Current.BoltInspection.GetFiducials(SelectedPcb);
             return UiText.Format($"Fiducial 1: {Status(marks.First)} / Fiducial 2: {Status(marks.Second)}");
@@ -1805,11 +1803,12 @@ public partial class TeachingViewModel : ObservableObject
             var found = await Task.Run(() => FiducialDetector.Detect(captured.Frame, mark, resolution, learnContour), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             DetectedFiducial = found;
+            var center = _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center, captured.Frame.Width, captured.Frame.Height);
             if (registering)
             {
                 // Keep the original size reference when re-registering a legacy recipe.
                 mark.ReferenceDiameterMm ??= FiducialDetector.GetReferenceDiameterMm(mark, resolution);
-                mark.CameraPosition = captured.Center;
+                mark.MarkPosition = new() { X = center.X, Y = center.Y };
                 mark.Contour = found.Contour;
                 mark.ImageWidth = captured.Frame.Width;
                 mark.ImageHeight = captured.Frame.Height;
@@ -1829,7 +1828,6 @@ public partial class TeachingViewModel : ObservableObject
             }
             else
             {
-                var center = _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center, captured.Frame.Width, captured.Frame.Height);
                 FiducialMessage = $"X {center.X:0.###}  Y {center.Y:0.###} mm";
                 if (found.MatchScore is { } score)
                     FiducialMessage += $"   {UiText.Get("Match score")} {score:0.##}   {UiText.Get("Shape error")} {found.ShapeError:F5}";

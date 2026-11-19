@@ -110,6 +110,62 @@ public sealed class TeachingTests
     }
 
     [Fact]
+    public async Task RegisteringAnOffCentreMarkSavesAndMovesToItsMachineXY()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.InspectionGantry.CameraResolution = 0.1;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var camera = services.GetRequiredService<VirtualCamera>();
+        var motion = services.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.InspectionGantry);
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        teaching.Activate();
+        try
+        {
+            teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+            var point = teaching.FilteredPoints.Single(p => p.Position.Target == TeachingTarget.Fiducial1);
+            teaching.SelectedPoint = point;
+            var mark = point.Fiducial!;
+            mark.WhiteMark = true;
+            mark.ReferenceDiameterMm = 2.8;
+            await teaching.Inspection.MoveToAsync(new() { X = 6, Y = 16 });
+            camera.SourceImage = FiducialTests.CircleImage((112, 92, 14));
+            await WaitUntilAsync(() => teaching.IsFiducialCaptureAllowed);
+            await teaching.RegisterFiducialCommand.ExecuteAsync(null);
+            Assert.Null(teaching.CameraError);
+            Assert.Null(teaching.SaveError);
+            Assert.Equal(7.2, point.Coordinates!.X, 8);
+            Assert.Equal(16.8, point.Coordinates.Y, 8);
+
+            var store = services.GetRequiredService<MachineStore>();
+            var saved = store.LoadRecipe(teaching.Recipes.Current.Name).BoltInspection.Fiducials1.First;
+            Assert.Equal(point.Coordinates.X, saved.MarkPosition!.X);
+            Assert.Equal(point.Coordinates.Y, saved.MarkPosition.Y);
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(saved));
+            Assert.False(json.RootElement.TryGetProperty("CameraPosition", out _));
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Equal(7.2, motion.Position.X, 6);
+            Assert.Equal(16.8, motion.Position.Y, 6);
+
+            // A centred mark after the move must give zero correction on the next inspection.
+            camera.SourceImage = FiducialTests.CircleImage((100, 100, 14));
+            var observation = await teaching.Inspection.FindFiducialAsync(saved, CancellationToken.None);
+            Assert.Equal(7.2, observation.Reference.X, 8);
+            Assert.Equal(16.8, observation.Reference.Y, 8);
+            Assert.Equal(observation.Reference.X, observation.Measured.X, 6);
+            Assert.Equal(observation.Reference.Y, observation.Measured.Y, 6);
+        }
+        finally
+        {
+            await teaching.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task InspectionTeachingChecksBothMarksAndAppliesFreshAlignmentToHeightTest()
     {
         var settings = FlowSettings();
@@ -125,7 +181,7 @@ public sealed class TeachingTests
         var referenceImage = FiducialTests.CircleImage((100, 100, 14));
         foreach (var mark in new[] { fiducials.First, fiducials.Second })
         {
-            mark.CameraPosition = new() { X = ReferenceEquals(mark, fiducials.First) ? 0 : 10 };
+            mark.MarkPosition = new() { X = ReferenceEquals(mark, fiducials.First) ? 0 : 10 };
             mark.WhiteMark = true;
             mark.ReferenceDiameterMm = 2.8;
             mark.Contour = FiducialDetector.Detect(referenceImage, mark, settings.InspectionGantry.CameraResolution, registering: true).Contour;
@@ -146,7 +202,7 @@ public sealed class TeachingTests
             Assert.Contains("+0.5", teaching.AlignmentTestResult);
             Assert.Equal(10, motion.Position.X, 3);
             Assert.Null(teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1).Alignment);
-            Assert.Equal(0, fiducials.First.CameraPosition!.X);
+            Assert.Equal(0, fiducials.First.MarkPosition!.X);
 
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.HeightReference1);
             // Each trial reads the current product again instead of reusing the previous correction.

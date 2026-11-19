@@ -1277,7 +1277,7 @@ public sealed class UiBindingTests
         Assert.Null(teaching.CameraError);
         Assert.NotNull(teaching.DetectedFiducial);
         Assert.Empty(teaching.SelectedPoint!.Fiducial!.Contour);
-        Assert.Null(teaching.SelectedPoint.Fiducial.CameraPosition);
+        Assert.Null(teaching.SelectedPoint.Fiducial.MarkPosition);
         await teaching.RegisterFiducialCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
         Assert.NotEmpty(teaching.SelectedPoint!.Fiducial!.Contour);

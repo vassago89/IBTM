@@ -39,6 +39,20 @@ public sealed class InspectionGantrySettings : Setting
         return position;
     }
 
+    public AxisPosition? GetFiducialPosition(FiducialMark mark)
+    {
+        if (mark.MarkPosition is { } center)
+            return center;
+        if (mark.LegacyCameraPosition is not { } camera || mark.Contour.Length < 5)
+            return mark.LegacyCameraPosition;
+        if (CameraResolution is null || mark.ImageWidth <= 0 || mark.ImageHeight <= 0)
+            return null;
+
+        // Older recipes stored the camera XY and the contour in the original frame.
+        var position = ToMachinePosition(camera, FiducialDetector.FitCircle(mark.Contour), mark.ImageWidth, mark.ImageHeight);
+        return new() { X = position.X, Y = position.Y };
+    }
+
     // Axis travel from the camera-centred point to the same point under the probe.
     public double ProbeOffsetX
     {
