@@ -22,6 +22,11 @@ public partial class TeachingView : UserControl
             CameraTab.IsSelected = true;
     }
 
+    private void OnMeasureHeightClick(object sender, RoutedEventArgs e)
+    {
+        HeightGraphTab.IsSelected = true;
+    }
+
     private void OnViewLoaded(object sender, RoutedEventArgs e)
     {
         var loadedAt = Stopwatch.GetTimestamp();

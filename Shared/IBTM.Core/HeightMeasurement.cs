@@ -3,7 +3,13 @@ using System.Text.Json.Serialization;
 
 namespace IBTM.Core;
 
-public sealed record HeightSample(double X, double Y, double Value);
+public sealed record ProbeReading(double ElapsedSeconds, double Displacement);
+
+public sealed record HeightSample(double X, double Y, double Value)
+{
+    [JsonIgnore]
+    public ProbeReading[] Readings { get; init; } = [];
+}
 
 public sealed record HeightReferencePlane(
     DateTimeOffset RecordedAt, HeightSample Point1, HeightSample Point2, HeightSample Point3)

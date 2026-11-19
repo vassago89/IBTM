@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -85,6 +86,8 @@ public sealed class HeightInspectionTests
         using var motion = new VirtualMotionService(settings.Motion, new(), hasZ: false);
         motion.Initialize();
         var recipes = new RecipeManager(OpenMachineStore(), new());
+        Assert.Equal(10, recipes.Current.BoltInspection.HeightMeasurementCount);
+        recipes.Current.BoltInspection.HeightMeasurementCount = 2;
         var bolt1 = new BoltPoint { X = 3, Y = 4, MinimumHeight = 1.4, MaximumHeight = 1.6 };
         var bolt2 = new BoltPoint { X = 23, Y = 4, HeatSink = HeatSinkSlot.HeatSink2, MinimumHeight = 1.4, MaximumHeight = 1.6 };
         recipes.Current.Pcb.BoltPoints = [bolt1, bolt2];
@@ -102,7 +105,8 @@ public sealed class HeightInspectionTests
         };
         var connection = new MlcpTests.TestConnection();
         using var controller = new MlcpController(connection);
-        var values = new Queue<string>(["10", "11", "12", "12.6", "20", "21", "22", "23.1"]);
+        var values = new Queue<string>(["9", "11", "10", "12", "11", "13", "12.4", "12.8",
+            "19", "21", "20", "22", "21", "23", "23", "23.2"]);
         var measuredAt = new List<(double X, double Y)>();
         controller.FrameTransferred += (direction, bytes) =>
         {
@@ -197,7 +201,7 @@ public sealed class HeightInspectionTests
             failSecondMark ? (2.5, 8.5) : (3.5, 8),
             failSecondMark ? (5.5, 2.5) : (6.5, 2),
             (23.5, -2), (23.5, 8), (13.5, -2), (19.5, 1),
-        }, measuredAt);
+        }.SelectMany(position => new[] { position, position }), measuredAt);
         Assert.Contains(bolt1.Id, photos);
         Assert.Contains(bolt2.Id, photos);
         var first = work.GetAssembly(HeatSinkSlot.HeatSink1);
@@ -229,6 +233,9 @@ public sealed class HeightInspectionTests
         Assert.Equal((3d, 4d), (bolt1.X, bolt1.Y));
         Assert.True(Assert.Single(first.HeightResults).Value.Success);
         Assert.Equal(1.5, first.HeightResults[bolt1.Id].Height, 8);
+        var readings = first.HeightResults[bolt1.Id].Sample.Readings;
+        Assert.Equal(new[] { 12.4, 12.8 }, readings.Select(point => point.Displacement));
+        Assert.True(readings[1].ElapsedSeconds >= readings[0].ElapsedSeconds);
         Assert.False(Assert.Single(second.HeightResults).Value.Success);
         Assert.Equal(2, second.HeightResults[bolt2.Id].Height, 8);
         Assert.Equal(failSecondMark && !excludeFromNg ? AssemblyResult.Ng : AssemblyResult.Ok, first.InspectionResult);

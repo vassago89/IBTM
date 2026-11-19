@@ -347,6 +347,9 @@ public sealed class MachineStore
                 Stage INTEGER NOT NULL, Value TEXT NOT NULL,
                 PRIMARY KEY (PcbNumber, Head, BoltId, Stage),
                 FOREIGN KEY (PcbNumber) REFERENCES Pcbs(Number) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS PcbHeightCurves (
+                PcbNumber INTEGER PRIMARY KEY REFERENCES Pcbs(Number) ON DELETE CASCADE,
+                Value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS PcbImages (
                 PcbNumber INTEGER NOT NULL, Target TEXT NOT NULL,
                 Metadata TEXT NOT NULL, Png BLOB NOT NULL,
@@ -398,6 +401,22 @@ public sealed class MachineStore
                     command.ExecuteNonQuery();
                 }
             }
+        }
+        var heightCurves = record.HeightResults.Where(pair => pair.Value.Sample.Readings.Length > 0)
+            .ToDictionary(pair => pair.Key.ToString("D"), pair => pair.Value.Sample.Readings);
+        if (record.HeightReference is { } plane)
+        {
+            if (plane.Point1.Readings.Length > 0) heightCurves.Add(nameof(plane.Point1), plane.Point1.Readings);
+            if (plane.Point2.Readings.Length > 0) heightCurves.Add(nameof(plane.Point2), plane.Point2.Readings);
+            if (plane.Point3.Readings.Length > 0) heightCurves.Add(nameof(plane.Point3), plane.Point3.Readings);
+        }
+        command.CommandText = "DELETE FROM PcbHeightCurves WHERE PcbNumber=$number";
+        command.ExecuteNonQuery();
+        if (heightCurves.Count > 0)
+        {
+            command.CommandText = "INSERT INTO PcbHeightCurves (PcbNumber, Value) VALUES ($number, $value)";
+            command.Parameters["$value"].Value = JsonSerializer.Serialize(heightCurves);
+            command.ExecuteNonQuery();
         }
         transaction.Commit();
     }
@@ -456,6 +475,33 @@ public sealed class MachineStore
         if (saved is null || saved.CreatedAt != record.CreatedAt)
             throw new InvalidDataException(UiText.Format($"PCB {record.Number} result was not found ({record.DatabaseFile})."));
         saved = saved with { Number = record.Number, DatabaseFile = record.DatabaseFile };
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='PcbHeightCurves'";
+        if (command.ExecuteScalar() is not null)
+        {
+            command.CommandText = "SELECT Value FROM PcbHeightCurves WHERE PcbNumber=$pcb";
+            if (command.ExecuteScalar() is string heightJson)
+            {
+                var traces = JsonSerializer.Deserialize<Dictionary<string, ProbeReading[]>>(heightJson)
+                    ?? throw new InvalidDataException(UiText.Format($"PCB {record.Number} has invalid graph data."));
+                HeightSample RestoreReadings(HeightSample sample, string key)
+                {
+                    return traces.TryGetValue(key, out var readings) ? sample with { Readings = readings } : sample;
+                }
+                saved = saved with
+                {
+                    HeightReference = saved.HeightReference is { } plane ? plane with
+                    {
+                        Point1 = RestoreReadings(plane.Point1, nameof(plane.Point1)),
+                        Point2 = RestoreReadings(plane.Point2, nameof(plane.Point2)),
+                        Point3 = RestoreReadings(plane.Point3, nameof(plane.Point3)),
+                    } : null,
+                    HeightResults = saved.HeightResults.ToDictionary(pair => pair.Key, pair => pair.Value with
+                    {
+                        Sample = RestoreReadings(pair.Value.Sample, pair.Key.ToString("D")),
+                    }),
+                };
+            }
+        }
         command.CommandText = "SELECT Head, BoltId, Stage, Value FROM PcbBoltCurves WHERE PcbNumber=$pcb";
         using var reader = command.ExecuteReader();
         var curves = new Dictionary<(FasteningHead Head, Guid BoltId, BoltFasteningStage Stage), AdcTorqueCurve>();

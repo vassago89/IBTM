@@ -430,6 +430,17 @@
                                             DetectedFiducial="{Binding DetectedFiducial}" ShowCrosshair="False" IsHitTestVisible="False"/>
                                     </Border>
                                 </TabItem>
+                                <TabItem x:Name="HeightGraphTab" Header="{ui:Text 'LVDT graph'}"
+                                    Visibility="{Binding IsHeightTestSelected, Converter={StaticResource BoolToVis}}"
+                                    IsVisibleChanged="OnCapturedTabVisibilityChanged">
+                                    <ui:ProbeDisplacementPlot Sample="{Binding HeightTestSample}" ReferenceHeight="{Binding HeightTestReference}">
+                                        <ui:ProbeDisplacementPlot.Style><Style TargetType="ui:ProbeDisplacementPlot">
+                                            <Style.Triggers><DataTrigger Binding="{Binding SelectedPoint.Position.Bolt}" Value="{x:Null}">
+                                                <Setter Property="ShowRelativeHeight" Value="False"/>
+                                            </DataTrigger></Style.Triggers>
+                                        </Style></ui:ProbeDisplacementPlot.Style>
+                                    </ui:ProbeDisplacementPlot>
+                                </TabItem>
                                 <TabItem x:Name="InspectionIoTab" Header="{ui:Text 'Related I/O'}">
                                     <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
                                 </TabItem>
@@ -538,18 +549,25 @@
                                         <TextBlock Tag="{Binding InspectionProbe.Io.Feedback[0].IsOn}" Text="{Binding InspectionProbe.Io.Feedback[0].IsOn, Converter={StaticResource SignalTextConverter}}"
                                             Style="{StaticResource IoInputStateStyle}" MinWidth="36" MinHeight="26" Padding="4" VerticalAlignment="Center"/>
                                     </WrapPanel>
-                                    <Button x:Name="MeasureHeightButton" Command="{Binding MeasureHeightCommand}"
-                                        HorizontalAlignment="Left" Padding="12,7"
-                                        ToolTip="{ui:Text 'Move to the selected point and measure; bolts measure all three references first'}">
-                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                            <Setter Property="Content" Value="{ui:Text 'Test height'}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding MeasureHeightCommand.IsRunning}" Value="True"><Setter Property="Content" Value="{ui:Text 'Measuring'}"/></DataTrigger>
-                                                <DataTrigger Binding="{Binding ElementName=InspectionMinimumHeightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
-                                                <DataTrigger Binding="{Binding ElementName=InspectionMaximumHeightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
-                                            </Style.Triggers>
-                                        </Style></Button.Style>
-                                    </Button>
+                                    <WrapPanel>
+                                        <TextBlock Text="{ui:Text 'Readings per point'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <TextBox x:Name="HeightCountInput" Width="46" Margin="0,0,10,0" VerticalContentAlignment="Center"
+                                            IsEnabled="{Binding State.SetupEditingEnabled}"
+                                            Text="{Binding Recipes.Current.BoltInspection.HeightMeasurementCount, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                        <Button x:Name="MeasureHeightButton" Command="{Binding MeasureHeightCommand}" Click="OnMeasureHeightClick"
+                                            HorizontalAlignment="Left" Padding="12,7"
+                                            ToolTip="{ui:Text 'Move to the selected point and measure; bolts measure all three references first'}">
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                <Setter Property="Content" Value="{ui:Text 'Test height'}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ElementName=HeightCountInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                    <DataTrigger Binding="{Binding MeasureHeightCommand.IsRunning}" Value="True"><Setter Property="Content" Value="{ui:Text 'Measuring'}"/></DataTrigger>
+                                                    <DataTrigger Binding="{Binding ElementName=InspectionMinimumHeightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                    <DataTrigger Binding="{Binding ElementName=InspectionMaximumHeightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style></Button.Style>
+                                        </Button>
+                                    </WrapPanel>
                                     <TextBlock Text="{ui:Text 'Three references → selected bolt'}" Margin="0,5,0,0" Foreground="{StaticResource TextMutedBrush}">
                                         <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
                                             <DataTrigger Binding="{Binding SelectedPoint.Position.Bolt}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
@@ -602,6 +620,13 @@
                                         <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.XYOnly}">
                                             <Setter Property="Content" Value="{ui:Text 'Record X/Y'}"/>
                                         </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsHeightTestSelected}" Value="True"/>
+                                                <Condition Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.XYOnly}"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Content" Value="{ui:Text 'Record XY and photo'}"/>
+                                        </MultiDataTrigger>
                                         <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.ZOnly}">
                                             <Setter Property="Content" Value="{ui:Text 'Record Z'}"/>
                                         </DataTrigger>

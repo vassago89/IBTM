@@ -4,6 +4,12 @@ using IBTM.Core;
 
 namespace IBTM.Inspection;
 
+[JsonConverter(typeof(JsonStringEnumConverter<InspectionReferencePoint>))]
+public enum InspectionReferencePoint
+{
+    Fiducial1, Fiducial2, HeightReference1, HeightReference2, HeightReference3,
+}
+
 public sealed class CarrierImageTile
 {
     public int Number { get; set; }
@@ -14,11 +20,13 @@ public sealed class CarrierImageTile
     public Guid? BoltId { get; set; }
     public bool IsBarcode { get; set; }
     public HeatSinkSlot HeatSink { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InspectionReferencePoint? ReferencePoint { get; set; }
 
     // A null target selects Data Matrix, never an unlinked bolt image.
     public bool IsForTarget(HeatSinkSlot heatSink, Guid? boltId)
     {
-        return HeatSink == heatSink
+        return HeatSink == heatSink && ReferencePoint is null
             && (boltId is { } id ? id != Guid.Empty && !IsBarcode && BoltId == id : IsBarcode);
     }
 }

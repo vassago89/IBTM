@@ -3584,7 +3584,6 @@
   <data name="diameter tolerance (±%)" xml:space="preserve"><value>지름 허용 오차 (±%)</value></data>
   <data name="find mark" xml:space="preserve"><value>마크 찾기</value></data>
   <data name="register the fiducial contour" xml:space="preserve"><value>윤곽 등록 필요</value></data>
-  <data name="contour registered; save the recipe" xml:space="preserve"><value>윤곽 등록됨 · 레시피 저장 필요</value></data>
   <data name="circle fit failed" xml:space="preserve"><value>원 맞춤 실패</value></data>
   <data name="shape error" xml:space="preserve"><value>형상 오차</value></data>
   <data name="register both fiducials" xml:space="preserve"><value>피듀셜 두 곳 등록 필요</value></data>
@@ -4589,4 +4588,14 @@
     <value>Z축·슈팅 헤드 하강과 진공 확인을 마치기 전에 PCB 체결이 종료됐습니다</value>
   </data>
   <data name="search area · binary" xml:space="preserve"><value>탐색 영역 · 이진 영상</value></data>
+  <data name="readings per point" xml:space="preserve"><value>지점당 측정 횟수</value></data>
+  <data name="enter 1 to 99 readings per point" xml:space="preserve"><value>지점당 측정 횟수는 1~99회</value></data>
+  <data name="lvdt contact lost during measurement" xml:space="preserve"><value>측정 중 LVDT 하강 신호 풀림</value></data>
+  <data name="lvdt graph" xml:space="preserve"><value>LVDT 그래프</value></data>
+  <data name="no lvdt readings" xml:space="preserve"><value>기록된 LVDT 샘플 없음</value></data>
+  <data name="raw mean {0:0.###} mm ({1})" xml:space="preserve"><value>원시 평균 {0:0.###} mm ({1}회)</value></data>
+  <data name="protrusion mean {0:0.###} mm" xml:space="preserve"><value>돌출 평균 {0:0.###} mm</value></data>
+  <data name="reference plane {0:0.###} mm" xml:space="preserve"><value>기준면 {0:0.###} mm</value></data>
+  <data name="reference point mean {0:0.###} mm" xml:space="preserve"><value>기준점 평균 {0:0.###} mm</value></data>
+  <data name="record xy and photo" xml:space="preserve"><value>XY·사진 등록</value></data>
 </root>

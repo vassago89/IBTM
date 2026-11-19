@@ -128,7 +128,8 @@ AJIN은 `AxlOpen` 후 DIO 모듈을 확인하며 .mot를 로드하지 않는다.
 LVDT(ML-CP): 포트·전송속도·응답 제한 시간·명령 형식은 장비 공통 MlcpSettings에 저장한다.
 InspectionGantrySettings의 ProbeOffsetX/Y는 카메라 티칭 위치에서 LVDT 위치로 움직일 축 이동량(mm)이다.
 레시피 BoltInspection.HeightReference1/2에 PCB별 기준면 세 XY를, BoltPoint.MinimumHeight/MaximumHeight에 상대 높이 범위를 저장한다.
-PcbRecord.HeightReference/HeightResults는 PCB 결과 JSON에 저장한다. 토크 그래프나 이미지 데이터와는 별개다.
+레시피의 BoltInspection.HeightMeasurementCount는 티칭과 자동 검사의 지점당 측정 횟수다(기본 10회). 피듀셜과 기준면 등록 사진은 레시피 이미지에서 히트싱크와 ReferencePoint로 구분한다.
+PcbRecord.HeightReference/HeightResults는 각 지점의 평균과 판정을 PCB 결과 JSON에 저장한다. 월별 결과 DB의 PcbHeightCurves에는 기준점과 볼트별 응답 시각·변위가 들어가며, 결과 상세를 열 때 읽는다.
 
 각 PCB 검사는 두 피듀셜로 위치를 보정한다. 레시피 BoltInspection.Fiducials1/2에는 마크 중심의 장비 XY(MarkPosition)·촬영 당시의 윤곽 픽셀·등록 영상 크기·조명·기준 지름(mm)·검출 조건을 저장한다. 티칭 이동과 자동 검사는 이 중심 XY를 목표로 한다. 기존 레시피의 CameraPosition은 촬영 위치이므로 저장된 윤곽 중심과 카메라 해상도로 마크 XY를 환산한다. 크기 허용 오차(%)는 기준 지름에 적용한다. 지름 입력값이 없는 기존 마크는 저장된 윤곽 면적과 카메라 해상도로 기준 지름을 구한다.
 InspectionGantrySettings.CameraResolution은 촬영면 기준 해상도(mm/pixel)다. 설정 → 카메라 · LVDT · 조명에서 양수 하나를 입력하며 레시피와 별개로 두 PCB에 공통 적용한다.

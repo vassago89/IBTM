@@ -18,6 +18,17 @@ public sealed class BoltInspectionRecipe
     public FiducialRecipe Fiducials1 { get; set; }
     public FiducialRecipe Fiducials2 { get; set; }
 
+    public int HeightMeasurementCount
+    {
+        get;
+        set
+        {
+            if (value is < 1 or > 99)
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Enter 1 to 99 readings per point"));
+            field = value;
+        }
+    } = 10;
+
     public FiducialRecipe GetFiducials(HeatSinkSlot pcb)
     {
         return pcb switch

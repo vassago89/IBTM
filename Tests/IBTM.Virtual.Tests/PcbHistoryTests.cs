@@ -88,8 +88,10 @@ public sealed class PcbHistoryTests
         var alignment = new PcbAlignment(DateTimeOffset.Now,
             new(new(0, 0), new(1, 2), 0.001, 91.7), new(new(10, 0), new(11, 2), 0.002, 85.2));
         assembly.RecordAlignment(alignment);
-        assembly.RecordHeightReference(plane);
-        assembly.RecordHeight(boltId, result);
+        ProbeReading[] referenceReadings = [new(0.2, 9.8), new(0.43, 10.2)];
+        ProbeReading[] boltReadings = [new(0.21, 12.4), new(0.47, 12.8)];
+        assembly.RecordHeightReference(plane with { Point1 = plane.Point1 with { Readings = referenceReadings } });
+        assembly.RecordHeight(boltId, result with { Sample = result.Sample with { Readings = boltReadings } });
         assembly.CompleteInspection();
         await history.FlushAsync();
 
@@ -101,12 +103,17 @@ public sealed class PcbHistoryTests
         Assert.Equal(1.5, record.HeightResults[boltId].Height, 8);
         Assert.True(record.HeightResults[boltId].Success);
         var loaded = reopened.LoadPcb(record);
-        Assert.Equal(plane, loaded.HeightReference);
+        Assert.Equal(referenceReadings, loaded.HeightReference!.Point1.Readings);
+        Assert.Equal(plane.Point1.Value, loaded.HeightReference.Point1.Value);
         Assert.Equal(alignment, loaded.Alignment);
-        Assert.Equal(result, loaded.HeightResults[boltId]);
+        Assert.Equal(boltReadings, loaded.HeightResults[boltId].Sample.Readings);
+        Assert.Equal(result.Height, loaded.HeightResults[boltId].Height);
         var details = services.GetRequiredService<PcbResultsViewModel>();
-        details.Record = loaded;
-        Assert.Equal(result, Assert.Single(details.HeightResults).Result);
+        details.Record = record;
+        await details.LoadCurvesCommand.ExecutionTask!;
+        Assert.Null(details.CurveLoadError);
+        Assert.Equal(referenceReadings, details.Record!.HeightReference!.Point1.Readings);
+        Assert.Equal(boltReadings, details.SelectedHeight!.Result.Sample.Readings);
         Assert.Empty(details.BoltResults); // Height results do not require a fastening result.
 
         assembly.ClearInspectionResults();

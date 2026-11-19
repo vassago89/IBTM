@@ -55,6 +55,16 @@ public class TeachingPoint : ObservableObject
 
     public InspectionPoint? Inspection { get; }
 
+    public InspectionReferencePoint? ReferencePhotoTarget => _definition.Target switch
+    {
+        TeachingTarget.Fiducial1 => InspectionReferencePoint.Fiducial1,
+        TeachingTarget.Fiducial2 => InspectionReferencePoint.Fiducial2,
+        TeachingTarget.HeightReference1 => InspectionReferencePoint.HeightReference1,
+        TeachingTarget.HeightReference2 => InspectionReferencePoint.HeightReference2,
+        TeachingTarget.HeightReference3 => InspectionReferencePoint.HeightReference3,
+        _ => null,
+    };
+
     public FiducialMark? Fiducial => _definition.Target switch
     {
         TeachingTarget.Fiducial1 => _recipes.Current.BoltInspection.GetFiducials(_pcb).First,
@@ -341,15 +351,15 @@ public class TeachingPoint : ObservableObject
             case TeachingTarget.HeightReference1:
                 _recipes.Current.BoltInspection.GetHeightReference(_pcb).Point1 = position;
                 break;
-            case TeachingTarget.Fiducial1 or TeachingTarget.Fiducial2:
-                Fiducial!.MarkPosition = position;
-                Fiducial.Contour = [];
-                break;
             case TeachingTarget.HeightReference2:
                 _recipes.Current.BoltInspection.GetHeightReference(_pcb).Point2 = position;
                 break;
             case TeachingTarget.HeightReference3:
                 _recipes.Current.BoltInspection.GetHeightReference(_pcb).Point3 = position;
+                break;
+            case TeachingTarget.Fiducial1 or TeachingTarget.Fiducial2:
+                Fiducial!.MarkPosition = position;
+                Fiducial.Contour = [];
                 break;
             case TeachingTarget.NgCarrierPickup:
                 _settings.NgCarrierTransfer.CarrierPickupPosition = position;

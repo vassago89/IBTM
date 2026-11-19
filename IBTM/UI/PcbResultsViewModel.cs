@@ -154,6 +154,8 @@ public partial class PcbResultsViewModel : ObservableObject
             SelectedBolt = SelectedImage is { Record.BoltId: null } ? null : BoltResults.FirstOrDefault();
         else
             RefreshStages();
+        if (SelectedHeight is null && SelectedBolt is null && SelectedImage is null)
+            SelectedHeight = HeightResults.FirstOrDefault();
     }
 
     private void RefreshStages()

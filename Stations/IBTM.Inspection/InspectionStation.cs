@@ -866,21 +866,35 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false, cancellationToken);
     }
 
-    public async Task<HeightSample> MeasureHeightAtAsync(AxisPosition cameraPosition, CancellationToken cancellationToken)
+    public async Task<HeightSample> MeasureHeightAtAsync(AxisPosition cameraPosition, CancellationToken cancellationToken,
+        Action<HeightSample>? readingsReceived = null)
     {
         var position = new AxisPosition
         {
             X = cameraPosition.X + _gantrySettings.ProbeOffsetX,
             Y = cameraPosition.Y + _gantrySettings.ProbeOffsetY,
         };
+        var readings = new ProbeReading[_recipes.Current.BoltInspection.HeightMeasurementCount];
         await MoveToAsync(position, cancellationToken: cancellationToken);
         await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, true, cancellationToken);
-        var result = await _measurement.MeasureAsync(cancellationToken);
-        if (result.Measurements.Count != 1)
-            throw new InvalidOperationException(UiText.Get("ML-CP must return one height value"));
-        var sample = new HeightSample(position.X, position.Y, (double)result.Measurements[0].Value);
+        var contact = Stopwatch.GetTimestamp();
+        decimal total = 0;
+        for (var index = 0; index < readings.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await _measurement.MeasureAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (result.Measurements.Count != 1)
+                throw new InvalidOperationException(UiText.Get("ML-CP must return one height value"));
+            if (!Io.GetInput(InputIo.InspectionProbeDown) || Io.GetInput(InputIo.InspectionProbeUp))
+                throw new MotionInterlockException(UiText.Get("LVDT contact lost during measurement"));
+            var value = result.Measurements[0].Value;
+            readings[index] = new(Stopwatch.GetElapsedTime(contact).TotalSeconds, (double)value);
+            total += value;
+            readingsReceived?.Invoke(new(position.X, position.Y, (double)(total / (index + 1))) { Readings = readings[..(index + 1)] });
+        }
         await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false, cancellationToken);
-        return sample;
+        return new(position.X, position.Y, (double)(total / readings.Length)) { Readings = readings };
     }
 
     public event Action<ImageFrame, HeatSinkSlot, Guid?>? InspectionCaptured;

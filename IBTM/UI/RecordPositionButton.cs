@@ -17,6 +17,7 @@ public sealed class RecordPositionButton : Button
         var replacement = mode switch
         {
             TeachMode.XYOnly when inspectionBolt => UiText.Get("Convert the camera position to recipe XY using both marks"),
+            TeachMode.XYOnly when point.ReferencePhotoTarget is not null => UiText.Get("Record XY and photo"),
             TeachMode.Image => UiText.Get("Update Image + Light"),
             TeachMode.XYOnly => UiText.Get("Replace the recorded X/Y with the current coordinates."),
             TeachMode.ZOnly => UiText.Get("Replace the recorded Z with the current coordinate."),

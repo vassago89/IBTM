@@ -162,7 +162,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 : null) ?? Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
             UpdateHistoryImages(HistoryImages, SelectedHistoryImage?.Record);
             var unlinked = Preview.Recipe.CarrierImages.Count(tile =>
-                !Points.Any(point => tile.IsForTarget(point.HeatSink, point.Bolt?.Id)));
+                tile.ReferencePoint is null && !Points.Any(point => tile.IsForTarget(point.HeatSink, point.Bolt?.Id)));
             var failed = images.Count(image => image.Error is not null);
             if (failed > 0)
                 Message = UiText.Format($"{failed} reference image(s) unavailable.");

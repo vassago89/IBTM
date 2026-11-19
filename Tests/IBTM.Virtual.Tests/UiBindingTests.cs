@@ -1313,13 +1313,13 @@ public sealed class UiBindingTests
         teaching.RecipeEditor.Name = "";
         await teaching.RegisterFiducialCommand.ExecuteAsync(null);
         Assert.NotNull(teaching.SaveError);
-        Assert.StartsWith(UiText.Get("Contour registered; save the recipe"), teaching.FiducialMessage);
+        Assert.Null(teaching.FiducialMessage);
         teaching.RecipeEditor.Name = registeredName;
         await teaching.SaveCommand.ExecuteAsync(null);
         Assert.Null(teaching.SaveError);
         Assert.Equal(UiText.Get("Recipe saved"), teaching.FiducialMessage);
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
-        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
         Assert.Same(teaching.FiducialImage, teaching.CameraImage);
         Assert.Same(teaching.DetectedFiducial, teachingCameraView.DetectedFiducial);
         fiducialCamera.SourceImage = null;
@@ -1545,7 +1545,8 @@ public sealed class UiBindingTests
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             teaching.RecipeEditor.PropertyChanged -= SelectNextOnSave;
             Assert.Same(next, teaching.SelectedPoint);
-            Assert.Single(teaching.CarrierImages);
+            Assert.Equal(2, teaching.CarrierImages.Count); // Registered fiducial and first bolt.
+            Assert.Single(teaching.CarrierImages, image => image.Metadata.ReferencePoint == InspectionReferencePoint.Fiducial1);
             Assert.Null(VirtualTestSupport.RecordedImage(teaching));
             teaching.SelectedPoint = firstBolt;
             var firstImage = VirtualTestSupport.RecordedImage(teaching)!;
@@ -1565,7 +1566,7 @@ public sealed class UiBindingTests
             // Capture reapplies the selected light level without stopping Live or turning light off.
             Assert.Equal(liveLightOnCalls + 1, light.OnCalls);
             Assert.Equal(liveLightOffCalls, light.OffCalls);
-            Assert.Single(teaching.CarrierImages);
+            Assert.Equal(2, teaching.CarrierImages.Count);
             var recordedImage = VirtualTestSupport.RecordedImage(teaching)!;
             Assert.NotSame(firstImage.Image, recordedImage.Image);
             Assert.Equal(firstImage.Metadata.Number, recordedImage.Metadata.Number);
@@ -1579,7 +1580,7 @@ public sealed class UiBindingTests
             await teaching.AddBoltPointCommand.ExecuteAsync(null);
             var secondBolt = teaching.SelectedPoint!;
             Assert.NotNull(VirtualTestSupport.RecordedImage(teaching));
-            Assert.Equal(2, teaching.CarrierImages.Count);
+            Assert.Equal(3, teaching.CarrierImages.Count);
             Assert.NotNull(firstBolt.Position.Bolt!.InspectionPosition);
             Assert.NotNull(secondBolt.Position.Bolt!.InspectionPosition);
             teaching.SelectedPcb = HeatSinkSlot.HeatSink1;
@@ -1593,7 +1594,7 @@ public sealed class UiBindingTests
                 await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
                 Assert.True(teaching.Inspection.HasBarcodeRegion(heatSink));
             }
-            Assert.Equal(4, teaching.CarrierImages.Count);
+            Assert.Equal(5, teaching.CarrierImages.Count);
             Assert.True(teaching.Inspection.IsLiveView);
 
             var originalName = teaching.RecipeEditor.ActiveName;
@@ -1601,14 +1602,14 @@ public sealed class UiBindingTests
             await teaching.RecipeEditor.SaveAsync();
             await teaching.RecipeEditor.LoadCommand.ExecuteAsync("ThreadingScanCopy");
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => teaching.CarrierImages.Count == 4, TimeSpan.FromSeconds(2)));
+                () => teaching.CarrierImages.Count == 5, TimeSpan.FromSeconds(2)));
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
             var unchanged = teaching.CarrierImages.Where(image => image != VirtualTestSupport.RecordedImage(teaching)).ToArray();
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Null(teaching.CameraError);
             Assert.Null(teaching.RecipeEditor.Error);
-            Assert.Equal(4, teaching.CarrierImages.Count);
+            Assert.Equal(5, teaching.CarrierImages.Count);
             Assert.All(unchanged, image => Assert.Contains(image, teaching.CarrierImages));
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             foreach (var closeTeaching in new[] { false, true })
@@ -1629,7 +1630,7 @@ public sealed class UiBindingTests
                 releaseStop.Set();
                 await Task.WhenAll(capture, closing).WaitAsync(TimeSpan.FromSeconds(2));
                 var saved = services.GetRequiredService<MachineStore>().LoadRecipe(teaching.RecipeEditor.ActiveName);
-                Assert.Equal(4, saved.CarrierImages.Count);
+                Assert.Equal(5, saved.CarrierImages.Count);
                 Assert.Equivalent(previous!.Metadata, saved.CarrierImages.Single(image => image.Number == previous.Metadata.Number));
                 Assert.Null(teaching.CameraError);
                 Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
@@ -1637,11 +1638,11 @@ public sealed class UiBindingTests
                 io.SetInput(InputIo.AutoMode, true);
                 teaching.Activate();
                 Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                    () => teaching.CarrierImages.Count == 4 && teaching.IsTeachCurrentPositionAllowed,
+                    () => teaching.CarrierImages.Count == 5 && teaching.IsTeachCurrentPositionAllowed,
                     TimeSpan.FromSeconds(2)));
             }
             var originalRecipe = services.GetRequiredService<MachineStore>().LoadRecipe(originalName);
-            Assert.Equal(4, originalRecipe.CarrierImages.Count);
+            Assert.Equal(5, originalRecipe.CarrierImages.Count);
         }
         finally
         {

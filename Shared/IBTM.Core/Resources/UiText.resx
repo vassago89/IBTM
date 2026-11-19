@@ -3586,7 +3586,6 @@ Supply: PCB 1, travel Z</value>
   <data name="diameter tolerance (±%)" xml:space="preserve"><value>Diameter tolerance (±%)</value></data>
   <data name="find mark" xml:space="preserve"><value>Find mark</value></data>
   <data name="register the fiducial contour" xml:space="preserve"><value>Register the fiducial contour</value></data>
-  <data name="contour registered; save the recipe" xml:space="preserve"><value>Contour registered; save the recipe</value></data>
   <data name="circle fit failed" xml:space="preserve"><value>Circle fit failed</value></data>
   <data name="shape error" xml:space="preserve"><value>Shape error</value></data>
   <data name="register both fiducials" xml:space="preserve"><value>Register both fiducials</value></data>
@@ -4591,4 +4590,14 @@ Supply: PCB 1, travel Z</value>
     <value>PCB fastening ended before Z descent, head down and vacuum confirmation completed.</value>
   </data>
   <data name="search area · binary" xml:space="preserve"><value>Search area · binary</value></data>
+  <data name="readings per point" xml:space="preserve"><value>Readings per point</value></data>
+  <data name="enter 1 to 99 readings per point" xml:space="preserve"><value>Enter 1 to 99 readings per point</value></data>
+  <data name="lvdt contact lost during measurement" xml:space="preserve"><value>LVDT contact lost during measurement</value></data>
+  <data name="lvdt graph" xml:space="preserve"><value>LVDT graph</value></data>
+  <data name="no lvdt readings" xml:space="preserve"><value>No LVDT readings</value></data>
+  <data name="raw mean {0:0.###} mm ({1})" xml:space="preserve"><value>Raw mean {0:0.###} mm ({1})</value></data>
+  <data name="protrusion mean {0:0.###} mm" xml:space="preserve"><value>Protrusion mean {0:0.###} mm</value></data>
+  <data name="reference plane {0:0.###} mm" xml:space="preserve"><value>Reference plane {0:0.###} mm</value></data>
+  <data name="reference point mean {0:0.###} mm" xml:space="preserve"><value>Reference point mean {0:0.###} mm</value></data>
+  <data name="record xy and photo" xml:space="preserve"><value>Record XY and photo</value></data>
 </root>

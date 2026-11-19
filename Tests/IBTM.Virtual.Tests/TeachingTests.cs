@@ -45,6 +45,7 @@ public sealed class TeachingTests
         var io = services.GetRequiredService<VirtualIoService>();
         var motion = services.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.InspectionGantry);
         var recipe = teaching.Recipes.Current;
+        recipe.BoltInspection.HeightMeasurementCount = 2;
         var bolt = new BoltPoint { X = 3, Y = 4, MinimumHeight = 1.4, MaximumHeight = 1.6 };
         recipe.Pcb.BoltPoints = [bolt];
         TeachVirtualFiducials(recipe.BoltInspection.Fiducials1);
@@ -52,7 +53,7 @@ public sealed class TeachingTests
         {
             Point1 = new() { X = 0, Y = 0 }, Point2 = new() { X = 10, Y = 0 }, Point3 = new() { X = 0, Y = 10 },
         };
-        var values = new Queue<string>(["9.5", "10", "11", "12", "12.6"]);
+        var values = new Queue<string>(["9", "10", "9", "11", "10", "12", "11", "13", "12.4", "12.8"]);
         var measuredAt = new List<(double X, double Y)>();
         controller.FrameTransferred += (direction, bytes) =>
         {
@@ -85,6 +86,8 @@ public sealed class TeachingTests
             await teaching.MeasureHeightCommand.ExecuteAsync(null);
             Assert.Null(teaching.InspectionTestMessage);
             Assert.Contains("9.5", teaching.HeightTestResult);
+            Assert.Equal(2, teaching.HeightTestSample!.Readings.Length);
+            Assert.Null(teaching.HeightTestReference);
             Assert.True(io.GetInput(InputIo.InspectionProbeUp));
 
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltReference);
@@ -94,7 +97,10 @@ public sealed class TeachingTests
             Assert.Contains("1.5", teaching.HeightTestResult);
             Assert.Contains("OK", teaching.HeightTestResult);
             Assert.True(teaching.HeightTestSuccess);
-            Assert.Equal(new[] { (12.5, -1.5), (2.5, -1.5), (12.5, -1.5), (2.5, 8.5), (5.5, 2.5) }, measuredAt);
+            var positions = new[] { (12.5, -1.5), (2.5, -1.5), (12.5, -1.5), (2.5, 8.5), (5.5, 2.5) };
+            Assert.Equal(positions.SelectMany(position => new[] { position, position }), measuredAt);
+            Assert.Equal(11.1, teaching.HeightTestReference!.Value, 6);
+            Assert.Equal(new[] { 12.4, 12.8 }, teaching.HeightTestSample!.Readings.Select(reading => reading.Displacement));
             Assert.True(io.GetInput(InputIo.InspectionProbeUp));
             var assembly = teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1);
             Assert.Empty(assembly.HeightResults);
@@ -157,6 +163,24 @@ public sealed class TeachingTests
             Assert.Equal(16.8, observation.Reference.Y, 8);
             Assert.Equal(observation.Reference.X, observation.Measured.X, 6);
             Assert.Equal(observation.Reference.Y, observation.Measured.Y, 6);
+
+            var planePoint = teaching.FilteredPoints.Single(p => p.Position.Target == TeachingTarget.HeightReference1);
+            teaching.SelectedPoint = planePoint;
+            Assert.Null(teaching.CameraImage);
+            await teaching.Inspection.MoveToAsync(new() { X = 2, Y = 3 });
+            camera.SourceImage = new(2, 2, 6, Enumerable.Repeat((byte)41, 12).ToArray());
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            Assert.Equal(2, teaching.CameraImage!.PixelWidth);
+            var recipeName = teaching.Recipes.Current.Name;
+            await teaching.Recipes.LoadAsync(recipeName);
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(p => p.Position.Target == TeachingTarget.Fiducial1);
+            await WaitUntilAsync(() => teaching.CameraImage is { PixelWidth: 200 });
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(p => p.Position.Target == TeachingTarget.HeightReference1);
+            Assert.Equal(2, teaching.CameraImage!.PixelWidth);
+            Assert.Equal((2d, 3d), (teaching.SelectedPoint.Coordinates!.X, teaching.SelectedPoint.Coordinates.Y));
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+            Assert.Null(teaching.CameraImage);
         }
         finally
         {

@@ -582,11 +582,14 @@ public partial class TeachingViewModel : ObservableObject
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
         CancelTeaching();
+        CameraError = null;
         FiducialImage = null;
         DetectedFiducial = null;
         FiducialMessage = null;
         HeightTestResult = null;
         HeightTestSuccess = null;
+        HeightTestSample = null;
+        HeightTestReference = null;
         AlignmentTestResult = null;
         InspectionTestMessage = null;
         InspectionTestError = null;
@@ -768,6 +771,7 @@ public partial class TeachingViewModel : ObservableObject
 
     private void OnRecipeChanged()
     {
+        OnPropertyChanged(nameof(Recipes));
         _teachingAlignment = null;
         CameraError = null;
         if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
@@ -893,6 +897,21 @@ public partial class TeachingViewModel : ObservableObject
                 return;
             }
             SaveError = null;
+            if (point.ReferencePhotoTarget is InspectionReferencePoint.HeightReference1
+                or InspectionReferencePoint.HeightReference2 or InspectionReferencePoint.HeightReference3)
+            {
+                var pcb = SelectedPcb;
+                await _cameraStop;
+                var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, LiveLightLevel);
+                var images = await WithReferencePhotoAsync(pcb, point.ReferencePhotoTarget.Value,
+                    InspectionPreviewViewModel.CreateBitmap(captured.Frame), operation.Token);
+                point.Teach(captured.Center.X, captured.Center.Y, 0);
+                if (await RecipeEditor.SaveAsync(images, operation.Token))
+                    CarrierImages = images;
+                else
+                    SaveError = RecipeEditor.Error ?? UiText.Get("Cancelled");
+                return;
+            }
             var current = Motion.Feedback.Position;
             operation.Token.ThrowIfCancellationRequested();
             if (point.Position.Target == TeachingTarget.BoltReference)
@@ -927,6 +946,11 @@ public partial class TeachingViewModel : ObservableObject
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
         {
             Machine.ReportManualFailure(MachineAlarm.IoCommunication, exception);
+        }
+        catch (Exception exception)
+        {
+            SaveError = UiText.Get(exception);
+            _logger.LogError(exception, "Teaching position registration failed.");
         }
     }
 
@@ -1610,9 +1634,13 @@ public partial class TeachingViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CameraError))]
     public partial IReadOnlyList<RecipeImageItem> CarrierImages { get; set; }
 
+    private RecipeImageItem? SelectedReferenceImage => SelectedPoint?.ReferencePhotoTarget is { } target
+        ? CarrierImages.FirstOrDefault(item => item.Metadata.HeatSink == SelectedPcb && item.Metadata.ReferencePoint == target)
+        : SelectedPoint?.Inspection?.FindImage(CarrierImages);
+
     public string? CameraError
     {
-        get => field ?? SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Error ?? (Inspection.LiveViewError is { } liveError ? UiText.Get(liveError) : null);
+        get => field ?? SelectedReferenceImage?.Error ?? (Inspection.LiveViewError is { } liveError ? UiText.Get(liveError) : null);
         private set => SetProperty(ref field, value);
     }
 
@@ -1622,9 +1650,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             if (Inspection.IsLiveView)
                 return LiveImage;
-            if (IsFiducialSelected)
-                return FiducialImage;
-            return SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Image;
+            return FiducialImage ?? SelectedReferenceImage?.Image;
         }
     }
 
@@ -1659,6 +1685,12 @@ public partial class TeachingViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool? HeightTestSuccess { get; private set; }
+
+    [ObservableProperty]
+    public partial HeightSample? HeightTestSample { get; private set; }
+
+    [ObservableProperty]
+    public partial double? HeightTestReference { get; private set; }
 
     [ObservableProperty]
     public partial string? AlignmentTestResult { get; private set; }
@@ -1744,6 +1776,8 @@ public partial class TeachingViewModel : ObservableObject
         var activeToken = cancellationToken;
         HeightTestResult = null;
         HeightTestSuccess = null;
+        HeightTestSample = null;
+        HeightTestReference = null;
         AlignmentTestResult = null;
         InspectionTestMessage = null;
         InspectionTestError = null;
@@ -1782,7 +1816,13 @@ public partial class TeachingViewModel : ObservableObject
                 plane = new(DateTimeOffset.Now, first, second, third);
             }
             InspectionTestMessage = point.Name;
-            var sample = await Inspection.MeasureHeightAtAsync(alignment.Transform(position), operation.Token);
+            var sample = await Inspection.MeasureHeightAtAsync(alignment.Transform(position), operation.Token, reading =>
+            {
+                if (operation.Token.IsCancellationRequested || SelectedPoint != point)
+                    return;
+                HeightTestReference = plane?.HeightAt(reading.X, reading.Y);
+                HeightTestSample = reading;
+            });
             operation.Token.ThrowIfCancellationRequested();
             HeightTestResult = UiText.Format($"Measured: {sample.Value:0.###} mm");
             if (bolt is not null && plane is not null)
@@ -1892,6 +1932,7 @@ public partial class TeachingViewModel : ObservableObject
             var center = _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center, captured.Frame.Width, captured.Frame.Height);
             if (registering)
             {
+                var images = await WithReferencePhotoAsync(pcb, point.ReferencePhotoTarget!.Value, FiducialImage, operation.Token);
                 _teachingAlignment = null;
                 // Keep the original size reference when re-registering a legacy recipe.
                 mark.ReferenceDiameterMm ??= FiducialDetector.GetReferenceDiameterMm(mark, resolution);
@@ -1902,15 +1943,16 @@ public partial class TeachingViewModel : ObservableObject
                 mark.LightLevel = LiveLightLevel;
                 RefreshPointPositions();
                 OnPropertyChanged(nameof(FiducialRegistration));
-                if (await RecipeEditor.SaveAsync(cancellationToken: operation.Token))
+                if (await RecipeEditor.SaveAsync(images, operation.Token))
                 {
+                    CarrierImages = images;
                     SaveError = null;
                     FiducialMessage = UiText.Get("Contour registered and saved");
                 }
                 else
                 {
-                    SaveError = RecipeEditor.Error ?? UiText.Get("Save cancelled; teaching not saved.");
-                    FiducialMessage = UiText.Get("Contour registered; save the recipe");
+                    SaveError = RecipeEditor.Error ?? UiText.Get("Cancelled");
+                    return;
                 }
             }
             else
@@ -2005,6 +2047,25 @@ public partial class TeachingViewModel : ObservableObject
                 || IsInspectionSelected && State.ManualMode
                     && !TeachCurrentPositionCommand.IsRunning && !AddBoltPointCommand.IsRunning);
         }
+    }
+
+    private async Task<List<RecipeImageItem>> WithReferencePhotoAsync(HeatSinkSlot pcb, InspectionReferencePoint target,
+        BitmapSource image, CancellationToken cancellationToken)
+    {
+        await _recipeImageUpdate;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
+            throw new InvalidOperationException(UiText.Get("Wait for the saved teaching images to load before capturing."));
+        var images = CarrierImages.ToList();
+        var index = images.FindIndex(item => item.Metadata.HeatSink == pcb && item.Metadata.ReferencePoint == target);
+        if (index >= 0)
+            images[index] = new(images[index].Metadata, image);
+        else
+            images.Add(new(new CarrierImageTile
+            {
+                HeatSink = pcb, ReferencePoint = target, Number = images.Count == 0 ? 1 : images.Max(item => item.Metadata.Number) + 1,
+            }, image));
+        return images;
     }
 
     private async Task<bool> CaptureTeachingImageAsync(bool recordPosition, CancellationToken cancellationToken)

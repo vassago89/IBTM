@@ -61,7 +61,8 @@ public sealed class Recipe
         foreach (var tile in tiles)
         {
             var source = CarrierImages.SingleOrDefault(item => item.Number == tile.Number
-                && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
+                && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId
+                && item.ReferencePoint == tile.ReferencePoint);
             if (source is not null)
                 tile.Region = source.Region;
         }
