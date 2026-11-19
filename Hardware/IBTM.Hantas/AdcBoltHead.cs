@@ -260,17 +260,19 @@ public sealed class AdcBoltHead : IBoltHead
         int dryRunMilliseconds = 0,
         Action<BoltResult>? resultReceived = null,
         ushort? torqueCompensationPercent = null,
-        bool stopFeedOnCompletion = true)
+        bool stopFeedOnCompletion = true,
+        Func<CancellationToken, Task>? approachAsync = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegative(dryRunMilliseconds);
         var fasteningTimeoutMilliseconds = _connection.FasteningTimeoutMilliseconds;
-        if (dryRunMilliseconds == 0 || feedAsync is not null)
+        var hasMotion = approachAsync is not null || feedAsync is not null;
+        if (dryRunMilliseconds == 0 || hasMotion)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fasteningTimeoutMilliseconds);
         var operationTimeoutMilliseconds = fasteningTimeoutMilliseconds;
         if (dryRunMilliseconds > 0)
-            operationTimeoutMilliseconds = feedAsync is null
-                ? dryRunMilliseconds : Math.Min(dryRunMilliseconds, fasteningTimeoutMilliseconds);
+            operationTimeoutMilliseconds = hasMotion
+                ? Math.Min(dryRunMilliseconds, fasteningTimeoutMilliseconds) : dryRunMilliseconds;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         (ushort EventCount, ushort Preset)? started = null;
         BoltResult? completed = null;
@@ -399,14 +401,14 @@ public sealed class AdcBoltHead : IBoltHead
             timeout.CancelAfter(operationTimeoutMilliseconds);
             timeout.Token.ThrowIfCancellationRequested();
             started = fastening;
-            if (dryRunMilliseconds == 0 || feedAsync is not null)
+            if (dryRunMilliseconds == 0 || hasMotion)
                 Monitor.Sampled += OnStatusSampled;
             // Own STOP cleanup before requesting START.
             if (Monitor.IsTorqueCurveMonitoringRequested)
                 Monitor.BeginTorqueCurveCapture();
             _io.SetOutput(_start, true);
             Interlocked.Exchange(ref startedAt, Stopwatch.GetTimestamp());
-            if (feedAsync is not null && ioFailure is null)
+            if (hasMotion && ioFailure is null)
             {
                 // Use the shared monitor, accepting only queries begun after START was sent.
                 var feedStatus = await Monitor.WaitForSampleAsync(startedAt, timeout.Token);
@@ -416,7 +418,23 @@ public sealed class AdcBoltHead : IBoltHead
                     feedStatus = await Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), timeout.Token);
                 }
                 timeout.Token.ThrowIfCancellationRequested();
-                if (!stopped.Task.IsCompleted && feedStatus.Alarm == 0)
+                if (approachAsync is not null && !stopped.Task.IsCompleted && feedStatus.Alarm == 0)
+                {
+                    using var approachCancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+                    var approaching = approachAsync(approachCancellation.Token);
+                    if (await Task.WhenAny(approaching, stopped.Task) == stopped.Task)
+                        approachCancellation.Cancel();
+                    try
+                    {
+                        await approaching;
+                    }
+                    catch (OperationCanceledException) when (approachCancellation.IsCancellationRequested
+                        && !timeout.IsCancellationRequested && stopped.Task.IsCompleted)
+                    {
+                        // Read this START's result even if the controller stopped during approach.
+                    }
+                }
+                if (feedAsync is not null && !stopped.Task.IsCompleted && feedStatus.Alarm == 0)
                 {
                     using var feedCancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
                     var feeding = feedAsync(feedCancellation.Token);

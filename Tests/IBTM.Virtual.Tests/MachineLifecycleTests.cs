@@ -8050,11 +8050,14 @@ public sealed class MachineLifecycleTests
             int dryRunMilliseconds = 0,
             Action<BoltResult>? resultReceived = null,
             ushort? torqueCompensationPercent = null,
-            bool stopFeedOnCompletion = true)
+            bool stopFeedOnCompletion = true,
+            Func<CancellationToken, Task>? approachAsync = null)
         {
             Started.SetResult();
             try
             {
+                if (approachAsync is not null)
+                    await approachAsync(cancellationToken);
                 if (feedAsync is not null)
                     await feedAsync(cancellationToken);
                 await Task.Delay(Timeout.Infinite, cancellationToken);
@@ -8119,7 +8122,8 @@ public sealed class MachineLifecycleTests
             int dryRunMilliseconds = 0,
             Action<BoltResult>? resultReceived = null,
             ushort? torqueCompensationPercent = null,
-            bool stopFeedOnCompletion = true)
+            bool stopFeedOnCompletion = true,
+            Func<CancellationToken, Task>? approachAsync = null)
         {
             throw new NotSupportedException();
         }

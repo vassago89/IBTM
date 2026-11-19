@@ -13,7 +13,7 @@ public interface IBoltHead
     Task ResetAsync(CancellationToken cancellationToken = default);
     Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default);
     Task<ushort> ReadTorqueCompensationAsync(ushort preset, CancellationToken cancellationToken = default);
-    // Feed starts only after fresh RUN ON feedback following START, inside the same STOP cleanup.
+    // After fresh RUN ON, approach precedes feed and always stops on early completion.
     // A completion event stops feed when requested; otherwise feed finishes before publishing the result.
     // A positive dry-run duration replaces result waiting with timed motor operation.
     // Deliver a measured result before STOP cleanup so its owner can retain it if cleanup fails.
@@ -24,5 +24,6 @@ public interface IBoltHead
         int dryRunMilliseconds = 0,
         Action<BoltResult>? resultReceived = null,
         ushort? torqueCompensationPercent = null,
-        bool stopFeedOnCompletion = true);
+        bool stopFeedOnCompletion = true,
+        Func<CancellationToken, Task>? approachAsync = null);
 }

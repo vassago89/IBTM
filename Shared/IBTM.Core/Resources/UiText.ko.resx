@@ -4567,4 +4567,7 @@
   <data name="close hik camera" xml:space="preserve">
     <value>Hik 카메라 연결 해제</value>
   </data>
+  <data name="pcb fastening ended before z descent, head down and vacuum confirmation completed." xml:space="preserve">
+    <value>Z축·슈팅 헤드 하강과 진공 확인을 마치기 전에 PCB 체결이 종료됐습니다</value>
+  </data>
 </root>

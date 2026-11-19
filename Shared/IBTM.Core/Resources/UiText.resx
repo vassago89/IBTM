@@ -4569,4 +4569,7 @@ Supply: PCB 1, travel Z</value>
   <data name="close hik camera" xml:space="preserve">
     <value>Close Hik camera</value>
   </data>
+  <data name="pcb fastening ended before z descent, head down and vacuum confirmation completed." xml:space="preserve">
+    <value>PCB fastening ended before Z descent, head down and vacuum confirmation completed.</value>
+  </data>
 </root>

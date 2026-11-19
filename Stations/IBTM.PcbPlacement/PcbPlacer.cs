@@ -349,15 +349,18 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 {
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
-                    await SetIpmDownAsync(true, operation.Token);
+                    //await SetIpmDownAsync(true, operation.Token);
                     await SetLiftDownAsync(false, operation.Token);
+                    await SetIpmSupportAsync(false, operation.Token);
                     await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, operation.Token);
                     await MoveAxisAsync(MotionAxis.Y, position.Y, operation.Token);
                     await MoveAxisAsync(MotionAxis.X, position.X, operation.Token);
                     await MoveAxisAsync(MotionAxis.Z, position.Z, operation.Token);
+
+                    
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
-                    await SetIpmSupportAsync(false, operation.Token);
+                    
                     operation.Token.ThrowIfCancellationRequested();
                     // PCB/vacuum feedback can turn OFF as the placement cylinder lowers the PCB.
                     carryingPcb = false;
@@ -365,10 +368,10 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     operation.Token.ThrowIfCancellationRequested();
                     await SetVacuumAsync(false, operation.Token);
 
-                    await SetIpmDownAsync(false, operation.Token);
+                    await SetIpmDownAsync(true, operation.Token);
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
-                    await SetIpmDownAsync(true, operation.Token);
+                    await SetIpmDownAsync(false, operation.Token);
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
                     Station.GetAssembly(job, target).IsPlacementCompleted = true;
@@ -444,7 +447,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             CheckHolding();
             preparation.Token.ThrowIfCancellationRequested();
-            await SetIpmDownAsync(carryingPcb, preparation.Token);
+            //await SetIpmDownAsync(carryingPcb, preparation.Token);
             await SetLiftDownAsync(false, preparation.Token);
             await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, preparation.Token);
             if (departure is { } destination)
@@ -488,7 +491,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             await SetIpmSupportAsync(false, approach.Token);
             await SetLiftDownAsync(false, approach.Token);
             await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, approach.Token);
-            await SetIpmDownAsync(true, approach.Token);
+            await SetIpmDownAsync(false, approach.Token);
             await MoveAxisAsync(MotionAxis.X, _settings.HandoffPosition.X, approach.Token);
             await MoveAxisAsync(MotionAxis.Y, _settings.HandoffPosition.Y, approach.Token);
             CheckSupply();
