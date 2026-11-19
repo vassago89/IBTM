@@ -127,7 +127,6 @@ public sealed class HeightInspectionTests
             fiducials.Second.CameraPosition = new() { X = x + (pcb == HeatSinkSlot.HeatSink1 ? 10 : 2) };
             foreach (var mark in new[] { fiducials.First, fiducials.Second })
             {
-                mark.Region = new(75, 75, 50, 50);
                 mark.WhiteMark = true;
                 // The registered hole is deliberately off-centre in the camera image.
                 mark.Contour = FiducialDetector.Detect(FiducialTests.CircleImage((105, 95, 14)), mark, registering: true).Contour;

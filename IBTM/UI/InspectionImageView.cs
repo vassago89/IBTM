@@ -17,7 +17,6 @@ public sealed class InspectionImageView : FrameworkElement
     private static readonly Pen s_crosshairPen;
 
     private Point? _dragPoint;
-    private Point? _dragOrigin;
 
     public static readonly DependencyProperty SourceProperty;
 
@@ -28,7 +27,7 @@ public sealed class InspectionImageView : FrameworkElement
     public static readonly DependencyProperty ShowCrosshairProperty;
 
     public static readonly DependencyProperty RegionCommandProperty;
-    public static readonly DependencyProperty CenterRegionProperty;
+    public static readonly DependencyProperty FiducialSearchSizeProperty;
     public static readonly DependencyProperty DetectedFiducialProperty;
 
     static InspectionImageView()
@@ -60,8 +59,9 @@ public sealed class InspectionImageView : FrameworkElement
             nameof(RegionCommand),
             typeof(ICommand),
             typeof(InspectionImageView));
-        CenterRegionProperty = DependencyProperty.Register(
-            nameof(CenterRegion), typeof(bool), typeof(InspectionImageView), new PropertyMetadata(true));
+        FiducialSearchSizeProperty = DependencyProperty.Register(
+            nameof(FiducialSearchSize), typeof(int?), typeof(InspectionImageView),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
         DetectedFiducialProperty = DependencyProperty.Register(
             nameof(DetectedFiducial), typeof(FiducialDetection), typeof(InspectionImageView),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -102,10 +102,10 @@ public sealed class InspectionImageView : FrameworkElement
         set => SetValue(RegionCommandProperty, value);
     }
 
-    public bool CenterRegion
+    public int? FiducialSearchSize
     {
-        get => (bool)GetValue(CenterRegionProperty);
-        set => SetValue(CenterRegionProperty, value);
+        get => (int?)GetValue(FiducialSearchSizeProperty);
+        set => SetValue(FiducialSearchSizeProperty, value);
     }
 
     public FiducialDetection? DetectedFiducial
@@ -124,6 +124,11 @@ public sealed class InspectionImageView : FrameworkElement
         var scale = fitted.Width / source.PixelWidth;
         drawing.DrawImage(source, fitted);
         var displayedRegion = _dragPoint is { } point ? GetRegion(point) : SourceRegion;
+        if (FiducialSearchSize is { } size)
+        {
+            var search = PixelRegion.CenteredSquare(source.PixelWidth, source.PixelHeight, size);
+            displayedRegion = new Rect(search.X, search.Y, search.Width, search.Height);
+        }
         if (displayedRegion is { } region)
         {
             var bounds = new Rect(
@@ -175,7 +180,6 @@ public sealed class InspectionImageView : FrameworkElement
             return;
 
         Focus();
-        _dragOrigin = point;
         _dragPoint = point;
         CaptureMouse();
         InvalidateVisual();
@@ -219,14 +223,12 @@ public sealed class InspectionImageView : FrameworkElement
     {
         base.OnLostMouseCapture(e);
         _dragPoint = null;
-        _dragOrigin = null;
         InvalidateVisual();
     }
 
     private void CancelDrag()
     {
         _dragPoint = null;
-        _dragOrigin = null;
         if (IsMouseCaptured)
             ReleaseMouseCapture();
         InvalidateVisual();
@@ -257,13 +259,6 @@ public sealed class InspectionImageView : FrameworkElement
     private Rect GetRegion(Point point)
     {
         var source = Source!;
-        if (!CenterRegion && _dragOrigin is { } origin)
-        {
-            var left = Math.Floor(Math.Min(origin.X, point.X));
-            var top = Math.Floor(Math.Min(origin.Y, point.Y));
-            return new(left, top, Math.Ceiling(Math.Max(origin.X, point.X)) - left,
-                Math.Ceiling(Math.Max(origin.Y, point.Y)) - top);
-        }
         var halfSize = Math.Max(
             Math.Abs(point.X - source.PixelWidth / 2.0),
             Math.Abs(point.Y - source.PixelHeight / 2.0));

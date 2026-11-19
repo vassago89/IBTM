@@ -58,7 +58,7 @@ Operation failed Check controller status</value>
     <value>ADC readiness query timeout base: enter more than 0 s</value>
   </data>
   <data name="add bolt" xml:space="preserve">
-    <value>Add</value>
+    <value>Add bolt</value>
   </data>
   <data name="address" xml:space="preserve">
     <value>ADDRESS</value>
@@ -258,8 +258,8 @@ Operation failed Check controller status</value>
   <data name="camera" xml:space="preserve">
     <value>Camera</value>
   </data>
-  <data name="camera &amp; lighting" xml:space="preserve">
-    <value>Camera &amp; lighting</value>
+  <data name="camera · lvdt · lighting" xml:space="preserve">
+    <value>Camera · LVDT · lighting</value>
   </data>
   <data name="camera disconnection failed during application exit." xml:space="preserve">
     <value>Camera disconnection failed during application exit</value>
@@ -1783,7 +1783,7 @@ Operation failed Check controller status</value>
     <value>Remote Start</value>
   </data>
   <data name="remove bolt" xml:space="preserve">
-    <value>Delete</value>
+    <value>Remove bolt</value>
   </data>
   <data name="remove carrier · eject next / complete to resume" xml:space="preserve">
     <value>Awaiting removal confirmation</value>
@@ -3536,7 +3536,7 @@ Supply: PCB 1, travel Z</value>
   <data name="height reference 1" xml:space="preserve"><value>Height reference 1</value></data>
   <data name="height reference 2" xml:space="preserve"><value>Height reference 2</value></data>
   <data name="height reference 3" xml:space="preserve"><value>Height reference 3</value></data>
-  <data name="camera to probe offset (mm)" xml:space="preserve"><value>Camera to LVDT offset (mm)</value></data>
+  <data name="camera → lvdt offset (mm)" xml:space="preserve"><value>Camera to LVDT offset (mm)</value></data>
   <data name="minimum height (mm)" xml:space="preserve"><value>Minimum height (mm)</value></data>
   <data name="maximum height (mm)" xml:space="preserve"><value>Maximum height (mm)</value></data>
   <data name="height (mm)" xml:space="preserve"><value>Height (mm)</value></data>
@@ -3560,14 +3560,12 @@ Supply: PCB 1, travel Z</value>
   <data name="finding fiducials" xml:space="preserve"><value>Finding fiducials</value></data>
   <data name="fiducial alignment" xml:space="preserve"><value>Fiducial alignment</value></data>
   <data name="white mark" xml:space="preserve"><value>White mark</value></data>
-  <data name="search settings" xml:space="preserve"><value>Search settings</value></data>
-  <data name="search margin (px)" xml:space="preserve"><value>Search margin (px)</value></data>
+  <data name="search width (px)" xml:space="preserve"><value>Search width (px)</value></data>
   <data name="maximum shape error" xml:space="preserve"><value>Maximum shape error</value></data>
   <data name="size tolerance (%)" xml:space="preserve"><value>Size tolerance (%)</value></data>
   <data name="find mark" xml:space="preserve"><value>Find mark</value></data>
   <data name="register the fiducial contour" xml:space="preserve"><value>Register the fiducial contour</value></data>
   <data name="contour registered; save the recipe" xml:space="preserve"><value>Contour registered; save the recipe</value></data>
-  <data name="draw the fiducial region" xml:space="preserve"><value>Draw the fiducial region</value></data>
   <data name="circle fit failed" xml:space="preserve"><value>Circle fit failed</value></data>
   <data name="fiducial not found" xml:space="preserve"><value>Fiducial not found</value></data>
   <data name="multiple fiducials found in the search region" xml:space="preserve"><value>Multiple fiducials found in the search region</value></data>
@@ -3585,14 +3583,13 @@ Supply: PCB 1, travel Z</value>
   <data name="fiducial 1: {0} / fiducial 2: {1}" xml:space="preserve"><value>Fiducial 1: {0} / Fiducial 2: {1}</value></data>
   <data name="recipe saved" xml:space="preserve"><value>Recipe saved</value></data>
   <data name="contour registered and saved" xml:space="preserve"><value>Contour registered and saved</value></data>
-  <data name="register + save" xml:space="preserve"><value>Register + save</value></data>
+  <data name="register mark" xml:space="preserve"><value>Register mark</value></data>
   <data name="captured image" xml:space="preserve"><value>Captured image</value></data>
-  <data name="resolution (mm/pixel)" xml:space="preserve"><value>Resolution (mm/pixel)</value></data>
-  <data name="set camera resolution" xml:space="preserve"><value>Set camera resolution</value></data>
+  <data name="camera resolution (mm/px)" xml:space="preserve"><value>Camera resolution (mm/px)</value></data>
+  <data name="set camera resolution" xml:space="preserve"><value>Enter the camera resolution in Settings → Camera · LVDT · lighting</value></data>
   <data name="enter a positive camera resolution" xml:space="preserve"><value>Enter a positive camera resolution</value></data>
   <data name="exclude fiducial from ng" xml:space="preserve"><value>Exclude fiducial failures from NG</value></data>
   <data name="failed · alignment not applied" xml:space="preserve"><value>Failed · alignment not applied</value></data>
-  <data name="drag around the circular mark in the image" xml:space="preserve"><value>Drag around the circular mark in the image</value></data>
   <data name="keep the failure record; exclude it only from the pcb ng result" xml:space="preserve"><value>Keep the failure record; exclude it only from the PCB NG result</value></data>
   <data name="applied" xml:space="preserve"><value>Applied</value></data>
   <data name="ng · excluded" xml:space="preserve"><value>NG · excluded</value></data>
@@ -4574,4 +4571,5 @@ Supply: PCB 1, travel Z</value>
   <data name="pcb fastening ended before z descent, head down and vacuum confirmation completed." xml:space="preserve">
     <value>PCB fastening ended before Z descent, head down and vacuum confirmation completed.</value>
   </data>
+  <data name="search area · binary" xml:space="preserve"><value>Search area · binary</value></data>
 </root>

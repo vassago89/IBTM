@@ -126,7 +126,6 @@ public sealed class TeachingTests
         foreach (var mark in new[] { fiducials.First, fiducials.Second })
         {
             mark.CameraPosition = new() { X = ReferenceEquals(mark, fiducials.First) ? 0 : 10 };
-            mark.Region = new(75, 75, 50, 50);
             mark.WhiteMark = true;
             mark.Contour = FiducialDetector.Detect(referenceImage, mark, registering: true).Contour;
             mark.ImageWidth = mark.ImageHeight = 200;

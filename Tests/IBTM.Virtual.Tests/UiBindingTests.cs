@@ -1255,12 +1255,9 @@ public sealed class UiBindingTests
         fiducialInput.Text = "155";
         fiducialInput.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
         Assert.Equal(155, teaching.SelectedPoint.Fiducial!.Threshold);
-        teaching.DrawFiducialRegionCommand.Execute(new Rect(75, 75, 50, 50));
-        Assert.Equal(new PixelRegion(75, 75, 50, 50), teaching.SelectedPoint.Fiducial.Region);
         teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
         await Dispatcher.Yield(DispatcherPriority.DataBind);
         Assert.Equal("127", fiducialInput.Text);
-        Assert.Null(teaching.FiducialRegion);
         teaching.SelectedPcb = HeatSinkSlot.HeatSink1;
         var fiducialCamera = services.GetRequiredService<VirtualCamera>();
         var holeImage = FiducialTests.CircleImage((100, 100, 14));
@@ -1293,7 +1290,8 @@ public sealed class UiBindingTests
         var fiducialResultView = (InspectionImageView)teachingView.FindName("FiducialResultView");
         Assert.Same(teaching.FiducialImage, fiducialResultView.Source);
         Assert.Same(teaching.DetectedFiducial, fiducialResultView.DetectedFiducial);
-        Assert.False(teachingCameraView.CenterRegion);
+        Assert.Null(teachingCameraView.RegionCommand);
+        Assert.Equal(teaching.SelectedPoint.Fiducial.SearchSizePixels, teachingCameraView.FiducialSearchSize);
         teaching.LiveImage = InspectionPreviewViewModel.CreateBitmap(FiducialTests.CircleImage((110, 95, 14)));
         Assert.Same(teaching.LiveImage, teaching.CameraImage);
         Assert.Same(teaching.FiducialImage, fiducialResultView.Source);

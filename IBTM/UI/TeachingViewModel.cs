@@ -195,7 +195,6 @@ public partial class TeachingViewModel : ObservableObject
         CheckAlignmentCommand = new AsyncRelayCommand(CheckAlignmentAsync, () => IsAlignmentTestAllowed);
         MeasureHeightCommand = new AsyncRelayCommand(MeasureHeightAsync, () => IsHeightTestAllowed);
         StopInspectionTestCommand = new RelayCommand(StopInspectionTest, () => IsInspectionTestRunning);
-        DrawFiducialRegionCommand = new RelayCommand<Rect>(DrawFiducialRegion, _ => SelectedPoint?.Fiducial is not null && State.SetupEditingEnabled);
         ApplyLightCommand = new AsyncRelayCommand(ApplyLightAsync);
         AddBoltPointCommand = new AsyncRelayCommand(AddBoltPointAsync);
         RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint);
@@ -255,7 +254,6 @@ public partial class TeachingViewModel : ObservableObject
             return;
         OnPropertyChanged(nameof(IsTeachCurrentPositionAllowed));
         OnPropertyChanged(nameof(IsFiducialCaptureAllowed));
-        DrawFiducialRegionCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsAddBoltPointAllowed));
     }
 
@@ -480,7 +478,6 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(IsToggleLiveViewAllowed));
         OnPropertyChanged(nameof(IsApplyLightAllowed));
         OnPropertyChanged(nameof(IsFiducialCaptureAllowed));
-        DrawFiducialRegionCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshManualControls()
@@ -523,7 +520,6 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(IsApplyLightAllowed));
         OnPropertyChanged(nameof(IsAddBoltPointAllowed));
         OnPropertyChanged(nameof(IsFiducialCaptureAllowed));
-        DrawFiducialRegionCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsRemoveBoltPointAllowed));
         OnPropertyChanged(nameof(IsHeightTestSelected));
         CheckAlignmentCommand.NotifyCanExecuteChanged();
@@ -567,7 +563,6 @@ public partial class TeachingViewModel : ObservableObject
         AlignmentTestResult = null;
         InspectionTestMessage = null;
         InspectionTestError = null;
-        OnPropertyChanged(nameof(FiducialRegion));
         OnPropertyChanged(nameof(IsFiducialSelected));
         OnPropertyChanged(nameof(FiducialRegistration));
         if (PositionUpdatesActive)
@@ -1730,7 +1725,6 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    public IRelayCommand<Rect> DrawFiducialRegionCommand { get; }
     public FiducialRecipe SelectedFiducials => Recipes.Current.BoltInspection.GetFiducials(SelectedPcb);
     public bool IsFiducialSelected => SelectedPoint?.Fiducial is not null;
     public string FiducialRegistration
@@ -1745,8 +1739,6 @@ public partial class TeachingViewModel : ObservableObject
             return UiText.Format($"Fiducial 1: {Status(SelectedFiducials.First)} / Fiducial 2: {Status(SelectedFiducials.Second)}");
         }
     }
-    public Rect? FiducialRegion => SelectedPoint?.Fiducial?.Region is { } region
-        ? new Rect(region.X, region.Y, region.Width, region.Height) : null;
     public bool IsFiducialCaptureAllowed => IsFiducialSelected && IsTeachCurrentPositionAllowed
         && !State.IsRunningFor(includeOperations: true);
 
@@ -1759,18 +1751,6 @@ public partial class TeachingViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string? FiducialMessage { get; private set; }
-
-    private void DrawFiducialRegion(Rect region)
-    {
-        if (SelectedPoint?.Fiducial is not { } mark || !State.SetupEditingEnabled)
-            return;
-        mark.Region = new((int)region.X, (int)region.Y, (int)region.Width, (int)region.Height);
-        mark.Contour = [];
-        DetectedFiducial = null;
-        FiducialMessage = null;
-        OnPropertyChanged(nameof(FiducialRegion));
-        OnPropertyChanged(nameof(FiducialRegistration));
-    }
 
     private Task RegisterFiducialAsync(CancellationToken cancellationToken)
     {
@@ -1802,13 +1782,10 @@ public partial class TeachingViewModel : ObservableObject
             operation.Token.ThrowIfCancellationRequested();
             var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, LiveLightLevel);
             FiducialImage = InspectionPreviewViewModel.CreateBitmap(captured.Frame);
-            var useCurrentRegion = registering || mark.Contour.Length < 5;
-            var found = await Task.Run(() => FiducialDetector.Detect(captured.Frame, mark, useCurrentRegion), operation.Token);
+            var learnContour = registering || mark.Contour.Length < 5;
+            var found = await Task.Run(() => FiducialDetector.Detect(captured.Frame, mark, learnContour), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             DetectedFiducial = found;
-            var position = _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center,
-                captured.Frame.Width, captured.Frame.Height);
-            operation.Token.ThrowIfCancellationRequested();
             if (registering)
             {
                 mark.CameraPosition = captured.Center;
@@ -1831,7 +1808,13 @@ public partial class TeachingViewModel : ObservableObject
             }
             else
             {
-                FiducialMessage = $"X {position.X:F3}  Y {position.Y:F3}  {UiText.Get("Shape error")} {found.ShapeError:F5}";
+                var center = _settings.InspectionGantry.CameraResolution.HasValue
+                    ? _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center, captured.Frame.Width, captured.Frame.Height)
+                    : found.Center;
+                var unit = _settings.InspectionGantry.CameraResolution.HasValue ? "mm" : "px";
+                FiducialMessage = $"X {center.X:0.###}  Y {center.Y:0.###} {unit}";
+                if (!learnContour)
+                    FiducialMessage += $"   {UiText.Get("Shape error")} {found.ShapeError:F5}";
             }
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested || viewToken.IsCancellationRequested)

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using IBTM.Core;
 using OpenCvSharp;
 
@@ -28,26 +27,18 @@ public static class FiducialDetector
 
     public static FiducialDetection Detect(ImageFrame frame, FiducialMark mark, bool registering = false)
     {
-        if (mark.Region is not { } region || !region.IsInside(frame.Width, frame.Height))
-            throw new InvalidOperationException(UiText.Get("Draw the fiducial region"));
-        if (frame.Stride < frame.Width * 3 || frame.Pixels.LongLength < (long)frame.Stride * frame.Height)
+        if (frame.Width <= 0 || frame.Height <= 0 || frame.Stride < (long)frame.Width * 3
+            || frame.Pixels.LongLength < (long)frame.Stride * frame.Height)
             throw new ArgumentException(UiText.Get("Invalid image buffer."), nameof(frame));
         if (!registering && (mark.Contour.Length < 5 || mark.ImageWidth != frame.Width || mark.ImageHeight != frame.Height))
             throw new InvalidOperationException(UiText.Get("Register the fiducial contour"));
 
-        using var image = new Mat(frame.Height, frame.Width, MatType.CV_8UC3);
-        for (var row = 0; row < frame.Height; row++)
-            Marshal.Copy(frame.Pixels, row * frame.Stride, image.Ptr(row), frame.Width * 3);
-        using var gray = image.CvtColor(ColorConversionCodes.BGR2GRAY);
-        using var binary = gray.Threshold(mark.Threshold, 255, mark.WhiteMark ? ThresholdTypes.Binary : ThresholdTypes.BinaryInv);
-        var margin = registering ? 0 : mark.SearchMarginPixels;
-        var left = Math.Max(0L, (long)region.X - margin);
-        var top = Math.Max(0L, (long)region.Y - margin);
-        var right = Math.Min(frame.Width, (long)region.X + region.Width + margin);
-        var bottom = Math.Min(frame.Height, (long)region.Y + region.Height + margin);
-        var search = new Rect((int)left, (int)top, (int)(right - left), (int)(bottom - top));
-        using var cropped = new Mat(binary, search);
-        var contours = cropped.FindContoursAsArray(RetrievalModes.External, ContourApproximationModes.ApproxNone,
+        var region = PixelRegion.CenteredSquare(frame.Width, frame.Height, mark.SearchSizePixels);
+        var search = new Rect(region.X, region.Y, region.Width, region.Height);
+        using var image = Mat.FromPixelData(frame.Height, frame.Width, MatType.CV_8UC3, frame.Pixels, frame.Stride);
+        using var cropped = new Mat(image, search);
+        using var binary = Binarize(cropped, mark.Threshold, mark.WhiteMark);
+        var contours = binary.FindContoursAsArray(RetrievalModes.External, ContourApproximationModes.ApproxNone,
             new Point(search.X, search.Y));
         using var reference = registering ? null
             : InputArray.Create(mark.Contour.Select(point => new Point2f((float)point.X, (float)point.Y)).ToArray());
@@ -91,6 +82,12 @@ public static class FiducialDetector
             0 => throw new FiducialDetectionException(UiText.Get("Fiducial not found")),
             _ => throw new FiducialDetectionException(UiText.Get("Multiple fiducials found in the search region")),
         };
+    }
+
+    public static Mat Binarize(Mat bgr, int threshold, bool whiteMark)
+    {
+        using var gray = bgr.CvtColor(ColorConversionCodes.BGR2GRAY);
+        return gray.Threshold(threshold, 255, whiteMark ? ThresholdTypes.Binary : ThresholdTypes.BinaryInv);
     }
 
     public static Point2D FitCircle(Point2D[] points)

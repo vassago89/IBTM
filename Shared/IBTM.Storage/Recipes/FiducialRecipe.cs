@@ -1,4 +1,5 @@
 using System;
+using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 
 namespace IBTM.Inspection;
@@ -16,7 +17,7 @@ public sealed class FiducialRecipe
     public FiducialMark Second { get; set; }
 }
 
-public sealed class FiducialMark
+public sealed partial class FiducialMark : ObservableObject
 {
     public FiducialMark()
     {
@@ -24,12 +25,14 @@ public sealed class FiducialMark
     }
 
     public AxisPosition? CameraPosition { get; set; }
-    public PixelRegion? Region { get; set; }
     public Point2D[] Contour { get; set; }
     public int ImageWidth { get; set; }
     public int ImageHeight { get; set; }
     public int? LightLevel { get; set; }
-    public bool WhiteMark { get; set; }
+
+    [ObservableProperty]
+    public partial bool WhiteMark { get; set; }
+
     public int Threshold
     {
         get;
@@ -37,18 +40,20 @@ public sealed class FiducialMark
         {
             if (value is < 0 or > 255)
                 throw new ArgumentOutOfRangeException(nameof(value));
-            field = value;
+            SetProperty(ref field, value);
         }
     } = 127;
-    public int SearchMarginPixels
+
+    public int SearchSizePixels
     {
         get;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
-            field = value;
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            SetProperty(ref field, value);
         }
-    } = 50;
+    } = 200;
+
     public double MaximumShapeError
     {
         get;
