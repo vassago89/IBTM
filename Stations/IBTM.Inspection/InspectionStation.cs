@@ -844,7 +844,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             detection.Center, image.Width, image.Height);
         var reference = _gantrySettings.ToMachinePosition(mark.CameraPosition!,
             FiducialDetector.FitCircle(mark.Contour), mark.ImageWidth, mark.ImageHeight);
-        return new(reference, measured, detection.ShapeError);
+        return new(reference, measured, detection.ShapeError, detection.MatchScore);
     }
 
     public async Task PrepareMeasurementAsync(CancellationToken cancellationToken)

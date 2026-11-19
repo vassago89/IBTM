@@ -86,7 +86,7 @@ public sealed class PcbHistoryTests
         var plane = new HeightReferencePlane(DateTimeOffset.Now, new(0, 0, 10), new(10, 0, 11), new(0, 10, 12));
         var result = new BoltHeightResult(DateTimeOffset.Now, new(3, 4, 12.6), plane.HeightAt(3, 4), 1.4, 1.6);
         var alignment = new PcbAlignment(DateTimeOffset.Now,
-            new(new(0, 0), new(1, 2), 0.001), new(new(10, 0), new(11, 2), 0.002));
+            new(new(0, 0), new(1, 2), 0.001, 91.7), new(new(10, 0), new(11, 2), 0.002, 85.2));
         assembly.RecordAlignment(alignment);
         assembly.RecordHeightReference(plane);
         assembly.RecordHeight(boltId, result);

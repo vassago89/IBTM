@@ -5,7 +5,7 @@ namespace IBTM.Core;
 
 public sealed record Point2D(double X, double Y);
 
-public sealed record FiducialObservation(Point2D Reference, Point2D Measured, double ShapeError);
+public sealed record FiducialObservation(Point2D Reference, Point2D Measured, double ShapeError, double? MatchScore = null);
 
 // Measured for one PCB in one inspection run. Recipe coordinates remain unchanged.
 public sealed record PcbAlignment(DateTimeOffset RecordedAt, FiducialObservation First, FiducialObservation Second)

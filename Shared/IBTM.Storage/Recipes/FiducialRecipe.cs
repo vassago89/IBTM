@@ -81,6 +81,18 @@ public sealed partial class FiducialMark : ObservableObject
             field = value;
         }
     } = 0.01;
+
+    public int MinimumMatchScore
+    {
+        get;
+        set
+        {
+            if (value is < 0 or > 100)
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Enter a match score from 0 to 100"));
+            field = value;
+        }
+    } = 50;
+
     public double SizeTolerancePercent
     {
         get;

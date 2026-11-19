@@ -1303,6 +1303,7 @@ public sealed class UiBindingTests
         await teaching.FindFiducialCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
         Assert.Contains("X ", teaching.FiducialMessage);
+        Assert.Contains(UiText.Get("Match score"), teaching.FiducialMessage);
         Assert.True(teaching.Inspection.IsLiveView);
         fiducialCamera.SourceImage = FiducialTests.CircleImage();
         await teaching.FindFiducialCommand.ExecuteAsync(null);
@@ -1312,7 +1313,7 @@ public sealed class UiBindingTests
         teaching.RecipeEditor.Name = "";
         await teaching.RegisterFiducialCommand.ExecuteAsync(null);
         Assert.NotNull(teaching.SaveError);
-        Assert.Equal(UiText.Get("Contour registered; save the recipe"), teaching.FiducialMessage);
+        Assert.StartsWith(UiText.Get("Contour registered; save the recipe"), teaching.FiducialMessage);
         teaching.RecipeEditor.Name = registeredName;
         await teaching.SaveCommand.ExecuteAsync(null);
         Assert.Null(teaching.SaveError);

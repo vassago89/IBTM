@@ -6,7 +6,7 @@ using OpenCvSharp;
 
 namespace IBTM.Inspection;
 
-public sealed record FiducialDetection(Point2D Center, double RadiusPixels, double Circularity, double ShapeError, Point2D[] Contour);
+public sealed record FiducialDetection(Point2D Center, double RadiusPixels, double Circularity, double ShapeError, double? MatchScore, Point2D[] Contour);
 
 public sealed class FiducialDetectionException : InvalidOperationException
 {
@@ -17,8 +17,6 @@ public sealed class FiducialDetectionException : InvalidOperationException
 
 public static class FiducialDetector
 {
-    public const double MinimumCircularity = 0.8;
-
     public static PcbAlignment GetAlignment(FiducialObservation first, FiducialObservation second)
     {
         if (double.Hypot(second.Reference.X - first.Reference.X, second.Reference.Y - first.Reference.Y) < 0.001
@@ -64,18 +62,26 @@ public static class FiducialDetector
         using var binary = Binarize(cropped, mark.Threshold, mark.WhiteMark);
         var contours = binary.FindContoursAsArray(RetrievalModes.External, ContourApproximationModes.ApproxNone,
             new Point(search.X, search.Y));
-        using var reference = registering ? null
-            : InputArray.Create(mark.Contour.Select(point => new Point2f((float)point.X, (float)point.Y)).ToArray());
+        var taught = registering ? null : mark.Contour.Select(p => new Point(p.X, p.Y)).ToArray();
+        using var reference = taught is null ? null : InputArray.Create(taught);
+        using var mask = new Mat();
         if (reference is not null)
         {
             var referenceArea = Cv2.ContourArea(reference);
-            if (!double.IsFinite(referenceArea) || referenceArea < 4)
+            var box = Cv2.BoundingRect(reference);
+            if (!double.IsFinite(referenceArea) || referenceArea < 4
+                || box.X < 0 || box.Y < 0 || box.Right > frame.Width || box.Bottom > frame.Height)
                 throw new InvalidOperationException(UiText.Get("Register the fiducial contour"));
+            // A black border gives even a filled rectangular reference contrast for normalized correlation.
+            mask.Create(box.Height + 2, box.Width + 2, MatType.CV_8UC1);
+            mask.SetTo(Scalar.Black);
+            Cv2.DrawContours(mask, [taught!], -1, Scalar.White, -1, offset: new Point(1 - box.X, 1 - box.Y));
         }
-        var accepted = new List<FiducialDetection>();
+        FiducialDetection? best = null;
+        var registrationCandidates = 0;
+        var maskDidNotFit = false;
         var clipped = 0;
         double? closestDiameter = null;
-        double? bestCircularity = null;
         double? lowestShapeError = null;
         var tolerance = referenceDiameter * mark.SizeTolerancePercent / 100;
         foreach (var contour in contours)
@@ -100,18 +106,12 @@ public static class FiducialDetector
                     closestDiameter = diameterMm;
                 continue;
             }
-            var perimeter = Cv2.ArcLength(contour, true);
-            var circularity = 4 * Math.PI * area / (perimeter * perimeter);
-            if (circularity < MinimumCircularity)
-            {
-                bestCircularity = Math.Max(bestCircularity ?? 0, circularity);
-                continue;
-            }
             var error = 0d;
-            if (!registering)
+            double? score = null;
+            if (reference is not null)
             {
                 using var candidate = InputArray.Create(contour);
-                error = Cv2.MatchShapes(reference!, candidate, ShapeMatchModes.I3);
+                error = Cv2.MatchShapes(reference, candidate, ShapeMatchModes.I3);
                 if (!double.IsFinite(error) || error > mark.MaximumShapeError)
                 {
                     if (double.IsFinite(error))
@@ -120,23 +120,51 @@ public static class FiducialDetector
                         lowestShapeError ??= double.PositiveInfinity;
                     continue;
                 }
+                // Search the candidate neighbourhood, keeping the mask centre on this candidate.
+                var window = bounds;
+                window.Inflate(Math.Min(10, mask.Cols / 2), Math.Min(10, mask.Rows / 2));
+                window = window.Intersect(search);
+                if (window.Width < mask.Cols || window.Height < mask.Rows)
+                {
+                    maskDidNotFit = true;
+                    continue;
+                }
+                using var patch = new Mat(binary, new Rect(window.X - search.X, window.Y - search.Y, window.Width, window.Height));
+                using var correlation = new Mat();
+                Cv2.MatchTemplate(patch, mask, correlation, TemplateMatchModes.CCoeffNormed);
+                Cv2.MinMaxLoc(correlation, out _, out double maximum);
+                score = maximum * 100;
+                if (best?.MatchScore is { } previous && score <= previous)
+                    continue;
             }
+            else if (++registrationCandidates > 1)
+                continue;
 
+            var perimeter = Cv2.ArcLength(contour, true);
+            var circularity = 4 * Math.PI * area / (perimeter * perimeter);
             var points = contour.Select(point => new Point2D(point.X, point.Y)).ToArray();
-            accepted.Add(new(FitCircle(points), radiusPixels, circularity, error, points));
+            best = new(FitCircle(points), radiusPixels, circularity, error, score, points);
         }
-        if (accepted.Count == 1)
-            return accepted[0];
-        if (accepted.Count > 1)
-            throw new FiducialDetectionException(UiText.Format($"{accepted.Count} circles meet the criteria; narrow the search area"));
+        if (registrationCandidates > 1)
+            throw new FiducialDetectionException(UiText.Format($"{registrationCandidates} contours meet the criteria; narrow the search area"));
+        if (best?.MatchScore is { } highest)
+        {
+            // Rank at full precision, then judge and store the same score shown to the operator.
+            var score = Math.Round(highest, 2);
+            if (score < mark.MinimumMatchScore)
+                throw new FiducialDetectionException(UiText.Format($"Best match score {score:0.##} (minimum {mark.MinimumMatchScore})"));
+            return best with { MatchScore = score };
+        }
+        if (best is not null)
+            return best;
 
         var reasons = new List<string>();
+        if (maskDidNotFit)
+            reasons.Add(UiText.Get("Reference mask does not fit the candidate search window"));
         if (clipped > 0)
             reasons.Add(UiText.Format($"{clipped} contours touch the edge of the {region.Width} px search area"));
         if (closestDiameter is { } closest)
             reasons.Add(UiText.Format($"Closest diameter {closest:0.###} mm (allowed {referenceDiameter - tolerance:0.###}–{referenceDiameter + tolerance:0.###} mm)"));
-        if (bestCircularity is { } best)
-            reasons.Add(UiText.Format($"Best circularity {best:0.###} (minimum {MinimumCircularity:0.###})"));
         if (lowestShapeError is { } lowest)
             reasons.Add(double.IsFinite(lowest)
                 ? UiText.Format($"Lowest shape error {lowest:G4} (maximum {mark.MaximumShapeError:G4})")

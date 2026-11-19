@@ -491,6 +491,10 @@
                                             <TextBlock Text="{ui:Text 'Maximum shape error'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                             <TextBox x:Name="FiducialShapeInput" Width="65" Text="{Binding SelectedPoint.Fiducial.MaximumShapeError, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                                            <TextBlock Text="{ui:Text 'Minimum match score'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBox x:Name="FiducialScoreInput" Width="55" Text="{Binding SelectedPoint.Fiducial.MinimumMatchScore, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                        </StackPanel>
                                     </WrapPanel>
                                     <WrapPanel x:Name="FiducialActions" Margin="0,0,0,2">
                                         <WrapPanel.Style><Style TargetType="WrapPanel">
@@ -498,6 +502,7 @@
                                                 <DataTrigger Binding="{Binding ElementName=FiducialThresholdInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=FiducialSizeInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=FiducialShapeInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=FiducialScoreInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=FiducialToleranceInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=FiducialDiameterInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>

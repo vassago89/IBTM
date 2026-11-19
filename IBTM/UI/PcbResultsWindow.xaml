@@ -149,6 +149,12 @@
                                 <Run Text="{ui:Text 'Applied'}" Foreground="{StaticResource AccentGreenBrush}"/><Run Text=" · "/>
                                 <Run Text="{ui:Text 'Rotation (°)'}"/><Run Text="  "/>
                                 <Run Text="{Binding Record.Alignment.AngleDegrees, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/>
+                                <LineBreak/>
+                                <Run Text="{ui:Text 'Match score'}"/><Run Text=" · "/>
+                                <Run Text="{ui:Text 'Fiducial 1'}"/><Run Text=" "/>
+                                <Run Text="{Binding Record.Alignment.First.MatchScore, Mode=OneWay, StringFormat=0.##, TargetNullValue='—', FallbackValue='—'}"/>
+                                <Run Text=" / "/><Run Text="{ui:Text 'Fiducial 2'}"/><Run Text=" "/>
+                                <Run Text="{Binding Record.Alignment.Second.MatchScore, Mode=OneWay, StringFormat=0.##, TargetNullValue='—', FallbackValue='—'}"/>
                             </TextBlock>
                         </StackPanel>
                     </StackPanel>

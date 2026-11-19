@@ -219,6 +219,8 @@ public sealed class HeightInspectionTests
             Assert.Null(first.FiducialError);
         }
         Assert.Equal(new(20.5, 0.5), second.Alignment!.First.Reference);
+        Assert.InRange(second.Alignment.First.MatchScore!.Value, 99.9, 100);
+        Assert.InRange(second.Alignment.Second.MatchScore!.Value, 99.9, 100);
         Assert.Equal(20.5, second.Alignment.First.Measured.X);
         Assert.Equal(0, second.Alignment.First.Measured.Y, 6);
         Assert.Equal(90, second.Alignment.AngleDegrees, 6);

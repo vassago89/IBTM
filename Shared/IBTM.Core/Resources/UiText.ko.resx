@@ -3557,10 +3557,9 @@
   <data name="fiducial 2" xml:space="preserve"><value>피듀셜 2</value></data>
   <data name="finding fiducials" xml:space="preserve"><value>피듀셜 찾기</value></data>
   <data name="fiducial alignment" xml:space="preserve"><value>피듀셜 보정</value></data>
-  <data name="{0} circles meet the criteria; narrow the search area" xml:space="preserve"><value>조건에 맞는 원 {0}개 · 탐색 폭을 줄이세요</value></data>
+  <data name="{0} contours meet the criteria; narrow the search area" xml:space="preserve"><value>조건에 맞는 윤곽 {0}개 · 탐색 폭을 줄이세요</value></data>
   <data name="{0} contours touch the edge of the {1} px search area" xml:space="preserve"><value>탐색 경계에 닿은 윤곽 {0}개 (폭 {1} px)</value></data>
   <data name="closest diameter {0:0.###} mm (allowed {1:0.###}–{2:0.###} mm)" xml:space="preserve"><value>가장 가까운 후보 지름 {0:0.###} mm (허용 {1:0.###}~{2:0.###} mm)</value></data>
-  <data name="best circularity {0:0.###} (minimum {1:0.###})" xml:space="preserve"><value>최고 원형도 {0:0.###} (하한 {1:0.###})</value></data>
   <data name="lowest shape error {0:g4} (maximum {1:g4})" xml:space="preserve"><value>최소 형상 오차 {0:G4} (상한 {1:G4})</value></data>
   <data name="shape comparison produced no finite score" xml:space="preserve"><value>형상 오차 계산 불가</value></data>
   <data name="no foreground contour at threshold {0}" xml:space="preserve"><value>임계값 {0}에서 흰색 윤곽 없음</value></data>
@@ -3572,6 +3571,12 @@
   <data name="white mark" xml:space="preserve"><value>밝은 마크</value></data>
   <data name="search width (px)" xml:space="preserve"><value>탐색 폭 (px)</value></data>
   <data name="maximum shape error" xml:space="preserve"><value>형상 오차 한도</value></data>
+  <data name="minimum match score" xml:space="preserve"><value>최소 매칭 점수</value></data>
+  <data name="match score" xml:space="preserve"><value>매칭 점수</value></data>
+  <data name="mark 1 score {0:0.##} · mark 2 score {1:0.##}" xml:space="preserve"><value>1번 {0:0.##}점 · 2번 {1:0.##}점</value></data>
+  <data name="best match score {0:0.##} (minimum {1})" xml:space="preserve"><value>최고 매칭 점수 {0:0.##}점 (하한 {1}점)</value></data>
+  <data name="enter a match score from 0 to 100" xml:space="preserve"><value>매칭 점수는 0~100 사이로 입력하세요</value></data>
+  <data name="reference mask does not fit the candidate search window" xml:space="preserve"><value>후보 주변 탐색 범위가 기준 마스크보다 작음</value></data>
   <data name="diameter tolerance (±%)" xml:space="preserve"><value>지름 허용 오차 (±%)</value></data>
   <data name="find mark" xml:space="preserve"><value>마크 찾기</value></data>
   <data name="register the fiducial contour" xml:space="preserve"><value>윤곽 등록 필요</value></data>

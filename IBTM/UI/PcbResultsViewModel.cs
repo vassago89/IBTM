@@ -326,9 +326,11 @@ public partial class PcbResultsViewModel : ObservableObject
             {
                 AppendRow(UiText.Get("Fiducial alignment"), UiText.Get("Rotation (°)"), alignment.AngleDegrees, alignment.RecordedAt);
                 AppendRow(UiText.Get("No."), UiText.Get("Reference X (mm)"), UiText.Get("Reference Y (mm)"),
-                    UiText.Get("Measured X (mm)"), UiText.Get("Measured Y (mm)"), UiText.Get("Shape error"));
-                AppendRow(1, alignment.First.Reference.X, alignment.First.Reference.Y, alignment.First.Measured.X, alignment.First.Measured.Y, alignment.First.ShapeError);
-                AppendRow(2, alignment.Second.Reference.X, alignment.Second.Reference.Y, alignment.Second.Measured.X, alignment.Second.Measured.Y, alignment.Second.ShapeError);
+                    UiText.Get("Measured X (mm)"), UiText.Get("Measured Y (mm)"), UiText.Get("Shape error"), UiText.Get("Match score"));
+                AppendRow(1, alignment.First.Reference.X, alignment.First.Reference.Y, alignment.First.Measured.X,
+                    alignment.First.Measured.Y, alignment.First.ShapeError, alignment.First.MatchScore);
+                AppendRow(2, alignment.Second.Reference.X, alignment.Second.Reference.Y, alignment.Second.Measured.X,
+                    alignment.Second.Measured.Y, alignment.Second.ShapeError, alignment.Second.MatchScore);
                 csv.AppendLine();
             }
             AppendRow(UiText.Get("Reference plane"), UiText.Get("X (mm)"), UiText.Get("Y (mm)"),

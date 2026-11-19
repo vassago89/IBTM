@@ -1644,6 +1644,7 @@ public partial class TeachingViewModel : ObservableObject
         var dx = (first.Measured.X + second.Measured.X - first.Reference.X - second.Reference.X) / 2;
         var dy = (first.Measured.Y + second.Measured.Y - first.Reference.Y - second.Reference.Y) / 2;
         AlignmentTestResult = UiText.Format($"Mark midpoint: X {dx:+0.###;-0.###;0} mm / Y {dy:+0.###;-0.###;0} mm / Rotation {alignment.AngleDegrees:+0.###;-0.###;0}°");
+        AlignmentTestResult += "   " + UiText.Format($"Mark 1 score {first.MatchScore:0.##} · Mark 2 score {second.MatchScore:0.##}");
         return alignment;
     }
 
@@ -1830,8 +1831,8 @@ public partial class TeachingViewModel : ObservableObject
             {
                 var center = _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center, captured.Frame.Width, captured.Frame.Height);
                 FiducialMessage = $"X {center.X:0.###}  Y {center.Y:0.###} mm";
-                if (!learnContour)
-                    FiducialMessage += $"   {UiText.Get("Shape error")} {found.ShapeError:F5}";
+                if (found.MatchScore is { } score)
+                    FiducialMessage += $"   {UiText.Get("Match score")} {score:0.##}   {UiText.Get("Shape error")} {found.ShapeError:F5}";
             }
             FiducialMessage += "   " + UiText.Format($"Measured diameter: {found.RadiusPixels * 2 * resolution:0.###} mm");
             FiducialMessage += "   " + UiText.Format($"Circularity {found.Circularity:0.###}");

@@ -3559,10 +3559,9 @@ Supply: PCB 1, travel Z</value>
   <data name="fiducial 2" xml:space="preserve"><value>Fiducial 2</value></data>
   <data name="finding fiducials" xml:space="preserve"><value>Finding fiducials</value></data>
   <data name="fiducial alignment" xml:space="preserve"><value>Fiducial alignment</value></data>
-  <data name="{0} circles meet the criteria; narrow the search area" xml:space="preserve"><value>{0} circles meet the criteria; narrow the search area</value></data>
+  <data name="{0} contours meet the criteria; narrow the search area" xml:space="preserve"><value>{0} contours meet the criteria; narrow the search area</value></data>
   <data name="{0} contours touch the edge of the {1} px search area" xml:space="preserve"><value>{0} contours touch the edge of the {1} px search area</value></data>
   <data name="closest diameter {0:0.###} mm (allowed {1:0.###}–{2:0.###} mm)" xml:space="preserve"><value>Closest diameter {0:0.###} mm (allowed {1:0.###}–{2:0.###} mm)</value></data>
-  <data name="best circularity {0:0.###} (minimum {1:0.###})" xml:space="preserve"><value>Best circularity {0:0.###} (minimum {1:0.###})</value></data>
   <data name="lowest shape error {0:g4} (maximum {1:g4})" xml:space="preserve"><value>Lowest shape error {0:G4} (maximum {1:G4})</value></data>
   <data name="shape comparison produced no finite score" xml:space="preserve"><value>Shape comparison produced no finite score</value></data>
   <data name="no foreground contour at threshold {0}" xml:space="preserve"><value>No foreground contour at threshold {0}</value></data>
@@ -3574,6 +3573,12 @@ Supply: PCB 1, travel Z</value>
   <data name="white mark" xml:space="preserve"><value>White mark</value></data>
   <data name="search width (px)" xml:space="preserve"><value>Search width (px)</value></data>
   <data name="maximum shape error" xml:space="preserve"><value>Maximum shape error</value></data>
+  <data name="minimum match score" xml:space="preserve"><value>Minimum match score</value></data>
+  <data name="match score" xml:space="preserve"><value>Match score</value></data>
+  <data name="mark 1 score {0:0.##} · mark 2 score {1:0.##}" xml:space="preserve"><value>Mark 1 score {0:0.##} · Mark 2 score {1:0.##}</value></data>
+  <data name="best match score {0:0.##} (minimum {1})" xml:space="preserve"><value>Best match score {0:0.##} (minimum {1})</value></data>
+  <data name="enter a match score from 0 to 100" xml:space="preserve"><value>Enter a match score from 0 to 100</value></data>
+  <data name="reference mask does not fit the candidate search window" xml:space="preserve"><value>Reference mask does not fit the candidate search window</value></data>
   <data name="diameter tolerance (±%)" xml:space="preserve"><value>Diameter tolerance (±%)</value></data>
   <data name="find mark" xml:space="preserve"><value>Find mark</value></data>
   <data name="register the fiducial contour" xml:space="preserve"><value>Register the fiducial contour</value></data>
