@@ -3867,8 +3867,8 @@ Supply: PCB 1, travel Z</value>
   <data name="head/table clearance was lost after starting supply for the next shooting bolt." xml:space="preserve">
     <value>Head/table clearance was lost after starting supply for the next shooting bolt.</value>
   </data>
-  <data name="head/table feedback was lost while moving with the {0} head down." xml:space="preserve">
-    <value>Head/table feedback was lost while moving with the {0} head down.</value>
+  <data name="head or table feedback was lost while positioning the {0} head." xml:space="preserve">
+    <value>Head or table feedback was lost while positioning the {0} head.</value>
   </data>
   <data name="hik rgb frame size is {0}; expected {1}." xml:space="preserve">
     <value>Hik RGB frame size is {0}; expected {1}.</value>

@@ -5281,7 +5281,7 @@ public sealed class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task StartPreparationRetainsIpmSupportWithVacuumButAllowsPcbDetectionAlone()
+    public async Task StartPreparationRaisesIpmPressAfterVacuumReleaseWithPcbStillDetected()
     {
         var settings = FlowSettings();
         await using var services = CreateServices(settings);
@@ -5300,7 +5300,7 @@ public sealed class MachineLifecycleTests
             io.SetInputs((InputIo.PcbPlacementPcbDetected, true), (InputIo.PcbPlacementVacuumDetected, true));
             var error = await Assert.ThrowsAsync<InvalidOperationException>(() => machine.PrepareStartAreaAsync(
                 StartArea.Station1, StartPreparationAction.ToggleCarrierSupport, CancellationToken.None));
-            Assert.Equal("Release Placement vacuum before raising the IPM support.", error.Message);
+            Assert.Equal(UiText.Get("Release Placement vacuum before raising the IPM support."), error.Message);
             Assert.Equal(StationCylinderState.Up, placement.Lift);
             Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmDown));
             Assert.True(placement.Station.CarrierSeated);

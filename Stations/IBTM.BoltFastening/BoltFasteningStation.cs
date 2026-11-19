@@ -1573,7 +1573,7 @@ public sealed class BoltFasteningStation : AutoUnit
         var started = Stopwatch.GetTimestamp();
         var clearanceFinished = started;
         var safeZFinished = started;
-        switch (head)   
+        switch (head)
         {
             case FasteningHead.Shooting:
                 if (ShootingHeadPosition == StationCylinderState.Between || PickupTablePosition != StationCylinderState.Up)
@@ -1594,20 +1594,19 @@ public sealed class BoltFasteningStation : AutoUnit
                 clearanceFinished = Stopwatch.GetTimestamp();
                 await MoveZAsync(_settings.SafeZ, cancellationToken);
                 safeZFinished = Stopwatch.GetTimestamp();
-                if (PickupTablePosition != StationCylinderState.Down || PickupHeadPosition != StationCylinderState.Down)
-                    await Task.WhenAll(
-                        Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, cancellationToken),
-                        SetHeadDownAsync(FasteningHead.Pickup, true, cancellationToken));
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(head));
         }
         var headFinished = Stopwatch.GetTimestamp();
         using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var pickupPosition = head == FasteningHead.Pickup ? PickupHeadPosition : StationCylinderState.Up;
         void CheckClearance()
         {
             if (!IsHorizontalMoveAllowed
-                || (head == FasteningHead.Pickup ? PickupHeadPosition : ShootingHeadPosition) != StationCylinderState.Down)
+                || (head == FasteningHead.Pickup
+                    ? PickupHeadPosition != pickupPosition || PickupTablePosition != pickupPosition
+                    : ShootingHeadPosition != StationCylinderState.Down))
                 OperationCancellation.CancelIfNotDisposed(move);
         }
         HeadDownMove = head;
@@ -1619,6 +1618,19 @@ public sealed class BoltFasteningStation : AutoUnit
             var xyStarted = Stopwatch.GetTimestamp();
             await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, move.Token);
             var xyFinished = Stopwatch.GetTimestamp();
+            if (head == FasteningHead.Pickup
+                && (PickupTablePosition != StationCylinderState.Down || PickupHeadPosition != StationCylinderState.Down))
+            {
+                Changed -= CheckClearance;
+                await Task.WhenAll(
+                    Io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, move.Token),
+                    SetHeadDownAsync(FasteningHead.Pickup, true, move.Token));
+                pickupPosition = StationCylinderState.Down;
+                Changed += CheckClearance;
+                CheckClearance();
+                move.Token.ThrowIfCancellationRequested();
+            }
+            var zStarted = Stopwatch.GetTimestamp();
             await MoveZAsync(position.Z, move.Token);
             var finished = Stopwatch.GetTimestamp();
             _log?.LogInformation(
@@ -1629,16 +1641,17 @@ public sealed class BoltFasteningStation : AutoUnit
                 ActiveBolt?.Id, head,
                 Stopwatch.GetElapsedTime(started, clearanceFinished).TotalMilliseconds,
                 _settings.SafeZ, Stopwatch.GetElapsedTime(clearanceFinished, safeZFinished).TotalMilliseconds,
-                Stopwatch.GetElapsedTime(safeZFinished, headFinished).TotalMilliseconds,
+                Stopwatch.GetElapsedTime(safeZFinished, headFinished).TotalMilliseconds
+                    + Stopwatch.GetElapsedTime(xyFinished, zStarted).TotalMilliseconds,
                 position.X, position.Y, _settings.Motion.HorizontalSpeed,
                 Stopwatch.GetElapsedTime(xyStarted, xyFinished).TotalMilliseconds,
                 position.Z, _settings.Motion.ZSpeed,
-                Stopwatch.GetElapsedTime(xyFinished, finished).TotalMilliseconds,
+                Stopwatch.GetElapsedTime(zStarted, finished).TotalMilliseconds,
                 Stopwatch.GetElapsedTime(started, finished).TotalMilliseconds);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new MotionInterlockException(UiText.Format($"Head/table feedback was lost while moving with the {head} head down."));
+            throw new MotionInterlockException(UiText.Format($"Head or table feedback was lost while positioning the {head} head."));
         }
         finally
         {
