@@ -201,7 +201,6 @@ public partial class MainViewModel : ObservableObject
         {
             _log.LogError(exception, "Main window shutdown failed.");
             CloseError = UiText.Get("Shutdown could not be completed.\n")
-                + UiText.Get("Check equipment stop and any unsaved PCB results before exiting.\n\n")
                 + UiText.Get(exception)
                 + UiText.Get("\n\nExit the application anyway? Full details are saved in the log.");
             IsClosing = false;

@@ -780,7 +780,7 @@ public sealed class PcbHistoryTests
     }
 
     [Fact]
-    public async Task CounterFailureRetainsAssemblyAndLaterResultsForRetry()
+    public async Task CounterFailureIsReportedAndTheNextRecordCanAllocateANumber()
     {
         var store = VirtualTestSupport.OpenMachineStore();
         var settings = new MachineSettings();
@@ -798,13 +798,10 @@ public sealed class PcbHistoryTests
         }
 
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-        var failure = await Assert.ThrowsAsync<IOException>(history.FlushAsync);
-        Assert.Equal(history.SaveError, failure.Message);
-        Assert.IsType<SqliteException>(failure.InnerException);
+        await history.FlushAsync();
+        Assert.Contains("counter write failed", history.SaveError);
         Assert.Null(assembly.PcbNumber);
-        assembly.RecordBolt(FasteningHead.Pickup, VirtualTestSupport.BoltId(2), new(true, 8.1));
-        Assert.Same(assembly, work.GetAssembly(HeatSinkSlot.HeatSink1));
-        Assert.Equal(2, history.PendingCount);
+        Assert.Equal(0, history.PendingCount);
 
         using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
         {
@@ -814,7 +811,9 @@ public sealed class PcbHistoryTests
             command.ExecuteNonQuery();
         }
         await history.FlushAsync();
-        Assert.Null(history.SaveError);
+        Assert.Null(assembly.PcbNumber);
+        assembly.RecordBolt(FasteningHead.Pickup, VirtualTestSupport.BoltId(2), new(true, 8.1));
+        await history.FlushAsync();
         Assert.Equal(0, history.PendingCount);
         Assert.Equal(1, assembly.PcbNumber);
         var saved = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory));
@@ -823,7 +822,7 @@ public sealed class PcbHistoryTests
     }
 
     [Fact]
-    public async Task SaveFailureKeepsNumberAndImageUntilOperatorRetries()
+    public async Task FailedImageIsSkippedAndLaterResultsAndImagesAreSaved()
     {
         var store = VirtualTestSupport.OpenMachineStore();
         var settings = new MachineSettings();
@@ -837,15 +836,13 @@ public sealed class PcbHistoryTests
         var assembly = work.Station.GetAssembly(HeatSinkSlot.HeatSink1);
         try
         {
-            await Assert.ThrowsAsync<IOException>(history.FlushAsync);
+            await history.FlushAsync();
             Assert.Equal(1, assembly.PcbNumber);
-            assembly.RecordFiducialFailure("Fiducial 1: multiple marks", excludeFromNg: true);
-            var pixels = new byte[] { 0, 0, 255, 0, 255, 0 };
             assembly.RecordInspectionCapture(new(VirtualTestSupport.BoltId(1), DateTimeOffset.Now,
-                new ImageFrame(2, 1, 6, pixels), null, null));
-            Array.Clear(pixels); // Encoding must use the image captured when the event was raised.
-            assembly.CompleteInspection();
-            Assert.Equal(4, history.PendingCount);
+                new ImageFrame(1, 1, 3, [42, 42, 42]), null, null));
+            await history.FlushAsync();
+            Assert.NotNull(history.SaveError);
+            Assert.Equal(0, history.PendingCount);
             Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
         }
         finally
@@ -853,8 +850,15 @@ public sealed class PcbHistoryTests
             File.Delete(settings.PcbHistory.Directory);
         }
 
-        await view.RetryPcbSaveCommand.ExecuteAsync(null);
-        Assert.Null(history.SaveError);
+        await history.FlushAsync();
+        Assert.Empty(store.LoadPcbs(settings.PcbHistory.Directory));
+        assembly.RecordFiducialFailure("Fiducial 1: multiple marks", excludeFromNg: true);
+        var pixels = new byte[] { 0, 0, 255, 0, 255, 0 };
+        assembly.RecordInspectionCapture(new(VirtualTestSupport.BoltId(2), DateTimeOffset.Now,
+            new ImageFrame(2, 1, 6, pixels), null, null));
+        Array.Clear(pixels);
+        assembly.CompleteInspection();
+        await history.FlushAsync();
         Assert.Equal(0, history.PendingCount);
         var record = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory));
         Assert.Equal(1, record.Number);
@@ -863,6 +867,7 @@ public sealed class PcbHistoryTests
         Assert.Equal("Fiducial 1: multiple marks", record.FiducialError);
         Assert.True(record.IsFiducialNgExcluded);
         var image = Assert.Single(store.LoadPcbImages(record));
+        Assert.Equal(VirtualTestSupport.BoltId(2), image.BoltId);
         using var stream = new MemoryStream(image.Png);
         var decoded = new System.Windows.Media.Imaging.FormatConvertedBitmap(
             System.Windows.Media.Imaging.BitmapFrame.Create(stream), System.Windows.Media.PixelFormats.Bgr24, null, 0);
@@ -1102,7 +1107,7 @@ public sealed class PcbHistoryTests
         {
             Assert.Same(measured, view.RecentFastening?.Result);
             Assert.Equal(FasteningHead.Shooting, view.RecentFastening?.Head);
-            await Assert.ThrowsAsync<IOException>(history.FlushAsync);
+            await history.FlushAsync();
             view.Deactivate();
             var manual = new BoltResult(true, null, BoltResultSource.Manual)
             {

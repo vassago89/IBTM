@@ -137,9 +137,7 @@ public sealed class MlcpController : IDisposable
                 for (var index = 0; index < length; index++)
                 {
                     var value = buffer[index];
-                    if (value == 0x05)
-                        received.Clear();
-                    else if (received.Count == 0)
+                    if (received.Count == 0 && value != 0x05)
                     {
                         if (value == 0x02)
                             throw new InvalidDataException(UiText.Get("LVDT returned HEX data. Set Serial Type to ASCII."));
@@ -149,27 +147,20 @@ public sealed class MlcpController : IDisposable
                     if (received.Count > 4096)
                         throw new InvalidDataException(UiText.Get("LVDT measurement frame exceeds 4096 bytes."));
                     if (value == 0x0A)
-                    {
-                        var frame = received.ToArray();
-                        return MlcpResult.Parse(frame);
-                    }
+                        return MlcpResult.Parse(received.ToArray());
                 }
             }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
-        {
-            Close();
-            throw new TimeoutException(UiText.Format($"LVDT {command} response timed out after {timeoutDuration.TotalSeconds:0.###} s."));
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            Close();
-            throw new IOException(UiText.Get("LVDT connection closed while waiting for a measurement."));
-        }
-        catch
+        catch (Exception error)
         {
             // No transaction ID: a late result must not be reused by the next request.
             Close();
+            if (error is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                if (timeout.IsCancellationRequested)
+                    throw new TimeoutException(UiText.Format($"LVDT {command} response timed out after {timeoutDuration.TotalSeconds:0.###} s."), error);
+                throw new IOException(UiText.Get("LVDT connection closed while waiting for a measurement."), error);
+            }
             throw;
         }
         finally

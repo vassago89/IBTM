@@ -1,7 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using IBTM.Core;
 using IBTM.Storage;
 
 namespace IBTM.UI;
@@ -30,23 +29,15 @@ public partial class OperationView : UserControl
             _pcbDetails.Owner = Window.GetWindow(this);
             _pcbDetails.Show();
         }
-        catch (Exception exception)
+        catch
         {
             var failedWindow = _pcbDetails;
             _pcbDetails = null;
+            viewModel.PcbDetails.Record = null;
             if (failedWindow is not null)
+            {
                 failedWindow.Closed -= OnPcbDetailsClosed;
-            try
-            {
-                failedWindow?.Close();
-            }
-            catch (Exception closeException)
-            {
-                throw new AggregateException(UiText.Get("PCB details could not be opened or closed."), exception, closeException);
-            }
-            finally
-            {
-                viewModel.PcbDetails.Record = null;
+                failedWindow.Close();
             }
             throw;
         }

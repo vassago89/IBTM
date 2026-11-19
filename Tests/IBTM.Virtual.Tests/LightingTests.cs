@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -443,52 +442,15 @@ public sealed class LightingTests
             Assert.True(settings.IsOffTestLightAllowed);
             Assert.False(settings.IsTestLightAllowed);
             var onWrites = light.Calls.Count(call => call.StartsWith("on:"));
+            var offWrites = light.Calls.Count(call => call == "off:2");
             settings.LightTestChannel = 7;
             services.GetRequiredService<VirtualIoService>().SetInput(InputIo.AutoMode, false);
             var shutdownFailure = await Assert.ThrowsAsync<InvalidOperationException>(settings.ShutdownAsync);
-            Assert.Contains(light.OffFailure.Message, shutdownFailure.Message);
+            Assert.Equal(UiText.Format($"Light channel {2} OFF unconfirmed"), shutdownFailure.Message);
             Assert.Equal(2, settings.PendingLightOffChannel);
+            Assert.Equal(offWrites, light.Calls.Count(call => call == "off:2"));
 
-            // Keep another command pending so shutdown must handle its failure before retrying OFF.
             services.GetRequiredService<VirtualIoService>().SetInput(InputIo.AutoMode, true);
-            var commandFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var releaseCommand = new ManualResetEventSlim();
-            var commandFailure = new InvalidOperationException("Simulated command failure.");
-            void FailOffCommand(object? sender, PropertyChangedEventArgs args)
-            {
-                if (args.PropertyName != nameof(settings.LightTestMessage) || string.IsNullOrEmpty(settings.LightTestMessage))
-                    return;
-                commandFailed.SetResult();
-                Assert.True(releaseCommand.Wait(TimeSpan.FromSeconds(2)));
-                throw commandFailure;
-            }
-
-            settings.LightTestMessage = "";
-            settings.PropertyChanged += FailOffCommand;
-            using var releaseOff = new ManualResetEventSlim();
-            light.OnOffStarted = () => Assert.True(releaseOff.Wait(TimeSpan.FromSeconds(2)));
-            var off = settings.OffTestLightCommand.ExecuteAsync(null);
-            releaseOff.Set();
-            try
-            {
-                await commandFailed.Task.WaitAsync(TimeSpan.FromSeconds(2));
-                var shutdown = settings.ShutdownAsync();
-                releaseCommand.Set();
-                Assert.Same(commandFailure, await Assert.ThrowsAsync<InvalidOperationException>(() => off));
-                var failures = (await Assert.ThrowsAsync<AggregateException>(() => shutdown)).Flatten().InnerExceptions;
-                Assert.Equal(2, failures.Count);
-                Assert.Contains(commandFailure, failures);
-                Assert.Contains(failures, failure => failure.Message.Contains(light.OffFailure.Message));
-                Assert.Equal("off:2", light.Calls.Last());
-                Assert.Equal(2, settings.PendingLightOffChannel);
-            }
-            finally
-            {
-                releaseCommand.Set();
-                settings.PropertyChanged -= FailOffCommand;
-                light.OnOffStarted = null;
-            }
-
             light.FailOff = false;
             await settings.OffTestLightCommand.ExecuteAsync(null);
             Assert.Equal("off:2", light.Calls.Last());
@@ -522,7 +484,6 @@ public sealed class LightingTests
         public bool FailOff { get; set; }
         public IOException OffFailure { get; }
         public Action? OnStarted { get; set; }
-        public Action? OnOffStarted { get; set; }
         public bool Connected { get; set; } = true;
 
         public void Initialize()
@@ -551,7 +512,6 @@ public sealed class LightingTests
         public void TurnOff(int channel)
         {
             Calls.Enqueue($"off:{channel}");
-            OnOffStarted?.Invoke();
             if (!Connected || FailOff)
                 throw OffFailure;
             IsOn = false;

@@ -202,7 +202,7 @@
                                     Foreground="{StaticResource AccentRedBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="{ui:Text 'PCB save failed · retry before exit'}"/>
+                                            <Setter Property="Text" Value="{Binding Machine.PcbHistory.SaveError}"/>
                                             <Setter Property="ToolTip" Value="{Binding Machine.PcbHistory.SaveError}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
@@ -228,18 +228,6 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <Button Content="{ui:Text 'Retry save'}" Margin="0,0,8,0" Padding="12,2" MinHeight="24"
-                                        Command="{Binding RetryPcbSaveCommand}">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
                                     <Button Content="{ui:Text '← Newer'}" Padding="12,2" MinHeight="24" Margin="0,0,6,0"
                                         Command="{x:Static ScrollBar.PageLeftCommand}" CommandTarget="{Binding ElementName=PcbHistoryScroll}">
                                         <Button.Style>
@@ -270,18 +258,14 @@
                                     <Button Width="120" Padding="12,2" MinHeight="24" Command="{Binding LoadOlderPcbsCommand}" IsEnabled="{Binding HasOlderPcbs}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Setter Property="Content" Value="{ui:Text 'Retry loading'}"/>
+                                                <Setter Property="Content" Value="{ui:Text 'Load older'}"/>
                                                 <Style.Triggers>
                                                     <MultiDataTrigger><MultiDataTrigger.Conditions>
                                                         <Condition Binding="{Binding HasOlderPcbs}" Value="False"/>
-                                                        <Condition Binding="{Binding PcbHistoryError}" Value="{x:Null}"/>
                                                         <Condition Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="False"/>
                                                     </MultiDataTrigger.Conditions>
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                     </MultiDataTrigger>
-                                                    <DataTrigger Binding="{Binding PcbHistoryError}" Value="{x:Null}">
-                                                        <Setter Property="Content" Value="{ui:Text 'Load older'}"/>
-                                                    </DataTrigger>
                                                     <DataTrigger Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="True">
                                                         <Setter Property="Content" Value="{ui:Text 'Loading…'}"/>
                                                     </DataTrigger>

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
@@ -27,8 +26,6 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
     private readonly PcbHistorySettings _settings;
     private readonly ILogger<PcbHistoryWriter> _log;
     private Task _writer;
-    private bool _writing;
-    private Exception? _failure;
 
     public PcbHistoryWriter(MachineStore store, RecipeManager recipes, PcbHistorySettings settings,
         PcbPlacer placement, BoltFasteningStation fastening, InspectionStation inspection,
@@ -123,18 +120,10 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
         lock (_gate)
         {
             _pending.Enqueue(write);
+            if (_pending.Count == 1)
+                _writer = Task.Run(WritePending);
             PendingCount = _pending.Count;
-            StartWriter();
         }
-    }
-
-    // Called under _gate. A failed head item stays queued until an explicit retry/flush.
-    private void StartWriter()
-    {
-        if (_writing || _failure is not null || _pending.Count == 0)
-            return;
-        _writing = true;
-        _writer = Task.Run(WritePending);
     }
 
     private void WritePending()
@@ -144,18 +133,12 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
             PendingWrite write;
             lock (_gate)
             {
-                if (_pending.Count == 0)
-                {
-                    _writing = false;
-                    return;
-                }
                 write = _pending.Peek();
             }
 
             var file = write.Directory;
             try
             {
-                // Allocate once on this single writer; a failed save keeps the same number.
                 var number = write.Assembly.PcbNumber ?? _store.NextPcbNumber(write.Directory);
                 write.Assembly.PcbNumber = number;
                 file = Path.Combine(Path.GetFullPath(write.Directory), $"PCB-{write.Record.CreatedAt:yyyy-MM}.db");
@@ -185,63 +168,30 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
             }
             catch (Exception exception)
             {
-                var number = write.Assembly.PcbNumber?.ToString() ?? "number pending";
-                var failure = new IOException(
-                    UiText.Format($"PCB {number} save failed ({file}): {UiText.Get(exception)}. Unsaved data is held in memory; retry saving before exiting."), exception);
-                _log.LogError(failure, "PCB persistence paused; machine operation continues.");
-                lock (_gate)
-                {
-                    _failure = failure;
-                    SaveError = failure.Message;
-                    _writing = false;
-                }
-                return;
+                var number = write.Assembly.PcbNumber?.ToString() ?? "—";
+                SaveError = UiText.Format($"PCB {number} save failed ({file}): {UiText.Get(exception)}");
+                _log.LogError(exception, "PCB {Number} save failed at {File}.", number, file);
             }
 
             lock (_gate)
             {
                 _pending.Dequeue();
-                PendingCount = _pending.Count;
-            }
-        }
-    }
-
-    // Used by explicit retry and orderly exit, never by a machine sequence.
-    public async Task FlushAsync()
-    {
-        Task writer;
-        lock (_gate)
-        {
-            _failure = null;
-            SaveError = null;
-            StartWriter();
-            writer = _writer;
-        }
-
-        while (true)
-        {
-            await writer.ConfigureAwait(false);
-            lock (_gate)
-            {
-                if (_failure is not null)
-                    ExceptionDispatchInfo.Throw(_failure);
-                if (_pending.Count == 0)
+                var remaining = _pending.Count;
+                PendingCount = remaining;
+                if (remaining == 0)
                     return;
-                writer = _writer;
             }
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public Task FlushAsync()
     {
-        try
-        {
-            await FlushAsync().ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            // A forced exit must still dispose the remaining hardware services.
-            _log.LogError(exception, "Exiting with {Count} unsaved PCB writes.", PendingCount);
-        }
+        lock (_gate)
+            return _writer;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return new(FlushAsync());
     }
 }

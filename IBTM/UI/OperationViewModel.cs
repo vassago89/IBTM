@@ -98,7 +98,6 @@ public partial class OperationViewModel : ObservableObject
         ResetCommand = new AsyncRelayCommand(ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync);
-        RetryPcbSaveCommand = new AsyncRelayCommand(RetryPcbSaveAsync);
         PcbRecords = new();
         FasteningResumeBolts = new();
         PlacementResumeTargets = new();
@@ -480,7 +479,7 @@ public partial class OperationViewModel : ObservableObject
                 [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand,
                     ChangeCarrierWorkCommand, CompletePlacementCommand, ChangeBoltWorkCommand,
                     PrepareStartAreaCommand, MoveAllToStandbyCommand,
-                    HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand,
+                    HomeCommand, LoadOlderPcbsCommand, ClearCountsCommand,
                     .. StartOutputGroups.Values.SelectMany(rows => rows).Distinct().Select(row => row.ToggleOutputCommand)]),
             PcbDetails.ShutdownAsync());
     }
@@ -1555,8 +1554,6 @@ public partial class OperationViewModel : ObservableObject
 
     public IAsyncRelayCommand LoadOlderPcbsCommand { get; }
 
-    public IAsyncRelayCommand RetryPcbSaveCommand { get; }
-
     public PcbResultsViewModel PcbDetails { get; }
 
     private void OnPcbImageSaved(string databaseFile, long number)
@@ -1574,19 +1571,6 @@ public partial class OperationViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string? PcbHistoryError { get; private set; }
-
-    private async Task RetryPcbSaveAsync()
-    {
-        try
-        {
-            await Machine.PcbHistory.FlushAsync();
-        }
-        catch (Exception exception)
-        {
-            // The manager retains queued data and exposes SaveError directly to the view.
-            _log.LogError(exception, "PCB save retry failed.");
-        }
-    }
 
     [ObservableProperty]
     public partial bool HasOlderPcbs { get; private set; }

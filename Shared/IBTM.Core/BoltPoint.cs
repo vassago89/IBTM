@@ -67,6 +67,13 @@ public sealed class BoltPoint
             field = value;
         }
     }
+    public (double Minimum, double Maximum) GetHeightLimits(int? ordinal)
+    {
+        if (MinimumHeight is { } min && MaximumHeight is { } max && min <= max)
+            return (min, max);
+        throw new InvalidOperationException(UiText.Format($"Set the height limits for {GetDisplayName(Name, ordinal)}"));
+    }
+
     public HeatSinkSlot HeatSink { get; set; }
     public FasteningHead Head { get; set; } = FasteningHead.Shooting;
     // Inspection camera XY in the recipe reference frame, in millimetres.

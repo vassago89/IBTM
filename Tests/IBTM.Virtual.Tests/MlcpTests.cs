@@ -84,6 +84,19 @@ public sealed class MlcpTests
     }
 
     [Fact]
+    public async Task InterruptedFrameDoesNotUseTheNextFrameForTheSameStart()
+    {
+        var connection = new TestConnection();
+        using var controller = new MlcpController(connection);
+        var measurement = controller.MeasureAsync();
+        Assert.Equal("START\r\n", await connection.Commands.Reader.ReadAsync());
+        connection.Reply([0x05, (byte)'O']);
+        connection.Reply(Frame("OK,01,+1.20"));
+        await Assert.ThrowsAsync<InvalidDataException>(() => measurement);
+        Assert.False(connection.Commands.Reader.TryRead(out _));
+    }
+
+    [Fact]
     public async Task RecallAndStartAreSerializedAndCanUseThePage18CommandFormat()
     {
         var connection = new TestConnection();

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
@@ -248,26 +247,9 @@ public partial class SettingsViewModel : ObservableObject
 
     public async Task ShutdownAsync()
     {
-        Exception? failure = null;
-        try
-        {
-            await CommandShutdown.CancelAndWaitAsync(
-                [SaveSettingsCommand, TestLightCommand, OffTestLightCommand]);
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-        }
-
+        await CommandShutdown.CancelAndWaitAsync([SaveSettingsCommand, TestLightCommand, OffTestLightCommand]);
         if (PendingLightOffChannel is { } channel)
-        {
-            var offFailure = await TurnTestLightOffAsync(channel);
-            if (offFailure is not null)
-                failure = failure is null ? offFailure : new AggregateException(failure, offFailure);
-        }
-
-        if (failure is not null)
-            ExceptionDispatchInfo.Throw(failure);
+            throw new InvalidOperationException(UiText.Format($"Light channel {channel} OFF unconfirmed"));
     }
 
     private bool IsMappingVisible(object item)
@@ -373,7 +355,6 @@ public partial class SettingsViewModel : ObservableObject
         PendingLightOffChannel = channel;
         try
         {
-            // Reconnect if needed, but never send ON/brightness during an OFF retry.
             await Task.Run(
                 () =>
                 {
@@ -387,7 +368,7 @@ public partial class SettingsViewModel : ObservableObject
         catch (Exception exception)
         {
             var failure = new InvalidOperationException(
-                UiText.Format($"OFF failed on channel {channel}; light state is unknown. Press OFF to retry. {UiText.Get(exception)}"),
+                UiText.Format($"Light channel {channel} OFF failed: {UiText.Get(exception)}"),
                 exception);
             _log.LogError(exception, "Lighting test cleanup failed; light may still be ON.");
             return failure;
@@ -462,7 +443,6 @@ public partial class SettingsViewModel : ObservableObject
             {
                 if (initialized)
                 {
-                    // Required cleanup and retries target the captured channel, not edited settings.
                     var offFailure = await TurnTestLightOffAsync(channel);
                     LightTestMessage = (offFailure ?? failure)?.Message
                         ?? UiText.Format($"OFF command sent · channel {channel}.");

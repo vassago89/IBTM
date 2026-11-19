@@ -303,11 +303,6 @@ Operation failed Check controller status</value>
   <data name="change recipe" xml:space="preserve">
     <value>Change recipe</value>
   </data>
-  <data name="check equipment stop and any unsaved pcb results before exiting.&#10;&#10;" xml:space="preserve">
-    <value>Confirm equipment stop and unsaved PCB results
-
-</value>
-  </data>
   <data name="check the highlighted input." xml:space="preserve">
     <value>Invalid input</value>
   </data>
@@ -1281,9 +1276,8 @@ Operation failed Check controller status</value>
   <data name="off command sent · channel {0}." xml:space="preserve">
     <value>OFF command sent channel {0}</value>
   </data>
-  <data name="off failed on channel {0}; light state is unknown. press off to retry. {1}" xml:space="preserve">
-    <value>Channel {0} OFF failed state unknown {1}</value>
-  </data>
+  <data name="light channel {0} off failed: {1}" xml:space="preserve"><value>Channel {0} OFF failed · state unknown · {1}</value></data>
+  <data name="light channel {0} off unconfirmed" xml:space="preserve"><value>Light channel {0} OFF unconfirmed</value></data>
   <data name="older →" xml:space="preserve">
     <value>Older →</value>
   </data>
@@ -1355,9 +1349,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="pcb 2 pickup" xml:space="preserve">
     <value>PCB 2 Pickup</value>
-  </data>
-  <data name="pcb details could not be opened or closed." xml:space="preserve">
-    <value>Could not switch PCB detail windows</value>
   </data>
   <data name="pcb detected" xml:space="preserve">
     <value>PCB Detected</value>
@@ -1750,9 +1741,6 @@ Operation failed Check controller status</value>
   <data name="recorded {0} · {1}" xml:space="preserve">
     <value>Saved result {0} {1}</value>
   </data>
-  <data name="recording cancelled; point not saved. record again." xml:space="preserve">
-    <value>Recording cancelled position not saved</value>
-  </data>
   <data name="recording was not started because another operation is active. try again after it finishes." xml:space="preserve">
     <value>Recording unavailable machine not ready</value>
   </data>
@@ -1834,12 +1822,6 @@ Operation failed Check controller status</value>
   <data name="retention (days)" xml:space="preserve">
     <value>Retention (days)</value>
   </data>
-  <data name="retry loading" xml:space="preserve">
-    <value>Retry</value>
-  </data>
-  <data name="retry save" xml:space="preserve">
-    <value>Retry save</value>
-  </data>
   <data name="returning / completing inspection" xml:space="preserve">
     <value>Returning after inspection</value>
   </data>
@@ -1890,9 +1872,6 @@ Operation failed Check controller status</value>
   </data>
   <data name="save" xml:space="preserve">
     <value>Save</value>
-  </data>
-  <data name="save cancelled. retry save." xml:space="preserve">
-    <value>Save cancelled</value>
   </data>
   <data name="save cancelled; teaching not saved." xml:space="preserve">
     <value>Save cancelled teaching not saved</value>
@@ -3230,9 +3209,6 @@ COMPLETE: finish</value>
   <data name="value must be 0–65535." xml:space="preserve">
     <value>Value must be 0–65535</value>
   </data>
-  <data name="pcb save failed · retry before exit" xml:space="preserve">
-    <value>PCB save failed retry before exit</value>
-  </data>
   <data name="head order" xml:space="preserve">
     <value>Head order</value>
   </data>
@@ -3554,11 +3530,9 @@ Supply: PCB 1, travel Z</value>
   <data name="invalid reference plane measurement" xml:space="preserve"><value>Invalid reference plane measurement</value></data>
   <data name="set the height limits for {0}" xml:space="preserve"><value>Set the height limits for {0}</value></data>
   <data name="height measurement is incomplete" xml:space="preserve"><value>Height measurement is incomplete</value></data>
-  <data name="height limits are not set" xml:space="preserve"><value>Height limits are not set</value></data>
   <data name="height reference is missing" xml:space="preserve"><value>Height reference is missing</value></data>
   <data name="raise the inspection probe before xy movement" xml:space="preserve"><value>Raise LVDT before XY movement</value></data>
   <data name="ml-cp must return one height value" xml:space="preserve"><value>LVDT must return one height value</value></data>
-  <data name="minimum height exceeds maximum height" xml:space="preserve"><value>Minimum height exceeds maximum height</value></data>
   <data name="fiducial 1" xml:space="preserve"><value>Fiducial 1</value></data>
   <data name="fiducial 2" xml:space="preserve"><value>Fiducial 2</value></data>
   <data name="finding fiducials" xml:space="preserve"><value>Finding fiducials</value></data>
@@ -4058,9 +4032,7 @@ Supply: PCB 1, travel Z</value>
   <data name="pcb {0} result was not found ({1})." xml:space="preserve">
     <value>PCB {0} result was not found ({1}).</value>
   </data>
-  <data name="pcb {0} save failed ({1}): {2}. unsaved data is held in memory; retry saving before exiting." xml:space="preserve">
-    <value>PCB {0} save failed ({1}): {2}. Unsaved data is held in memory; retry saving before exiting.</value>
-  </data>
+  <data name="pcb {0} save failed ({1}): {2}" xml:space="preserve"><value>PCB {0} save failed ({1}): {2}</value></data>
   <data name="pickup bolt supply stopped. refill the feeder and reset before resuming." xml:space="preserve">
     <value>Pickup bolt supply stopped. Refill the feeder and RESET before resuming.</value>
   </data>

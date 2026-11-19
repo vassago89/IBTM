@@ -1008,7 +1008,7 @@ public partial class TeachingViewModel : ObservableObject
             {
                 if (!await RecipeEditor.SaveAsync(cancellationToken: operation.Token))
                     SaveError = UiText.Get("Settings saved; recipe was not saved. ")
-                        + (RecipeEditor.Error ?? UiText.Get("Save cancelled. Retry Save."));
+                        + (RecipeEditor.Error ?? UiText.Get("Cancelled"));
                 else if (IsFiducialSelected)
                     FiducialMessage = UiText.Get("Recipe saved");
             }
@@ -1748,15 +1748,12 @@ public partial class TeachingViewModel : ObservableObject
             throw new InvalidOperationException(UiText.Get("Set camera resolution"));
         if (!fiducials.First.IsRegistered || !fiducials.Second.IsRegistered)
             throw new InvalidOperationException(UiText.Get("Register both fiducials"));
-        InspectionTestMessage = UiText.Get("Fiducial 1");
-        var first = await Inspection.FindFiducialAsync(fiducials.First, cancellationToken);
-        InspectionTestMessage = UiText.Get("Fiducial 2");
-        var second = await Inspection.FindFiducialAsync(fiducials.Second, cancellationToken);
+        var alignment = await Inspection.MeasureAlignmentAsync(pcb, cancellationToken, name => InspectionTestMessage = name);
         cancellationToken.ThrowIfCancellationRequested();
-        var alignment = FiducialDetector.GetAlignment(first, second);
         if (job != Inspection.Station.CurrentJob || carrierVersion != Interlocked.Read(ref _inspectionCarrierVersion))
             throw new InvalidOperationException(UiText.Get("Carrier changed during fiducial detection"));
         _teachingAlignment = (job, carrierVersion, alignment);
+        var (first, second) = (alignment.First, alignment.Second);
         var dx = (first.Measured.X + second.Measured.X - first.Reference.X - second.Reference.X) / 2;
         var dy = (first.Measured.Y + second.Measured.Y - first.Reference.Y - second.Reference.Y) / 2;
         AlignmentTestResult = UiText.Format($"Mark midpoint: X {dx:+0.###;-0.###;0} mm / Y {dy:+0.###;-0.###;0} mm / Rotation {alignment.AngleDegrees:+0.###;-0.###;0}°");
@@ -1783,12 +1780,9 @@ public partial class TeachingViewModel : ObservableObject
         InspectionTestError = null;
         try
         {
-            if (bolt is not null)
-            {
+            var limits = bolt?.GetHeightLimits(Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id));
+            if (limits.HasValue)
                 reference.Validate();
-                if (bolt.MinimumHeight is null || bolt.MaximumHeight is null || bolt.MinimumHeight > bolt.MaximumHeight)
-                    throw new InvalidOperationException(UiText.Get("Height limits are not set"));
-            }
             if (Inspection.Station.BackupPlate != StationCylinderState.Down)
                 throw new InvalidOperationException(UiText.Get("Lower the inspection backup before measuring"));
             using var operation = Machine.BeginManualOperation(
@@ -1801,20 +1795,8 @@ public partial class TeachingViewModel : ObservableObject
             await _cameraStop;
             await Inspection.PrepareMeasurementAsync(operation.Token);
             var alignment = await MeasureTeachingAlignmentAsync(pcb, operation.Token);
-            HeightReferencePlane? plane = null;
-            if (bolt is not null)
-            {
-                InspectionTestMessage = UiText.Get("Height reference 1");
-                var first = await Inspection.MeasureHeightAtAsync(
-                    alignment.Transform(reference.Point1!), operation.Token);
-                InspectionTestMessage = UiText.Get("Height reference 2");
-                var second = await Inspection.MeasureHeightAtAsync(
-                    alignment.Transform(reference.Point2!), operation.Token);
-                InspectionTestMessage = UiText.Get("Height reference 3");
-                var third = await Inspection.MeasureHeightAtAsync(
-                    alignment.Transform(reference.Point3!), operation.Token);
-                plane = new(DateTimeOffset.Now, first, second, third);
-            }
+            var plane = limits is null ? null : await Inspection.MeasureReferencePlaneAsync(pcb, alignment, operation.Token,
+                name => InspectionTestMessage = name);
             InspectionTestMessage = point.Name;
             var sample = await Inspection.MeasureHeightAtAsync(alignment.Transform(position), operation.Token, reading =>
             {
@@ -1825,10 +1807,10 @@ public partial class TeachingViewModel : ObservableObject
             });
             operation.Token.ThrowIfCancellationRequested();
             HeightTestResult = UiText.Format($"Measured: {sample.Value:0.###} mm");
-            if (bolt is not null && plane is not null)
+            if (limits is { } range && plane is not null)
             {
                 var result = new BoltHeightResult(DateTimeOffset.Now, sample, plane.HeightAt(sample.X, sample.Y),
-                    bolt.MinimumHeight!.Value, bolt.MaximumHeight!.Value);
+                    range.Minimum, range.Maximum);
                 HeightTestSuccess = result.Success;
                 HeightTestResult += "\n" + UiText.Format($"Reference: {result.ReferenceHeight:0.###} mm / Height: {result.Height:0.###} mm")
                     + "\n" + UiText.Format($"Limits: {result.Minimum:0.###}–{result.Maximum:0.###} mm / {(result.Success ? "OK" : "NG")}");
@@ -2182,7 +2164,7 @@ public partial class TeachingViewModel : ObservableObject
                     dataMatrix.LightLevel = previousLight;
                 else
                     bolt!.LightLevel = previousLight;
-                CameraError = RecipeEditor.Error ?? UiText.Get("Recording cancelled; point not saved. Record again.");
+                CameraError = RecipeEditor.Error ?? UiText.Get("Cancelled");
                 _logger.LogInformation("Teaching image was not saved: PCB={Pcb}, point={Point}, reason={Reason}.",
                     pcb, point.Name, CameraError);
             }

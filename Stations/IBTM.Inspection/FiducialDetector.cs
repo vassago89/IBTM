@@ -77,7 +77,7 @@ public static class FiducialDetector
             mask.SetTo(Scalar.Black);
             Cv2.DrawContours(mask, [taught!], -1, Scalar.White, -1, offset: new Point(1 - box.X, 1 - box.Y));
         }
-        FiducialDetection? best = null;
+        (Point[] Contour, double Area, double Error, double? Score)? best = null;
         var registrationCandidates = 0;
         var maskDidNotFit = false;
         var clipped = 0;
@@ -133,29 +133,26 @@ public static class FiducialDetector
                 Cv2.MatchTemplate(patch, mask, correlation, TemplateMatchModes.CCoeffNormed);
                 Cv2.MinMaxLoc(correlation, out _, out double maximum);
                 score = maximum * 100;
-                if (best?.MatchScore is { } previous && score <= previous)
+                if (best?.Score is { } previous && score <= previous)
                     continue;
             }
             else if (++registrationCandidates > 1)
                 continue;
 
-            var perimeter = Cv2.ArcLength(contour, true);
-            var circularity = 4 * Math.PI * area / (perimeter * perimeter);
-            var points = contour.Select(point => new Point2D(point.X, point.Y)).ToArray();
-            best = new(FitCircle(points), radiusPixels, circularity, error, score, points);
+            best = (contour, area, error, score);
         }
         if (registrationCandidates > 1)
             throw new FiducialDetectionException(UiText.Format($"{registrationCandidates} contours meet the criteria; narrow the search area"));
-        if (best?.MatchScore is { } highest)
+        if (best is { } match)
         {
-            // Rank at full precision, then judge and store the same score shown to the operator.
-            var score = Math.Round(highest, 2);
+            double? score = match.Score is { } highest ? Math.Round(highest, 2) : null;
             if (score < mark.MinimumMatchScore)
                 throw new FiducialDetectionException(UiText.Format($"Best match score {score:0.##} (minimum {mark.MinimumMatchScore})"));
-            return best with { MatchScore = score };
+            var perimeter = Cv2.ArcLength(match.Contour, true);
+            var points = match.Contour.Select(point => new Point2D(point.X, point.Y)).ToArray();
+            return new(FitCircle(points), Math.Sqrt(match.Area / Math.PI),
+                4 * Math.PI * match.Area / (perimeter * perimeter), match.Error, score, points);
         }
-        if (best is not null)
-            return best;
 
         if (maskDidNotFit)
             throw new FiducialDetectionException(UiText.Get("Reference mask does not fit the candidate search window"));
@@ -189,22 +186,20 @@ public static class FiducialDetector
         var origin = Cv2.Moments(input);
         var ox = origin.M10 / origin.M00;
         var oy = origin.M01 / origin.M00;
-        using (var a = new Mat(points.Length, 3, MatType.CV_64FC1))
-        using (var b = new Mat(points.Length, 1, MatType.CV_64FC1))
-        using (var solution = new Mat())
+        using var a = new Mat(points.Length, 3, MatType.CV_64FC1);
+        using var b = new Mat(points.Length, 1, MatType.CV_64FC1);
+        using var solution = new Mat();
+        for (var index = 0; index < points.Length; index++)
         {
-            for (var index = 0; index < points.Length; index++)
-            {
-                var x = points[index].X - ox;
-                var y = points[index].Y - oy;
-                a.Set(index, 0, 2 * x);
-                a.Set(index, 1, 2 * y);
-                a.Set(index, 2, 1d);
-                b.Set(index, 0, x * x + y * y);
-            }
-            if (!Cv2.Solve(a, b, solution, DecompTypes.SVD))
-                throw new FiducialDetectionException(UiText.Get("Circle fit failed"));
-            return new(ox + solution.At<double>(0), oy + solution.At<double>(1));
+            var x = points[index].X - ox;
+            var y = points[index].Y - oy;
+            a.Set(index, 0, 2 * x);
+            a.Set(index, 1, 2 * y);
+            a.Set(index, 2, 1d);
+            b.Set(index, 0, x * x + y * y);
         }
+        if (!Cv2.Solve(a, b, solution, DecompTypes.SVD))
+            throw new FiducialDetectionException(UiText.Get("Circle fit failed"));
+        return new(ox + solution.At<double>(0), oy + solution.At<double>(1));
     }
 }
