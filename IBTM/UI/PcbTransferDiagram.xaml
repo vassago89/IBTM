@@ -26,26 +26,32 @@
 
             <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}"
                 Orientation="Horizontal">
-                <Border Tag="{Binding SupplyDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54" Margin="0,0,10,0">
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{ui:Text 'SUPPLY'}" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
-                        <TextBlock
-                            Text="{Binding SupplyStatus,
-                                                  Converter={StaticResource UiTextConverter}}"
-                            Margin="0,2,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
-                            ToolTip="{Binding SupplyStatus, Converter={StaticResource UiTextConverter}}"/>
-                    </StackPanel>
-                </Border>
-                <Border Tag="{Binding PlacementDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54">
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{ui:Text 'PLACEMENT'}" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
-                        <TextBlock
-                            Text="{Binding PlacementStatus,
-                                                  Converter={StaticResource UiTextConverter}}"
-                            Margin="0,2,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
-                            ToolTip="{Binding PlacementStatus, Converter={StaticResource UiTextConverter}}"/>
-                    </StackPanel>
-                </Border>
+                <Grid Margin="0,0,10,0">
+                    <Border Tag="{Binding SupplyDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{ui:Text 'SUPPLY'}" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
+                            <TextBlock
+                                Text="{Binding SupplyStatus,
+                                                      Converter={StaticResource UiTextConverter}}"
+                                Margin="0,2,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding SupplyStatus, Converter={StaticResource UiTextConverter}}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Tag="{Binding SupplyDisplayState}" Style="{StaticResource StationAlarmOutlineStyle}"/>
+                </Grid>
+                <Grid>
+                    <Border Tag="{Binding PlacementDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{ui:Text 'PLACEMENT'}" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
+                            <TextBlock
+                                Text="{Binding PlacementStatus,
+                                                      Converter={StaticResource UiTextConverter}}"
+                                Margin="0,2,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding PlacementStatus, Converter={StaticResource UiTextConverter}}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Tag="{Binding PlacementDisplayState}" Style="{StaticResource StationAlarmOutlineStyle}"/>
+                </Grid>
             </StackPanel>
 
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.SupplyRailLeft}" Canvas.Top="112"

@@ -165,16 +165,16 @@
                 </Grid>
             </Grid>
         </Border>
-        <Border Grid.Row="1" Grid.Column="1" Margin="10,0,0,0" Padding="16"
+        <Border Grid.Row="1" Grid.Column="1" Margin="10,0,0,0" Padding="10"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource AccentRedBrush}" BorderThickness="2"
             Visibility="{Binding HasAlarm, Converter={StaticResource BoolToVis}}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}" FontSize="22" FontWeight="SemiBold"
-                        Margin="0,0,0,12"/>
-                    <TextBlock Text="{Binding AlarmMessage}" FontSize="14" TextWrapping="Wrap"
+                    <TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding Alarm, Converter={StaticResource UiTextConverter}}" FontSize="22" FontWeight="SemiBold"/>
+                    <TextBlock Style="{StaticResource StatusMessageStyle}" Text="{Binding AlarmMessage}" FontSize="14" Margin="0,12,0,0"
                         Foreground="{StaticResource TextPrimaryBrush}" ToolTip="{Binding AlarmDetail}"/>
-                    <TextBlock Style="{StaticResource WarningTextStyle}" Text="{Binding AlarmAction}" FontSize="16" Margin="0,16,0,0"/>
+                    <TextBlock Style="{StaticResource StatusMessageStyle}" Text="{Binding AlarmAction}" FontSize="16" Margin="0,16,0,0"
+                        Foreground="{StaticResource AccentAmberBrush}"/>
                 </StackPanel>
             </ScrollViewer>
         </Border>

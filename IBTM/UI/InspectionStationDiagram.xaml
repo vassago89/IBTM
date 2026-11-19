@@ -31,31 +31,32 @@
                     Text="{Binding Inspection.Station.LastCycleSeconds, StringFormat='CT {0:0.0} s',
                         TargetNullValue='CT —', FallbackValue='CT —'}"/>
             </Grid>
-            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}"
-                Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54"
-                Tag="{Binding InspectionDisplayState}"
-                Style="{StaticResource StationStateBadgeStyle}">
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock
-                        Text="{Binding InspectionStatus, Converter={StaticResource UiTextConverter}}"
-                        Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
-                        ToolTip="{Binding InspectionStatus, Converter={StaticResource UiTextConverter}}"/>
-                    <TextBlock Margin="0,3,0,0" FontSize="14" TextTrimming="CharacterEllipsis"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        ToolTip="{Binding InspectionActiveBarcode}">
-                        <Run Text="{ui:Text 'ID · '}"/><Run Text="{Binding InspectionActiveBarcode, Mode=OneWay, TargetNullValue={ui:Text 'Not Read'}}"/>
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding InspectionActivePcb}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </StackPanel>
-            </Border>
+            <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}">
+                <Border Tag="{Binding InspectionDisplayState}" Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54"
+                    Style="{StaticResource StationStateBadgeStyle}">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock
+                            Text="{Binding InspectionStatus, Converter={StaticResource UiTextConverter}}"
+                            Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding InspectionStatus, Converter={StaticResource UiTextConverter}}"/>
+                        <TextBlock Margin="0,3,0,0" FontSize="14" TextTrimming="CharacterEllipsis"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            ToolTip="{Binding InspectionActiveBarcode}">
+                            <Run Text="{ui:Text 'ID · '}"/><Run Text="{Binding InspectionActiveBarcode, Mode=OneWay, TargetNullValue={ui:Text 'Not Read'}}"/>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding InspectionActivePcb}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+                <Border Tag="{Binding InspectionDisplayState}" Style="{StaticResource StationAlarmOutlineStyle}"/>
+            </Grid>
 
             <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.DetailTop}"
                 Orientation="Horizontal">
@@ -77,61 +78,44 @@
 
             <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionResultsLeft}"
                 Canvas.Top="{x:Static ui:MachineDiagramLayout.InspectionResultsTop}" Width="214">
-                <StackPanel>
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding Units.Inspection}" Value="True"/>
-                                        <Condition Binding="{Binding Inspection.Station.CarrierPresent}" Value="True"/>
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </MultiDataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
-                    <Grid Margin="0,0,0,8"
-                        Visibility="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn, Converter={StaticResource BoolToVis}}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="64"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{ui:Text 'PCB 1'}" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
-                        <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
-                            Style="{StaticResource BarcodeResultStyle}"
-                            Text="{Binding InspectionPcb1Barcode, TargetNullValue={ui:Text 'Not Read'}}"
-                            ToolTip="{Binding InspectionPcb1Barcode}"/>
-                    </Grid>
-                    <Grid Margin="0,0,0,8"
-                        Visibility="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn, Converter={StaticResource BoolToVis}}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="64"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{ui:Text 'PCB 2'}" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
-                        <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
-                            Style="{StaticResource BarcodeResultStyle}"
-                            Text="{Binding InspectionPcb2Barcode, TargetNullValue={ui:Text 'Not Read'}}"
-                            ToolTip="{Binding InspectionPcb2Barcode}"/>
-                    </Grid>
-                </StackPanel>
-                <TextBlock
-                    Text="{Binding AlarmMessage}"
-                    ToolTip="{Binding AlarmDetail}"
-                    TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource AccentRedBrush}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding InspectionDisplayState}" Value="{x:Static ui:StationDisplayState.IoAlarm}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Units.Inspection}" Value="True"/>
+                                    <Condition Binding="{Binding Inspection.Station.CarrierPresent}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <Grid Margin="0,0,0,8"
+                    Visibility="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="64"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{ui:Text 'PCB 1'}" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource BarcodeResultStyle}"
+                        Text="{Binding InspectionPcb1Barcode, TargetNullValue={ui:Text 'Not Read'}}"
+                        ToolTip="{Binding InspectionPcb1Barcode}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8"
+                    Visibility="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="64"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{ui:Text 'PCB 2'}" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource BarcodeResultStyle}"
+                        Text="{Binding InspectionPcb2Barcode, TargetNullValue={ui:Text 'Not Read'}}"
+                        ToolTip="{Binding InspectionPcb2Barcode}"/>
+                </Grid>
             </StackPanel>
 
         </Canvas>

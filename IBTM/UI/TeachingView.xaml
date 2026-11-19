@@ -293,54 +293,189 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                    <TabControl Grid.Row="1"
-                        Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                        <TabItem Header="{ui:Text 'Camera'}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <StackPanel>
-                                    <WrapPanel Margin="0,0,0,4">
-                                        <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" Width="96" Padding="12,7">
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsToggleLiveViewAllowed}"/>
-                                                    <Setter Property="Content" Value="{ui:Text 'Start Live'}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
-                                                            <Setter Property="Content" Value="{ui:Text 'Stop Live'}"/>
-                                                        </DataTrigger>
-                                                        <MultiDataTrigger>
-                                                            <MultiDataTrigger.Conditions>
-                                                                <Condition Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"/>
-                                                                <Condition Binding="{Binding Inspection.IsLiveView}" Value="False"/>
-                                                            </MultiDataTrigger.Conditions>
-                                                            <Setter Property="IsEnabled" Value="False"/>
-                                                        </MultiDataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
+                    <Grid Grid.Row="1" Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto" MaxHeight="200"/>
+                        </Grid.RowDefinitions>
+                        <WrapPanel Margin="0,0,0,4">
+                            <Button x:Name="LiveCameraButton" Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" MinWidth="118" Padding="12,7">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                        <Setter Property="IsEnabled" Value="{Binding IsToggleLiveViewAllowed}"/>
+                                        <Setter Property="Content" Value="{ui:Text 'Start Live'}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
+                                                <Setter Property="Content" Value="{ui:Text 'Stop Live'}"/>
+                                                <Setter Property="Background" Value="{StaticResource DangerButtonBackgroundBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource DangerButtonBorderBrush}"/>
+                                            </DataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"/>
+                                                    <Condition Binding="{Binding Inspection.IsLiveView}" Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button x:Name="StopInspectionTestButton" Content="{ui:Text 'Stop'}" Command="{Binding StopInspectionTestCommand}"
+                                Style="{StaticResource DangerButtonStyle}" Visibility="{Binding IsInspectionTestRunning, Converter={StaticResource BoolToVis}}" Padding="14,6" Margin="0,0,8,4"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding State.SetupEditingEnabled}">
+                                <TextBlock Text="{ui:Text 'Light (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBox x:Name="LiveLightInput" Width="55" Margin="0,0,8,0"
+                                    Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                <Button Content="{ui:Text 'Apply Light'}" Command="{Binding ApplyLightCommand}" Padding="12,7">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="IsEnabled" Value="{Binding IsApplyLightAllowed}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </WrapPanel>
+                        <TabControl Grid.Row="1">
+                            <TabItem x:Name="CameraTab" Header="{ui:Text 'Camera'}">
+                                <Grid Background="{StaticResource ImageBackgroundBrush}" ClipToBounds="True">
+                                    <ui:InspectionImageView x:Name="TeachingCameraView" Source="{Binding CameraImage}" ShowCrosshair="True"
+                                        SourceRegion="{Binding FiducialRegion}" RegionCommand="{Binding DrawFiducialRegionCommand}"
+                                        CenterRegion="False">
+                                        <ui:InspectionImageView.Style>
+                                            <Style TargetType="ui:InspectionImageView">
+                                                <Setter Property="DetectedFiducial" Value="{Binding DetectedFiducial}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
+                                                        <Setter Property="DetectedFiducial" Value="{x:Null}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:InspectionImageView.Style>
+                                    </ui:InspectionImageView>
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Setter Property="Text" Value="{ui:Text 'No reference image'}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CameraImage}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
+                                                        <Setter Property="Text" Value="{ui:Text 'Waiting for camera image'}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Padding="6,2"
+                                        Background="{StaticResource ControlBgBrush}" CornerRadius="3" IsHitTestVisible="False"
+                                        Visibility="{Binding Inspection.IsLiveView, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="LIVE" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}"/>
+                                    </Border>
+                                </Grid>
+                            </TabItem>
+                            <TabItem Header="{ui:Text 'Captured image'}" IsVisibleChanged="OnCapturedTabVisibilityChanged">
+                                <TabItem.Style>
+                                    <Style TargetType="TabItem" BasedOn="{StaticResource SectionTab}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FiducialImage}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TabItem.Style>
+                                <Border Background="{StaticResource ImageBackgroundBrush}">
+                                    <ui:InspectionImageView x:Name="FiducialResultView" Source="{Binding FiducialImage}"
+                                        DetectedFiducial="{Binding DetectedFiducial}" ShowCrosshair="False" IsHitTestVisible="False"/>
+                                </Border>
+                            </TabItem>
+                            <TabItem x:Name="InspectionIoTab" Header="{ui:Text 'Related I/O'}">
+                                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
+                            </TabItem>
+                        </TabControl>
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ScrollViewer.Style>
+                                <Style TargetType="ScrollViewer" BasedOn="{StaticResource {x:Type ScrollViewer}}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelected, ElementName=InspectionIoTab}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ScrollViewer.Style>
+                            <StackPanel>
+                                <StackPanel x:Name="FiducialPanel" Margin="0,8,0,0" Visibility="{Binding IsFiducialSelected, Converter={StaticResource BoolToVis}}" IsEnabled="{Binding State.SetupEditingEnabled}">
+                                    <StackPanel.BindingGroup><BindingGroup Name="FiducialInputs"/></StackPanel.BindingGroup>
+                                    <WrapPanel Margin="0,0,0,2">
+                                        <Button Content="{ui:Text 'Register + save'}" Command="{Binding RegisterFiducialCommand}" Padding="12,7" Margin="0,0,8,4">
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="{Binding IsFiducialCaptureAllowed}"/>
+                                                <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger></Style.Triggers>
+                                            </Style></Button.Style>
                                         </Button>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding State.SetupEditingEnabled}">
-                                            <TextBlock Text="{ui:Text 'Light (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox x:Name="LiveLightInput" Width="55" Margin="0,0,8,0"
-                                                Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                            <Button Content="{ui:Text 'Apply Light'}" Command="{Binding ApplyLightCommand}" Padding="12,7">
-                                                <Button.Style>
-                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                        <Setter Property="IsEnabled" Value="{Binding IsApplyLightAllowed}"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True">
-                                                                <Setter Property="IsEnabled" Value="False"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
-                                        </StackPanel>
+                                        <Button Content="{ui:Text 'Find mark'}" Command="{Binding FindFiducialCommand}" Padding="12,7" Margin="0,0,8,4">
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="{Binding IsFiducialCaptureAllowed}"/>
+                                                <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger></Style.Triggers>
+                                            </Style></Button.Style>
+                                        </Button>
+                                        <Button x:Name="CheckAlignmentButton" Content="{ui:Text 'Check both marks'}"
+                                            Command="{Binding CheckAlignmentCommand}" Padding="12,7" Margin="0,0,8,4">
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger></Style.Triggers>
+                                            </Style></Button.Style>
+                                        </Button>
                                     </WrapPanel>
+                                    <WrapPanel Margin="0,0,0,6">
+                                        <CheckBox Content="{ui:Text 'Fiducial alignment'}" IsChecked="{Binding SelectedFiducials.Enabled, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0"/>
+                                        <TextBlock Text="{Binding FiducialRegistration}" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                    </WrapPanel>
+                                    <TextBlock Text="{ui:Text 'Drag around the circular mark in the image'}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6" TextWrapping="Wrap">
+                                        <TextBlock.Style><Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers><DataTrigger Binding="{Binding FiducialRegion}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger></Style.Triggers>
+                                        </Style></TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding FiducialMessage}" Style="{StaticResource StatusMessageStyle}" Margin="0,0,0,6"/>
+                                    <Expander Header="{ui:Text 'Search settings'}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6">
+                                        <WrapPanel Margin="0,4,0,0">
+                                            <CheckBox Content="{ui:Text 'White mark'}" IsChecked="{Binding SelectedPoint.Fiducial.WhiteMark, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                                                <TextBlock Text="{ui:Text 'Threshold (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBox x:Name="FiducialThresholdInput" Width="50" Text="{Binding SelectedPoint.Fiducial.Threshold, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                                                <TextBlock Text="{ui:Text 'Search margin (px)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBox Width="55" Text="{Binding SelectedPoint.Fiducial.SearchMarginPixels, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                                                <TextBlock Text="{ui:Text 'Maximum shape error'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBox Width="65" Text="{Binding SelectedPoint.Fiducial.MaximumShapeError, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                                                <TextBlock Text="{ui:Text 'Size tolerance (%)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBox Width="55" Text="{Binding SelectedPoint.Fiducial.SizeTolerancePercent, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                            </StackPanel>
+                                        </WrapPanel>
+                                    </Expander>
+                                </StackPanel>
+                                <StackPanel Visibility="{Binding IsHeightTestSelected, Converter={StaticResource BoolToVis}}" Margin="0,8,0,6">
                                     <WrapPanel Margin="0,2,0,10">
                                         <Button x:Name="TeachingProbeButton" Command="{Binding InspectionProbe.ToggleOutputCommand}" MinWidth="96" Padding="12,7" Margin="0,0,14,0">
                                             <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -361,167 +496,45 @@
                                         <TextBlock Tag="{Binding InspectionProbe.Io.Feedback[0].IsOn}" Text="{Binding InspectionProbe.Io.Feedback[0].IsOn, Converter={StaticResource SignalTextConverter}}"
                                             Style="{StaticResource IoInputStateStyle}" MinWidth="36" MinHeight="26" Padding="4" VerticalAlignment="Center"/>
                                     </WrapPanel>
-                                    <StackPanel x:Name="FiducialPanel" Visibility="{Binding IsFiducialSelected, Converter={StaticResource BoolToVis}}" IsEnabled="{Binding State.SetupEditingEnabled}">
-                                        <StackPanel.BindingGroup><BindingGroup Name="FiducialInputs"/></StackPanel.BindingGroup>
-                                        <WrapPanel Margin="0,0,0,6">
-                                            <CheckBox Content="{ui:Text 'Fiducial alignment'}" IsChecked="{Binding SelectedFiducials.Enabled, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0"/>
-                                            <CheckBox Content="{ui:Text 'White mark'}" IsChecked="{Binding SelectedPoint.Fiducial.WhiteMark, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0"/>
-                                            <TextBlock Text="{ui:Text 'Threshold (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox x:Name="FiducialThresholdInput" Width="50" Text="{Binding SelectedPoint.Fiducial.Threshold, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Margin="0,0,12,0"/>
-                                        </WrapPanel>
-                                        <Expander Header="{ui:Text 'Search settings'}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6">
-                                            <WrapPanel Margin="0,4,0,0">
-                                                <TextBlock Text="{ui:Text 'Search margin (px)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                <TextBox Width="55" Text="{Binding SelectedPoint.Fiducial.SearchMarginPixels, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Margin="0,0,12,0"/>
-                                                <TextBlock Text="{ui:Text 'Maximum shape error'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                <TextBox Width="65" Text="{Binding SelectedPoint.Fiducial.MaximumShapeError, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Margin="0,0,12,0"/>
-                                                <TextBlock Text="{ui:Text 'Size tolerance (%)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                <TextBox Width="55" Text="{Binding SelectedPoint.Fiducial.SizeTolerancePercent, BindingGroupName=FiducialInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                            </WrapPanel>
-                                        </Expander>
-                                        <WrapPanel Margin="0,0,0,6">
-                                            <Button Content="{ui:Text 'Register + save'}" Command="{Binding RegisterFiducialCommand}" Padding="12,7" Margin="0,0,8,0">
-                                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsFiducialCaptureAllowed}"/>
-                                                    <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
-                                                        <Setter Property="IsEnabled" Value="False"/>
-                                                    </DataTrigger></Style.Triggers>
-                                                </Style></Button.Style>
-                                            </Button>
-                                            <Button Content="{ui:Text 'Find mark'}" Command="{Binding FindFiducialCommand}" Padding="12,7" Margin="0,0,8,0">
-                                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsFiducialCaptureAllowed}"/>
-                                                    <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
-                                                        <Setter Property="IsEnabled" Value="False"/>
-                                                    </DataTrigger></Style.Triggers>
-                                                </Style></Button.Style>
-                                            </Button>
-                                            <Button x:Name="CheckAlignmentButton" Content="{ui:Text 'Check both marks'}"
-                                                Command="{Binding CheckAlignmentCommand}" Padding="12,7" Margin="0,0,8,0">
-                                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                    <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
-                                                        <Setter Property="IsEnabled" Value="False"/>
-                                                    </DataTrigger></Style.Triggers>
-                                                </Style></Button.Style>
-                                            </Button>
-                                            <TextBlock Text="{Binding FiducialRegistration}" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
-                                        </WrapPanel>
-                                        <TextBlock Text="{ui:Text 'Drag around the circular mark in the image'}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6" TextWrapping="Wrap">
-                                            <TextBlock.Style><Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers><DataTrigger Binding="{Binding FiducialRegion}" Value="{x:Null}">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger></Style.Triggers>
-                                            </Style></TextBlock.Style>
-                                        </TextBlock>
-                                        <TextBlock Text="{Binding FiducialMessage}" TextWrapping="Wrap" Margin="0,0,0,6"/>
-                                    </StackPanel>
-                                    <StackPanel Visibility="{Binding IsHeightTestSelected, Converter={StaticResource BoolToVis}}" Margin="0,0,0,6">
-                                        <Button x:Name="MeasureHeightButton" Command="{Binding MeasureHeightCommand}"
-                                            HorizontalAlignment="Left" Padding="12,7"
-                                            ToolTip="{ui:Text 'Move to the selected point and measure; bolts measure all three references first'}">
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                                <Setter Property="Content" Value="{ui:Text 'Test height'}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding MeasureHeightCommand.IsRunning}" Value="True"><Setter Property="Content" Value="{ui:Text 'Measuring'}"/></DataTrigger>
-                                                    <DataTrigger Binding="{Binding ElementName=InspectionMinimumHeightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
-                                                    <DataTrigger Binding="{Binding ElementName=InspectionMaximumHeightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
-                                                </Style.Triggers>
-                                            </Style></Button.Style>
-                                        </Button>
-                                        <TextBlock Text="{ui:Text 'Three references → selected bolt'}" Margin="0,5,0,0" Foreground="{StaticResource TextMutedBrush}">
-                                            <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedPoint.Position.Bolt}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                            </Style.Triggers></Style></TextBlock.Style>
-                                        </TextBlock>
-                                        <TextBlock x:Name="HeightTestResultText" Text="{Binding HeightTestResult}" TextWrapping="Wrap" Margin="0,6,0,0" FontWeight="SemiBold">
-                                            <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
-                                                <DataTrigger Binding="{Binding HeightTestResult}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                                <DataTrigger Binding="{Binding HeightTestSuccess}" Value="True"><Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/></DataTrigger>
-                                                <DataTrigger Binding="{Binding HeightTestSuccess}" Value="False"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
-                                            </Style.Triggers></Style></TextBlock.Style>
-                                        </TextBlock>
-                                    </StackPanel>
-                                    <TextBlock x:Name="AlignmentTestResultText" Text="{Binding AlignmentTestResult}" TextWrapping="Wrap" Margin="0,0,0,6">
+                                    <Button x:Name="MeasureHeightButton" Command="{Binding MeasureHeightCommand}"
+                                        HorizontalAlignment="Left" Padding="12,7"
+                                        ToolTip="{ui:Text 'Move to the selected point and measure; bolts measure all three references first'}">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                            <Setter Property="Content" Value="{ui:Text 'Test height'}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding MeasureHeightCommand.IsRunning}" Value="True"><Setter Property="Content" Value="{ui:Text 'Measuring'}"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=InspectionMinimumHeightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=InspectionMaximumHeightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style></Button.Style>
+                                    </Button>
+                                    <TextBlock Text="{ui:Text 'Three references → selected bolt'}" Margin="0,5,0,0" Foreground="{StaticResource TextMutedBrush}">
                                         <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
-                                            <DataTrigger Binding="{Binding AlignmentTestResult}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding SelectedPoint.Position.Bolt}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                         </Style.Triggers></Style></TextBlock.Style>
                                     </TextBlock>
-                                    <WrapPanel Margin="0,0,0,6">
-                                        <Button x:Name="StopInspectionTestButton" Content="{ui:Text 'Stop'}" Command="{Binding StopInspectionTestCommand}"
-                                            Style="{StaticResource DangerButtonStyle}" Visibility="{Binding IsInspectionTestRunning, Converter={StaticResource BoolToVis}}" Padding="14,6" Margin="0,0,10,0"/>
-                                        <TextBlock Text="{Binding InspectionTestMessage}" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
-                                    </WrapPanel>
-                                    <TextBlock x:Name="InspectionTestErrorText" Text="{Binding InspectionTestError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="0,0,0,6">
+                                    <TextBlock x:Name="HeightTestResultText" Text="{Binding HeightTestResult}" TextWrapping="Wrap" Margin="0,6,0,0" FontWeight="SemiBold">
                                         <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
-                                            <DataTrigger Binding="{Binding InspectionTestError}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding HeightTestResult}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding HeightTestSuccess}" Value="True"><Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding HeightTestSuccess}" Value="False"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
                                         </Style.Triggers></Style></TextBlock.Style>
                                     </TextBlock>
                                 </StackPanel>
-                                <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="*"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
-                                        <ui:InspectionImageView x:Name="TeachingCameraView" Source="{Binding CameraImage}" ShowCrosshair="True"
-                                            SourceRegion="{Binding FiducialRegion}" RegionCommand="{Binding DrawFiducialRegionCommand}"
-                                            CenterRegion="False">
-                                            <ui:InspectionImageView.Style>
-                                                <Style TargetType="ui:InspectionImageView">
-                                                    <Setter Property="DetectedFiducial" Value="{Binding DetectedFiducial}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
-                                                            <Setter Property="DetectedFiducial" Value="{x:Null}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </ui:InspectionImageView.Style>
-                                        </ui:InspectionImageView>
-                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
-                                            Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                    <Setter Property="Text" Value="{ui:Text 'No reference image'}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding CameraImage}" Value="{x:Null}">
-                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
-                                                            <Setter Property="Text" Value="{ui:Text 'Waiting for camera image'}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                        <Border Grid.Row="1" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="8">
-                                            <Border.Style><Style TargetType="Border">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding FiducialImage}" Value="{x:Null}">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="False">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style></Border.Style>
-                                            <DockPanel>
-                                                <TextBlock DockPanel.Dock="Left" Text="{ui:Text 'Captured image'}"
-                                                    Margin="0,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
-                                                <ui:InspectionImageView x:Name="FiducialResultView" Source="{Binding FiducialImage}"
-                                                    DetectedFiducial="{Binding DetectedFiducial}" ShowCrosshair="False"
-                                                    Height="120" IsHitTestVisible="False"/>
-                                            </DockPanel>
-                                        </Border>
-                                    </Grid>
-                                </Border>
-                            </Grid>
-                        </TabItem>
-                        <TabItem Header="{ui:Text 'Related I/O'}">
-                            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
-                        </TabItem>
-                    </TabControl>
+                                <TextBlock x:Name="AlignmentTestResultText" Text="{Binding AlignmentTestResult}" TextWrapping="Wrap" Margin="0,0,0,6">
+                                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
+                                        <DataTrigger Binding="{Binding AlignmentTestResult}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                    </Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding InspectionTestMessage}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="InspectionTestErrorText" Text="{Binding InspectionTestError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="0,0,0,6">
+                                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
+                                        <DataTrigger Binding="{Binding InspectionTestError}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                    </Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
                     <ContentPresenter Grid.Row="1" Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}">
                         <ContentPresenter.Style>
                             <Style TargetType="ContentPresenter">

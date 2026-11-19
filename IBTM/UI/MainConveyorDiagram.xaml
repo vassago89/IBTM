@@ -3,7 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:ui="clr-namespace:IBTM.UI" xmlns:app="clr-namespace:IBTM"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
     Width="1552"
@@ -61,9 +61,20 @@
                 </Border>
             </Grid>
 
-            <Border Canvas.Left="18" Canvas.Top="64" Width="1516" Height="112"
-                Tag="{Binding Signals.Outputs[MainConveyorRun].IsOn}"
-                Style="{StaticResource ConveyorBedStyle}"/>
+            <Grid Canvas.Left="18" Canvas.Top="64" Width="1516" Height="112">
+                <Border Tag="{Binding Signals.Outputs[MainConveyorRun].IsOn}" Style="{StaticResource ConveyorBedStyle}"/>
+                <Border>
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.MainConveyor}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                </Border>
+            </Grid>
 
             <Border Canvas.Left="18" Canvas.Top="-8" Width="170" Padding="10,4"
                 Style="{StaticResource DeviceBodyStyle}">
@@ -155,9 +166,11 @@
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.PlacementStopperLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StopperTop}"
                 Tag="{Binding Placement.Station.Stopper}"
                 Style="{StaticResource StopperVisualStyle}"/>
-            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.PlateTop}"
-                Tag="{Binding Fastening.Station.BackupPlate}"
-                Style="{StaticResource BackupPlateVisualStyle}"/>
+            <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.PlateTop}" Panel.ZIndex="1">
+                <Border Tag="{Binding Fastening.Station.BackupPlate}" Style="{StaticResource BackupPlateVisualStyle}"/>
+                <Border Panel.ZIndex="2" Style="{StaticResource AlarmOutlineStyle}"
+                    Visibility="{Binding Fastening.Station.Motion.MonitorAxes[Z].Sample.Faulted, Converter={StaticResource BoolToVis}}"/>
+            </Grid>
             <ui:CarrierView Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
                 Panel.ZIndex="2"
                 HeatSink1Present="{Binding Signals.Inputs[BoltFasteningHeatSink1Present].IsOn}"

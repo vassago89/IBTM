@@ -162,7 +162,7 @@
             <Border Grid.RowSpan="5" Width="{x:Static ui:MachineDiagramLayout.NgConveyorWidth}"
                 Tag="{Binding Signals.Outputs[NgConveyorRun].IsOn}"
                 Style="{StaticResource ConveyorBedStyle}"/>
-            <Border Grid.RowSpan="5" Margin="-4">
+            <Border Grid.RowSpan="5">
                 <Border.Style>
                     <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
                         <Style.Triggers>
@@ -176,9 +176,6 @@
                                 <Setter Property="Visibility" Value="Hidden"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.NgConveyor}">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.NgShuttle}">
                                 <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger>
                         </Style.Triggers>
@@ -201,22 +198,35 @@
                         </Style>
                     </ui:CarrierView.Style>
                 </ui:CarrierView>
-                <Border x:Name="NgShuttle">
-                    <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource NgPositionStyle}">
-                            <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-                            <Setter Property="BorderThickness" Value="2"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static device:StationCylinderState.Up}">
-                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static device:StationCylinderState.Down}">
-                                    <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                </Border>
+                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border x:Name="NgShuttle">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource NgPositionStyle}">
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static device:StationCylinderState.Up}">
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static device:StationCylinderState.Down}">
+                                        <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource AlarmOutlineStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Alarm}" Value="{x:Static app:MachineAlarm.NgShuttle}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                </Grid>
             </Grid>
             <TextBlock Grid.Row="1" Text="P3" Style="{StaticResource PositionLabelStyle}"/>
             <Grid Grid.Row="2" Height="{x:Static ui:MachineDiagramLayout.NgPositionHeight}">
