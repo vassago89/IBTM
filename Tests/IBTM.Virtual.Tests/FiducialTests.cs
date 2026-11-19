@@ -138,7 +138,13 @@ public sealed class FiducialTests
         var found = FiducialDetector.Detect(image, mark, 0.1);
         Assert.Equal(registered.Center, found.Center);
         Assert.InRange(found.ShapeError, 0, mark.MaximumShapeError);
-        Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(CircleImage((100, 100, 14)), mark, 0.1));
+        var circle = CircleImage((100, 100, 14));
+        var rejected = Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(circle, mark, 0.1));
+        var candidate = FiducialDetector.Detect(circle, mark, 0.1, registering: true);
+        Assert.Contains($"{candidate.RadiusPixels * 2 * 0.1:0.###} mm", rejected.Message);
+        var withClutter = CircleImage((100, 100, 14), (30, 100, 3), (0, 100, 14));
+        var withClutterRejected = Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(withClutter, mark, 0.1));
+        Assert.Equal(rejected.Message, withClutterRejected.Message);
     }
 
     [Fact]

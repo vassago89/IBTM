@@ -82,7 +82,7 @@ public static class FiducialDetector
         var maskDidNotFit = false;
         var clipped = 0;
         double? closestDiameter = null;
-        double? lowestShapeError = null;
+        (double Error, double Diameter)? closestShape = null;
         var tolerance = referenceDiameter * mark.SizeTolerancePercent / 100;
         foreach (var contour in contours)
         {
@@ -114,10 +114,9 @@ public static class FiducialDetector
                 error = Cv2.MatchShapes(reference, candidate, ShapeMatchModes.I3);
                 if (!double.IsFinite(error) || error > mark.MaximumShapeError)
                 {
-                    if (double.IsFinite(error))
-                        lowestShapeError = Math.Min(lowestShapeError ?? error, error);
-                    else
-                        lowestShapeError ??= double.PositiveInfinity;
+                    var rejectedError = double.IsFinite(error) ? error : double.PositiveInfinity;
+                    if (closestShape is null || rejectedError < closestShape.Value.Error)
+                        closestShape = (rejectedError, diameterMm);
                     continue;
                 }
                 // Search the candidate neighbourhood, keeping the mask centre on this candidate.
@@ -158,17 +157,18 @@ public static class FiducialDetector
         if (best is not null)
             return best;
 
-        var reasons = new List<string>();
         if (maskDidNotFit)
-            reasons.Add(UiText.Get("Reference mask does not fit the candidate search window"));
+            throw new FiducialDetectionException(UiText.Get("Reference mask does not fit the candidate search window"));
+        if (closestShape is { } candidateShape)
+            throw new FiducialDetectionException(double.IsFinite(candidateShape.Error)
+                ? UiText.Format($"Shape error {candidateShape.Error:G4} (maximum {mark.MaximumShapeError:G4}) · Candidate diameter {candidateShape.Diameter:0.###} mm · Match not scored")
+                : UiText.Get("Shape comparison produced no finite score"));
+
+        var reasons = new List<string>();
         if (clipped > 0)
             reasons.Add(UiText.Format($"{clipped} contours touch the edge of the {region.Width} px search area"));
         if (closestDiameter is { } closest)
             reasons.Add(UiText.Format($"Closest diameter {closest:0.###} mm (allowed {referenceDiameter - tolerance:0.###}–{referenceDiameter + tolerance:0.###} mm)"));
-        if (lowestShapeError is { } lowest)
-            reasons.Add(double.IsFinite(lowest)
-                ? UiText.Format($"Lowest shape error {lowest:G4} (maximum {mark.MaximumShapeError:G4})")
-                : UiText.Get("Shape comparison produced no finite score"));
         if (reasons.Count == 0)
             reasons.Add(contours.Length == 0
                 ? UiText.Format($"No foreground contour at threshold {mark.Threshold}")

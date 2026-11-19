@@ -1779,8 +1779,9 @@ public partial class TeachingViewModel : ObservableObject
 
     private async Task CaptureFiducialAsync(bool registering, CancellationToken cancellationToken)
     {
-        if (!IsFiducialCaptureAllowed || SelectedPoint?.Fiducial is not { } mark)
+        if (!IsFiducialCaptureAllowed || SelectedPoint is not { Fiducial: { } mark } point)
             return;
+        var pcb = SelectedPcb;
         var viewToken = _viewCancellation.Token;
         var activeToken = cancellationToken;
         try
@@ -1837,6 +1838,12 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested || viewToken.IsCancellationRequested)
         {
+        }
+        catch (FiducialDetectionException exception)
+        {
+            CameraError = UiText.Get(exception);
+            _logger.LogWarning("Fiducial {Operation} failed on {Pcb}/{Mark}: {Reason}",
+                registering ? "registration" : "search", pcb, point.Name, CameraError);
         }
         catch (Exception exception)
         {

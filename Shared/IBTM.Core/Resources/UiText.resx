@@ -3562,7 +3562,7 @@ Supply: PCB 1, travel Z</value>
   <data name="{0} contours meet the criteria; narrow the search area" xml:space="preserve"><value>{0} contours meet the criteria; narrow the search area</value></data>
   <data name="{0} contours touch the edge of the {1} px search area" xml:space="preserve"><value>{0} contours touch the edge of the {1} px search area</value></data>
   <data name="closest diameter {0:0.###} mm (allowed {1:0.###}–{2:0.###} mm)" xml:space="preserve"><value>Closest diameter {0:0.###} mm (allowed {1:0.###}–{2:0.###} mm)</value></data>
-  <data name="lowest shape error {0:g4} (maximum {1:g4})" xml:space="preserve"><value>Lowest shape error {0:G4} (maximum {1:G4})</value></data>
+  <data name="shape error {0:g4} (maximum {1:g4}) · candidate diameter {2:0.###} mm · match not scored" xml:space="preserve"><value>Shape error {0:G4} (maximum {1:G4}) · Candidate diameter {2:0.###} mm · Match not scored</value></data>
   <data name="shape comparison produced no finite score" xml:space="preserve"><value>Shape comparison produced no finite score</value></data>
   <data name="no foreground contour at threshold {0}" xml:space="preserve"><value>No foreground contour at threshold {0}</value></data>
   <data name="only small contours at threshold {0} (minimum 5 points and 4 px²)" xml:space="preserve"><value>Only small contours at threshold {0} (minimum 5 points and 4 px²)</value></data>

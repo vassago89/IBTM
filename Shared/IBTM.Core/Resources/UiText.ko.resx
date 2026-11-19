@@ -3560,7 +3560,7 @@
   <data name="{0} contours meet the criteria; narrow the search area" xml:space="preserve"><value>조건에 맞는 윤곽 {0}개 · 탐색 폭을 줄이세요</value></data>
   <data name="{0} contours touch the edge of the {1} px search area" xml:space="preserve"><value>탐색 경계에 닿은 윤곽 {0}개 (폭 {1} px)</value></data>
   <data name="closest diameter {0:0.###} mm (allowed {1:0.###}–{2:0.###} mm)" xml:space="preserve"><value>가장 가까운 후보 지름 {0:0.###} mm (허용 {1:0.###}~{2:0.###} mm)</value></data>
-  <data name="lowest shape error {0:g4} (maximum {1:g4})" xml:space="preserve"><value>최소 형상 오차 {0:G4} (상한 {1:G4})</value></data>
+  <data name="shape error {0:g4} (maximum {1:g4}) · candidate diameter {2:0.###} mm · match not scored" xml:space="preserve"><value>형상 오차 {0:G4} (상한 {1:G4}) · 후보 지름 {2:0.###} mm · 매칭 점수 미산출</value></data>
   <data name="shape comparison produced no finite score" xml:space="preserve"><value>형상 오차 계산 불가</value></data>
   <data name="no foreground contour at threshold {0}" xml:space="preserve"><value>임계값 {0}에서 흰색 윤곽 없음</value></data>
   <data name="only small contours at threshold {0} (minimum 5 points and 4 px²)" xml:space="preserve"><value>임계값 {0}에서 작은 윤곽만 검출 (최소 5점 · 면적 4 px²)</value></data>
