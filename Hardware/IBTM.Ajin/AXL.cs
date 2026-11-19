@@ -40,68 +40,74 @@ using System.Runtime.InteropServices;
 
 public class CAXL
 {
-//========== ë¼ì´ë¸ŒëŸ¬ë¦¬ ì´ˆê¸°í™” ========================================================================
+//========== ¶óÀÌºê·¯¸® ÃÊ±âÈ­ ========================================================================
 
-    // ë¼ì´ë¸ŒëŸ¬ë¦¬ ì´ˆê¸°í™”
+    // ¶óÀÌºê·¯¸® ÃÊ±âÈ­
     [DllImport("AXL.dll")] public static extern uint AxlOpen(int lIrqNo);
-    // ë¼ì´ë¸ŒëŸ¬ë¦¬ ì´ˆê¸°í™”ì‹œ í•˜ë“œì›¨ì–´ ì¹©ì— ë¦¬ì…‹ì„ í•˜ì§€ ì•ŠìŒ.
+    // ¶óÀÌºê·¯¸® ÃÊ±âÈ­½Ã ÇÏµå¿ş¾î Ä¨¿¡ ¸®¼ÂÀ» ÇÏÁö ¾ÊÀ½.
     [DllImport("AXL.dll")] public static extern uint AxlOpenNoReset(uint lIrqNo);
-    // ë¼ì´ë¸ŒëŸ¬ë¦¬ ì‚¬ìš©ì„ ì¢…ë£Œ
+    // ¶óÀÌºê·¯¸® »ç¿ëÀ» Á¾·á
     [DllImport("AXL.dll")] public static extern int  AxlClose();
-    // ë¼ì´ë¸ŒëŸ¬ë¦¬ê°€ ì´ˆê¸°í™” ë˜ì–´ ìˆëŠ” ì§€ í™•ì¸
+    // ¶óÀÌºê·¯¸®°¡ ÃÊ±âÈ­ µÇ¾î ÀÖ´Â Áö È®ÀÎ
     [DllImport("AXL.dll")] public static extern int  AxlIsOpened();
 
-    // ì¸í„°ëŸ½íŠ¸ë¥¼ ì‚¬ìš©í•œë‹¤.
+    // ÀÎÅÍ·´Æ®¸¦ »ç¿ëÇÑ´Ù.
     [DllImport("AXL.dll")] public static extern uint AxlInterruptEnable();
-    // ì¸í„°ëŸ½íŠ¸ë¥¼ ì‚¬ìš©ì•ˆí•œë‹¤.
+    // ÀÎÅÍ·´Æ®¸¦ »ç¿ë¾ÈÇÑ´Ù.
     [DllImport("AXL.dll")] public static extern uint AxlInterruptDisable();
 
-//========== ë¼ì´ë¸ŒëŸ¬ë¦¬ ë° ë² ì´ìŠ¤ ë³´ë“œ ì •ë³´ ===========================================================
+//========== ¶óÀÌºê·¯¸® ¹× º£ÀÌ½º º¸µå Á¤º¸ ===========================================================
 
-    // ë“±ë¡ëœ ë² ì´ìŠ¤ ë³´ë“œì˜ ê°œìˆ˜ í™•ì¸
+    // µî·ÏµÈ º£ÀÌ½º º¸µåÀÇ °³¼ö È®ÀÎ
     [DllImport("AXL.dll")] public static extern uint AxlGetBoardCount(ref int lpBoardCount);
-    // ë¼ì´ë¸ŒëŸ¬ë¦¬ ë²„ì „ í™•ì¸
+    // ¶óÀÌºê·¯¸® ¹öÀü È®ÀÎ
     [DllImport("AXL.dll")] public static extern uint AxlGetLibVersion(ref byte szVersion);
-    // Networkì œí’ˆì˜ ê° ëª¨ë“ˆë³„ ì—°ê²°ìƒíƒœë¥¼ í™•ì¸í•˜ëŠ” í•¨ìˆ˜
+    // NetworkÁ¦Ç°ÀÇ °¢ ¸ğµâº° ¿¬°á»óÅÂ¸¦ È®ÀÎÇÏ´Â ÇÔ¼ö
     [DllImport("AXL.dll")] public static extern uint AxlGetModuleNodeStatus(int nBoardNo, int nModulePos);
-    // í•´ë‹¹ ë³´ë“œê°€ ì œì–´ ê°€ëŠ¥í•œ ìƒíƒœì¸ì§€ ë°˜í™˜í•œë‹¤.
+    // ÇØ´ç º¸µå°¡ Á¦¾î °¡´ÉÇÑ »óÅÂÀÎÁö ¹İÈ¯ÇÑ´Ù.
     [DllImport("AXL.dll")] public static extern uint AxlGetBoardStatus(int nBoardNo);
-    // Network ì œí’ˆì˜ Configuration Lock ìƒíƒœë¥¼ ë°˜í™˜í•œë‹¤.
+    // Network Á¦Ç°ÀÇ Configuration Lock »óÅÂ¸¦ ¹İÈ¯ÇÑ´Ù.
     // *wpLockMode  : DISABLE(0), ENABLE(1)
     [DllImport("AXL.dll")] public static extern uint AxlGetLockMode(int nBoardNo, ref uint upLockMode);
 
     [DllImport("AXL.dll")]
     public static extern uint AxlSetLockMode(int nBoardNo, uint upLockMode);
 
-    // Network ì œí’ˆì˜ ScanTime ìƒíƒœë¥¼ ì„¤ì •í•œë‹¤.
+    // Network Á¦Ç°ÀÇ ScanTime »óÅÂ¸¦ ¼³Á¤ÇÑ´Ù.
     [DllImport("AXL.dll")]
     public static extern uint AxlSetNetComTime(int nBoardNo, byte szNetComTime);
 
-    // Network ì œí’ˆì˜ ScanTime ìƒíƒœë¥¼ ë°˜í™˜í•œë‹¤.
+    // Network Á¦Ç°ÀÇ ScanTime »óÅÂ¸¦ ¹İÈ¯ÇÑ´Ù.
     [DllImport("AXL.dll")]
     public static extern uint AxlGetNetComTime(int nBoardNo, ref byte szNetComTime);
-//========= ë¡œê·¸ ë ˆë²¨ =================================================================================
+//========= ·Î±× ·¹º§ =================================================================================
 
-    // EzSpyì— ì¶œë ¥í•  ë©”ì‹œì§€ ë ˆë²¨ ì„¤ì •
-    // uLevel : 0 - 3 ì„¤ì •
-    // LEVEL_NONE(0)    : ëª¨ë“  ë©”ì‹œì§€ë¥¼ ì¶œë ¥í•˜ì§€ ì•ŠëŠ”ë‹¤.
-    // LEVEL_ERROR(1)   : ì—ëŸ¬ê°€ ë°œìƒí•œ ë©”ì‹œì§€ë§Œ ì¶œë ¥í•œë‹¤.
-    // LEVEL_RUNSTOP(2) : ëª¨ì…˜ì—ì„œ Run / Stop ê´€ë ¨ ë©”ì‹œì§€ë¥¼ ì¶œë ¥í•œë‹¤.
-    // LEVEL_FUNCTION(3): ëª¨ë“  ë©”ì‹œì§€ë¥¼ ì¶œë ¥í•œë‹¤.
+    // EzSpy¿¡ Ãâ·ÂÇÒ ¸Ş½ÃÁö ·¹º§ ¼³Á¤
+    // uLevel : 0 - 3 ¼³Á¤
+    // LEVEL_NONE(0)    : ¸ğµç ¸Ş½ÃÁö¸¦ Ãâ·ÂÇÏÁö ¾Ê´Â´Ù.
+    // LEVEL_ERROR(1)   : ¿¡·¯°¡ ¹ß»ıÇÑ ¸Ş½ÃÁö¸¸ Ãâ·ÂÇÑ´Ù.
+    // LEVEL_RUNSTOP(2) : ¸ğ¼Ç¿¡¼­ Run / Stop °ü·Ã ¸Ş½ÃÁö¸¦ Ãâ·ÂÇÑ´Ù.
+    // LEVEL_FUNCTION(3): ¸ğµç ¸Ş½ÃÁö¸¦ Ãâ·ÂÇÑ´Ù.
     [DllImport("AXL.dll")] public static extern uint AxlSetLogLevel(uint uLevel);
-    // EzSpyì— ì¶œë ¥í•  ë©”ì‹œì§€ ë ˆë²¨ í™•ì¸
+    // EzSpy¿¡ Ãâ·ÂÇÒ ¸Ş½ÃÁö ·¹º§ È®ÀÎ
     [DllImport("AXL.dll")] public static extern uint AxlGetLogLevel(ref uint upLevel);
 
 //========== MLIII =================================================================================
-    // Networkì œí’ˆì˜ ê° ëª¨ë“ˆì„ ê²€ìƒ‰ì„ ì‹œì‘í•˜ëŠ” í•¨ìˆ˜
+    // NetworkÁ¦Ç°ÀÇ °¢ ¸ğµâÀ» °Ë»öÀ» ½ÃÀÛÇÏ´Â ÇÔ¼ö
     [DllImport("AXL.dll")] public static extern uint AxlScanStart(int lBoardNo, long lNet);
-    // Networkì œí’ˆ ê° ë³´ë“œì˜ ëª¨ë“  ëª¨ë“ˆì„ connectí•˜ëŠ” í•¨ìˆ˜
+    // NetworkÁ¦Ç° °¢ º¸µåÀÇ ¸ğµç ¸ğµâÀ» connectÇÏ´Â ÇÔ¼ö
     [DllImport("AXL.dll")] public static extern uint AxlBoardConnect(int lBoardNo, long lNet);
-    // Networkì œí’ˆ ê° ë³´ë“œì˜ ëª¨ë“  ëª¨ë“ˆì„ Disconnectí•˜ëŠ” í•¨ìˆ˜
+    // NetworkÁ¦Ç° °¢ º¸µåÀÇ ¸ğµç ¸ğµâÀ» DisconnectÇÏ´Â ÇÔ¼ö
     [DllImport("AXL.dll")] public static extern uint AxlBoardDisconnect(int lBoardNo, long lNet);
 
 //========== SIIIH =================================================================================
-    // SIIIH ë§ˆìŠ¤í„° ë³´ë“œì— ì—°ê²°ëœ ëª¨ë“ˆì— ëŒ€í•œ ê²€ìƒ‰ì„ ì‹œì‘í•˜ëŠ” í•¨ìˆ˜(SIIIH ë§ˆìŠ¤í„° ë³´ë“œ ì „ìš©)
+    // SIIIH ¸¶½ºÅÍ º¸µå¿¡ ¿¬°áµÈ ¸ğµâ¿¡ ´ëÇÑ °Ë»öÀ» ½ÃÀÛÇÏ´Â ÇÔ¼ö(SIIIH ¸¶½ºÅÍ º¸µå Àü¿ë)
     [DllImport("AXL.dll")] public static extern uint AxlScanStartSIIIH(ref _SCAN_RESULT pScanResult);
+
+    // SW License
+
+    // @brief ¶óÀÌ¼±½º ¸¸·á ³¯Â¥ È®ÀÎ 
+    // ÁÖÀÇÁ¡: ÇÔ¼ö È£Ãâ ¼º°ø ½Ã 0À» ¹İÈ¯ÇÏ¸ç, ½ÇÆĞ ½Ã ¿À·ù ÄÚµå¸¦ ¹İÈ¯ÇÕ´Ï´Ù.
+    [DllImport("AXL.dll")] public static extern uint AxlGetLicenseExpiryTime(SYSTEMTIME* expiryTime); 
 }
 

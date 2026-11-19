@@ -23,7 +23,7 @@
 ** ---------------------
 ** 
 ** (None)
-**  
+**
 **
 *****************************************************************************
 *****************************************************************************
@@ -1575,4 +1575,16 @@ public enum _CNTCOMMAND
     CnRamDataWithRamAddress                             = 0x30,                         // READ RAM DATA WITH RAM ADDR PORT ADDRESS
     CnRamDataWrite                                      = 0xB0,                         // RAM DATA WRITE
     CnRamDataRead                                       = 0x31                          // RAM DATA READ, 32BIT
+}
+public enum _AXT_LICENSE_CHECK:uint
+{
+	AXT_LICENSE_PVT							= 0x1,
+	AXT_LICENSE_DWELL						= 0x2,
+	AXT_LICENSE_2D_COMPENSATION				= 0x4,
+	AXT_LICENSE_INPUT_SHAPING				= 0x8,
+	AXT_LICENSE_ADV_MOTION_FEATURES			= 0x10,
+	AXT_LICENSE_EZ_ROAL						= 0x20,
+	AXT_LICENSE_EZ_ROAL_REAL_TIME			= 0x40,
+	AXT_LICENSE_EZ_EMUL						= 0x80,
+	AXT_LICENSE_REMOTE_MANAGER				= 0x100
 }
