@@ -60,6 +60,13 @@
                             <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
                                 <Setter Property="Content" Value="{ui:Text 'Saving...'}"/>
                             </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsFiducialSelected}" Value="True"/>
+                                    <Condition Binding="{Binding ElementName=FiducialActions, Path=IsEnabled}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="IsEnabled" Value="False"/>
+                            </MultiDataTrigger>
                             <DataTrigger Binding="{Binding ElementName=TeachingRoot, Path=(Validation.HasError)}" Value="True">
                                 <Setter Property="IsEnabled" Value="False"/>
                             </DataTrigger>
@@ -454,56 +461,46 @@
                             </ScrollViewer.Style>
                             <StackPanel>
                                 <StackPanel x:Name="FiducialPanel" Margin="0,8,0,0" Visibility="{Binding IsFiducialSelected, Converter={StaticResource BoolToVis}}" IsEnabled="{Binding State.SetupEditingEnabled}">
-                                    <StackPanel.BindingGroup><BindingGroup Name="FiducialInputs"/></StackPanel.BindingGroup>
                                     <WrapPanel Margin="0,4,0,0">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
                                             <TextBlock Text="{ui:Text 'Threshold (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                             <Slider Width="88" Minimum="0" Maximum="255" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True"
                                                 Value="{Binding SelectedPoint.Fiducial.Threshold, UpdateSourceTrigger=PropertyChanged}"
                                                 AutomationProperties.Name="{ui:Text 'Threshold (0–255)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox x:Name="FiducialThresholdInput" Width="50" Text="{Binding SelectedPoint.Fiducial.Threshold, BindingGroupName=FiducialInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                            <TextBox x:Name="FiducialThresholdInput" Width="50" Text="{Binding SelectedPoint.Fiducial.Threshold, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
                                         <CheckBox Content="{ui:Text 'White mark'}" IsChecked="{Binding SelectedPoint.Fiducial.WhiteMark, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
                                             <TextBlock Text="{ui:Text 'Search width (px)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox Width="55" Text="{Binding SelectedPoint.Fiducial.SearchSizePixels, BindingGroupName=FiducialInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                            <TextBox x:Name="FiducialSizeInput" Width="55" Text="{Binding SelectedPoint.Fiducial.SearchSizePixels, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
                                     </WrapPanel>
                                     <WrapPanel Margin="0,0,0,4">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
                                             <TextBlock Text="{ui:Text 'Maximum shape error'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox Width="65" Text="{Binding SelectedPoint.Fiducial.MaximumShapeError, BindingGroupName=FiducialInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                            <TextBox x:Name="FiducialShapeInput" Width="65" Text="{Binding SelectedPoint.Fiducial.MaximumShapeError, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
                                             <TextBlock Text="{ui:Text 'Size tolerance (%)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox Width="55" Text="{Binding SelectedPoint.Fiducial.SizeTolerancePercent, BindingGroupName=FiducialInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                            <TextBox x:Name="FiducialToleranceInput" Width="55" Text="{Binding SelectedPoint.Fiducial.SizeTolerancePercent, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
                                     </WrapPanel>
-                                    <WrapPanel Margin="0,0,0,2">
-                                        <Button Content="{ui:Text 'Register mark'}" Command="{Binding RegisterFiducialCommand}" Padding="12,7" Margin="0,0,8,4">
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                                <Setter Property="IsEnabled" Value="{Binding IsFiducialCaptureAllowed}"/>
-                                                <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
-                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                </DataTrigger></Style.Triggers>
-                                            </Style></Button.Style>
-                                        </Button>
-                                        <Button Content="{ui:Text 'Find mark'}" Command="{Binding FindFiducialCommand}" Padding="12,7" Margin="0,0,8,4">
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Setter Property="IsEnabled" Value="{Binding IsFiducialCaptureAllowed}"/>
-                                                <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
-                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                </DataTrigger></Style.Triggers>
-                                            </Style></Button.Style>
-                                        </Button>
-                                        <Button x:Name="CheckAlignmentButton" Content="{ui:Text 'Check both marks'}"
-                                            Command="{Binding CheckAlignmentCommand}" Padding="12,7" Margin="0,0,8,4">
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Style.Triggers><DataTrigger Binding="{Binding ElementName=FiducialPanel, Path=BindingGroup.HasValidationError}" Value="True">
-                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                </DataTrigger></Style.Triggers>
-                                            </Style></Button.Style>
-                                        </Button>
+                                    <WrapPanel x:Name="FiducialActions" Margin="0,0,0,2">
+                                        <WrapPanel.Style><Style TargetType="WrapPanel">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ElementName=FiducialThresholdInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=FiducialSizeInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=FiducialShapeInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=FiducialToleranceInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style></WrapPanel.Style>
+                                        <Button Content="{ui:Text 'Register mark'}" Command="{Binding RegisterFiducialCommand}" IsEnabled="{Binding IsFiducialCaptureAllowed}"
+                                            Style="{StaticResource PrimaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
+                                        <Button Content="{ui:Text 'Find mark'}" Command="{Binding FindFiducialCommand}" IsEnabled="{Binding IsFiducialCaptureAllowed}"
+                                            Style="{StaticResource SecondaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
+                                        <Button x:Name="CheckAlignmentButton" Content="{ui:Text 'Check both marks'}" Command="{Binding CheckAlignmentCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
                                     </WrapPanel>
                                     <WrapPanel Margin="0,0,0,6">
                                         <CheckBox Content="{ui:Text 'Fiducial alignment'}" IsChecked="{Binding SelectedFiducials.Enabled, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0"/>
