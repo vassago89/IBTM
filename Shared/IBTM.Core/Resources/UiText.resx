@@ -3559,6 +3559,9 @@ Supply: PCB 1, travel Z</value>
   <data name="fiducial 2" xml:space="preserve"><value>Fiducial 2</value></data>
   <data name="finding fiducials" xml:space="preserve"><value>Finding fiducials</value></data>
   <data name="fiducial alignment" xml:space="preserve"><value>Fiducial alignment</value></data>
+  <data name="reference radius (mm)" xml:space="preserve"><value>Reference radius (mm)</value></data>
+  <data name="enter a positive fiducial radius" xml:space="preserve"><value>Enter a positive fiducial radius</value></data>
+  <data name="measured radius: {0:0.###} mm" xml:space="preserve"><value>Measured radius {0:0.###} mm</value></data>
   <data name="white mark" xml:space="preserve"><value>White mark</value></data>
   <data name="search width (px)" xml:space="preserve"><value>Search width (px)</value></data>
   <data name="maximum shape error" xml:space="preserve"><value>Maximum shape error</value></data>

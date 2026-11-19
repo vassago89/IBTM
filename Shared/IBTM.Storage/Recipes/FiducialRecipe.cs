@@ -12,7 +12,6 @@ public sealed class FiducialRecipe
         Second = new();
     }
 
-    public bool Enabled { get; set; }
     public FiducialMark First { get; set; }
     public FiducialMark Second { get; set; }
 }
@@ -53,6 +52,17 @@ public sealed partial class FiducialMark : ObservableObject
             SetProperty(ref field, value);
         }
     } = 200;
+
+    public double? ReferenceRadiusMm
+    {
+        get;
+        set
+        {
+            if (value is { } radius && (!double.IsFinite(radius) || radius <= 0))
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Enter a positive fiducial radius"));
+            field = value;
+        }
+    }
 
     public double MaximumShapeError
     {

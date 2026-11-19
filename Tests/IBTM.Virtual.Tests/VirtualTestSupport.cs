@@ -136,7 +136,7 @@ internal static class VirtualTestSupport
             new RecipeManager(OpenMachineStore(), new()), CreateHeightController(), new() { PortName = "Virtual" });
     }
 
-    public static void TeachInspectionHeights(Recipe recipe)
+    public static void TeachInspectionReferences(Recipe recipe)
     {
         foreach (var bolt in recipe.Pcb.BoltPoints)
         {
@@ -145,10 +145,26 @@ internal static class VirtualTestSupport
         }
         foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
         {
+            TeachVirtualFiducials(recipe.BoltInspection.GetFiducials(pcb));
             var reference = recipe.BoltInspection.GetHeightReference(pcb);
             reference.Point1 = new() { X = 0, Y = 0 };
             reference.Point2 = new() { X = 1, Y = 0 };
             reference.Point3 = new() { X = 0, Y = 1 };
+        }
+    }
+
+    public static void TeachVirtualFiducials(FiducialRecipe marks)
+    {
+        foreach (var (mark, x, y) in new[] { (marks.First, 2, 2), (marks.Second, 38, 28) })
+        {
+            var frame = VirtualImageFactory.CreateInspection((x, y, 0), [], []);
+            mark.CameraPosition = new() { X = x, Y = y };
+            mark.ReferenceRadiusMm = 0.6;
+            mark.SearchSizePixels = 48;
+            mark.WhiteMark = true;
+            mark.Contour = FiducialDetector.Detect(frame, mark, VirtualImageFactory.InspectionMillimetersPerPixel, registering: true).Contour;
+            mark.ImageWidth = frame.Width;
+            mark.ImageHeight = frame.Height;
         }
     }
 

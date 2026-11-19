@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -13,6 +12,7 @@ namespace IBTM.UI;
 public sealed class InspectionImageView : FrameworkElement
 {
     private static readonly Pen s_regionPen;
+    private static readonly Pen s_referenceRadiusPen;
     private static readonly Pen s_crosshairOutlinePen;
     private static readonly Pen s_crosshairPen;
 
@@ -28,11 +28,14 @@ public sealed class InspectionImageView : FrameworkElement
 
     public static readonly DependencyProperty RegionCommandProperty;
     public static readonly DependencyProperty FiducialSearchSizeProperty;
+    public static readonly DependencyProperty ReferenceRadiusPixelsProperty;
     public static readonly DependencyProperty DetectedFiducialProperty;
 
     static InspectionImageView()
     {
         s_regionPen = CreateFrozenPen(Color.FromRgb(74, 222, 128), 2.5);
+        s_referenceRadiusPen = new Pen(Brushes.DeepSkyBlue, 2) { DashStyle = DashStyles.Dash };
+        s_referenceRadiusPen.Freeze();
         s_crosshairOutlinePen = CreateFrozenPen(Colors.Black, 3);
         s_crosshairPen = CreateFrozenPen(Color.FromRgb(251, 191, 36), 1);
         SourceProperty = DependencyProperty.Register(
@@ -61,6 +64,9 @@ public sealed class InspectionImageView : FrameworkElement
             typeof(InspectionImageView));
         FiducialSearchSizeProperty = DependencyProperty.Register(
             nameof(FiducialSearchSize), typeof(int?), typeof(InspectionImageView),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+        ReferenceRadiusPixelsProperty = DependencyProperty.Register(
+            nameof(ReferenceRadiusPixels), typeof(double?), typeof(InspectionImageView),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
         DetectedFiducialProperty = DependencyProperty.Register(
             nameof(DetectedFiducial), typeof(FiducialDetection), typeof(InspectionImageView),
@@ -114,6 +120,12 @@ public sealed class InspectionImageView : FrameworkElement
         set => SetValue(DetectedFiducialProperty, value);
     }
 
+    public double? ReferenceRadiusPixels
+    {
+        get => (double?)GetValue(ReferenceRadiusPixelsProperty);
+        set => SetValue(ReferenceRadiusPixelsProperty, value);
+    }
+
     protected override void OnRender(DrawingContext drawing)
     {
         base.OnRender(drawing);
@@ -143,8 +155,7 @@ public sealed class InspectionImageView : FrameworkElement
 
         if (DetectedFiducial is { Contour.Length: > 0 } found && _dragPoint is null)
         {
-            var radius = Math.Sqrt(found.Contour.Average(point =>
-                Math.Pow(point.X - found.Center.X, 2) + Math.Pow(point.Y - found.Center.Y, 2))) * scale;
+            var radius = found.RadiusPixels * scale;
             var detectedCenter = new Point(fitted.X + found.Center.X * scale, fitted.Y + found.Center.Y * scale);
             drawing.DrawEllipse(null, s_crosshairOutlinePen, detectedCenter, radius, radius);
             drawing.DrawEllipse(null, s_regionPen, detectedCenter, radius, radius);
@@ -152,10 +163,17 @@ public sealed class InspectionImageView : FrameworkElement
             drawing.DrawLine(s_regionPen, new(detectedCenter.X, detectedCenter.Y - 8), new(detectedCenter.X, detectedCenter.Y + 8));
         }
 
+        var center = new Point(fitted.X + fitted.Width / 2, fitted.Y + fitted.Height / 2);
+        if (ReferenceRadiusPixels is > 0 and { } referenceRadius
+            && referenceRadius <= double.Hypot(source.PixelWidth, source.PixelHeight) / 2)
+        {
+            drawing.PushClip(new RectangleGeometry(fitted));
+            drawing.DrawEllipse(null, s_referenceRadiusPen, center, referenceRadius * scale, referenceRadius * scale);
+            drawing.Pop();
+        }
         if (!ShowCrosshair || DetectedFiducial is not null)
             return;
 
-        var center = new Point(fitted.X + fitted.Width / 2, fitted.Y + fitted.Height / 2);
         var arm = Math.Min(24, Math.Min(fitted.Width, fitted.Height) / 2);
         var left = new Point(center.X - arm, center.Y);
         var right = new Point(center.X + arm, center.Y);

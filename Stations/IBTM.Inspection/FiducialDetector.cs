@@ -6,7 +6,7 @@ using OpenCvSharp;
 
 namespace IBTM.Inspection;
 
-public sealed record FiducialDetection(Point2D Center, double ShapeError, Point2D[] Contour);
+public sealed record FiducialDetection(Point2D Center, double RadiusPixels, double ShapeError, Point2D[] Contour);
 
 public sealed class FiducialDetectionException : InvalidOperationException
 {
@@ -25,13 +25,35 @@ public static class FiducialDetector
         return new(DateTimeOffset.Now, first, second);
     }
 
-    public static FiducialDetection Detect(ImageFrame frame, FiducialMark mark, bool registering = false)
+    public static double? GetReferenceRadiusMm(FiducialMark mark, double? mmPerPixel)
+    {
+        if (mark.ReferenceRadiusMm is { } radius)
+            return radius;
+        // Older recipes used the area of the registered contour as the size reference.
+        if (mark.Contour.Length < 5 || mmPerPixel is not > 0)
+            return null;
+        var twiceArea = 0d;
+        var previous = mark.Contour[^1];
+        foreach (var point in mark.Contour)
+        {
+            twiceArea += previous.X * point.Y - point.X * previous.Y;
+            previous = point;
+        }
+        var area = Math.Abs(twiceArea) / 2;
+        return double.IsFinite(area) && area >= 4 ? Math.Sqrt(area / Math.PI) * mmPerPixel : null;
+    }
+
+    public static FiducialDetection Detect(ImageFrame frame, FiducialMark mark, double? mmPerPixel, bool registering = false)
     {
         if (frame.Width <= 0 || frame.Height <= 0 || frame.Stride < (long)frame.Width * 3
             || frame.Pixels.LongLength < (long)frame.Stride * frame.Height)
             throw new ArgumentException(UiText.Get("Invalid image buffer."), nameof(frame));
         if (!registering && (mark.Contour.Length < 5 || mark.ImageWidth != frame.Width || mark.ImageHeight != frame.Height))
             throw new InvalidOperationException(UiText.Get("Register the fiducial contour"));
+        if (mmPerPixel is not { } resolution || !double.IsFinite(resolution) || resolution <= 0)
+            throw new InvalidOperationException(UiText.Get("Set camera resolution"));
+        var referenceRadius = GetReferenceRadiusMm(mark, resolution)
+            ?? throw new InvalidOperationException(UiText.Get("Enter a positive fiducial radius"));
 
         var region = PixelRegion.CenteredSquare(frame.Width, frame.Height, mark.SearchSizePixels);
         var search = new Rect(region.X, region.Y, region.Width, region.Height);
@@ -42,8 +64,7 @@ public static class FiducialDetector
             new Point(search.X, search.Y));
         using var reference = registering ? null
             : InputArray.Create(mark.Contour.Select(point => new Point2f((float)point.X, (float)point.Y)).ToArray());
-        var referenceArea = registering ? 0 : Math.Abs(Cv2.ContourArea(reference!));
-        if (!registering && (!double.IsFinite(referenceArea) || referenceArea < 4))
+        if (reference is not null && !(Math.Abs(Cv2.ContourArea(reference)) >= 4))
             throw new InvalidOperationException(UiText.Get("Register the fiducial contour"));
         var accepted = new List<FiducialDetection>();
         foreach (var contour in contours)
@@ -56,17 +77,16 @@ public static class FiducialDetector
                 || bounds.Left <= search.Left || bounds.Top <= search.Top
                 || bounds.Right >= search.Right || bounds.Bottom >= search.Bottom)
                 continue;
-            // Reject non-circular features before comparing the taught hole's shape and size.
+            var radiusPixels = Math.Sqrt(area / Math.PI);
+            var radiusMm = radiusPixels * resolution;
+            if (Math.Abs(radiusMm - referenceRadius) > referenceRadius * mark.SizeTolerancePercent / 100)
+                continue;
             var perimeter = Cv2.ArcLength(contour, true);
             if (4 * Math.PI * area / (perimeter * perimeter) < 0.8)
                 continue;
             var error = 0d;
             if (!registering)
             {
-                // Area-derived size is independent of the mark's in-plane rotation.
-                var sizeRatio = Math.Sqrt(area / referenceArea);
-                if (Math.Abs(sizeRatio - 1) * 100 > mark.SizeTolerancePercent)
-                    continue;
                 using var candidate = InputArray.Create(contour);
                 error = Cv2.MatchShapes(reference!, candidate, ShapeMatchModes.I3);
                 if (!double.IsFinite(error) || error > mark.MaximumShapeError)
@@ -74,7 +94,7 @@ public static class FiducialDetector
             }
 
             var points = contour.Select(point => new Point2D(point.X, point.Y)).ToArray();
-            accepted.Add(new(FitCircle(points), error, points));
+            accepted.Add(new(FitCircle(points), radiusPixels, error, points));
         }
         return accepted.Count switch
         {

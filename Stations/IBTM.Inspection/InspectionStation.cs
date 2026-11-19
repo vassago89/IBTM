@@ -379,16 +379,13 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                                 throw new InvalidOperationException(UiText.Format($"Set the height limits for {BoltPoint.GetDisplayName(bolt.Name, _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id))}"));
                         }
                         var fiducials = _recipes.Current.BoltInspection.GetFiducials(pcb);
-                        if (fiducials.Enabled)
+                        foreach (var mark in new[] { fiducials.First, fiducials.Second })
                         {
-                            foreach (var mark in new[] { fiducials.First, fiducials.Second })
-                            {
-                                if (mark.CameraPosition is null || mark.Contour.Length < 5)
-                                    throw new InvalidOperationException(UiText.Get("Register both fiducials"));
-                                _ = _gantrySettings.ToMachinePosition(mark.CameraPosition, new(0, 0), mark.ImageWidth, mark.ImageHeight);
-                            }
-                            points.Add((pcb, null, InspectionPointKind.Fiducials));
+                            if (mark.CameraPosition is null || mark.Contour.Length < 5)
+                                throw new InvalidOperationException(UiText.Get("Register both fiducials"));
+                            _ = _gantrySettings.ToMachinePosition(mark.CameraPosition, new(0, 0), mark.ImageWidth, mark.ImageHeight);
                         }
+                        points.Add((pcb, null, InspectionPointKind.Fiducials));
                         points.Add((pcb, null, InspectionPointKind.Photo));
                         foreach (var bolt in pcbBolts)
                             points.Add((pcb, bolt, InspectionPointKind.Photo));
@@ -840,7 +837,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     {
         await MoveToAsync(mark.CameraPosition!, cancellationToken: cancellationToken);
         var image = await CaptureCurrentAsync(cancellationToken, lightLevel: mark.LightLevel ?? _recipes.Current.BoltInspection.LightLevel);
-        var detection = await Task.Run(() => FiducialDetector.Detect(image, mark), cancellationToken);
+        var detection = await Task.Run(() => FiducialDetector.Detect(image, mark, _gantrySettings.CameraResolution), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var current = _motion.Position;
         var measured = _gantrySettings.ToMachinePosition(new() { X = current.X, Y = current.Y },

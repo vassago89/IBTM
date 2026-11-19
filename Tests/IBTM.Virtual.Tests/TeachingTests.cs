@@ -47,6 +47,7 @@ public sealed class TeachingTests
         var recipe = teaching.Recipes.Current;
         var bolt = new BoltPoint { X = 3, Y = 4, MinimumHeight = 1.4, MaximumHeight = 1.6 };
         recipe.Pcb.BoltPoints = [bolt];
+        TeachVirtualFiducials(recipe.BoltInspection.Fiducials1);
         recipe.BoltInspection.HeightReference1 = new()
         {
             Point1 = new() { X = 0, Y = 0 }, Point2 = new() { X = 10, Y = 0 }, Point3 = new() { X = 0, Y = 10 },
@@ -121,13 +122,13 @@ public sealed class TeachingTests
         var camera = services.GetRequiredService<VirtualCamera>();
         var motion = services.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.InspectionGantry);
         var fiducials = teaching.Recipes.Current.BoltInspection.Fiducials1;
-        fiducials.Enabled = true;
         var referenceImage = FiducialTests.CircleImage((100, 100, 14));
         foreach (var mark in new[] { fiducials.First, fiducials.Second })
         {
             mark.CameraPosition = new() { X = ReferenceEquals(mark, fiducials.First) ? 0 : 10 };
             mark.WhiteMark = true;
-            mark.Contour = FiducialDetector.Detect(referenceImage, mark, registering: true).Contour;
+            mark.ReferenceRadiusMm = 1.4;
+            mark.Contour = FiducialDetector.Detect(referenceImage, mark, settings.InspectionGantry.CameraResolution, registering: true).Contour;
             mark.ImageWidth = mark.ImageHeight = 200;
         }
         teaching.Recipes.Current.BoltInspection.HeightReference1.Point1 = new() { X = 3, Y = 4 };
@@ -186,7 +187,7 @@ public sealed class TeachingTests
         var motion = services.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.InspectionGantry);
         var bolt = new BoltPoint { X = 3, Y = 4, MinimumHeight = 0, MaximumHeight = 2 };
         teaching.Recipes.Current.Pcb.BoltPoints = [bolt];
-        TeachInspectionHeights(teaching.Recipes.Current);
+        TeachInspectionReferences(teaching.Recipes.Current);
         var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         controller.FrameTransferred += (direction, bytes) =>
         {

@@ -564,6 +564,8 @@ public partial class TeachingViewModel : ObservableObject
         InspectionTestMessage = null;
         InspectionTestError = null;
         OnPropertyChanged(nameof(IsFiducialSelected));
+        OnPropertyChanged(nameof(FiducialReferenceRadiusMm));
+        OnPropertyChanged(nameof(FiducialReferenceRadiusPixels));
         OnPropertyChanged(nameof(FiducialRegistration));
         if (PositionUpdatesActive)
             SubscribeMotionChanges();
@@ -615,7 +617,6 @@ public partial class TeachingViewModel : ObservableObject
 
     private void RefreshTeachingPoints()
     {
-        OnPropertyChanged(nameof(SelectedFiducials));
         var selectedTarget = SelectedPoint?.Position.Target;
         var selectedBolt = SelectedPoint?.Position.Bolt;
         var unitMotionGroup = IsFasteningSelected ? MotionGroup.BoltFastening : ActiveMotionGroup;
@@ -1680,24 +1681,23 @@ public partial class TeachingViewModel : ObservableObject
             activeToken = operation.Token;
             await _cameraStop;
             await Inspection.PrepareMeasurementAsync(operation.Token);
-            var alignment = SelectedFiducials.Enabled
-                ? await MeasureTeachingAlignmentAsync(pcb, operation.Token) : null;
+            var alignment = await MeasureTeachingAlignmentAsync(pcb, operation.Token);
             HeightReferencePlane? plane = null;
             if (bolt is not null)
             {
                 InspectionTestMessage = UiText.Get("Height reference 1");
                 var first = await Inspection.MeasureHeightAtAsync(
-                    alignment?.Transform(reference.Point1!) ?? reference.Point1!, operation.Token);
+                    alignment.Transform(reference.Point1!), operation.Token);
                 InspectionTestMessage = UiText.Get("Height reference 2");
                 var second = await Inspection.MeasureHeightAtAsync(
-                    alignment?.Transform(reference.Point2!) ?? reference.Point2!, operation.Token);
+                    alignment.Transform(reference.Point2!), operation.Token);
                 InspectionTestMessage = UiText.Get("Height reference 3");
                 var third = await Inspection.MeasureHeightAtAsync(
-                    alignment?.Transform(reference.Point3!) ?? reference.Point3!, operation.Token);
+                    alignment.Transform(reference.Point3!), operation.Token);
                 plane = new(DateTimeOffset.Now, first, second, third);
             }
             InspectionTestMessage = point.Name;
-            var sample = await Inspection.MeasureHeightAtAsync(alignment?.Transform(position) ?? position, operation.Token);
+            var sample = await Inspection.MeasureHeightAtAsync(alignment.Transform(position), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             HeightTestResult = UiText.Format($"Measured: {sample.Value:0.###} mm");
             if (bolt is not null && plane is not null)
@@ -1725,8 +1725,23 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    public FiducialRecipe SelectedFiducials => Recipes.Current.BoltInspection.GetFiducials(SelectedPcb);
     public bool IsFiducialSelected => SelectedPoint?.Fiducial is not null;
+    public double? FiducialReferenceRadiusMm
+    {
+        get => SelectedPoint?.Fiducial is { } mark
+            ? FiducialDetector.GetReferenceRadiusMm(mark, _settings.InspectionGantry.CameraResolution) : null;
+        set
+        {
+            if (SelectedPoint?.Fiducial is not { } mark)
+                return;
+            mark.ReferenceRadiusMm = value ?? throw new ArgumentException(UiText.Get("Enter a positive fiducial radius"));
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(FiducialReferenceRadiusPixels));
+        }
+    }
+
+    public double? FiducialReferenceRadiusPixels => FiducialReferenceRadiusMm / _settings.InspectionGantry.CameraResolution;
+
     public string FiducialRegistration
     {
         get
@@ -1736,7 +1751,8 @@ public partial class TeachingViewModel : ObservableObject
                 return UiText.Get(mark is { CameraPosition: not null, Contour.Length: >= 5 }
                     ? "Registered" : "Not registered");
             }
-            return UiText.Format($"Fiducial 1: {Status(SelectedFiducials.First)} / Fiducial 2: {Status(SelectedFiducials.Second)}");
+            var marks = Recipes.Current.BoltInspection.GetFiducials(SelectedPcb);
+            return UiText.Format($"Fiducial 1: {Status(marks.First)} / Fiducial 2: {Status(marks.Second)}");
         }
     }
     public bool IsFiducialCaptureAllowed => IsFiducialSelected && IsTeachCurrentPositionAllowed
@@ -1783,11 +1799,15 @@ public partial class TeachingViewModel : ObservableObject
             var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, LiveLightLevel);
             FiducialImage = InspectionPreviewViewModel.CreateBitmap(captured.Frame);
             var learnContour = registering || mark.Contour.Length < 5;
-            var found = await Task.Run(() => FiducialDetector.Detect(captured.Frame, mark, learnContour), operation.Token);
+            var resolution = _settings.InspectionGantry.CameraResolution
+                ?? throw new InvalidOperationException(UiText.Get("Set camera resolution"));
+            var found = await Task.Run(() => FiducialDetector.Detect(captured.Frame, mark, resolution, learnContour), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             DetectedFiducial = found;
             if (registering)
             {
+                // Keep the original size reference when re-registering a legacy recipe.
+                mark.ReferenceRadiusMm ??= FiducialDetector.GetReferenceRadiusMm(mark, resolution);
                 mark.CameraPosition = captured.Center;
                 mark.Contour = found.Contour;
                 mark.ImageWidth = captured.Frame.Width;
@@ -1808,14 +1828,12 @@ public partial class TeachingViewModel : ObservableObject
             }
             else
             {
-                var center = _settings.InspectionGantry.CameraResolution.HasValue
-                    ? _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center, captured.Frame.Width, captured.Frame.Height)
-                    : found.Center;
-                var unit = _settings.InspectionGantry.CameraResolution.HasValue ? "mm" : "px";
-                FiducialMessage = $"X {center.X:0.###}  Y {center.Y:0.###} {unit}";
+                var center = _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center, captured.Frame.Width, captured.Frame.Height);
+                FiducialMessage = $"X {center.X:0.###}  Y {center.Y:0.###} mm";
                 if (!learnContour)
                     FiducialMessage += $"   {UiText.Get("Shape error")} {found.ShapeError:F5}";
             }
+            FiducialMessage += "   " + UiText.Format($"Measured radius: {found.RadiusPixels * resolution:0.###} mm");
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested || viewToken.IsCancellationRequested)
         {

@@ -377,7 +377,8 @@
                                 <TabItem x:Name="CameraTab" Tag="{Binding CameraImage}" Header="{ui:Text 'Camera'}">
                                     <Grid Background="{StaticResource ImageBackgroundBrush}" ClipToBounds="True">
                                         <ui:InspectionImageView x:Name="TeachingCameraView" Source="{Binding CameraImage}" ShowCrosshair="True"
-                                            FiducialSearchSize="{Binding SelectedPoint.Fiducial.SearchSizePixels, Mode=OneWay}">
+                                            FiducialSearchSize="{Binding SelectedPoint.Fiducial.SearchSizePixels, Mode=OneWay}"
+                                            ReferenceRadiusPixels="{Binding FiducialReferenceRadiusPixels}">
                                             <ui:InspectionImageView.Style>
                                                 <Style TargetType="ui:InspectionImageView">
                                                     <Setter Property="DetectedFiducial" Value="{Binding DetectedFiducial}"/>
@@ -425,6 +426,7 @@
                                     <Border Background="{StaticResource ImageBackgroundBrush}">
                                         <ui:InspectionImageView x:Name="FiducialResultView" Source="{Binding FiducialImage}"
                                             FiducialSearchSize="{Binding SelectedPoint.Fiducial.SearchSizePixels, Mode=OneWay}"
+                                            ReferenceRadiusPixels="{Binding FiducialReferenceRadiusPixels}"
                                             DetectedFiducial="{Binding DetectedFiducial}" ShowCrosshair="False" IsHitTestVisible="False"/>
                                     </Border>
                                 </TabItem>
@@ -436,16 +438,17 @@
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                 <TextBlock Text="{ui:Text 'Search area · binary'}" FontWeight="SemiBold" Padding="4,8" MinHeight="42"/>
                                 <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
-                                    <Image x:Name="BinaryPreview" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor">
-                                        <Image.Source>
+                                    <ui:InspectionImageView x:Name="BinaryPreview" ShowCrosshair="False" IsHitTestVisible="False"
+                                        ReferenceRadiusPixels="{Binding FiducialReferenceRadiusPixels}" RenderOptions.BitmapScalingMode="NearestNeighbor">
+                                        <ui:InspectionImageView.Source>
                                             <MultiBinding Converter="{StaticResource FiducialBinaryConverter}" Mode="OneWay">
                                                 <Binding ElementName="InspectionCameraTabs" Path="SelectedItem.Tag"/>
                                                 <Binding Path="SelectedPoint.Fiducial.SearchSizePixels"/>
                                                 <Binding Path="SelectedPoint.Fiducial.Threshold"/>
                                                 <Binding Path="SelectedPoint.Fiducial.WhiteMark"/>
                                             </MultiBinding>
-                                        </Image.Source>
-                                    </Image>
+                                        </ui:InspectionImageView.Source>
+                                    </ui:InspectionImageView>
                                 </Border>
                             </Grid>
                         </Grid>
@@ -477,6 +480,10 @@
                                     </WrapPanel>
                                     <WrapPanel Margin="0,0,0,4">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                                            <TextBlock Text="{ui:Text 'Reference radius (mm)'}" Foreground="DeepSkyBlue" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBox x:Name="FiducialRadiusInput" Width="72" Text="{Binding FiducialReferenceRadiusMm, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
                                             <TextBlock Text="{ui:Text 'Maximum shape error'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                             <TextBox x:Name="FiducialShapeInput" Width="65" Text="{Binding SelectedPoint.Fiducial.MaximumShapeError, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
@@ -492,6 +499,7 @@
                                                 <DataTrigger Binding="{Binding ElementName=FiducialSizeInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=FiducialShapeInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=FiducialToleranceInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=FiducialRadiusInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                                 <DataTrigger Binding="{Binding ElementName=LiveLightInput, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
                                             </Style.Triggers>
                                         </Style></WrapPanel.Style>
@@ -502,10 +510,7 @@
                                         <Button x:Name="CheckAlignmentButton" Content="{ui:Text 'Check both marks'}" Command="{Binding CheckAlignmentCommand}"
                                             Style="{StaticResource SecondaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
                                     </WrapPanel>
-                                    <WrapPanel Margin="0,0,0,6">
-                                        <CheckBox Content="{ui:Text 'Fiducial alignment'}" IsChecked="{Binding SelectedFiducials.Enabled, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0"/>
-                                        <TextBlock Text="{Binding FiducialRegistration}" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
-                                    </WrapPanel>
+                                    <TextBlock Text="{Binding FiducialRegistration}" Margin="0,0,0,6" Foreground="{StaticResource TextMutedBrush}"/>
                                     <TextBlock Text="{Binding FiducialMessage}" Style="{StaticResource StatusMessageStyle}"/>
                                 </StackPanel>
                                 <StackPanel Visibility="{Binding IsHeightTestSelected, Converter={StaticResource BoolToVis}}" Margin="0,8,0,6">

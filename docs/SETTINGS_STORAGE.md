@@ -130,8 +130,8 @@ InspectionGantrySettings의 ProbeOffsetX/Y는 카메라 티칭 위치에서 LVDT
 레시피 BoltInspection.HeightReference1/2에 PCB별 기준면 세 XY를, BoltPoint.MinimumHeight/MaximumHeight에 상대 높이 범위를 저장한다.
 PcbRecord.HeightReference/HeightResults는 PCB 결과 JSON에 저장한다. 토크 그래프나 이미지 데이터와는 별개다.
 
-피듀셜: 레시피 BoltInspection.Fiducials1/2에 사용 여부와 두 원형 구멍의 카메라 XY·윤곽 픽셀·등록 해상도·조명·검출 조건을 저장한다.
-InspectionGantrySettings.CameraResolution은 촬영면 기준 해상도(mm/pixel)다. 설정 → 카메라 조명에서 양수 하나를 입력하며 레시피와 별개로 두 PCB에 공통 적용한다.
+각 PCB 검사는 두 피듀셜로 위치를 보정한다. 레시피 BoltInspection.Fiducials1/2에는 마크별 카메라 XY·윤곽 픽셀·등록 영상 크기·조명·기준 반지름(mm)·검출 조건을 저장한다. 크기 허용 오차(%)는 기준 반지름에 적용한다. 반지름 입력값이 없는 기존 마크는 저장된 윤곽 면적과 카메라 해상도로 기준 반지름을 구한다.
+InspectionGantrySettings.CameraResolution은 촬영면 기준 해상도(mm/pixel)다. 설정 → 카메라 · LVDT · 조명에서 양수 하나를 입력하며 레시피와 별개로 두 PCB에 공통 적용한다.
 영상 오른쪽은 장비 X+, 아래쪽은 Y−로 변환한다. 해상도 미설정 상태에서는 피듀셜 좌표를 계산하지 않는다.
 PcbRecord.Alignment에는 해당 검사에서 측정한 두 기준 좌표·검출 좌표·형상 오차·시각을 저장한다.
 검출 실패 시 Alignment는 null이며 PcbRecord.FiducialError에 실패 원인, IsFiducialNgExcluded에 당시 NG 제외 설정을 저장한다. 나중에 장비 설정을 바꿔도 과거 판정은 바뀌지 않는다.

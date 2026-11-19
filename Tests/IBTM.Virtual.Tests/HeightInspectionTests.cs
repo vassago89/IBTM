@@ -121,15 +121,15 @@ public sealed class HeightInspectionTests
         foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
         {
             var fiducials = recipes.Current.BoltInspection.GetFiducials(pcb);
-            fiducials.Enabled = true;
             var x = pcb == HeatSinkSlot.HeatSink1 ? 0 : 20;
             fiducials.First.CameraPosition = new() { X = x };
             fiducials.Second.CameraPosition = new() { X = x + (pcb == HeatSinkSlot.HeatSink1 ? 10 : 2) };
             foreach (var mark in new[] { fiducials.First, fiducials.Second })
             {
                 mark.WhiteMark = true;
+                mark.ReferenceRadiusMm = 1.4;
                 // The registered hole is deliberately off-centre in the camera image.
-                mark.Contour = FiducialDetector.Detect(FiducialTests.CircleImage((105, 95, 14)), mark, registering: true).Contour;
+                mark.Contour = FiducialDetector.Detect(FiducialTests.CircleImage((105, 95, 14)), mark, settings.CameraResolution, registering: true).Contour;
                 mark.ImageWidth = mark.ImageHeight = 200;
             }
         }

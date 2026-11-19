@@ -1266,6 +1266,10 @@ public sealed class UiBindingTests
         fiducialCamera.SourceImage = holeImage;
         var cameraSettings = services.GetRequiredService<MachineSettings>().InspectionGantry;
         cameraSettings.CameraResolution = 0.1;
+        var radiusInput = (TextBox)teachingView.FindName("FiducialRadiusInput");
+        radiusInput.Text = "1.4";
+        radiusInput.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        Assert.Equal(14, teaching.FiducialReferenceRadiusPixels!.Value, 8);
         await services.GetRequiredService<InspectionStation>().HomeHorizontalAsync();
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
         Assert.True(await VirtualTestSupport.WaitUntilAsync(() => teaching.IsFiducialCaptureAllowed, TimeSpan.FromSeconds(2)));
@@ -1291,6 +1295,7 @@ public sealed class UiBindingTests
         Assert.Same(teaching.FiducialImage, fiducialResultView.Source);
         Assert.Same(teaching.DetectedFiducial, fiducialResultView.DetectedFiducial);
         Assert.Null(teachingCameraView.RegionCommand);
+        Assert.Equal(14, teachingCameraView.ReferenceRadiusPixels!.Value, 8);
         Assert.Equal(teaching.SelectedPoint.Fiducial.SearchSizePixels, teachingCameraView.FiducialSearchSize);
         teaching.LiveImage = InspectionPreviewViewModel.CreateBitmap(FiducialTests.CircleImage((110, 95, 14)));
         Assert.Same(teaching.LiveImage, teaching.CameraImage);

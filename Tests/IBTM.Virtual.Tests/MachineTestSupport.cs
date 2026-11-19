@@ -280,6 +280,7 @@ public static class MachineTestSupport
         settings.BoltFastening.PickupHead = new();
         settings.BoltFastening.ShootingHead = new();
         settings.InspectionGantry.Motion = FastMotion();
+        settings.InspectionGantry.CameraResolution = VirtualImageFactory.InspectionMillimetersPerPixel;
         settings.NgCarrierTransfer.WaitingPosition = new() { X = 5, Y = 20 };
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 5, Y = 20 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 150, Y = 20 };
@@ -467,7 +468,7 @@ public static class MachineTestSupport
 
     public static void TeachInspectionFovs(Recipe recipe)
     {
-        VirtualTestSupport.TeachInspectionHeights(recipe);
+        VirtualTestSupport.TeachInspectionReferences(recipe);
         recipe.CarrierImages = recipe.Pcb.BoltPoints.Select((bolt, index) => new CarrierImageTile
         {
             Number = index + 1,
