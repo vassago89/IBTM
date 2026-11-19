@@ -40,6 +40,27 @@ public sealed class FiducialTests
     }
 
     [Fact]
+    public void CalibratedRadiusFiltersRegistrationAndOverridesLegacyContourSize()
+    {
+        var image = CircleImage((100, 100, 14));
+        var mark = new FiducialMark { ReferenceRadiusMm = 1.4, WhiteMark = true };
+        var found = FiducialDetector.Detect(image, mark, 0.1, registering: true);
+        Assert.InRange(found.RadiusPixels * 0.1, 1.3, 1.4);
+        Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(image, mark, 0.05, registering: true));
+        Assert.Throws<InvalidOperationException>(() => FiducialDetector.Detect(image, mark, null, registering: true));
+        mark.Contour = found.Contour;
+        mark.ImageWidth = image.Width;
+        mark.ImageHeight = image.Height;
+        mark.ReferenceRadiusMm = null;
+        Assert.Equal(found.RadiusPixels * 0.1, FiducialDetector.GetReferenceRadiusMm(mark, 0.1)!.Value, 8);
+        Assert.Equal(found.Center, FiducialDetector.Detect(image, mark, 0.1).Center);
+
+        mark.ReferenceRadiusMm = 2;
+        Assert.Throws<FiducialDetectionException>(() => FiducialDetector.Detect(image, mark, 0.1));
+        Assert.Equal(found.Center, FiducialDetector.Detect(CircleImage((100, 100, 21)), mark, 0.1).Center);
+    }
+
+    [Fact]
     public void NonCircularContourCannotBeRegisteredAsAHole()
     {
         ImageFrame CrossImage(double angle, int shift, byte foreground)

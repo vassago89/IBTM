@@ -481,15 +481,15 @@
                                     <WrapPanel Margin="0,0,0,4">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
                                             <TextBlock Text="{ui:Text 'Reference radius (mm)'}" Foreground="DeepSkyBlue" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox x:Name="FiducialRadiusInput" Width="72" Text="{Binding FiducialReferenceRadiusMm, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                            <TextBox x:Name="FiducialRadiusInput" Width="72" Text="{Binding FiducialReferenceRadiusMm, StringFormat={}{0:0.####}, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                                            <TextBlock Text="{ui:Text 'Radius tolerance (±%)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBox x:Name="FiducialToleranceInput" Width="55" Text="{Binding SelectedPoint.Fiducial.SizeTolerancePercent, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
                                             <TextBlock Text="{ui:Text 'Maximum shape error'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                             <TextBox x:Name="FiducialShapeInput" Width="65" Text="{Binding SelectedPoint.Fiducial.MaximumShapeError, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
-                                            <TextBlock Text="{ui:Text 'Size tolerance (%)'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox x:Name="FiducialToleranceInput" Width="55" Text="{Binding SelectedPoint.Fiducial.SizeTolerancePercent, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                         </StackPanel>
                                     </WrapPanel>
                                     <WrapPanel x:Name="FiducialActions" Margin="0,0,0,2">

@@ -3563,7 +3563,7 @@
   <data name="white mark" xml:space="preserve"><value>밝은 마크</value></data>
   <data name="search width (px)" xml:space="preserve"><value>탐색 폭 (px)</value></data>
   <data name="maximum shape error" xml:space="preserve"><value>형상 오차 한도</value></data>
-  <data name="size tolerance (%)" xml:space="preserve"><value>크기 허용 오차 (%)</value></data>
+  <data name="radius tolerance (±%)" xml:space="preserve"><value>반지름 허용 오차 (±%)</value></data>
   <data name="find mark" xml:space="preserve"><value>마크 찾기</value></data>
   <data name="register the fiducial contour" xml:space="preserve"><value>윤곽 등록 필요</value></data>
   <data name="contour registered; save the recipe" xml:space="preserve"><value>윤곽 등록됨 · 레시피 저장 필요</value></data>
