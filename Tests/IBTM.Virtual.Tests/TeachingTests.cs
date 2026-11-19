@@ -166,7 +166,7 @@ public sealed class TeachingTests
     }
 
     [Fact]
-    public async Task InspectionTeachingChecksBothMarksAndAppliesFreshAlignmentToHeightTest()
+    public async Task InspectionTeachingUsesBothMarksForBoltXyAndAppliesFreshAlignmentToHeightTest()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -178,6 +178,12 @@ public sealed class TeachingTests
         var camera = services.GetRequiredService<VirtualCamera>();
         var motion = services.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.InspectionGantry);
         var fiducials = teaching.Recipes.Current.BoltInspection.Fiducials1;
+        var bolt = new BoltPoint
+        {
+            Head = FasteningHead.Pickup, X = 3, Y = 4, FasteningX = 30, FasteningY = 40,
+            PreliminaryFasteningPosition = new() { X = 50, Y = 60 },
+        };
+        teaching.Recipes.Current.Pcb.BoltPoints.Add(bolt);
         var referenceImage = FiducialTests.CircleImage((100, 100, 14));
         foreach (var mark in new[] { fiducials.First, fiducials.Second })
         {
@@ -194,6 +200,11 @@ public sealed class TeachingTests
         teaching.Activate();
         try
         {
+            var boltPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == bolt);
+            teaching.SelectedPoint = boltPoint;
+            Assert.False(teaching.IsRecordInspectionBoltPositionAllowed);
+            await teaching.RecordInspectionBoltPositionCommand.ExecuteAsync(null);
+            Assert.Equal((3d, 4d), (bolt.X, bolt.Y));
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.Fiducial1);
             await WaitUntilAsync(() => teaching.CheckAlignmentCommand.CanExecute(null));
             await teaching.CheckAlignmentCommand.ExecuteAsync(null);
@@ -203,6 +214,35 @@ public sealed class TeachingTests
             Assert.Equal(10, motion.Position.X, 3);
             Assert.Null(teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1).Alignment);
             Assert.Equal(0, fiducials.First.MarkPosition!.X);
+
+            teaching.SelectedPoint = boltPoint;
+            await teaching.Inspection.MoveToAsync(new() { X = 18, Y = 27.5 });
+            await WaitUntilAsync(() => teaching.IsRecordInspectionBoltPositionAllowed);
+            await teaching.RecordInspectionBoltPositionCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            await teaching.SaveCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            var stored = services.GetRequiredService<MachineStore>().LoadRecipe(teaching.Recipes.Current.Name)
+                .Pcb.BoltPoints.Single(point => point.Id == bolt.Id);
+            Assert.Equal(17d, stored.X!.Value, 6);
+            Assert.Equal(27d, stored.Y!.Value, 6);
+            Assert.Equal((30d, 40d), (stored.FasteningX, stored.FasteningY));
+            Assert.Equal((50d, 60d), (stored.PreliminaryFasteningPosition!.X, stored.PreliminaryFasteningPosition.Y));
+            await teaching.Inspection.MoveToAsync(new() { X = 5, Y = 2 });
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Equal(18, motion.Position.X, 6);
+            Assert.Equal(27.5, motion.Position.Y, 6);
+
+            await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
+            Assert.Null(teaching.CameraError);
+            var added = teaching.SelectedPoint!.Position.Bolt!;
+            Assert.NotEqual(bolt.Id, added.Id);
+            Assert.Equal((stored.X, stored.Y), (added.X, added.Y));
+            var io = services.GetRequiredService<VirtualIoService>();
+            var presence = InputIo.InspectionHeatSink1Present;
+            io.SetInput(presence, !io.GetInput(presence));
+            Assert.False(teaching.IsRecordInspectionBoltPositionAllowed);
 
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.HeightReference1);
             // Each trial reads the current product again instead of reusing the previous correction.
@@ -218,6 +258,10 @@ public sealed class TeachingTests
             Assert.Null(teaching.AlignmentTestResult);
             Assert.NotNull(teaching.InspectionTestError);
             Assert.Null(teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1).FiducialError);
+            teaching.SelectedPoint = boltPoint;
+            Assert.False(teaching.IsRecordInspectionBoltPositionAllowed);
+            await teaching.RecordInspectionBoltPositionCommand.ExecuteAsync(null);
+            Assert.Equal((stored.X, stored.Y), (bolt.X, bolt.Y));
             teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
             Assert.Null(teaching.AlignmentTestResult);
             Assert.Null(teaching.HeightTestResult);

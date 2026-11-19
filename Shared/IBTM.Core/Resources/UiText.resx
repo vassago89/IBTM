@@ -1728,6 +1728,10 @@ Operation failed Check controller status</value>
   <data name="record image positions with the camera capture command." xml:space="preserve">
     <value>Use Capture for position and image</value>
   </data>
+  <data name="update inspection xy" xml:space="preserve"><value>Update inspection XY</value></data>
+  <data name="check both marks before updating inspection xy" xml:space="preserve"><value>Check both marks before updating inspection XY</value></data>
+  <data name="convert the camera position to recipe xy using both marks" xml:space="preserve"><value>Convert the camera position to recipe XY using both marks</value></data>
+  <data name="carrier changed during fiducial detection" xml:space="preserve"><value>Carrier changed during fiducial detection</value></data>
   <data name="record position" xml:space="preserve">
     <value>Record Position</value>
   </data>

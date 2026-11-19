@@ -12,8 +12,11 @@ public sealed class RecordPositionButton : Button
         if (DataContext is not TeachingViewModel { SelectedPoint: { } point } teaching)
             return;
 
-        var replacement = point.Position.Mode switch
+        var inspectionBolt = Command == teaching.RecordInspectionBoltPositionCommand;
+        var mode = inspectionBolt ? TeachMode.XYOnly : point.Position.Mode;
+        var replacement = mode switch
         {
+            TeachMode.XYOnly when inspectionBolt => UiText.Get("Convert the camera position to recipe XY using both marks"),
             TeachMode.Image => UiText.Get("Update Image + Light"),
             TeachMode.XYOnly => UiText.Get("Replace the recorded X/Y with the current coordinates."),
             TeachMode.ZOnly => UiText.Get("Replace the recorded Z with the current coordinate."),
@@ -21,7 +24,7 @@ public sealed class RecordPositionButton : Button
         };
         var confirmed = WarningDialog.Confirm(
             Window.GetWindow(this),
-            point.Position.Mode == TeachMode.Image ? UiText.Get("Update Image + Light") : UiText.Get("Record current position?"),
+            mode == TeachMode.Image ? UiText.Get("Update Image + Light") : UiText.Get("Record current position?"),
             replacement,
             UiText.Format($"Unit      {UiText.Get(teaching.SelectedTeachingUnit)}\nPoint     {point.Name}\nRecorded (mm)  {point.PositionLabel}"),
             Content?.ToString() ?? UiText.Get("Record Position"));

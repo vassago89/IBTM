@@ -13,7 +13,7 @@ public sealed class MoveToPositionButton : Button
             return;
 
         var unit = teaching.SelectedTeachingUnit;
-        var target = point.PositionLabel;
+        var target = teaching.MoveTargetLabel;
         var command = Command;
         var confirmed = WarningDialog.Confirm(Window.GetWindow(this),
             UiText.Get("Move machine axes?"),
@@ -24,7 +24,7 @@ public sealed class MoveToPositionButton : Button
             || !ReferenceEquals(DataContext, teaching)
             || !ReferenceEquals(teaching.SelectedPoint, point)
             || teaching.SelectedTeachingUnit != unit
-            || point.PositionLabel != target
+            || teaching.MoveTargetLabel != target
             || !ReferenceEquals(Command, command)
             || !command.CanExecute(CommandParameter))
             return;

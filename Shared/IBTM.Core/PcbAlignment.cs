@@ -23,15 +23,23 @@ public sealed record PcbAlignment(DateTimeOffset RecordedAt, FiducialObservation
         }
     }
 
-    public AxisPosition Transform(AxisPosition position)
+    public AxisPosition Transform(AxisPosition position, bool inverse = false)
     {
+        var from = (X: (First.Reference.X + Second.Reference.X) / 2, Y: (First.Reference.Y + Second.Reference.Y) / 2);
+        var to = (X: (First.Measured.X + Second.Measured.X) / 2, Y: (First.Measured.Y + Second.Measured.Y) / 2);
         var angle = AngleDegrees * Math.PI / 180;
-        var x = position.X - (First.Reference.X + Second.Reference.X) / 2;
-        var y = position.Y - (First.Reference.Y + Second.Reference.Y) / 2;
+        if (inverse)
+        {
+            (from, to) = (to, from);
+            angle = -angle;
+        }
+        var (sin, cos) = Math.SinCos(angle);
+        var x = position.X - from.X;
+        var y = position.Y - from.Y;
         return new()
         {
-            X = (First.Measured.X + Second.Measured.X) / 2 + x * Math.Cos(angle) - y * Math.Sin(angle),
-            Y = (First.Measured.Y + Second.Measured.Y) / 2 + x * Math.Sin(angle) + y * Math.Cos(angle),
+            X = to.X + x * cos - y * sin,
+            Y = to.Y + x * sin + y * cos,
             Z = position.Z,
         };
     }

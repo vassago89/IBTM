@@ -571,7 +571,21 @@
                             </Style>
                         </ContentPresenter.Style>
                     </ContentPresenter>
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                    <WrapPanel Grid.Row="2" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <ui:RecordPositionButton Content="{ui:Text 'Update inspection XY'}" Command="{Binding RecordInspectionBoltPositionCommand}"
+                            ToolTip="{ui:Text 'Check both marks before updating inspection XY'}" ToolTipService.ShowOnDisabled="True"
+                            IsEnabled="{Binding IsRecordInspectionBoltPositionAllowed}" Padding="12,8" Margin="0,0,8,0">
+                            <ui:RecordPositionButton.Style>
+                                <Style TargetType="ui:RecordPositionButton" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltReference}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:RecordPositionButton.Style>
+                        </ui:RecordPositionButton>
                         <ui:RecordPositionButton Command="{Binding TeachCurrentPositionCommand}"
                             MinWidth="150" Padding="12,8" Margin="0,0,8,0">
                             <ui:RecordPositionButton.Style>
@@ -621,7 +635,7 @@
                                 </Style>
                             </ui:MoveToPositionButton.Style>
                         </ui:MoveToPositionButton>
-                    </StackPanel>
+                    </WrapPanel>
                 </Grid>
             </Border>
             <Border Grid.Column="4" Style="{StaticResource CardStyle}">

@@ -1728,6 +1728,10 @@
   <data name="record image positions with the camera capture command." xml:space="preserve">
     <value>위치 이미지는 [촬영]으로 기록</value>
   </data>
+  <data name="update inspection xy" xml:space="preserve"><value>검사 XY 갱신</value></data>
+  <data name="check both marks before updating inspection xy" xml:space="preserve"><value>피듀셜에서 두 마크 보정 확인 후 검사 XY 갱신</value></data>
+  <data name="convert the camera position to recipe xy using both marks" xml:space="preserve"><value>두 피듀셜 보정으로 현재 카메라 위치를 레시피 기준 XY로 환산합니다</value></data>
+  <data name="carrier changed during fiducial detection" xml:space="preserve"><value>피듀셜 검출 중 캐리어가 바뀜</value></data>
   <data name="record position" xml:space="preserve">
     <value>위치 기록</value>
   </data>

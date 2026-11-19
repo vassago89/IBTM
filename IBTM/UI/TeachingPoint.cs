@@ -334,6 +334,10 @@ public class TeachingPoint : ObservableObject
             case TeachingTarget.InspectionWaiting:
                 _settings.NgCarrierTransfer.WaitingPosition = position;
                 break;
+            case TeachingTarget.BoltReference:
+                var bolt = _definition.Bolt!;
+                (bolt.X, bolt.Y) = (position.X, position.Y);
+                break;
             case TeachingTarget.HeightReference1:
                 _recipes.Current.BoltInspection.GetHeightReference(_pcb).Point1 = position;
                 break;

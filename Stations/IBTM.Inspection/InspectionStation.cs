@@ -1013,11 +1013,11 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         }, cancellationToken);
     }
 
-    public Task MoveToBoltAsync(BoltPoint point, CancellationToken cancellationToken = default)
+    public Task MoveToBoltAsync(BoltPoint point, CancellationToken cancellationToken = default, PcbAlignment? alignment = null)
     {
         var position = point.InspectionPosition ?? throw new InvalidOperationException(
             UiText.Format($"Record an inspection position for {UiText.Get(point.HeatSink)} bolt {point.Id}."));
-        return MoveToAsync(position, cancellationToken: cancellationToken);
+        return MoveToAsync(alignment?.Transform(position) ?? position, cancellationToken: cancellationToken);
     }
 
     private async Task<ImageFrame> CaptureWithLightAsync(

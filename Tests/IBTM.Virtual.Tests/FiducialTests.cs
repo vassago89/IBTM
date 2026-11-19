@@ -158,6 +158,10 @@ public sealed class FiducialTests
         Assert.Equal(6, corrected.X, 8);
         Assert.Equal(23, corrected.Y, 8);
         Assert.Equal(5, corrected.Z);
+        var reference = alignment.Transform(corrected, inverse: true);
+        Assert.Equal(taught.X, reference.X, 8);
+        Assert.Equal(taught.Y, reference.Y, 8);
+        Assert.Equal(taught.Z, reference.Z);
         Assert.Equal((3d, 4d, 5d), (taught.X, taught.Y, taught.Z));
         var longer = alignment with { Second = new(new(10, 0), new(10, 32), 0) };
         Assert.Equal(10, double.Hypot(longer.Transform(new() { X = 10 }).X - longer.Transform(new()).X,
