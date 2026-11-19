@@ -72,7 +72,10 @@ public partial class StartConfirmationWindow : Window
             ReviewTabs.SelectedIndex = 0;
         else if (e.PropertyName == nameof(OperationViewModel.SelectedFasteningResumeBolt)
             && _viewModel.SelectedFasteningResumeBolt is { } row)
+        {
             FasteningHeatSinkSelector.SelectedValue = row.HeatSink;
+            FasteningBoltList.ScrollIntoView(row);
+        }
     }
 
     private void OnInterruptedBoltClick(object sender, RoutedEventArgs e)
@@ -112,8 +115,7 @@ public partial class StartConfirmationWindow : Window
         _viewModel.CheckStartCommand.Cancel();
         _viewModel.ChangeCarrierWorkCommand.Cancel();
         _viewModel.CompletePlacementCommand.Cancel();
-        _viewModel.CompleteBoltCommand.Cancel();
-        _viewModel.ReworkBoltCommand.Cancel();
+        _viewModel.ChangeBoltWorkCommand.Cancel();
         _viewModel.PrepareStartAreaCommand.Cancel();
         _viewModel.MoveAllToStandbyCommand.Cancel();
         foreach (var row in _viewModel.StartOutputGroups.Values.SelectMany(rows => rows).Distinct())

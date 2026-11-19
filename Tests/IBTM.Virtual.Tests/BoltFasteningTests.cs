@@ -809,7 +809,7 @@ public sealed class BoltFasteningTests
             Assert.Equal((ushort)100, beforeStop.Controller!.TorqueCompensationPercent);
             Assert.False(station.IsFasteningRecorded);
             Assert.Equal("Final tightening pending",
-                new FasteningResumeRow(bolts[0].Id, "Bolt", HeatSinkSlot.HeatSink1, beforeStop).Status);
+                new FasteningResumeRow(bolts[0].Id, "Bolt", HeatSinkSlot.HeatSink1, bolts[0].Head, beforeStop).Status);
         }
         if (resume)
             expectedCompensationReads++;
@@ -1020,7 +1020,7 @@ public sealed class BoltFasteningTests
         firstFinal = firstFinal with { ZFeedDistance = 2.5 };
         assembly.RecordBolt(FasteningHead.Pickup, bolts[0].Id, firstFinal);
         Assert.Equal("Retightening pending",
-            new FasteningResumeRow(bolts[0].Id, "Bolt", HeatSinkSlot.HeatSink1, firstFinal).Status);
+            new FasteningResumeRow(bolts[0].Id, "Bolt", HeatSinkSlot.HeatSink1, bolts[0].Head, firstFinal).Status);
         // Changing the option does not replay or discard the already-pending pass.
         settings.IpmRetighteningEnabled = false;
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(5));

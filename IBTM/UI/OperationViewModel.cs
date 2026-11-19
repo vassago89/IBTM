@@ -32,7 +32,7 @@ public sealed record PlacementResumeRow(
     HeatSinkSlot HeatSink, bool IsCompleted, IAsyncRelayCommand<PlacementResumeRow> CompleteCommand);
 
 public sealed record FasteningResumeRow(
-    Guid BoltId, string Label, HeatSinkSlot HeatSink, BoltResult? Result)
+    Guid BoltId, string Label, HeatSinkSlot HeatSink, FasteningHead Head, BoltResult? Result)
 {
     public string Status => Result is null ? "Not recorded"
         : Result.Source == BoltResultSource.Interrupted ? "Fastening interrupted"
@@ -87,8 +87,7 @@ public partial class OperationViewModel : ObservableObject
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
         CompletePlacementCommand = new AsyncRelayCommand<PlacementResumeRow>(CompletePlacementAsync);
-        CompleteBoltCommand = new AsyncRelayCommand<FasteningResumeRow>(CompleteBoltAsync);
-        ReworkBoltCommand = new AsyncRelayCommand<FasteningResumeRow>(ReworkBoltAsync);
+        ChangeBoltWorkCommand = new AsyncRelayCommand<BoltWorkAction>(ChangeBoltWorkAsync, IsBoltWorkChangeAllowed);
         PrepareStartAreaCommand = new AsyncRelayCommand<StartPreparationAction>(PrepareStartAreaAsync);
         MoveAllToStandbyCommand = new AsyncRelayCommand(MoveAllToStandbyAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -475,7 +474,7 @@ public partial class OperationViewModel : ObservableObject
         return CommandShutdown.WaitAsync(
             CommandShutdown.CancelAndWaitAsync(
                 [StopCommand, ResetCommand, StartCommand, ConfirmStartCommand, CheckStartCommand,
-                    ChangeCarrierWorkCommand, CompletePlacementCommand, CompleteBoltCommand, ReworkBoltCommand,
+                    ChangeCarrierWorkCommand, CompletePlacementCommand, ChangeBoltWorkCommand,
                     PrepareStartAreaCommand, MoveAllToStandbyCommand,
                     HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand, ClearCountsCommand,
                     .. StartOutputGroups.Values.SelectMany(rows => rows).Distinct().Select(row => row.ToggleOutputCommand)]),
@@ -485,6 +484,7 @@ public partial class OperationViewModel : ObservableObject
     public ObservableCollection<FasteningResumeRow> FasteningResumeBolts { get; }
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ChangeBoltWorkCommand))]
     public partial FasteningResumeRow? SelectedFasteningResumeBolt { get; set; }
 
     public ObservableCollection<PlacementResumeRow> PlacementResumeTargets { get; }
@@ -526,12 +526,12 @@ public partial class OperationViewModel : ObservableObject
         && Enum.GetValues<HeatSinkSlot>().All(pcb => Fastening.Station.IsHeatSinkPresent(pcb)
             == FasteningResumeBolts.Any(row => row.HeatSink == pcb));
 
-    private void RefreshFasteningResume()
+    private void RefreshFasteningResume(Guid? advanceAfterBoltId = null)
     {
         // Every explicit check requires a new operator confirmation; sensor edges cannot grant it.
         IsFasteningResumeConfirmed = false;
         _reviewedFasteningJob = Fastening.Station.CurrentJob;
-        var selectedId = SelectedFasteningResumeBolt?.BoltId;
+        var selectedId = advanceAfterBoltId ?? SelectedFasteningResumeBolt?.BoltId;
         FasteningResumeBolts.Clear();
         foreach (var bolt in Recipes.Current.Pcb.GetFasteningPoints(_fasteningSettings.FirstFasteningHead)
             .Where(bolt => State.Available && Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)))
@@ -539,9 +539,19 @@ public partial class OperationViewModel : ObservableObject
             var assembly = Fastening.Station.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
             var result = assembly?.ShootingBoltResults.GetValueOrDefault(bolt.Id)
                 ?? assembly?.PickupBoltResults.GetValueOrDefault(bolt.Id);
-            FasteningResumeBolts.Add(new(bolt.Id, Recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, result));
+            FasteningResumeBolts.Add(new(bolt.Id, Recipes.Current.Pcb.GetBoltName(bolt.Id), bolt.HeatSink, bolt.Head, result));
         }
-        SelectedFasteningResumeBolt = FasteningResumeBolts.FirstOrDefault(row => row.BoltId == selectedId)
+        var selected = FasteningResumeBolts.FirstOrDefault(row => row.BoltId == selectedId);
+        if (advanceAfterBoltId.HasValue && selected is not null)
+        {
+            var index = FasteningResumeBolts.IndexOf(selected);
+            var heatSink = selected.HeatSink;
+            var following = FasteningResumeBolts.Skip(index + 1).Concat(FasteningResumeBolts.Take(index));
+            selected = following.FirstOrDefault(row => row.HeatSink == heatSink && row.Result is not { IsComplete: true })
+                ?? FasteningResumeBolts.FirstOrDefault(row => row.HeatSink != heatSink && row.Result is not { IsComplete: true })
+                ?? selected;
+        }
+        SelectedFasteningResumeBolt = selected
             ?? FasteningResumeBolts.FirstOrDefault(row => row.Result?.Source == BoltResultSource.Interrupted)
             ?? FasteningResumeBolts.FirstOrDefault(row => row.Result is not { IsComplete: true })
             ?? FasteningResumeBolts.FirstOrDefault();
@@ -577,8 +587,7 @@ public partial class OperationViewModel : ObservableObject
     public IRelayCommand<StartArea> SelectStartAreaCommand { get; }
     public IAsyncRelayCommand<CarrierWorkAction> ChangeCarrierWorkCommand { get; }
     public IAsyncRelayCommand<PlacementResumeRow> CompletePlacementCommand { get; }
-    public IAsyncRelayCommand<FasteningResumeRow> CompleteBoltCommand { get; }
-    public IAsyncRelayCommand<FasteningResumeRow> ReworkBoltCommand { get; }
+    public IAsyncRelayCommand<BoltWorkAction> ChangeBoltWorkCommand { get; }
     public IAsyncRelayCommand<StartPreparationAction> PrepareStartAreaCommand { get; }
     public IAsyncRelayCommand MoveAllToStandbyCommand { get; }
 
@@ -690,31 +699,34 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    private Task CompleteBoltAsync(FasteningResumeRow? row, CancellationToken cancellationToken)
+    private bool IsBoltWorkChangeAllowed(BoltWorkAction action)
     {
-        return ChangeBoltWorkAsync(row, true, cancellationToken);
+        if (SelectedFasteningResumeBolt is not { } row)
+            return false;
+        return action switch
+        {
+            BoltWorkAction.CompletePreliminary => MachineController.IsPreliminaryCompletionAllowed(row.Head, row.Result),
+            BoltWorkAction.Complete => row.Result is not { Source: BoltResultSource.Manual, IsComplete: true },
+            BoltWorkAction.Rework => row.Result is not null,
+            _ => false,
+        };
     }
 
-    private Task ReworkBoltAsync(FasteningResumeRow? row, CancellationToken cancellationToken)
+    private async Task ChangeBoltWorkAsync(BoltWorkAction action, CancellationToken cancellationToken)
     {
-        return ChangeBoltWorkAsync(row, false, cancellationToken);
-    }
-
-    private async Task ChangeBoltWorkAsync(FasteningResumeRow? row, bool completed, CancellationToken cancellationToken)
-    {
-        if (row is null || !FasteningResumeBolts.Any(target => ReferenceEquals(target, row))
+        if (SelectedFasteningResumeBolt is not { } row || !FasteningResumeBolts.Contains(row)
             || _reviewedFasteningJob is not { } job)
             return;
         StartActionMessage = null;
         try
         {
-            await Task.Run(() => Machine.ChangeBoltWork(job, row.BoltId, completed, cancellationToken), cancellationToken);
-            RefreshFasteningResume();
+            await Task.Run(() => Machine.ChangeBoltWork(job, row.BoltId, action, cancellationToken), cancellationToken);
+            RefreshFasteningResume(action is BoltWorkAction.Complete or BoltWorkAction.CompletePreliminary ? row.BoltId : null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            _log.LogError(exception, "Manual bolt work change failed: {Bolt}, completed={Completed}.", row.BoltId, completed);
+            _log.LogError(exception, "Manual bolt work change failed: {Bolt}, action={Action}.", row.BoltId, action);
             StartActionMessage = UiText.Get(exception);
         }
     }
@@ -837,7 +849,7 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand,
-                ChangeCarrierWorkCommand, CompletePlacementCommand, CompleteBoltCommand, ReworkBoltCommand,
+                ChangeCarrierWorkCommand, CompletePlacementCommand, ChangeBoltWorkCommand,
                 PrepareStartAreaCommand, MoveAllToStandbyCommand,
                 HomeCommand,
                 .. StartOutputGroups.Values.SelectMany(rows => rows).Distinct().Select(row => row.ToggleOutputCommand)];

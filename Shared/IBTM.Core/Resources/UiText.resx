@@ -3046,6 +3046,9 @@ COMPLETE: finish</value>
   <data name="final tightening pending" xml:space="preserve">
     <value>Final tightening pending</value>
   </data>
+  <data name="pre-tightening complete" xml:space="preserve"><value>Pre-tightening complete</value></data>
+  <data name="final tightening complete" xml:space="preserve"><value>Final tightening complete</value></data>
+  <data name="pre-tightening cannot be marked complete for this bolt." xml:space="preserve"><value>Pre-tightening cannot be marked complete for this bolt</value></data>
   <data name="remaining bolts: {0}" xml:space="preserve">
     <value>Remaining bolts: {0}</value>
   </data>

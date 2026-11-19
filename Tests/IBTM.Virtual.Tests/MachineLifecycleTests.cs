@@ -5988,7 +5988,10 @@ public sealed class MachineLifecycleTests
             var job = fastening.Station.CurrentJob;
             var assembly = fastening.Station.GetAssembly(HeatSinkSlot.HeatSink1);
             var kept = new BoltResult(true, 8) { TorqueCurve = new(0, 5, [0, 4, 8], 15, 8, 8, 1, 0) };
-            assembly.RecordBolt(manual.Head, manual.Id, new(false, null, BoltResultSource.Interrupted));
+            assembly.RecordBolt(manual.Head, manual.Id, new(false, null, BoltResultSource.Interrupted)
+            {
+                Stage = head == FasteningHead.Pickup ? BoltFasteningStage.Preliminary : BoltFasteningStage.Single,
+            });
             assembly.RecordBolt(rework.Head, rework.Id, new(false, null, BoltResultSource.Interrupted));
             assembly.RecordBolt(other.Head, other.Id, kept);
             io.SetInput(InputIo.AutoMode, false);
@@ -6007,8 +6010,17 @@ public sealed class MachineLifecycleTests
             Assert.Equal(BoltResultSource.Interrupted, interruptedResult.Source);
             Assert.False(interruptedResult.IsComplete);
             using (services.GetRequiredService<OperationCancellation>().TryBegin())
-                Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, manual.Id, true));
-            await review.CompleteBoltCommand.ExecuteAsync(row);
+                Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, manual.Id, BoltWorkAction.Complete));
+            review.SelectedFasteningResumeBolt = row;
+            if (head == FasteningHead.Pickup)
+            {
+                Assert.True(review.ChangeBoltWorkCommand.CanExecute(BoltWorkAction.CompletePreliminary));
+                await review.ChangeBoltWorkCommand.ExecuteAsync(BoltWorkAction.CompletePreliminary);
+                Assert.Equal(rework.Id, review.SelectedFasteningResumeBolt!.BoltId);
+                review.SelectedFasteningResumeBolt = review.FasteningResumeBolts.Single(row => row.BoltId == manual.Id);
+                Assert.Equal("Final tightening pending", review.SelectedFasteningResumeBolt.Status);
+            }
+            await review.ChangeBoltWorkCommand.ExecuteAsync(BoltWorkAction.Complete);
             Assert.Null(review.StartActionMessage);
             Assert.False(fastening.Station.Completed);
             var manuallyCompleted = review.FasteningResumeBolts.Single(row => row.BoltId == manual.Id);
@@ -6018,9 +6030,10 @@ public sealed class MachineLifecycleTests
             Assert.Null(manuallyCompleted.Result.Controller);
             Assert.Null(manuallyCompleted.Result.TorqueCurve);
             Assert.False(review.IsFasteningResumeAvailable);
-            row = review.FasteningResumeBolts.Single(row => row.BoltId == rework.Id);
-            await review.ReworkBoltCommand.ExecuteAsync(row);
+            Assert.Equal(rework.Id, review.SelectedFasteningResumeBolt!.BoltId);
+            await review.ChangeBoltWorkCommand.ExecuteAsync(BoltWorkAction.Rework);
             Assert.Null(review.StartActionMessage);
+            Assert.Equal(rework.Id, review.SelectedFasteningResumeBolt!.BoltId);
             Assert.Empty(writes);
             Assert.Equal(1, review.RemainingFasteningCount);
             Assert.False(review.IsFasteningResumeConfirmed);
@@ -6045,7 +6058,8 @@ public sealed class MachineLifecycleTests
             Assert.False(state.IsError, state.AlarmDetail);
             await review.CheckStartCommand.ExecuteAsync(null);
             row = review.FasteningResumeBolts.Single(row => row.BoltId == rework.Id);
-            await review.CompleteBoltCommand.ExecuteAsync(row);
+            review.SelectedFasteningResumeBolt = row;
+            await review.ChangeBoltWorkCommand.ExecuteAsync(BoltWorkAction.Complete);
             Assert.Equal(0, review.RemainingFasteningCount);
             selected = null;
             review.IsFasteningResumeConfirmed = true;
@@ -6064,6 +6078,11 @@ public sealed class MachineLifecycleTests
             Assert.True(saved.Success);
             Assert.True(saved.IsComplete);
             Assert.Equal(BoltResultSource.Manual, saved.Source);
+            if (head == FasteningHead.Pickup)
+            {
+                Assert.Equal(BoltFasteningStage.Preliminary, saved.PreliminaryResult!.Stage);
+                Assert.Equal(BoltResultSource.Manual, saved.PreliminaryResult.Source);
+            }
             Assert.NotNull(saved.RecordedAt);
             Assert.Null(saved.Torque);
             Assert.Null(saved.Controller);
@@ -6074,11 +6093,98 @@ public sealed class MachineLifecycleTests
             Assert.Equal(kept.TorqueCurve!.Torques, savedOther.TorqueCurve!.Torques);
 
             SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-            Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, manual.Id, false));
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, manual.Id, BoltWorkAction.Rework));
             fastening.Station.ClearJob();
             SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-            Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, manual.Id, true));
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, manual.Id, BoltWorkAction.Complete));
             Assert.Empty(fastening.Station.Assemblies);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ManualIpmPreliminaryCompletionResumesAtFinalAndPreservesBothStages()
+    {
+        var settings = FlowSettings();
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-manual-preliminary-{Guid.NewGuid():N}");
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.BoltFastening.FirstFasteningHead = FasteningHead.Pickup;
+        settings.BoltFastening.IpmRetighteningEnabled = false;
+        var ipm = new BoltPoint { Head = FasteningHead.Pickup, FasteningX = 10, FasteningY = 10 };
+        var secondIpm = new BoltPoint { Head = FasteningHead.Pickup };
+        var pcb = new BoltPoint { Head = FasteningHead.Shooting };
+        await using var services = CreateServices(settings);
+        services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints = [ipm, secondIpm, pcb];
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var fastening = services.GetRequiredService<BoltFasteningStation>();
+        var review = services.GetRequiredService<OperationViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            await fastening.Station.SeatAsync(default);
+            var job = fastening.Station.CurrentJob;
+            await review.CheckStartCommand.ExecuteAsync(null);
+            review.SelectStartAreaCommand.Execute(StartArea.Station2);
+            review.SelectedFasteningResumeBolt = review.FasteningResumeBolts.Single(row => row.BoltId == pcb.Id);
+            Assert.False(review.ChangeBoltWorkCommand.CanExecute(BoltWorkAction.CompletePreliminary));
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeBoltWork(job, pcb.Id, BoltWorkAction.CompletePreliminary));
+
+            review.SelectedFasteningResumeBolt = review.FasteningResumeBolts.Single(row => row.BoltId == secondIpm.Id);
+            await review.ChangeBoltWorkCommand.ExecuteAsync(BoltWorkAction.Complete);
+            Assert.Equal(pcb.Id, review.SelectedFasteningResumeBolt!.BoltId);
+            await review.ChangeBoltWorkCommand.ExecuteAsync(BoltWorkAction.Complete);
+            Assert.Equal(ipm.Id, review.SelectedFasteningResumeBolt!.BoltId);
+            Assert.True(review.ChangeBoltWorkCommand.CanExecute(BoltWorkAction.CompletePreliminary));
+            var starts = new ConcurrentQueue<OutputIo>();
+            io.OutputChanged += (output, on) =>
+            {
+                if (on && output is OutputIo.ShootingBoltStart or OutputIo.PickupBoltStart)
+                    starts.Enqueue(output);
+            };
+            await review.ChangeBoltWorkCommand.ExecuteAsync(BoltWorkAction.CompletePreliminary);
+            Assert.Null(review.StartActionMessage);
+            Assert.Empty(starts);
+            Assert.Equal("Final tightening pending", review.SelectedFasteningResumeBolt!.Status);
+            Assert.Equal(1, review.RemainingFasteningCount);
+            Assert.False(review.ChangeBoltWorkCommand.CanExecute(BoltWorkAction.CompletePreliminary));
+            Assert.True(review.ChangeBoltWorkCommand.CanExecute(BoltWorkAction.Complete));
+            Assert.False(review.IsFasteningResumeConfirmed);
+            Assert.True(review.IsFasteningResumeAvailable);
+            var history = services.GetRequiredService<PcbHistoryWriter>();
+            var store = services.GetRequiredService<MachineStore>();
+            await history.FlushAsync();
+            var pending = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).PickupBoltResults[ipm.Id];
+            Assert.Equal(BoltFasteningStage.Preliminary, pending.Stage);
+            Assert.False(pending.IsComplete);
+            Assert.Equal(BoltResultSource.Manual, pending.Source);
+            Assert.Null(pending.Torque);
+            Assert.Null(pending.Controller);
+
+            review.IsFasteningResumeConfirmed = true;
+            var run = review.ConfirmStartCommand.ExecuteAsync(null);
+            try
+            {
+                Assert.True(await WaitUntilAsync(() => fastening.Station.Completed, TimeSpan.FromSeconds(6)),
+                    services.GetRequiredService<MachineState>().AlarmDetail);
+            }
+            finally
+            {
+                machine.Stop();
+                await run.WaitAsync(TimeSpan.FromSeconds(3));
+            }
+            Assert.Equal(new[] { OutputIo.PickupBoltStart }, starts.ToArray());
+            await history.FlushAsync();
+            var final = store.LoadPcb(Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory))).PickupBoltResults[ipm.Id];
+            Assert.Equal(BoltFasteningStage.Final, final.Stage);
+            Assert.True(final.Success);
+            Assert.True(final.IsComplete);
+            Assert.Equal(pending, final.PreliminaryResult);
         }
         finally
         {

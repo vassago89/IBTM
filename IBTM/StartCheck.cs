@@ -56,6 +56,13 @@ public enum CarrierWorkAction
     Clear,
 }
 
+public enum BoltWorkAction
+{
+    CompletePreliminary,
+    Complete,
+    Rework,
+}
+
 public enum StartPreparationAction
 {
     [Description("Release material grip")]

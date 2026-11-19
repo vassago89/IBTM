@@ -748,7 +748,7 @@
                                             <ListBoxItem Tag="{x:Static core:HeatSinkSlot.HeatSink2}" Padding="8,6"><TextBlock Text="{ui:Text 'Heat sink 2'}" TextAlignment="Center"/></ListBoxItem>
                                         </ListBox>
                                     </StackPanel>
-                                    <ListBox Style="{StaticResource FlatPanelListStyle}" Grid.Row="1" ItemsSource="{Binding Source={StaticResource FasteningRows}}"
+                                    <ListBox x:Name="FasteningBoltList" Style="{StaticResource FlatPanelListStyle}" Grid.Row="1" ItemsSource="{Binding Source={StaticResource FasteningRows}}"
                                         SelectedItem="{Binding SelectedFasteningResumeBolt, Mode=TwoWay}" ItemTemplate="{StaticResource FasteningRow}"
                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                         <ListBox.ItemContainerStyle>
@@ -784,27 +784,35 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <UniformGrid Columns="2">
-                                            <Button Content="{ui:Text 'Complete'}" ToolTip="{ui:Text 'Record the selected bolt as manually completed (OK)'}" Command="{Binding CompleteBoltCommand}" CommandParameter="{Binding SelectedFasteningResumeBolt}" Margin="0,0,4,0" Height="36" Padding="4,5">
+                                        <UniformGrid Rows="1">
+                                            <Button Content="{ui:Text 'Pre-tightening complete'}" Command="{Binding ChangeBoltWorkCommand}"
+                                                CommandParameter="{x:Static app:BoltWorkAction.CompletePreliminary}" Margin="0,0,4,0" Height="36" Padding="4,5">
                                                 <Button.Style>
                                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SelectedFasteningResumeBolt}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
-                                                            <DataTrigger Binding="{Binding SelectedFasteningResumeBolt.Result.Source}" Value="{x:Static core:BoltResultSource.Manual}"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                            <DataTrigger Binding="{Binding SelectedFasteningResumeBolt.Head}" Value="{x:Static core:FasteningHead.Pickup}">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Button.Style>
                                             </Button>
-                                            <Button Content="{ui:Text 'Removed · rework'}" Command="{Binding ReworkBoltCommand}" CommandParameter="{Binding SelectedFasteningResumeBolt}" Margin="4,0,0,0" Height="36" Padding="4,5">
+                                            <Button ToolTip="{ui:Text 'Record the selected bolt as manually completed (OK)'}" Command="{Binding ChangeBoltWorkCommand}"
+                                                CommandParameter="{x:Static app:BoltWorkAction.Complete}" Margin="0,0,4,0" Height="36" Padding="4,5">
                                                 <Button.Style>
                                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                        <Setter Property="Content" Value="{ui:Text 'Complete'}"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SelectedFasteningResumeBolt}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
-                                                            <DataTrigger Binding="{Binding SelectedFasteningResumeBolt.Result}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                            <DataTrigger Binding="{Binding SelectedFasteningResumeBolt.Head}" Value="{x:Static core:FasteningHead.Pickup}">
+                                                                <Setter Property="Content" Value="{ui:Text 'Final tightening complete'}"/>
+                                                            </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Button.Style>
                                             </Button>
+                                            <Button Content="{ui:Text 'Removed · rework'}" Command="{Binding ChangeBoltWorkCommand}"
+                                                CommandParameter="{x:Static app:BoltWorkAction.Rework}" Style="{StaticResource SecondaryButtonStyle}" Height="36" Padding="4,5"/>
                                         </UniformGrid>
                                     </StackPanel>
                                 </Grid>
@@ -957,8 +965,7 @@
                                             <Condition Binding="{Binding CheckStartCommand.IsRunning}" Value="False"/>
                                             <Condition Binding="{Binding ChangeCarrierWorkCommand.IsRunning}" Value="False"/>
                                             <Condition Binding="{Binding CompletePlacementCommand.IsRunning}" Value="False"/>
-                                            <Condition Binding="{Binding CompleteBoltCommand.IsRunning}" Value="False"/>
-                                            <Condition Binding="{Binding ReworkBoltCommand.IsRunning}" Value="False"/>
+                                            <Condition Binding="{Binding ChangeBoltWorkCommand.IsRunning}" Value="False"/>
                                             <Condition Binding="{Binding Machine.IsResetting}" Value="False"/>
                                             <Condition Binding="{Binding ResetCommand.IsRunning}" Value="False"/>
                                         </MultiDataTrigger.Conditions>

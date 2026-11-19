@@ -733,8 +733,14 @@ public sealed class MachineController : INotifyPropertyChanged
         CheckStartMaterials();
     }
 
+    internal static bool IsPreliminaryCompletionAllowed(FasteningHead head, BoltResult? result)
+    {
+        return head == FasteningHead.Pickup
+            && result is null or { Stage: BoltFasteningStage.Preliminary, Source: BoltResultSource.Interrupted };
+    }
+
     public void ChangeBoltWork(
-        BackupPlateStation.Job job, Guid boltId, bool completed, CancellationToken cancellationToken = default)
+        BackupPlateStation.Job job, Guid boltId, BoltWorkAction action, CancellationToken cancellationToken = default)
     {
         using var operation = _operations.TryBegin(cancellationToken)
             ?? throw new InvalidOperationException(UiText.Get("Stop the machine before changing carrier work."));
@@ -748,15 +754,41 @@ public sealed class MachineController : INotifyPropertyChanged
         if (!station.IsHeatSinkPresent(bolt.HeatSink))
             throw new InvalidOperationException(UiText.Get("No heat sink is detected at this position."));
 
-        station.GetAssembly(job, bolt.HeatSink).ChangeBoltResult(bolt.Head, bolt.Id,
-            completed ? new(true, null, BoltResultSource.Manual)
-            {
-                RecordedAt = DateTimeOffset.Now,
-                Stage = bolt.Head == FasteningHead.Pickup ? BoltFasteningStage.Final : BoltFasteningStage.Single,
-            } : null);
+        var previous = bolt.Head == FasteningHead.Pickup
+            ? station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == bolt.HeatSink)?.PickupBoltResults.GetValueOrDefault(bolt.Id)
+            : null;
+        BoltResult? result;
+        switch (action)
+        {
+            case BoltWorkAction.CompletePreliminary:
+                if (!IsPreliminaryCompletionAllowed(bolt.Head, previous))
+                    throw new InvalidOperationException(UiText.Get("Pre-tightening cannot be marked complete for this bolt."));
+                result = new(true, null, BoltResultSource.Manual)
+                {
+                    RecordedAt = DateTimeOffset.Now,
+                    Stage = BoltFasteningStage.Preliminary,
+                    ToolHead = FasteningHead.Shooting,
+                };
+                break;
+            case BoltWorkAction.Complete:
+                result = new(true, null, BoltResultSource.Manual)
+                {
+                    RecordedAt = DateTimeOffset.Now,
+                    Stage = bolt.Head == FasteningHead.Pickup ? BoltFasteningStage.Final : BoltFasteningStage.Single,
+                    PreliminaryResult = previous is { Stage: BoltFasteningStage.Preliminary, Success: true }
+                        ? previous : previous?.PreliminaryResult ?? previous?.PreviousFinalResult?.PreliminaryResult,
+                };
+                break;
+            case BoltWorkAction.Rework:
+                result = null;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(action));
+        }
+        station.GetAssembly(job, bolt.HeatSink).ChangeBoltResult(bolt.Head, bolt.Id, result);
         station.Restart(job);
-        _log?.LogWarning("Operator changed bolt work: job={Job}, bolt={Bolt}, head={Head}, completed={Completed}.",
-            job.Id, bolt.Id, bolt.Head, completed);
+        _log?.LogWarning("Operator changed bolt work: job={Job}, bolt={Bolt}, head={Head}, action={Action}.",
+            job.Id, bolt.Id, bolt.Head, action);
         CheckStartMaterials();
     }
 

@@ -3044,6 +3044,9 @@
   <data name="final tightening pending" xml:space="preserve">
     <value>본체결 대기</value>
   </data>
+  <data name="pre-tightening complete" xml:space="preserve"><value>가체결 완료</value></data>
+  <data name="final tightening complete" xml:space="preserve"><value>본체결 완료</value></data>
+  <data name="pre-tightening cannot be marked complete for this bolt." xml:space="preserve"><value>이 볼트는 가체결 완료로 처리할 수 없음</value></data>
   <data name="remaining bolts: {0}" xml:space="preserve">
     <value>남은 볼트: {0}개</value>
   </data>
