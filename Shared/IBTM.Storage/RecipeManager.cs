@@ -112,8 +112,12 @@ public sealed partial class RecipeManager : ObservableObject
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
-            var loaded = await Task.Run(() => _database.LoadRecipe(name), cancellationToken);
-            var counts = await Task.Run(() => _database.LoadProductionCounts(loaded.Name), cancellationToken);
+            var (loaded, counts) = await Task.Run(() =>
+            {
+                var recipe = _database.LoadRecipe(name);
+                cancellationToken.ThrowIfCancellationRequested();
+                return (recipe, _database.LoadProductionCounts(recipe.Name));
+            }, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (_selection.LastRecipeName != loaded.Name)
             {

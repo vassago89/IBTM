@@ -136,9 +136,9 @@ public sealed class MachineController : INotifyPropertyChanged
 
     private bool PcbHandlersEnabled => _units.PcbSupply || _units.PcbPlacement;
 
-    public async Task StopAsync()
+    public Task StopAsync()
     {
-        await Task.Run(Stop);
+        return Task.Run(Stop);
     }
 
     public void Stop()
@@ -233,7 +233,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 try
                 {
                     if (motion.Feedback.GetAxisState(axis).InMotion)
-                        stopFailure = new InvalidOperationException("The axis still reports motion.");
+                        stopFailure = new InvalidOperationException(UiText.Get("The axis still reports motion."));
                 }
                 catch (Exception exception)
                 {
@@ -242,7 +242,7 @@ public sealed class MachineController : INotifyPropertyChanged
 
                 if (stopFailure is not null)
                 {
-                    stopFailure = new MotionException($"Confirm {group} {axis} stopped", stopFailure);
+                    stopFailure = new MotionException(UiText.Format($"Confirm {UiText.Get(group)} {axis} stopped"), stopFailure);
                     failure = failure is null ? stopFailure : new AggregateException(failure, stopFailure);
                 }
             }
@@ -376,23 +376,19 @@ public sealed class MachineController : INotifyPropertyChanged
                 || _state.IsHoming))
         {
             alarm = MachineAlarm.PcbPlacement;
-            interlockDetail = "PCB placement axis movement requires the handler lift Up. "
-                + $"Current lift: {_pcbPlacement.Lift}.";
+            interlockDetail = UiText.Format($"PCB placement axis movement requires the handler lift Up. Current lift: {UiText.Get(_pcbPlacement.Lift)}.");
         }
         else if (fasteningBlocked)
         {
             alarm = MachineAlarm.BoltFastening;
-            interlockDetail = "Fastening horizontal movement requires both heads Up. "
-                + $"Current pickup head: {_fasteningStation.PickupHeadPosition}; "
-                + $"shooting head: {_fasteningStation.ShootingHeadPosition}.";
+            interlockDetail = UiText.Format($"Fastening horizontal movement requires both heads Up. Current pickup head: {UiText.Get(_fasteningStation.PickupHeadPosition)}; shooting head: {UiText.Get(_fasteningStation.ShootingHeadPosition)}.");
         }
         else if (_units.Inspection
             && _inspectionStation.Motion.Feedback.IsMoving
             && !_inspectionStation.IsRaised)
         {
             alarm = MachineAlarm.NgCarrierTransfer;
-            interlockDetail = "Inspection/NG horizontal movement requires the pickup Up. "
-                + $"Current lift: {_inspectionStation.Lift}.";
+            interlockDetail = UiText.Format($"Inspection/NG horizontal movement requires the pickup Up. Current lift: {UiText.Get(_inspectionStation.Lift)}.");
         }
 
         if (alarm != MachineAlarm.None)
@@ -480,7 +476,7 @@ public sealed class MachineController : INotifyPropertyChanged
         }
 
         if (failures is not null)
-            throw new AggregateException("One or more devices could not be stopped.", failures);
+            throw new AggregateException(UiText.Get("One or more devices could not be stopped."), failures);
     }
 
     private static bool IsMotionFailure(Exception exception)
@@ -618,13 +614,13 @@ public sealed class MachineController : INotifyPropertyChanged
     }
 
     public bool IsStartAllowed => _state.Available
-        && IsStartAllowedFor(GetStartBlock(_state.FeedbackReadiness), _state.IsRunning);
+        && IsStartAllowedFor(GetStartBlocks(_state.FeedbackReadiness).FirstOrDefault(), _state.IsRunning);
 
     public StartBlockReason StartBlock
     {
         get
         {
-            var block = GetStartBlock(_state.FeedbackReadiness);
+            var block = GetStartBlocks(_state.FeedbackReadiness).FirstOrDefault();
             if (block != StartBlockReason.None)
                 return block;
             return GetStartMaterialBlock();
@@ -660,7 +656,7 @@ public sealed class MachineController : INotifyPropertyChanged
                             ? StartCheckState.MaterialRemaining : StartCheckState.Empty,
                         StartArea.PickupHead => StartCheckState.Ready,
                         StartArea.ShootingHead => _io.GetInput(InputIo.ShootingHeadVacuumDetected)
-                            ? StartCheckState.MaterialRemaining : StartCheckState.Empty,
+                            ? StartCheckState.ReleaseOnStart : StartCheckState.Empty,
                         StartArea.Station1 => !_pcbPlacement.Station.CarrierPresent ? StartCheckState.Empty
                             : _pcbPlacement.Station.Completed ? StartCheckState.Completed
                             : _pcbPlacement.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier,
@@ -671,7 +667,7 @@ public sealed class MachineController : INotifyPropertyChanged
                             && _inspectionStation.Gripper == NgTransferGripperState.Closed ? StartCheckState.NgGripperCheckRequired
                             : !_inspectionStation.Station.CarrierPresent ? StartCheckState.Empty
                             : _inspectionStation.Station.Completed ? StartCheckState.Completed
-                            : _inspectionStation.Station.IsRestartAllowed ? StartCheckState.ReworkReady : StartCheckState.UnfinishedCarrier,
+                            : StartCheckState.ReinspectOnStart,
                         _ => throw new ArgumentOutOfRangeException(nameof(area)),
                     };
             }
@@ -718,18 +714,18 @@ public sealed class MachineController : INotifyPropertyChanged
         BackupPlateStation.Job job, HeatSinkSlot heatSink, CancellationToken cancellationToken = default)
     {
         using var operation = _operations.TryBegin(cancellationToken)
-            ?? throw new InvalidOperationException("Stop the machine before changing carrier work.");
+            ?? throw new InvalidOperationException(UiText.Get("Stop the machine before changing carrier work."));
         if (!_state.Available || _state.IsRunningFor(includeOperations: false))
-            throw new InvalidOperationException("Stop the machine and check I/O before changing carrier work.");
+            throw new InvalidOperationException(UiText.Get("Stop the machine and check I/O before changing carrier work."));
         if (!Enum.IsDefined(heatSink))
             throw new ArgumentOutOfRangeException(nameof(heatSink));
         var station = _pcbPlacement.Station;
         station.RequireCurrentJob(job);
         operation.Token.ThrowIfCancellationRequested();
         if (!station.IsHeatSinkPresent(heatSink))
-            throw new InvalidOperationException("No heat sink is detected at this position.");
+            throw new InvalidOperationException(UiText.Get("No heat sink is detected at this position."));
         if (station.Completed)
-            throw new InvalidOperationException("Placement work is already complete.");
+            throw new InvalidOperationException(UiText.Get("Placement work is already complete."));
 
         station.GetAssembly(job, heatSink).IsPlacementCompleted = true;
         station.Restart(job);
@@ -741,16 +737,16 @@ public sealed class MachineController : INotifyPropertyChanged
         BackupPlateStation.Job job, Guid boltId, bool completed, CancellationToken cancellationToken = default)
     {
         using var operation = _operations.TryBegin(cancellationToken)
-            ?? throw new InvalidOperationException("Stop the machine before changing carrier work.");
+            ?? throw new InvalidOperationException(UiText.Get("Stop the machine before changing carrier work."));
         if (!_state.Available || _state.IsRunningFor(includeOperations: false))
-            throw new InvalidOperationException("Stop the machine and check I/O before changing carrier work.");
+            throw new InvalidOperationException(UiText.Get("Stop the machine and check I/O before changing carrier work."));
         var station = _fasteningStation.Station;
         station.RequireCurrentJob(job);
         var bolt = _recipes.Current.Pcb.BoltPoints.SingleOrDefault(point => point.Id == boltId)
-            ?? throw new InvalidOperationException("The selected bolt is no longer in the recipe.");
+            ?? throw new InvalidOperationException(UiText.Get("The selected bolt is no longer in the recipe."));
         operation.Token.ThrowIfCancellationRequested();
         if (!station.IsHeatSinkPresent(bolt.HeatSink))
-            throw new InvalidOperationException("No heat sink is detected at this position.");
+            throw new InvalidOperationException(UiText.Get("No heat sink is detected at this position."));
 
         station.GetAssembly(job, bolt.HeatSink).ChangeBoltResult(bolt.Head, bolt.Id,
             completed ? new(true, null, BoltResultSource.Manual)
@@ -768,9 +764,9 @@ public sealed class MachineController : INotifyPropertyChanged
         StartArea area, BackupPlateStation.Job job, CarrierWorkAction action, CancellationToken cancellationToken = default)
     {
         using var operation = _operations.TryBegin(cancellationToken)
-            ?? throw new InvalidOperationException("Stop the machine before changing carrier work.");
+            ?? throw new InvalidOperationException(UiText.Get("Stop the machine before changing carrier work."));
         if (!_state.Available || _state.IsRunningFor(includeOperations: false))
-            throw new InvalidOperationException("Stop the machine and check I/O before changing carrier work.");
+            throw new InvalidOperationException(UiText.Get("Stop the machine and check I/O before changing carrier work."));
         var station = area switch
         {
             StartArea.Station1 => _pcbPlacement.Station,
@@ -781,7 +777,7 @@ public sealed class MachineController : INotifyPropertyChanged
         station.RequireCurrentJob(job);
         operation.Token.ThrowIfCancellationRequested();
         if (!station.CarrierPresent)
-            throw new InvalidOperationException("No carrier is detected at this station.");
+            throw new InvalidOperationException(UiText.Get("No carrier is detected at this station."));
         switch (action)
         {
             case CarrierWorkAction.Complete:
@@ -820,29 +816,35 @@ public sealed class MachineController : INotifyPropertyChanged
             && block == StartBlockReason.None;
     }
 
-    private StartBlockReason GetStartBlock(MotionReadiness motion)
+    public IEnumerable<StartBlockReason> GetStartBlocks(MotionReadiness motion)
     {
         if (_state.Alarm == MachineAlarm.EmergencyStop)
-            return StartBlockReason.EmergencyStop;
+            yield return StartBlockReason.EmergencyStop;
         if (_state.Alarm == MachineAlarm.DoorOpen)
-            return StartBlockReason.DoorOpen;
+            yield return StartBlockReason.DoorOpen;
         if (_state.Alarm == MachineAlarm.AirPressureLow)
-            return StartBlockReason.AirPressure;
-        if (_state.IsError)
-            return StartBlockReason.Alarm;
-        if (_options.UseEmergencyStop && !_state.EmergencyStopReleased)
-            return StartBlockReason.EmergencyStop;
-        if (_options.UseAirPressureInterlock && !_state.AirPressureOk)
-            return StartBlockReason.AirPressure;
+            yield return StartBlockReason.AirPressure;
+        if (_state.IsError && _state.Alarm is not (MachineAlarm.EmergencyStop or MachineAlarm.DoorOpen or MachineAlarm.AirPressureLow))
+            yield return StartBlockReason.Alarm;
+        if (!_state.Available)
+        {
+            yield return StartBlockReason.IoUnavailable;
+            yield break;
+        }
+        if (_state.Alarm != MachineAlarm.EmergencyStop && _options.UseEmergencyStop && !_state.EmergencyStopReleased)
+            yield return StartBlockReason.EmergencyStop;
+        if (_state.Alarm != MachineAlarm.AirPressureLow && _options.UseAirPressureInterlock && !_state.AirPressureOk)
+            yield return StartBlockReason.AirPressure;
         if (motion.Faulted)
-            return StartBlockReason.MotionFault;
+            yield return StartBlockReason.MotionFault;
         if (!motion.ServosOn || !_state.ServoMainContactorOn)
-            return StartBlockReason.ServoOff;
-        if (!_state.DoorInterlockReady)
-            return StartBlockReason.DoorOpen;
+            yield return StartBlockReason.ServoOff;
+        if (_state.Alarm != MachineAlarm.DoorOpen && !_state.DoorInterlockReady)
+            yield return StartBlockReason.DoorOpen;
         if (!motion.Homed)
-            return StartBlockReason.HomeRequired;
-        return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
+            yield return StartBlockReason.HomeRequired;
+        if (!_units.IsAnyUnitEnabled)
+            yield return StartBlockReason.NoUnitEnabled;
     }
 
     public bool IsFasteningResumeAllowed(BackupPlateStation.Job job)
@@ -869,7 +871,7 @@ public sealed class MachineController : INotifyPropertyChanged
                     return;
                 cancellationToken = operation.Token;
                 if (!IsStartAllowedFor(
-                    GetStartBlock(_feedback.ReadLiveReadiness()), _state.IsRunningFor(includeOperations: false)))
+                    GetStartBlocks(_feedback.ReadLiveReadiness()).FirstOrDefault(), _state.IsRunningFor(includeOperations: false)))
                     return;
                 operation.Token.ThrowIfCancellationRequested();
 
@@ -982,8 +984,7 @@ public sealed class MachineController : INotifyPropertyChanged
                         _state.SetError(
                             sample.IoReady ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication,
                             sample.ReadError ?? new InvalidOperationException(
-                                $"Motion feedback {group} became unavailable during automatic operation: "
-                                    + $"homed={motion.Homed}, servosOn={motion.ServosOn}, faulted={motion.Faulted}."));
+                                UiText.Format($"Motion feedback {group} became unavailable during automatic operation: homed={motion.Homed}, servosOn={motion.ServosOn}, faulted={motion.Faulted}.")));
                     }
                     finally
                     {
@@ -1025,6 +1026,13 @@ public sealed class MachineController : INotifyPropertyChanged
                         return;
                     }
 
+                    if (_units.BoltFastening)
+                    {
+                        failureAlarm = MachineAlarm.BoltFastening;
+                        await _fasteningStation.SetVacuumAsync(FasteningHead.Shooting, false, operation.Token);
+                        await _io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected, false,
+                            operation.Token, requireCurrent: true);
+                    }
                     await RaiseCylindersAsync(operation);
 
                     if (_units.MainConveyor)
@@ -1261,7 +1269,7 @@ public sealed class MachineController : INotifyPropertyChanged
             if (!cycle.IsCancellationRequested && !_state.IsError)
             {
                 _state.SetError(alarm, new InvalidOperationException(
-                    $"Automatic unit {alarm} returned before a stop was requested."));
+                    UiText.Format($"Automatic unit {alarm} returned before a stop was requested.")));
             }
         }
         catch (OperationCanceledException) when (cycle.IsCancellationRequested)
@@ -1581,8 +1589,7 @@ public sealed class MachineController : INotifyPropertyChanged
                         _state.SetError(_state.IsError ? _state.Alarm
                             : sample.IoReady ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication,
                             sample.ReadError ?? new InvalidOperationException(
-                                $"Motion feedback {group} became unavailable during HOME: "
-                                + $"servosOn={sample.Readiness.ServosOn}, faulted={sample.Readiness.Faulted}."));
+                                UiText.Format($"Motion feedback {group} became unavailable during HOME: servosOn={sample.Readiness.ServosOn}, faulted={sample.Readiness.Faulted}.")));
                     }
                     finally
                     {
@@ -1836,11 +1843,11 @@ public sealed class MachineController : INotifyPropertyChanged
     {
         var operation = BeginManualOperation(() => AdcProtocolAvailable, cancellationToken);
         if (operation is null)
-            throw new InvalidOperationException("Another machine operation acquired control before ADC diagnostics started.");
+            throw new InvalidOperationException(UiText.Get("Another machine operation acquired control before ADC diagnostics started."));
         try
         {
             if (!AdcProtocolAvailable || _state.IsRunningFor(includeOperations: false))
-                throw new InvalidOperationException("ADC diagnostics require an idle machine in manual mode.");
+                throw new InvalidOperationException(UiText.Get("ADC diagnostics require an idle machine in manual mode."));
 
             operation.Token.ThrowIfCancellationRequested();
             return operation;
@@ -1856,7 +1863,7 @@ public sealed class MachineController : INotifyPropertyChanged
     {
         if (!AdcProtocolAvailable)
         {
-            throw new InvalidOperationException("Bolt testing requires safe manual mode.");
+            throw new InvalidOperationException(UiText.Get("Bolt testing requires safe manual mode."));
         }
 
     }
@@ -2017,7 +2024,7 @@ public sealed class MachineController : INotifyPropertyChanged
             operation.Token.ThrowIfCancellationRequested();
             if (motion.Faulted || !motion.ServosOn)
                 throw new InvalidOperationException(
-                    $"Motion reset is not confirmed by hardware feedback: faulted={motion.Faulted}, servosOn={motion.ServosOn}.");
+                    UiText.Format($"Motion reset is not confirmed by hardware feedback: faulted={motion.Faulted}, servosOn={motion.ServosOn}."));
         }
         catch (Exception exception) when (
             exception is not OperationCanceledException || !operation.Token.IsCancellationRequested)
@@ -2322,15 +2329,15 @@ public sealed class MachineController : INotifyPropertyChanged
             if (groups.Contains(MotionGroup.PcbSupply))
             {
                 if (_pcbSupply.Pcb != PcbSupplyPcbState.None && _pcbSupply.Gripper != PcbSupplyCylinderState.Backward)
-                    return "Supply is holding a PCB. Support and release it before moving all stations to standby.";
+                    return UiText.Get("Supply is holding a PCB. Support and release it before moving all stations to standby.");
                 if (selectedGroup == MotionGroup.PcbSupply && _units.PcbPlacement && !_pcbPlacement.IsAtStandby)
-                    return "Move Placement to standby before Supply.";
+                    return UiText.Get("Move Placement to standby before Supply.");
             }
             if (groups.Contains(MotionGroup.PcbPlacementHandler) && _io.GetInput(InputIo.PcbPlacementVacuumDetected))
-                return "Release Placement vacuum before moving to standby.";
+                return UiText.Get("Release Placement vacuum before moving to standby.");
             if (groups.Contains(MotionGroup.InspectionGantry) && (_inspectionStation.IsTransferPending
                 || _inspectionStation.Gripper != NgTransferGripperState.Open))
-                return "Finish or release the NG carrier transfer and confirm the gripper is open before standby.";
+                return UiText.Get("Finish or release the NG carrier transfer and confirm the gripper is open before standby.");
             return null;
         }
         try
@@ -2347,12 +2354,12 @@ public sealed class MachineController : INotifyPropertyChanged
             if (activeToken.IsCancellationRequested || groups.Length == 0
                 || _state.IsRunningFor(includeOperations: false)
                 || groups.Any(group => _motions[group].Axes.Any(axis => _motions[group].GetAxisState(axis).InMotion)))
-                throw new InvalidOperationException("Stop the machine and HOME all enabled axes before standby.");
+                throw new InvalidOperationException(UiText.Get("Stop the machine and HOME all enabled axes before standby."));
             materialBlock = ReadMaterialBlock();
             if (materialBlock is not null)
                 throw new InvalidOperationException(materialBlock);
             if (groups.Contains(MotionGroup.PcbSupply) && _pcbSupply.Rotation == PcbSupplyRotationState.Between)
-                throw new InvalidOperationException("Confirm Supply rotation feedback before moving to the handoff position.");
+                throw new InvalidOperationException(UiText.Get("Confirm Supply rotation feedback before moving to the handoff position."));
 
             void CheckMaterial(InputIo input, bool value)
             {
@@ -2532,9 +2539,9 @@ public sealed class MachineController : INotifyPropertyChanged
                     var support = action == StartPreparationAction.ToggleCarrierSupport;
                     var position = support ? station.BackupPlate : station.Stopper;
                     if (support && area == StartArea.Station2)
-                        throw new InvalidOperationException("Select the S2 backup target height.");
+                        throw new InvalidOperationException(UiText.Get("Select the S2 backup target height."));
                     if (position == StationCylinderState.Between)
-                        throw new InvalidOperationException("Confirm the selected support or stopper Up/Down sensors before operating it.");
+                        throw new InvalidOperationException(UiText.Get("Confirm the selected support or stopper Up/Down sensors before operating it."));
                     var up = position == StationCylinderState.Down;
                     if (support)
                         await station.SetBackupPlateUpAsync(up, activeToken);
@@ -2575,7 +2582,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 var vacuumDetected = _io.GetInput(InputIo.PcbPlacementVacuumDetected);
                 await _pcbPlacement.SetLiftDownAsync(false, cancellationToken);
                 if (vacuumDetected || _io.GetInput(InputIo.PcbPlacementVacuumDetected))
-                    throw new InvalidOperationException("Release Placement vacuum before raising the IPM support.");
+                    throw new InvalidOperationException(UiText.Get("Release Placement vacuum before raising the IPM support."));
                 await _pcbPlacement.SetIpmDownAsync(false, cancellationToken);
                 break;
             case StartArea.PickupHead:
@@ -2685,10 +2692,15 @@ public sealed class MachineController : INotifyPropertyChanged
                 case OutputIo.NgShuttleDown:
                     await _ngConveyor.SetShuttleDownAsync(value, operation.Token);
                     break;
+                case OutputIo.InspectionProbeDown:
+                    if (value && !MotionServiceBase.IsReadyAndStopped(_motions[MotionGroup.InspectionGantry]))
+                        throw new MotionInterlockException(UiText.Get("Stop inspection XY before lowering the LVDT"));
+                    await _io.SetOutputAndWaitAsync(output.Signal, value, operation.Token);
+                    break;
                 case OutputIo.PcbSupplyGripperClosed
                     or OutputIo.PickupTableDown or OutputIo.PcbPlacementBackupPlateUp
                     or OutputIo.InspectionBackupPlateUp or OutputIo.PcbPlacementStopperUp or OutputIo.BoltFasteningStopperUp
-                    or OutputIo.InspectionStopperUp or OutputIo.InspectionProbeDown:
+                    or OutputIo.InspectionStopperUp:
                     await _io.SetOutputAndWaitAsync(output.Signal, value, operation.Token);
                     break;
                 default:
@@ -2709,6 +2721,7 @@ public sealed class MachineController : INotifyPropertyChanged
                 HardwareArea.PcbSupply => MachineAlarm.PcbSupply,
                 HardwareArea.PcbPlacementHandler => MachineAlarm.PcbPlacement,
                 HardwareArea.BoltFastening => MachineAlarm.BoltFastening,
+                HardwareArea.InspectionGantry => MachineAlarm.Inspection,
                 HardwareArea.NgCarrierTransfer => MachineAlarm.NgCarrierTransfer,
                 HardwareArea.NgShuttle => MachineAlarm.NgShuttle,
                 _ => throw new ArgumentOutOfRangeException(nameof(output)),

@@ -1608,7 +1608,11 @@ public sealed class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         await services.GetRequiredService<InspectionStation>().Station.PrepareToReceiveAsync(CancellationToken.None);
-        services.GetRequiredService<VirtualCamera>().BoltsPresent = false;
+        foreach (var bolt in services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints)
+        {
+            bolt.MinimumHeight = 1;
+            bolt.MaximumHeight = 2;
+        }
         // A closed gripper without pickup history requires operator release, even before the first run.
         await services.GetRequiredService<InspectionStation>().SetGripperOpenAsync(false);
         io.SetInput(InputIo.NgCarrierDetected, true);
@@ -2841,7 +2845,7 @@ public sealed class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var active = probes[MotionGroup.InspectionGantry];
-        foreach (var probe in probes.Where(item => item.Key != MotionGroup.InspectionGantry).Select(
+        foreach (var probe in probes.Where(item => !settings.Units.IsMotionEnabled(item.Key)).Select(
             item => item.Value))
         {
             probe.ReportReady = true;
@@ -2885,7 +2889,7 @@ public sealed class MachineLifecycleTests
             await WaitUntilAsync(
                 () => !services.GetRequiredService<OperationCancellation>().HasActiveOperations);
             Assert.All(
-                probes.Where(item => item.Key != MotionGroup.InspectionGantry),
+                probes.Where(item => !settings.Units.IsMotionEnabled(item.Key)),
                 item => Assert.Equal(0, item.Value.HardwareCalls));
             active.DiagnosticReadError = null;
             active.OverrideState = null;
@@ -4335,7 +4339,7 @@ public sealed class MachineLifecycleTests
             settings.Units.BoltFastening = true;
             machine.CheckStartMaterials();
             Assert.Equal(StartCheckState.Ready, machine.StartChecks[StartArea.PickupHead]);
-            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.ShootingHead]);
+            Assert.Equal(StartCheckState.ReleaseOnStart, machine.StartChecks[StartArea.ShootingHead]);
             Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station2]);
             Assert.Equal(StartCheckState.Disabled, machine.StartChecks[StartArea.Supply]);
             Assert.Equal(StartCheckState.Disabled, machine.StartChecks[StartArea.Station1]);
@@ -4359,6 +4363,7 @@ public sealed class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var placement = services.GetRequiredService<PcbPlacer>().Station;
         var fastening = services.GetRequiredService<BoltFasteningStation>().Station;
+        var review = services.GetRequiredService<OperationViewModel>();
         await machine.InitializeAsync();
         try
         {
@@ -4378,13 +4383,20 @@ public sealed class MachineLifecycleTests
 
             Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Supply]);
             Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
-            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.ShootingHead]);
+            Assert.Equal(StartCheckState.ReleaseOnStart, machine.StartChecks[StartArea.ShootingHead]);
             Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station1]);
             Assert.Equal(StartCheckState.Completed, machine.StartChecks[StartArea.Station2]);
             Assert.Equal(StartCheckState.Ready, machine.StartChecks[StartArea.PickupHead]);
             Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.Station3]);
             Assert.Equal(0, writes);
             Assert.False(state.AutomaticRunning);
+            Assert.Equal(new[] {
+                UiText.Get("Supply: PCB held outside the handoff position"),
+                UiText.Get("Placement: PCB vacuum detected"),
+                UiText.Get("S1: review PCB placement and confirm resume"),
+            }, review.StartBlockMessages);
+            Assert.Equal(new[] { StartBlockReason.MotionFault, StartBlockReason.ServoOff, StartBlockReason.HomeRequired },
+                machine.GetStartBlocks(new(Homed: false, ServosOn: false, Faulted: true)));
 
             io.SetInputs((InputIo.PcbSupplyPcbDetected, false), (InputIo.PcbPlacementVacuumDetected, false),
                 (InputIo.ShootingHeadVacuumDetected, false), (InputIo.PcbPlacementHeatSink1Present, false));
@@ -4393,13 +4405,14 @@ public sealed class MachineLifecycleTests
             Assert.Same(placementJob, placement.CurrentJob);
             Assert.Same(fasteningJob, fastening.CurrentJob);
             Assert.True(fastening.Completed);
+            Assert.Empty(review.StartBlockMessages);
 
             // A clear review is not permission to ignore a change before final START.
-            io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
+            io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
             await machine.StartAsync();
             Assert.False(state.AutomaticRunning);
             Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
-            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.ShootingHead]);
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.Placement]);
             Assert.Same(placementJob, placement.CurrentJob);
         }
         finally
@@ -4557,7 +4570,7 @@ public sealed class MachineLifecycleTests
                 assembly.IsPlacementCompleted = true;
                 assembly.PcbBarcode = $"PCB-{assembly.HeatSink}";
                 assembly.RecordBolt(FasteningHead.Shooting, BoltId(1), new(true, 8));
-                assembly.RecordBolt(FasteningHead.Pickup, BoltId(2), new(false, 2) { MinimumTurns = 3 });
+                assembly.RecordBolt(FasteningHead.Pickup, BoltId(2), new(false, 2));
                 assembly.CompleteFastening();
                 assembly.PcbBarcode = null;
                 assembly.CompleteInspection();
@@ -4583,7 +4596,7 @@ public sealed class MachineLifecycleTests
             Assert.True(station.CarrierPresent);
             Assert.False(station.Completed);
             Assert.True(station.IsRestartAllowed);
-            Assert.Equal(StartCheckState.ReworkReady, machine.StartChecks[area]);
+            Assert.Equal(area == StartArea.Station3 ? StartCheckState.ReinspectOnStart : StartCheckState.ReworkReady, machine.StartChecks[area]);
             foreach (var other in new[] { placement, fastening, inspection }.Where(other => other != station))
             {
                 Assert.False(other.Completed);
@@ -4602,14 +4615,12 @@ public sealed class MachineLifecycleTests
                 {
                     Assert.Empty(record.ShootingBoltResults);
                     Assert.Empty(record.PickupBoltResults);
-                    Assert.Null(record.TurnsResult);
                     Assert.Equal(AssemblyResult.Pending, record.FasteningResult);
                 }
                 else
                 {
                     Assert.Single(record.ShootingBoltResults);
                     Assert.Single(record.PickupBoltResults);
-                    Assert.Equal(AssemblyResult.Pending, record.TurnsResult);
                     Assert.Equal(AssemblyResult.Ng, record.FasteningResult);
                 }
                 if (area == StartArea.Station3)
@@ -5385,6 +5396,7 @@ public sealed class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Units.PcbPlacement = true;
         await using var services = CreateServices(settings);
         PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
@@ -5403,13 +5415,13 @@ public sealed class MachineLifecycleTests
 
             machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Clear);
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+            io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
             await machine.StartAsync();
             Assert.False(state.AutomaticRunning);
             Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
             Assert.True(station.IsRestartAllowed);
 
-            io.SetInput(InputIo.PickupHeadVacuumDetected, false);
+            io.SetInput(InputIo.PcbPlacementVacuumDetected, false);
             using var stop = new CancellationTokenSource();
             state.PropertyChanged += (sender, args) =>
             {
@@ -5493,7 +5505,6 @@ public sealed class MachineLifecycleTests
             {
                 InputIo.PcbSupplyPcbDetected,
                 InputIo.PcbPlacementVacuumDetected,
-                InputIo.ShootingHeadVacuumDetected,
             })
             {
                 var previousChanges = Volatile.Read(ref reviewChanges);
@@ -5546,7 +5557,6 @@ public sealed class MachineLifecycleTests
     [Theory]
     [InlineData(InputIo.PcbPlacementHeatSink1Present)]
     [InlineData(InputIo.BoltFasteningHeatSink1Present)]
-    [InlineData(InputIo.InspectionHeatSink1Present)]
     public async Task StartRejectsUnfinishedCarrierEvenAfterRemovalAndReplacement(InputIo carrier)
     {
         var settings = FlowSettings();
@@ -5554,7 +5564,7 @@ public sealed class MachineLifecycleTests
         {
             InputIo.PcbPlacementHeatSink1Present => MachineUnit.PcbPlacement,
             InputIo.BoltFasteningHeatSink1Present => MachineUnit.BoltFastening,
-            _ => MachineUnit.Inspection,
+            _ => throw new ArgumentOutOfRangeException(nameof(carrier)),
         });
         await using var services = CreateServices(settings);
         PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
@@ -5565,7 +5575,7 @@ public sealed class MachineLifecycleTests
         {
             InputIo.PcbPlacementHeatSink1Present => services.GetRequiredService<PcbPlacer>().Station,
             InputIo.BoltFasteningHeatSink1Present => services.GetRequiredService<BoltFasteningStation>().Station,
-            _ => services.GetRequiredService<InspectionStation>().Station,
+            _ => throw new ArgumentOutOfRangeException(nameof(carrier)),
         };
         await machine.InitializeAsync();
         try
@@ -6043,7 +6053,6 @@ public sealed class MachineLifecycleTests
             Assert.Null(selected);
             Assert.True(fastening.Station.Completed);
             Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
-            Assert.Null(assembly.TurnsResult);
             Assert.Same(kept, (other.Head == FasteningHead.Pickup ? assembly.PickupBoltResults : assembly.ShootingBoltResults)[other.Id]);
 
             var history = services.GetRequiredService<PcbHistoryWriter>();
@@ -6149,7 +6158,7 @@ public sealed class MachineLifecycleTests
             await machine.StartAsync(resumeFastening: original);
             Assert.False(state.AutomaticRunning);
 
-            foreach (var blocker in new[] { InputIo.ShootingHeadVacuumDetected, InputIo.PcbPlacementHeatSink1Present })
+            foreach (var blocker in new[] { InputIo.PcbPlacementVacuumDetected, InputIo.PcbPlacementHeatSink1Present })
             {
                 await review.CheckStartCommand.ExecuteAsync(null);
                 review.IsFasteningResumeConfirmed = true;
@@ -6889,6 +6898,105 @@ public sealed class MachineLifecycleTests
         finally
         {
             state.Changed -= StopAtAutomaticStart;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task StartReleasesShootingVacuumBeforeRaisingHead(bool releases)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Options.TimeoutMilliseconds = 1000;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true);
+        io.SetInput(InputIo.PickupFeederBoltDetected, true);
+        io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
+        await ((IIoService)io).WaitForInputAsync(InputIo.ShootingHeadVacuumDetected, true);
+        io.AutoResponseEnabled = releases;
+        var raised = false;
+        var started = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.ShootingHeadDown || on)
+                return;
+            raised = true;
+            Assert.False(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
+            Assert.False(io.GetInput(InputIo.ShootingHeadVacuumDetected));
+        };
+        state.Changed += () =>
+        {
+            if (!state.AutomaticRunning || started)
+                return;
+            started = true;
+            machine.Stop();
+        };
+        try
+        {
+            Assert.Equal(StartCheckState.ReleaseOnStart, machine.StartChecks[StartArea.ShootingHead]);
+            Assert.Equal(StartBlockReason.None, machine.GetStartMaterialBlock());
+            await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(releases, started);
+            Assert.Equal(releases, raised);
+            Assert.False(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
+            Assert.Equal(releases ? MachineAlarm.None : MachineAlarm.BoltFastening, state.Alarm);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartReinspectsUnfinishedS3CarrierWithoutClearingFasteningResults()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        PrepareCarrierTeaching(settings, recipe);
+        var bolt = recipe.Pcb.BoltPoints[0];
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var inspection = services.GetRequiredService<InspectionStation>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        await inspection.Station.PrepareToReceiveAsync(default);
+        SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+        var job = inspection.Station.CurrentJob;
+        var assembly = inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordHeight(bolt.Id, new(DateTimeOffset.Now, new(bolt.X!.Value, bolt.Y!.Value, 99), 0, -0.1, 0.1));
+        var fasteningResult = new BoltResult(true, 8);
+        assembly.RecordBolt(FasteningHead.Shooting, bolt.Id, fasteningResult);
+        try
+        {
+            Assert.Equal(StartCheckState.ReinspectOnStart, machine.StartChecks[StartArea.Station3]);
+            Assert.Equal(StartBlockReason.None, machine.GetStartMaterialBlock());
+            Assert.Empty(services.GetRequiredService<OperationViewModel>().StartBlockMessages);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            inspection.Changed += () =>
+            {
+                if (inspection.Station.Completed)
+                    timeout.Cancel();
+            };
+            await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(6));
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.True(inspection.Station.Completed);
+            Assert.Same(job, inspection.Station.CurrentJob);
+            Assert.NotNull(assembly.HeightReference);
+            Assert.Equal(0, assembly.HeightResults[bolt.Id].Height);
+            Assert.Same(fasteningResult, assembly.ShootingBoltResults[bolt.Id]);
+        }
+        finally
+        {
             await machine.ShutdownAsync();
         }
     }

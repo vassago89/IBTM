@@ -775,9 +775,15 @@ public sealed class UiBindingTests
                 Assert.Equal(StartCheckState.UnfinishedCarrier, startMachine.StartChecks[StartArea.Station1]);
                 Assert.False(confirm.IsEnabled);
                 Assert.False(starting.IsCompleted);
+                var blocks = (ItemsControl)startWindow.FindName("StartBlockList");
+                Assert.Contains(UiText.Get("S1: review PCB placement and confirm resume"), blocks.Items.Cast<string>());
+                Assert.DoesNotContain(StartArea.PickupHead,
+                    ((ComboBox)startWindow.FindName("StartAreaSelector")).Items.Cast<StartArea>());
 
                 startIo.SetInput(InputIo.PcbPlacementHeatSink1Present, false);
                 await startOperation.CheckStartCommand.ExecuteAsync(null);
+                await Dispatcher.Yield(DispatcherPriority.DataBind);
+                Assert.Empty(blocks.Items);
                 // A cylinder failing during START preparation must also leave the review open.
                 startIo.AutoResponseEnabled = false;
                 startIo.SetInputs((InputIo.PcbPlacementBackupPlateUp, true), (InputIo.PcbPlacementBackupPlateDown, false));
@@ -860,7 +866,6 @@ public sealed class UiBindingTests
         var boltId = Guid.NewGuid();
         var result = new BoltResult(true, 10.09)
         {
-            MinimumTurns = 12.5,
             Controller = new BoltControllerData("COM10", 1, 112, 988, 1, 10, 863,
                 4617, 23, 4640, 1, 0, 0, 1, 0, null),
         };
@@ -894,9 +899,7 @@ public sealed class UiBindingTests
                 Assert.Same(selected, results.SelectedItem);
                 Assert.Equal(selected.HeadLabel, Assert.IsType<TextBlock>(results.Columns[1].GetCellContent(selected)).Text);
                 var turnsColumn = results.Columns.Single(column => Equals(column.Header, UiText.Get("Turns")));
-                var turnsCell = Assert.IsType<ContentPresenter>(turnsColumn.GetCellContent(selected));
-                var turns = Assert.IsType<StackPanel>(VisualTreeHelper.GetChild(turnsCell, 0));
-                Assert.Equal(new[] { "OK", "12.889" }, turns.Children.OfType<TextBlock>().Select(text => text.Text));
+                Assert.Equal("12.889", Assert.IsType<TextBlock>(turnsColumn.GetCellContent(selected)).Text);
                 detailsWindow.Close();
                 Assert.Null(operation.PcbDetails.Record);
             }
@@ -1223,6 +1226,31 @@ public sealed class UiBindingTests
         page.UpdateLayout();
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.Fiducial1);
         await Dispatcher.Yield(DispatcherPriority.DataBind);
+        var alignmentButton = (Button)teachingView.FindName("CheckAlignmentButton");
+        var probeButton = (Button)teachingView.FindName("TeachingProbeButton");
+        Assert.Same(teaching.CheckAlignmentCommand, alignmentButton.Command);
+        Assert.Same(teaching.InspectionProbe.ToggleOutputCommand, probeButton.Command);
+        // Live machine feedback must not invoke WPF command subscribers on the acquisition thread.
+        var notifiedOnUi = false;
+        void OnAlignmentCommandChanged(object? sender, EventArgs args)
+        {
+            Assert.True(alignmentButton.Dispatcher.CheckAccess());
+            notifiedOnUi = true;
+        }
+        teaching.CheckAlignmentCommand.CanExecuteChanged += OnAlignmentCommandChanged;
+        try
+        {
+            await Task.Run(() => machineState.AutomaticRunning = true);
+            await Dispatcher.Yield(DispatcherPriority.Background);
+            Assert.True(notifiedOnUi);
+            Assert.False(alignmentButton.IsEnabled);
+        }
+        finally
+        {
+            await Task.Run(() => machineState.AutomaticRunning = false);
+            await Dispatcher.Yield(DispatcherPriority.Background);
+            teaching.CheckAlignmentCommand.CanExecuteChanged -= OnAlignmentCommandChanged;
+        }
         var fiducialInput = (TextBox)teachingView.FindName("FiducialThresholdInput");
         fiducialInput.Text = "155";
         fiducialInput.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
@@ -1244,25 +1272,31 @@ public sealed class UiBindingTests
         await services.GetRequiredService<InspectionStation>().HomeHorizontalAsync();
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
         Assert.True(await VirtualTestSupport.WaitUntilAsync(() => teaching.IsFiducialCaptureAllowed, TimeSpan.FromSeconds(2)));
+        await teaching.FindFiducialCommand.ExecuteAsync(null);
+        Assert.Null(teaching.CameraError);
+        Assert.NotNull(teaching.DetectedFiducial);
+        Assert.Empty(teaching.SelectedPoint!.Fiducial!.Contour);
+        Assert.Null(teaching.SelectedPoint.Fiducial.CameraPosition);
         await teaching.RegisterFiducialCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
         Assert.NotEmpty(teaching.SelectedPoint!.Fiducial!.Contour);
         Assert.True(teaching.Inspection.IsLiveView);
         Assert.NotNull(teaching.DetectedFiducial);
-        Assert.Same(teaching.FiducialImage, teaching.CameraImage);
+        Assert.Same(teaching.LiveImage, teaching.CameraImage);
         var registeredName = teaching.Recipes.Current.Name;
         var teachingStore = services.GetRequiredService<MachineStore>();
         Assert.Equal(teaching.SelectedPoint.Fiducial.Contour,
             teachingStore.LoadRecipe(registeredName).BoltInspection.Fiducials1.First.Contour);
         await Dispatcher.Yield(DispatcherPriority.DataBind);
         var teachingCameraView = (InspectionImageView)teachingView.FindName("TeachingCameraView");
-        Assert.Same(teaching.DetectedFiducial, teachingCameraView.DetectedFiducial);
+        Assert.Null(teachingCameraView.DetectedFiducial);
+        var fiducialResultView = (InspectionImageView)teachingView.FindName("FiducialResultView");
+        Assert.Same(teaching.FiducialImage, fiducialResultView.Source);
+        Assert.Same(teaching.DetectedFiducial, fiducialResultView.DetectedFiducial);
         Assert.False(teachingCameraView.CenterRegion);
         teaching.LiveImage = InspectionPreviewViewModel.CreateBitmap(FiducialTests.CircleImage((110, 95, 14)));
-        Assert.Same(teaching.FiducialImage, teaching.CameraImage);
-        teaching.ShowLiveImageCommand.Execute(null);
-        Assert.Null(teaching.DetectedFiducial);
         Assert.Same(teaching.LiveImage, teaching.CameraImage);
+        Assert.Same(teaching.FiducialImage, fiducialResultView.Source);
         await teaching.FindFiducialCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
         Assert.Contains("X ", teaching.FiducialMessage);
@@ -1281,40 +1315,62 @@ public sealed class UiBindingTests
         Assert.Null(teaching.SaveError);
         Assert.Equal(UiText.Get("Recipe saved"), teaching.FiducialMessage);
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        Assert.Same(teaching.FiducialImage, teaching.CameraImage);
+        Assert.Same(teaching.DetectedFiducial, teachingCameraView.DetectedFiducial);
         fiducialCamera.SourceImage = null;
-        var feedInputs = new[]
-        {
-            (Name: "ShootingIpmFeedDistanceInput", Value: "2.25", Default: "0"),
-            (Name: "ShootingIpmFeedSecondsInput", Value: "0.5", Default: "1"),
-            (Name: "PickupIpmFeedDistanceInput", Value: "4.5", Default: "0"),
-            (Name: "PickupIpmFeedSecondsInput", Value: "0.8", Default: "1"),
-            (Name: "ShootingPcbFeedDistanceInput", Value: "3.75", Default: "0"),
-            (Name: "ShootingPcbFeedSecondsInput", Value: "1.2", Default: "1"),
-        };
+        var heightBolt = new BoltPoint { X = 1, Y = 2, MinimumHeight = -0.1, MaximumHeight = 0.1 };
+        teaching.SelectedPoint = VirtualTestSupport.CreateTeachingPoint(
+            new(TeachingTarget.BoltReference, MotionGroup.InspectionGantry, TeachMode.Image) { Bolt = heightBolt },
+            services.GetRequiredService<MachineSettings>());
+        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        var minimumHeight = (TextBox)teachingView.FindName("InspectionMinimumHeightInput");
+        var maximumHeight = (TextBox)teachingView.FindName("InspectionMaximumHeightInput");
+        minimumHeight.Text = "-0.25";
+        minimumHeight.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        maximumHeight.Text = "0.35";
+        maximumHeight.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        Assert.Equal(-0.25, heightBolt.MinimumHeight);
+        Assert.Equal(0.35, heightBolt.MaximumHeight);
+        minimumHeight.Text = "invalid";
+        minimumHeight.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        await Dispatcher.Yield(DispatcherPriority.DataBind);
+        Assert.False(((Button)teachingView.FindName("MeasureHeightButton")).IsEnabled);
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        var feedBolt = new BoltPoint { Head = FasteningHead.Pickup };
+        var feedSettings = services.GetRequiredService<MachineSettings>();
+        teaching.SelectedPoint = VirtualTestSupport.CreateTeachingPoint(
+            new(TeachingTarget.BoltPreliminaryPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = feedBolt }, feedSettings);
         await Dispatcher.Yield(DispatcherPriority.DataBind);
-        foreach (var feedInput in feedInputs)
-        {
-            var text = (TextBox)teachingView.FindName(feedInput.Name);
-            Assert.True(text.IsEnabled);
-            text.Text = feedInput.Value;
-            text.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
-            Assert.False(Validation.GetHasError(text));
-        }
-        var feedRecipeName = teaching.Recipes.Current.Name;
-        await teaching.Recipes.SaveAsync(feedRecipeName);
-        await teaching.Recipes.NewAsync();
+        var feedDistance = (TextBox)teachingView.FindName("FasteningFeedDistanceInput");
+        var feedSeconds = (TextBox)teachingView.FindName("FasteningFeedSecondsInput");
+        Assert.Equal("0", feedDistance.Text);
+        Assert.Equal("1", feedSeconds.Text);
+        Assert.True(feedSeconds.IsEnabled);
+        feedDistance.Text = "2.25";
+        feedDistance.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        feedSeconds.Text = "0.5";
+        feedSeconds.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        Assert.Equal((2.25, 0.5), (feedBolt.PreliminaryFeedDistance, feedBolt.PreliminaryFeedSeconds));
+
+        teaching.SelectedPoint = VirtualTestSupport.CreateTeachingPoint(
+            new(TeachingTarget.BoltPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = feedBolt }, feedSettings);
         await Dispatcher.Yield(DispatcherPriority.DataBind);
-        foreach (var feedInput in feedInputs)
-        {
-            var text = (TextBox)teachingView.FindName(feedInput.Name);
-            Assert.Equal(feedInput.Default, text.Text);
-            Assert.True(text.IsEnabled);
-        }
-        await teaching.Recipes.LoadAsync(feedRecipeName);
+        Assert.Equal("0", feedDistance.Text);
+        Assert.Equal("1", feedSeconds.Text);
+        feedDistance.Text = "4.5";
+        feedDistance.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        feedSeconds.Text = "0.8";
+        feedSeconds.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+        Assert.Equal((4.5, 0.8), (feedBolt.FeedDistance, feedBolt.FeedSeconds));
+        Assert.Equal((2.25, 0.5), (feedBolt.PreliminaryFeedDistance, feedBolt.PreliminaryFeedSeconds));
+
+        var nextFeedBolt = new BoltPoint { FeedDistance = 3.75, FeedSeconds = 1.2 };
+        teaching.SelectedPoint = VirtualTestSupport.CreateTeachingPoint(
+            new(TeachingTarget.BoltPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = nextFeedBolt }, feedSettings);
         await Dispatcher.Yield(DispatcherPriority.DataBind);
-        foreach (var feedInput in feedInputs)
-            Assert.Equal(feedInput.Value, ((TextBox)teachingView.FindName(feedInput.Name)).Text);
+        Assert.Equal("3.75", feedDistance.Text);
+        Assert.Equal("1.2", feedSeconds.Text);
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         var preview = new Image();
         preview.SetBinding(

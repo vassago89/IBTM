@@ -128,19 +128,6 @@
                                             <Setter Property="Text" Value="NG"/>
                                             <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding RecentFastening.Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Ng}">
-                                            <Setter Property="Text" Value="NG"/>
-                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                        </DataTrigger>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding RecentFastening.Result.Success}" Value="True"/>
-                                                <Condition Binding="{Binding RecentFastening.Result.IsComplete}" Value="True"/>
-                                                <Condition Binding="{Binding RecentFastening.Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Pending}"/>
-                                            </MultiDataTrigger.Conditions>
-                                            <Setter Property="Text" Value="{ui:Text 'Turns unavailable'}"/>
-                                            <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
-                                        </MultiDataTrigger>
                                         <DataTrigger Binding="{Binding RecentFastening.Result.Source}" Value="{x:Static core:BoltResultSource.Manual}">
                                             <Setter Property="Text" Value="{ui:Text 'Manual completion'}"/>
                                             <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>

@@ -5,6 +5,7 @@
 using System;
 using System.IO;
 using System.IO.Ports;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using IBTM.Core;
 
@@ -38,20 +39,18 @@ public class MOVSService
         catch (Exception exception)
         {
             failure = exception;
-            throw;
         }
-        finally
+        try
         {
-            try
-            {
-                _port?.Dispose();
-                _port = null;
-            }
-            catch (Exception cleanupFailure) when (failure is not null)
-            {
-                throw new AggregateException(failure, cleanupFailure);
-            }
+            _port?.Dispose();
+            _port = null;
         }
+        catch (Exception cleanupFailure) when (failure is not null)
+        {
+            throw new AggregateException(failure, cleanupFailure);
+        }
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
     public void Off()

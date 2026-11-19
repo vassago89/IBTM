@@ -286,7 +286,7 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
         lock (s_jobGate)
         {
             if (CarrierPresent)
-                throw new InvalidOperationException("Remove the carrier before clearing its work.");
+                throw new InvalidOperationException(UiText.Get("Remove the carrier before clearing its work."));
             _job = new();
         }
         Changed?.Invoke();
@@ -296,7 +296,7 @@ public sealed class BackupPlateStation : INotifyPropertyChanged
     {
         if (!ReferenceEquals(_job, job))
             throw new InvalidOperationException(
-                $"Carrier work changed from {job.Id} to {_job.Id}; the previous work cannot update this carrier.");
+                UiText.Format($"Carrier work changed from {job.Id} to {_job.Id}; the previous work cannot update this carrier."));
     }
 
     public void TransferAssembliesTo(BackupPlateStation destination, Job job, Job arrivingJob)

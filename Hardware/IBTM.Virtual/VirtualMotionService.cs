@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.Virtual;
@@ -306,7 +307,7 @@ public sealed class VirtualMotionService : MotionServiceBase, IDisposable, IMoti
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            throw new MotionException("Jog", exception);
+            throw new MotionException(UiText.Get("Jog"), exception);
         }
         finally
         {

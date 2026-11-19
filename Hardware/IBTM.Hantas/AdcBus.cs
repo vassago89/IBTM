@@ -67,14 +67,13 @@ public sealed class AdcBus : IAdcBus, IDisposable
     public void Open(string portName, int baudRate, byte slaveAddress = 0)
     {
         if (slaveAddress > 15)
-            throw new ArgumentOutOfRangeException(nameof(slaveAddress), "HComm serial slave must be 0–15.");
+            throw new ArgumentOutOfRangeException(nameof(slaveAddress), UiText.Get("HComm serial slave must be 0–15."));
         if (IsOpen)
         {
             if (!string.Equals(PortName, portName, StringComparison.OrdinalIgnoreCase)
                 || BaudRate != baudRate || _slaveAddress != slaveAddress)
                 throw new InvalidOperationException(
-                    $"ADC is connected to {PortName}/{_slaveAddress} at {BaudRate} baud; "
-                    + $"requested {portName}/{slaveAddress} at {baudRate} baud. Disconnect first.");
+                    UiText.Format($"ADC is connected to {PortName}/{_slaveAddress} at {BaudRate} baud; requested {portName}/{slaveAddress} at {baudRate} baud. Disconnect first."));
             return;
         }
 
@@ -88,7 +87,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
         if (!communication.Connect(portName, baudRate, slaveAddress))
         {
             Close();
-            throw new IOException($"HComm could not open ADC {portName}/{slaveAddress} at {baudRate} baud.");
+            throw new IOException(UiText.Format($"HComm could not open ADC {portName}/{slaveAddress} at {baudRate} baud."));
         }
         _logger.LogInformation("ADC [{Port}/{Slave}] opened with HComm {Version} at {BaudRate} baud.",
             PortName, slaveAddress, typeof(HantasComm).Assembly.GetName().Version, baudRate);
@@ -112,7 +111,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
         var communication = Interlocked.Exchange(ref _communication, null);
         lock (_stateGate)
         {
-            _pending?.TrySetException(new IOException($"ADC {PortName}/{_slaveAddress} disconnected."));
+            _pending?.TrySetException(new IOException(UiText.Format($"ADC {PortName}/{_slaveAddress} disconnected.")));
             _torqueCurveWords.Clear();
             _torqueCurveNextBlock = 0;
         }
@@ -194,9 +193,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
         {
             var communication = _communication;
             if (!IsOpen || communication is null)
-                throw new IOException("Hantas ADC is not connected.");
+                throw new IOException(UiText.Get("Hantas ADC is not connected."));
             if (slaveAddress != _slaveAddress)
-                throw new InvalidOperationException("Disconnect ADC before changing its slave address.");
+                throw new InvalidOperationException(UiText.Get("Disconnect ADC before changing its slave address."));
             var pending = new TaskCompletionSource<AdcResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
             lock (_stateGate)
             {
@@ -243,7 +242,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                         throw new ArgumentOutOfRangeException(nameof(command));
                 }
                 if (!accepted)
-                    throw new IOException($"HComm did not queue {command}, address={address}, data={countOrValue}.");
+                    throw new IOException(UiText.Format($"HComm did not queue {command}, address={address}, data={countOrValue}."));
 
                 // An automatic event can remove HComm's queue entry. Our pending request
                 // still owns the reply and timeout; no next request is sent before it ends.
@@ -255,7 +254,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 catch (TimeoutException)
                 {
                     Close();
-                    throw new TimeoutException($"HComm did not finish ADC {PortName}/{slaveAddress} {command}; connection closed.");
+                    throw new TimeoutException(UiText.Format($"HComm did not finish ADC {PortName}/{slaveAddress} {command}; connection closed."));
                 }
                 if (response.ErrorCode is 0 or 255 && attempt < attempts)
                 {
@@ -281,7 +280,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     if (command != Command.GraphAd || response.Rejection is not null)
                         break;
                     if (response.Values.Length > 0 && (response.Values[0] & 0xFF) != graphBlock)
-                        throw new InvalidDataException($"ADC graph restarted before block {graphBlock} was received.");
+                        throw new InvalidDataException(UiText.Format($"ADC graph restarted before block {graphBlock} was received."));
                     if (_torqueCurveNextBlock == 0)
                         break;
                     graphBlock++;
@@ -367,7 +366,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 try
                 {
                     if (values is not { Length: > 1 })
-                        throw new InvalidDataException("ADC graph block has no samples.");
+                        throw new InvalidDataException(UiText.Get("ADC graph block has no samples."));
                     // HComm decodes words; C8's first word contains the block number and total.
                     var block = values[0] & 0xFF;
                     var count = (values[0] >> 8) & 0xFF;
@@ -384,7 +383,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     if (count == 0 || block == 0 || block > count
                         || count != _torqueCurveBlockCount || block != _torqueCurveNextBlock)
                         throw new InvalidDataException(
-                            $"ADC graph block sequence: {block}/{count}, expected {_torqueCurveNextBlock}/{_torqueCurveBlockCount}.");
+                            UiText.Format($"ADC graph block sequence: {block}/{count}, expected {_torqueCurveNextBlock}/{_torqueCurveBlockCount}."));
                     _torqueCurveWords.AddRange(values.AsSpan(1));
                     _torqueCurveNextBlock++;
                     if (block == count)
@@ -419,10 +418,10 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 errorCode = values is { Length: > 0 } ? checked((byte)values[0]) : null;
                 rejection = errorCode switch
                 {
-                    0 => "HComm response timeout (0x00)",
-                    255 => "HComm CRC error (0xFF)",
-                    { } code => $"HComm controller rejection (0x{code:X2})",
-                    null => "HComm error: missing error code",
+                    0 => UiText.Get("HComm response timeout (0x00)"),
+                    255 => UiText.Get("HComm CRC error (0xFF)"),
+                    { } code => UiText.Format($"HComm controller rejection (0x{code:X2})"),
+                    null => UiText.Get("HComm error: missing error code"),
                 };
             }
             // HComm attaches its raw callback after the first valid frame connects the port.
@@ -432,12 +431,11 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 || (command is Command.Read or Command.Mor && values.Length != _countOrValue)
                 || (command == Command.Write
                     && (values.Length != 2 || values[0] != _address || values[1] != _countOrValue)))
-                rejection = $"HComm reply mismatch: received {command}, address={address}, values={values?.Length}";
+                rejection = UiText.Format($"HComm reply mismatch: received {command}, address={address}, values={values?.Length}");
             var frame = _received.ToArray();
             if (rejection is not null)
             {
-                rejection += $"; request={_command}, address={_address}, data={_countOrValue}; "
-                    + $"TX={Convert.ToHexString(_transmitted)}; RX={Convert.ToHexString(frame)}.";
+                rejection += UiText.Format($"; request={_command}, address={_address}, data={_countOrValue}; TX={Convert.ToHexString(_transmitted)}; RX={Convert.ToHexString(frame)}.");
                 _logger.LogWarning("ADC [{Port}/{Slave}] {Rejection}", PortName, _slaveAddress, rejection);
             }
             _pending.TrySetResult(new(values ?? [], frame, rejection, errorCode));
@@ -450,7 +448,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
         if (connected)
             return;
         lock (_stateGate)
-            _pending?.TrySetException(new IOException($"HComm ADC {PortName}/{_slaveAddress} disconnected."));
+            _pending?.TrySetException(new IOException(UiText.Format($"HComm ADC {PortName}/{_slaveAddress} disconnected.")));
         Monitor.Stop();
     }
 }

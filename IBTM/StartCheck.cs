@@ -42,6 +42,10 @@ public enum StartCheckState
     Ready,
     [Description("Check NG gripper")]
     NgGripperCheckRequired,
+    [Description("Vacuum releases on start")]
+    ReleaseOnStart,
+    [Description("Reinspect on start")]
+    ReinspectOnStart,
 }
 
 public enum CarrierWorkAction

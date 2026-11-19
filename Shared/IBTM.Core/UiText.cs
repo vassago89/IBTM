@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
 using System.Resources;
 
 namespace IBTM.Core;
@@ -42,6 +43,21 @@ public static class UiText
     public static string Get(Enum value)
     {
         return Get(value.GetDescription());
+    }
+
+    public static string Get(Exception exception)
+    {
+        if (exception is AggregateException aggregate)
+            return string.Join(Environment.NewLine, aggregate.Flatten().InnerExceptions.Select(Get).Distinct());
+
+        var message = Get(exception.Message);
+        if (exception.InnerException is { } inner)
+        {
+            var detail = Get(inner);
+            if (!message.Contains(detail, StringComparison.Ordinal))
+                return message + Environment.NewLine + detail;
+        }
+        return message;
     }
 
     public static string Format(FormattableString text)

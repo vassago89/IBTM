@@ -16,7 +16,7 @@ public sealed class ConveyorSettings : Setting
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(value),
-                    "Transfer timeout must be positive and fit in milliseconds.");
+                    UiText.Get("Transfer timeout must be positive and fit in milliseconds."));
             }
 
             field = value;
@@ -33,7 +33,7 @@ public sealed class ConveyorSettings : Setting
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(value),
-                    "Carrier stop delay must be a finite number of 0 seconds or more.");
+                    UiText.Get("Carrier stop delay must be a finite number of 0 seconds or more."));
             }
 
             field = value;
@@ -50,7 +50,7 @@ public sealed class ConveyorSettings : Setting
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(value),
-                    "Rear SMEMA OFF delay must be a finite number of 0 seconds or more.");
+                    UiText.Get("Rear SMEMA OFF delay must be a finite number of 0 seconds or more."));
             }
 
             field = value;

@@ -59,7 +59,7 @@ public sealed class BoltInspectionRecipe
         set
         {
             if (value < 0 || value > 255)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use 0 to 255."));
             field = value;
         }
     } = 255;

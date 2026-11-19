@@ -29,7 +29,7 @@ public sealed class LocalizationTests
 
         var originalCulture = CultureInfo.CurrentCulture;
         var originalLanguage = UiText.Culture.Name == "ko" ? UiLanguage.Korean : UiLanguage.English;
-        var bolt = new BoltPoint { Name = "Settings", FasteningX = 1.25, MinimumTurns = 2.5 };
+        var bolt = new BoltPoint { Name = "Settings", FasteningX = 1.25, MinimumHeight = 2.5 };
         var json = JsonSerializer.Serialize(bolt);
         try
         {

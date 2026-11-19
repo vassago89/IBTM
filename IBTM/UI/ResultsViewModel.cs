@@ -107,14 +107,9 @@ public partial class ResultsViewModel : ObservableObject
     partial void OnHistoryDirectoryChanged(string value)
     {
         RefreshHistoryCommand.Cancel();
-        ClearHistory();
-        Error = null;
-    }
-
-    private void ClearHistory()
-    {
         Records.Clear();
         SelectedRecord = null;
+        Error = null;
     }
 
     private async Task RefreshHistoryAsync(CancellationToken token)
@@ -139,7 +134,7 @@ public partial class ResultsViewModel : ObservableObject
         catch (Exception exception)
         {
             if (!token.IsCancellationRequested)
-                Error = exception.Message;
+                Error = UiText.Get(exception);
             _log.LogError(exception, "PCB history load failed for {Directory}.", directory);
         }
     }

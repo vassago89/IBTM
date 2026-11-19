@@ -85,10 +85,6 @@
                 <TextBlock Text="{Binding Record.FasteningResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding Record.FasteningResult}" Style="{StaticResource ResultValueStyle}"/>
                 <TextBlock Text="{Binding BoltResults.Count, StringFormat={ui:Text '{}{0} results'}}" Foreground="{StaticResource TextMutedBrush}" Margin="8,0,0,0"/>
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <TextBlock Text="{ui:Text 'Turns result'}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBlock Text="{Binding Record.TurnsResult, Converter={StaticResource UiTextConverter}, TargetNullValue={ui:Text 'Not set'}}" Tag="{Binding Record.TurnsResult}" Style="{StaticResource ResultValueStyle}"/>
-            </StackPanel>
         </WrapPanel>
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions><ColumnDefinition Width="4*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="7*"/></Grid.ColumnDefinitions>
@@ -250,12 +246,7 @@
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTextColumn Header="{ui:Text 'Torque'}" Binding="{Binding Result.CompensatedTorque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="85"/>
                             <DataGridTextColumn Header="{ui:Text 'Z feed distance (mm)'}" Binding="{Binding Result.ZFeedDistance, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="Auto" MinWidth="110"/>
-                            <DataGridTemplateColumn Header="{ui:Text 'Turns'}" Width="105"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding TurnsVerdict}" Tag="{Binding TurnsVerdict}" Style="{StaticResource ResultValueStyle}" FontSize="13"/>
-                                    <TextBlock Text="{Binding Result.TotalTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource DetailTextStyle}"/>
-                                </StackPanel>
-                            </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                            <DataGridTextColumn Header="{ui:Text 'Turns'}" Binding="{Binding Result.TotalTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="105"/>
                         </DataGrid.Columns>
                     </DataGrid>
                     <TextBlock Grid.Row="1" Text="{ui:Text 'No fastening results recorded'}" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -278,16 +269,6 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <DockPanel>
-                                <StackPanel DockPanel.Dock="Right" Margin="12,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{ui:Text 'Min / Max'}" Style="{StaticResource CaptionTextStyle}"/>
-                                    <StackPanel Orientation="Horizontal" TextBlock.FontSize="14" Margin="0,3,0,0">
-                                        <TextBlock Text="{Binding SelectedBolt.Result.MinimumTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/>
-                                        <TextBlock Text=" / "/>
-                                        <TextBlock Text="{Binding SelectedBolt.Result.MaximumTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/>
-                                        <TextBlock Text="{Binding SelectedBolt.TurnsVerdict}" Tag="{Binding SelectedBolt.Result.TurnsResult}"
-                                            Style="{StaticResource ResultValueStyle}" Margin="8,0,0,0"/>
-                                    </StackPanel>
-                                </StackPanel>
                                 <StackPanel>
                                     <TextBlock Text="{Binding SelectedBoltStage.Title, TargetNullValue={ui:Text 'Controller'}, FallbackValue={ui:Text 'Controller'}}"
                                         ToolTip="{Binding SelectedBoltStage.Title}" Height="24" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="16"/>
@@ -363,7 +344,6 @@
                                                     </Style></TextBlock.Style>
                                                 </TextBlock>
                                                 <TextBlock Text="{Binding SelectedBolt.Result.TotalTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" FontSize="26" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding SelectedBolt.TurnsVerdict}" Tag="{Binding SelectedBolt.Result.TurnsResult}" Style="{StaticResource ResultValueStyle}" VerticalAlignment="Center" Margin="14,0,0,0"/>
                                             </StackPanel>
                                             <TextBlock Margin="8,8,0,0" Foreground="{StaticResource TextSecondaryBrush}">
                                                 <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>

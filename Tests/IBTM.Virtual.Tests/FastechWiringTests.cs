@@ -1,4 +1,3 @@
-using System;
 using IBTM.Ajin;
 using IBTM.Core;
 using IBTM.Device;

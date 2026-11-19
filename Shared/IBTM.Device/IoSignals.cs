@@ -16,31 +16,22 @@ public sealed class IoSignals : INotifyPropertyChanged
     {
         _io = io;
         _inputsAvailable = io.IsReady ? 1 : 0;
-        var sections = hardware.ToArray();
-        Inputs = sections.OfType<IoHardwareSettings>()
-            .SelectMany(
-                section =>
-                    section.Inputs.Select(
-                        input => new IoInputStatus(
-                            input.Key,
-                            section.Area,
-                            section.GetSection(input.Key),
-                            io,
-                            input.Value)))
-            .ToDictionary(row => row.Signal);
-        Outputs = sections.OfType<IoHardwareSettings>()
-            .SelectMany(
-                section =>
-                    section.Outputs.Select(
-                        output =>
-                            new IoOutputStatus(
-                                output.Key,
-                                section.Area,
-                                section.GetSection(output.Key),
-                                io,
-                                Inputs,
-                                output.Value.Number)))
-            .ToDictionary(row => row.Signal);
+        var sections = hardware.OfType<IoHardwareSettings>().ToArray();
+        var inputs = new Dictionary<InputIo, IoInputStatus>();
+        foreach (var section in sections)
+        {
+            foreach (var (signal, number) in section.Inputs)
+                inputs.Add(signal, new(signal, section.Area, section.GetSection(signal), io, number));
+        }
+        Inputs = inputs;
+
+        var outputs = new Dictionary<OutputIo, IoOutputStatus>();
+        foreach (var section in sections)
+        {
+            foreach (var (signal, output) in section.Outputs)
+                outputs.Add(signal, new(signal, section.Area, section.GetSection(signal), io, Inputs, output.Number));
+        }
+        Outputs = outputs;
 
         io.InputChanged += OnInputChanged;
         io.Faulted += OnIoFaulted;

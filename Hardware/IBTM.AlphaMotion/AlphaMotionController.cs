@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using IBTM.Core;
 using Microsoft.Extensions.Logging;
 using Shared;
 
@@ -30,7 +31,7 @@ public sealed class AlphaMotionController : IDisposable
             throw new ArgumentOutOfRangeException(
                 nameof(AlphaMotionSettings.ControllerNumber),
                 cardNumber,
-                "AlphaMotion card number must fit the manufacturer's unsigned 16-bit address.");
+                UiText.Get("AlphaMotion card number must fit the manufacturer's unsigned 16-bit address."));
         _cardNumber = (ushort)cardNumber;
         _gate = new();
         _reportedResults = [];
@@ -55,7 +56,7 @@ public sealed class AlphaMotionController : IDisposable
                 }
             }
             if (!Environment.Is64BitProcess)
-                throw new PlatformNotSupportedException("TMC-AE16DIOe requires a 64-bit process and tmcDApiAed_x64.dll.");
+                throw new PlatformNotSupportedException(UiText.Get("TMC-AE16DIOe requires a 64-bit process and tmcDApiAed_x64.dll."));
             // Manufacturer frmDIGITAL.LoadDevice checks < 0 for failure and adds 1
             // to this result for the board count. It is not a TMC_ST_OK status.
             _reportedResults.Clear();
@@ -93,7 +94,7 @@ public sealed class AlphaMotionController : IDisposable
                         result,
                         error,
                         nameof(TMCAEDLL.AIO_BoardInfo),
-                        $"Invalid or unchanged I/O counts: {detail}. Counts must fit the SDK channel address range and expose at least one I/O channel.");
+                        UiText.Format($"Invalid or unchanged I/O counts: {detail}. Counts must fit the SDK channel address range and expose at least one I/O channel."));
                 _inputCount = inputs;
                 _outputCount = outputs;
                 // Probe each available direction before allowing any output command.
@@ -170,7 +171,7 @@ public sealed class AlphaMotionController : IDisposable
                     result,
                     error,
                     nameof(TMCAEDLL.AIO_PutDOBit),
-                    $"Output readback mismatch: {detail}, DO=0x{readback:X8}.",
+                    UiText.Format($"Output readback mismatch: {detail}, DO=0x{readback:X8}."),
                     bit);
         }
     }
@@ -190,7 +191,7 @@ public sealed class AlphaMotionController : IDisposable
     {
         if (!_initialized)
             throw new IOException(
-                $"{Address(operation, bit)} cannot run: AlphaMotion TMC-AE16DIOe is not initialized.");
+                UiText.Format($"{Address(operation, bit)} cannot run: AlphaMotion TMC-AE16DIOe is not initialized."));
     }
 
     private uint ReadPort(bool input, int? bit = null)
@@ -214,7 +215,7 @@ public sealed class AlphaMotionController : IDisposable
                         read.Result,
                         read.Error,
                         operation,
-                        "Invalid or unchanged port data after changing the read-buffer seed; I/O state is unavailable.",
+                        UiText.Get("Invalid or unchanged port data after changing the read-buffer seed; I/O state is unavailable."),
                         bit);
             }
         }
@@ -224,7 +225,7 @@ public sealed class AlphaMotionController : IDisposable
                 read.Result,
                 read.Error,
                 operation,
-                $"Invalid or unchanged port data: group=0, {(input ? "DI" : "DO")}=0x{read.Value:X8}. Reported channel count={count}; it will not be reported as OFF.",
+                UiText.Format($"Invalid or unchanged port data: group=0, {(input ? "DI" : "DO")}=0x{read.Value:X8}. Reported channel count={count}; it will not be reported as OFF."),
                 bit);
         return read.Value;
     }
@@ -251,7 +252,7 @@ public sealed class AlphaMotionController : IDisposable
             throw new ArgumentOutOfRangeException(
                 nameof(bit),
                 bit,
-                $"AlphaMotion card={_cardNumber} reports {count} {(input ? "DI" : "DO")} channels; this mapped channel does not exist.");
+                UiText.Format($"AlphaMotion card={_cardNumber} reports {count} {(input ? "DI" : "DO")} channels; this mapped channel does not exist."));
     }
 
     private void Unload()
@@ -307,7 +308,7 @@ public sealed class AlphaMotionController : IDisposable
         int? bit = null)
     {
         return new(
-            $"{Address(operation, bit)} failed with AlphaMotion result {result}; {GetErrorName(error)} ({error})." + (detail is null ? "" : $" {detail}"));
+            UiText.Format($"{Address(operation, bit)} failed with AlphaMotion result {result}; {GetErrorName(error)} ({error}).") + (detail is null ? "" : $" {detail}"));
     }
 
     private static string GetErrorName(int error)
@@ -332,7 +333,7 @@ public sealed class AlphaMotionController : IDisposable
             throw new ArgumentOutOfRangeException(
                 nameof(bit),
                 bit,
-                "AlphaMotion mapped channels are 0 through 15; logical addresses 16 and above belong to AJIN.");
+                UiText.Get("AlphaMotion mapped channels are 0 through 15; logical addresses 16 and above belong to AJIN."));
         return (ushort)bit;
     }
 }

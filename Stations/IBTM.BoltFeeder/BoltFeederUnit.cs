@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -94,24 +95,22 @@ public sealed class BoltFeederUnit : AutoUnit
         catch (Exception exception)
         {
             failure = exception;
-            throw;
+        }
+        try
+        {
+            if (shootingEnabled)
+                Stop();
+        }
+        catch (Exception cleanupFailure) when (failure is not null)
+        {
+            throw new AggregateException(failure, cleanupFailure);
         }
         finally
         {
-            try
-            {
-                if (shootingEnabled)
-                    Stop();
-            }
-            catch (Exception cleanupFailure) when (failure is not null)
-            {
-                throw new AggregateException(failure, cleanupFailure);
-            }
-            finally
-            {
-                EndRun(cancellationToken);
-            }
+            EndRun(cancellationToken);
         }
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
     private double CheckEmptyTimeout(InputIo input, int timeoutMilliseconds, CancellationToken cancellationToken)

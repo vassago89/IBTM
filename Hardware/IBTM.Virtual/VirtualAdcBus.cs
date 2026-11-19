@@ -54,7 +54,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         if (IsOpen)
         {
             if (!string.Equals(PortName, selected, StringComparison.OrdinalIgnoreCase) || BaudRate != baudRate)
-                throw new InvalidOperationException($"ADC is already connected to {PortName} at {BaudRate} baud.");
+                throw new InvalidOperationException(UiText.Format($"ADC is already connected to {PortName} at {BaudRate} baud."));
             return;
         }
         PortName = selected;
@@ -119,7 +119,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
                 2 => 10,
                 3 => 15,
                 4 => 30,
-                _ => throw new InvalidOperationException($"Unsupported virtual ADC sampling code: {samplingCode}."),
+                _ => throw new InvalidOperationException(UiText.Format($"Unsupported virtual ADC sampling code: {samplingCode}.")),
             };
             var samples = Enumerable.Range(0, (FasteningMilliseconds + sampleMilliseconds - 1) / sampleMilliseconds)
                 .Select(index => result.Torque * Math.Min(1.0, index * sampleMilliseconds / 200.0)).ToArray();
@@ -136,7 +136,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
     public void BindIo(IIoService io, FasteningHead head, byte slaveAddress)
     {
         if (_io is not null && !ReferenceEquals(_io, io))
-            throw new InvalidOperationException("Virtual ADC is already wired to another I/O service.");
+            throw new InvalidOperationException(UiText.Get("Virtual ADC is already wired to another I/O service."));
         if (_io is null)
         {
             _io = io;

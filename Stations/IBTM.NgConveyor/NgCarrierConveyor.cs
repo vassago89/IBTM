@@ -39,7 +39,7 @@ public sealed class NgCarrierConveyor : AutoUnit
     public void AttachTransfer(INgCarrierTransferFeedback transfer)
     {
         if (_transfer is not null)
-            throw new InvalidOperationException("NG transfer feedback is already attached.");
+            throw new InvalidOperationException(UiText.Get("NG transfer feedback is already attached."));
         _transfer = transfer;
         // Wake this loop without echoing Changed back to the inspection station.
         transfer.Changed += WakeRun;
@@ -286,7 +286,7 @@ public sealed class NgCarrierConveyor : AutoUnit
                         await WaitForChangeAsync(cancellationToken);
                         break;
                     default:
-                        throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported NG conveyor step.");
+                        throw new ArgumentOutOfRangeException(nameof(state), state, UiText.Get("Unsupported NG conveyor step."));
                 }
             }
         }
@@ -297,23 +297,20 @@ public sealed class NgCarrierConveyor : AutoUnit
         {
             motor.Failure = exception;
         }
+        try
+        {
+            motor.Dispose();
+        }
         finally
         {
-            try
-            {
-                motor.Dispose();
-            }
-            finally
-            {
-                _movement = Movement.None;
-                // An interrupted ejection still needs operator confirmation, not an
-                // automatic refill on START. This records permission, not carrier position.
-                if (_ejectionPhase == EjectionPhase.Ejecting)
-                    _ejectionPhase = EjectionPhase.WaitingForConfirmation;
-                Interlocked.Exchange(ref _ejectRequested, 0);
-                Interlocked.Exchange(ref _ejectCompleteRequested, 0);
-                EndRun(cancellationToken);
-            }
+            _movement = Movement.None;
+            // An interrupted ejection still needs operator confirmation, not an
+            // automatic refill on START. This records permission, not carrier position.
+            if (_ejectionPhase == EjectionPhase.Ejecting)
+                _ejectionPhase = EjectionPhase.WaitingForConfirmation;
+            Interlocked.Exchange(ref _ejectRequested, 0);
+            Interlocked.Exchange(ref _ejectCompleteRequested, 0);
+            EndRun(cancellationToken);
         }
     }
 
@@ -386,9 +383,9 @@ public sealed class NgCarrierConveyor : AutoUnit
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (down && (_ejectionPhase != EjectionPhase.Idle || Volatile.Read(ref _ejectRequested) != 0))
-            throw new MotionInterlockException("Complete NG carrier ejection before lowering the shuttle.");
+            throw new MotionInterlockException(UiText.Get("Complete NG carrier ejection before lowering the shuttle."));
         if (!IsTransferClear)
-            throw new MotionInterlockException("Complete the NG transfer release and raise the open pickup before moving the shuttle.");
+            throw new MotionInterlockException(UiText.Get("Complete the NG transfer release and raise the open pickup before moving the shuttle."));
         return Io.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, down, cancellationToken);
     }
 

@@ -1,4 +1,5 @@
 using System;
+using IBTM.Core;
 
 namespace IBTM.Device;
 
@@ -15,7 +16,7 @@ public sealed class MotionException : Exception
 {
     public MotionException(string operation, Exception innerException)
         : base(
-            $"{operation} failed.",
+            UiText.Format($"{operation} failed."),
             innerException)
     {
     }

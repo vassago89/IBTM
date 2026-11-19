@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using IBTM.Core;
 
 namespace IBTM.Device;
 
@@ -50,7 +51,7 @@ public sealed class SignalIdJsonConverter<T> : JsonConverter<T>
     private static T RequireDefined(T value)
     {
         if (!Enum.IsDefined(value))
-            throw new JsonException($"Unknown {typeof(T).Name} ID: {value}.");
+            throw new JsonException(UiText.Format($"Unknown {typeof(T).Name} ID: {value}."));
         return value;
     }
 }

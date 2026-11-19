@@ -52,9 +52,6 @@ public sealed record BoltResult(
     public bool IsComplete => Source != BoltResultSource.Interrupted
         && (Stage is not (BoltFasteningStage.Preliminary or BoltFasteningStage.FinalBeforeRetightening)
             || !Success);
-    // Keep the bolt's applied criterion with the measurement, independent of later recipe edits.
-    public double? MinimumTurns { get; init; }
-    public double? MaximumTurns { get; init; }
 
     [JsonIgnore]
     public double? CompensatedTorque => Torque * Controller?.TorqueCompensationPercent / 100.0;
@@ -71,22 +68,6 @@ public sealed record BoltResult(
         BoltFasteningStage.Retightening => MeasuredTurns + PreviousFinalResult?.TotalTurns,
         _ => MeasuredTurns,
     };
-
-    [JsonIgnore]
-    public AssemblyResult? TurnsResult
-    {
-        get
-        {
-            if (MinimumTurns is null && MaximumTurns is null)
-                return null;
-            if (!IsComplete || TotalTurns is not { } turns)
-                return AssemblyResult.Pending;
-            if ((MinimumTurns is { } minimum && turns < minimum)
-                || (MaximumTurns is { } maximum && turns > maximum))
-                return AssemblyResult.Ng;
-            return AssemblyResult.Ok;
-        }
-    }
 }
 
 // The complete ADC result payload. Codes and original registers are retained as received.

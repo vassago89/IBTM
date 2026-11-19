@@ -189,10 +189,10 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         if (cancellationToken.IsCancellationRequested)
             return;
         if (_units.PcbPlacement && Io.GetInput(InputIo.PcbPlacementVacuumDetected))
-            throw new InvalidOperationException("Release Placement vacuum before starting.");
+            throw new InvalidOperationException(UiText.Get("Release Placement vacuum before starting."));
         if (_units.PcbPlacement && IsIpmSupportEngaged != false
             && Io.GetInput(InputIo.PcbPlacementPcbDetected))
-            throw new InvalidOperationException("Check the PCB on the Placement IPM support before starting a new handoff.");
+            throw new InvalidOperationException(UiText.Get("Check the PCB on the Placement IPM support before starting a new handoff."));
         _runTargets = null;
         Phase = _units.PcbPlacement ? PcbPlacementState.Retracting
             : PcbPlacementState.WaitingForCarrier;
@@ -233,7 +233,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
         {
             throw new MotionInterlockException(
-                "The placement carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
+                UiText.Get("The placement carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting."));
         }
         finally
         {
@@ -298,7 +298,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             NotifyChanged();
         var requiresSecuredPcb = state == PcbPlacementState.PreparingPlacement;
         if (IsPcbGripUncertain || requiresSecuredPcb && !PcbSecured)
-            throw new InvalidOperationException("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before moving or releasing it.");
+            throw new InvalidOperationException(UiText.Get("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before moving or releasing it."));
         cancellationToken.ThrowIfCancellationRequested();
         switch (state)
         {
@@ -314,7 +314,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 break;
             case PcbPlacementState.PreparingPlacement:
                 await MoveToStandbyAsync(
-                    heatSink ?? throw new InvalidOperationException("No placement target is selected."),
+                    heatSink ?? throw new InvalidOperationException(UiText.Get("No placement target is selected.")),
                     cancellationToken);
                 // Publish Clear only after the Z/Y departure, and wait for Supply to acknowledge it.
                 EnterStep(PcbPlacementState.WaitingForSupplyDeparture);
@@ -322,7 +322,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     if (!PcbSecured)
-                        throw new InvalidOperationException("Placement lost PCB holding while completing the supply handoff.");
+                        throw new InvalidOperationException(UiText.Get("Placement lost PCB holding while completing the supply handoff."));
                     if (_supply.Handoff == PcbSupplyHandoff.Unavailable)
                         break;
                     await WaitForChangeAsync(cancellationToken);
@@ -331,11 +331,11 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 break;
             case PcbPlacementState.PlacingPcb:
             {
-                var target = heatSink ?? throw new InvalidOperationException("No placement target is selected.");
+                var target = heatSink ?? throw new InvalidOperationException(UiText.Get("No placement target is selected."));
                 var position = GetHeatSinkPosition(target);
                 var carryingPcb = true;
                 if (!PcbSecured)
-                    throw new InvalidOperationException("Placement requires confirmed PCB holding before travelling to its target.");
+                    throw new InvalidOperationException(UiText.Get("Placement requires confirmed PCB holding before travelling to its target."));
                 using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 void CheckPlacementFeedback()
                 {
@@ -377,7 +377,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                    throw new InvalidOperationException("Placement lost PCB grip before lowering, the target heat sink, or the original seated carrier.");
+                    throw new InvalidOperationException(UiText.Get("Placement lost PCB grip before lowering, the target heat sink, or the original seated carrier."));
                 }
                 finally
                 {
@@ -402,7 +402,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 or PcbPlacementState.WaitingForSupplyDeparture:
                 return false;
             default:
-                throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported PCB placement step.");
+                throw new ArgumentOutOfRangeException(nameof(state), state, UiText.Get("Unsupported PCB placement step."));
         }
         return true;
     }
@@ -426,7 +426,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (Io.GetInput(InputIo.PcbPlacementVacuumDetected))
-            throw new InvalidOperationException("Release Placement vacuum before moving to standby.");
+            throw new InvalidOperationException(UiText.Get("Release Placement vacuum before moving to standby."));
         await MoveToStandbyAsync(TargetHeatSink ?? HeatSinkSlot.HeatSink1, cancellationToken);
     }
 
@@ -456,7 +456,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new InvalidOperationException("Placement lost PCB grip while raising or leaving handoff.");
+            throw new InvalidOperationException(UiText.Get("Placement lost PCB grip while raising or leaving handoff."));
         }
         finally
         {
@@ -484,7 +484,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             CheckSupply();
             approach.Token.ThrowIfCancellationRequested();
             if (IsIpmSupportEngaged != false && Io.GetInput(InputIo.PcbPlacementPcbDetected))
-                throw new InvalidOperationException("Check the PCB on the Placement IPM support before starting a new handoff.");
+                throw new InvalidOperationException(UiText.Get("Check the PCB on the Placement IPM support before starting a new handoff."));
             await SetIpmSupportAsync(false, approach.Token);
             await SetLiftDownAsync(false, approach.Token);
             await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, approach.Token);
@@ -496,7 +496,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             EnterStep(PcbPlacementState.ReceivingPcb);
             await MoveAxisAsync(
                 MotionAxis.Z,
-                _settings.ReceiveZ ?? throw new MotionInterlockException("Teach PCB Receive Z before receiving a PCB."),
+                _settings.ReceiveZ ?? throw new MotionInterlockException(UiText.Get("Teach PCB Receive Z before receiving a PCB.")),
                 approach.Token);
             CheckSupply();
             approach.Token.ThrowIfCancellationRequested();
@@ -507,17 +507,17 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             await SetVacuumAsync(true, approach.Token);
             approach.Token.ThrowIfCancellationRequested();
             if (!PcbSecured)
-                throw new InvalidOperationException("Placement receipt requires both PCB detection and vacuum before Supply releases it.");
+                throw new InvalidOperationException(UiText.Get("Placement receipt requires both PCB detection and vacuum before Supply releases it."));
             await SetIpmSupportAsync(true, approach.Token);
             approach.Token.ThrowIfCancellationRequested();
             if (!PcbSecured)
-                throw new InvalidOperationException("Placement receipt requires both PCB detection and vacuum before Supply releases it.");
+                throw new InvalidOperationException(UiText.Get("Placement receipt requires both PCB detection and vacuum before Supply releases it."));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             if (receiving)
-                throw new InvalidOperationException("Supply lost confirmed PCB holding during receipt.");
-            throw new MotionInterlockException("Supply must remain ready at its unrotated handoff position while Placement approaches.");
+                throw new InvalidOperationException(UiText.Get("Supply lost confirmed PCB holding during receipt."));
+            throw new MotionInterlockException(UiText.Get("Supply must remain ready at its unrotated handoff position while Placement approaches."));
         }
         finally
         {
@@ -550,7 +550,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         EnsureHandlerRaised(cancellationToken);
         var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
         if (axis == MotionAxis.Z && !_motion.GetAxisState(axis).Homed)
-            throw new MotionInterlockException("Home Placement Z before moving to a taught height.");
+            throw new MotionInterlockException(UiText.Get("Home Placement Z before moving to a taught height."));
         return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
 
@@ -593,7 +593,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 break;
             case TeachMode.Full:
                 if (!double.IsFinite(position.Z))
-                    throw new ArgumentOutOfRangeException(nameof(position), "Target Z must be finite before XY movement.");
+                    throw new ArgumentOutOfRangeException(nameof(position), UiText.Get("Target Z must be finite before XY movement."));
                 await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, cancellationToken);
                 EnsureHandlerRaised(cancellationToken);
                 await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
@@ -638,9 +638,9 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (down && _motion.IsMoving)
-            throw new MotionInterlockException("Stop the placement axes before lowering the handler.");
+            throw new MotionInterlockException(UiText.Get("Stop the placement axes before lowering the handler."));
         if (down && IsIpmSupportEngaged != false)
-            throw new MotionInterlockException("Retract the IPM support before lowering the placement handler.");
+            throw new MotionInterlockException(UiText.Get("Retract the IPM support before lowering the placement handler."));
         return Io.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, down, cancellationToken);
     }
 
@@ -660,7 +660,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             && _supply.Handoff == PcbSupplyHandoff.Holding
             && Lift == StationCylinderState.Up)
         {
-            throw new MaintenanceStopException("Placement vacuum was not detected before lifting. The PCB remains on its support; check the vacuum and remove the PCB before restarting.", exception);
+            throw new MaintenanceStopException(UiText.Get("Placement vacuum was not detected before lifting. The PCB remains on its support; check the vacuum and remove the PCB before restarting."), exception);
         }
     }
 
@@ -669,7 +669,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         cancellationToken.ThrowIfCancellationRequested();
         if (Lift != StationCylinderState.Up)
         {
-            throw new MotionInterlockException("Raise the placement handler before moving any axis.");
+            throw new MotionInterlockException(UiText.Get("Raise the placement handler before moving any axis."));
         }
     }
 }

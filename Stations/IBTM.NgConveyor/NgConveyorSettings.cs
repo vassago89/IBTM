@@ -11,7 +11,7 @@ public sealed class NgConveyorSettings : Setting
         set
         {
             if (value is < 1 or > 3)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use an NG alarm carrier count from 1 to 3.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use an NG alarm carrier count from 1 to 3."));
             field = value;
         }
     } = 3;
@@ -22,7 +22,7 @@ public sealed class NgConveyorSettings : Setting
         set
         {
             if (!double.IsFinite(value) || value < 0 || value * 1000 > uint.MaxValue - 1)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite NG conveyor stop delay of 0 seconds or more.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite NG conveyor stop delay of 0 seconds or more."));
             field = value;
         }
     } = 5;
@@ -33,7 +33,7 @@ public sealed class NgConveyorSettings : Setting
         set
         {
             if (!double.IsFinite(value) || value <= 0 || value * 1000 > uint.MaxValue - 1)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a positive, finite NG ejection time in seconds.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a positive, finite NG ejection time in seconds."));
             field = value;
         }
     } = 5;

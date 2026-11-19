@@ -147,7 +147,14 @@ public partial class InspectionTeachingViewModel : ObservableObject
             var selected = SelectedPoint;
             SelectedPoint = null;
             _carrierImages = images;
-            Points = Enum.GetValues<HeatSinkSlot>().SelectMany(pcb => InspectionPoint.ForPcb(Preview.Recipe, pcb)).ToArray();
+            var points = new List<InspectionPoint>();
+            foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
+            {
+                points.Add(new(Preview.Recipe, pcb));
+                foreach (var bolt in Preview.Recipe.Pcb.BoltPoints.Where(bolt => bolt.HeatSink == pcb))
+                    points.Add(new(Preview.Recipe, pcb, bolt));
+            }
+            Points = points.ToArray();
             IsLoaded = true;
             SelectedPoint = (selected is not null
                 ? Points.FirstOrDefault(point => point.HeatSink == selected.HeatSink
@@ -166,7 +173,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (Exception exception)
         {
             if (!token.IsCancellationRequested)
-                Error = exception.Message;
+                Error = UiText.Get(exception);
             _log.LogError(exception, "Inspection teaching load failed for {Recipe}.", recipe.Name);
         }
         finally
@@ -210,7 +217,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 }
                 catch (Exception exception)
                 {
-                    Error = exception.Message;
+                    Error = UiText.Get(exception);
                     _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata!.Number);
                 }
             }
@@ -237,7 +244,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            Error = exception.Message;
+            Error = UiText.Get(exception);
             _log.LogError(exception, "Data Matrix preview refresh failed.");
         }
     }
@@ -267,7 +274,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (Exception exception)
         {
             if (!token.IsCancellationRequested)
-                Error = exception.Message;
+                Error = UiText.Get(exception);
             _log.LogError(exception, "Offline inspection failed.");
         }
     }
@@ -297,7 +304,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            Error = exception.Message;
+            Error = UiText.Get(exception);
             _log.LogError(exception, "Inspection teaching save failed for {Recipe}.", Preview.Recipe.Name);
         }
     }
@@ -380,7 +387,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (Exception exception)
         {
             if (!token.IsCancellationRequested && Results.SelectedRecord == record)
-                Error = exception.Message;
+                Error = UiText.Get(exception);
             _log.LogError(exception, "Inspection image history failed for PCB {Number}.", record?.Number);
         }
         finally
@@ -461,7 +468,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             catch (Exception exception)
             {
                 Preview.Clear();
-                HistoryImageError = exception.Message;
+                HistoryImageError = UiText.Get(exception);
                 _log.LogError(exception, "Inspection history preview failed for PCB {Number}.", LoadedRecord!.Number);
             }
         }

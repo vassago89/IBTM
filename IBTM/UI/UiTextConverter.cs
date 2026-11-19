@@ -11,6 +11,7 @@ public sealed class UiTextConverter : IValueConverter
     {
         return value switch
         {
+            Exception exception => UiText.Get(exception),
             Enum enumValue => UiText.Get(enumValue),
             string text => UiText.Get(text),
             _ => value,

@@ -88,7 +88,6 @@ public sealed class HeatSinkAssembly
 
     public AssemblyResult FasteningResult { get; private set; }
     public AssemblyResult InspectionResult { get; private set; }
-    public AssemblyResult? TurnsResult { get; private set; }
     // Pending is untested; assigning a null barcode records a failed read.
     public AssemblyResult PcbBarcodeResult { get; private set; }
     // Inspection policy applied to this read; later setting changes do not rewrite its verdict.
@@ -106,17 +105,7 @@ public sealed class HeatSinkAssembly
         }
     }
 
-    public AssemblyResult Result
-    {
-        get
-        {
-            if (FasteningResult == AssemblyResult.Ng || TurnsResult == AssemblyResult.Ng)
-                return AssemblyResult.Ng;
-            if (TurnsResult == AssemblyResult.Pending && InspectionResult == AssemblyResult.Ok)
-                return AssemblyResult.Pending;
-            return InspectionResult;
-        }
-    }
+    public AssemblyResult Result => FasteningResult == AssemblyResult.Ng ? AssemblyResult.Ng : InspectionResult;
 
     public void RecordBolt(FasteningHead head, Guid boltId, BoltResult result)
     {
@@ -132,10 +121,6 @@ public sealed class HeatSinkAssembly
         {
             FasteningResult = AssemblyResult.Ng;
         }
-        if (result.TurnsResult == AssemblyResult.Ng)
-            TurnsResult = AssemblyResult.Ng;
-        else if (result.TurnsResult.HasValue && TurnsResult != AssemblyResult.Ng)
-            TurnsResult = AssemblyResult.Pending;
         ResultsChanged?.Invoke(this);
     }
 
@@ -157,8 +142,6 @@ public sealed class HeatSinkAssembly
         FasteningResult = recorded.Any(item => item.Source != BoltResultSource.Interrupted
             && (!item.Success || item.Source == BoltResultSource.DryRun))
             ? AssemblyResult.Ng : AssemblyResult.Pending;
-        TurnsResult = recorded.Any(item => item.TurnsResult == AssemblyResult.Ng) ? AssemblyResult.Ng
-            : recorded.Any(item => item.TurnsResult.HasValue) ? AssemblyResult.Pending : null;
         ResultsChanged?.Invoke(this);
     }
 
@@ -169,14 +152,6 @@ public sealed class HeatSinkAssembly
             FasteningResult = _shootingBoltResults.Values.Concat(_pickupBoltResults.Values)
                 .Any(result => result.Source == BoltResultSource.Interrupted)
                 ? AssemblyResult.Pending : AssemblyResult.Ok;
-        }
-        if (TurnsResult != AssemblyResult.Ng)
-        {
-            var checkedResults = _shootingBoltResults.Values.Concat(_pickupBoltResults.Values)
-                .Where(result => result.TurnsResult.HasValue).ToArray();
-            TurnsResult = checkedResults.Length == 0 ? null
-                : checkedResults.All(result => result.TurnsResult == AssemblyResult.Ok)
-                    ? AssemblyResult.Ok : AssemblyResult.Pending;
         }
         ResultsChanged?.Invoke(this);
     }
@@ -200,7 +175,6 @@ public sealed class HeatSinkAssembly
         _shootingBoltResults.Clear();
         _pickupBoltResults.Clear();
         FasteningResult = AssemblyResult.Pending;
-        TurnsResult = null;
         ResultsChanged?.Invoke(this);
     }
 

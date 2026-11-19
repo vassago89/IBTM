@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using IBTM.Core;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
 using IBTM.Device;
@@ -141,10 +142,10 @@ public sealed class PhysicalIoService : IIoService, IDisposable
     public bool GetInput(InputIo input)
     {
         if (!_inputMap.TryGetValue(input, out var channel) || channel < 0)
-            throw new IOException($"DI {input} is unavailable: no configured input address.");
+            throw new IOException(UiText.Format($"DI {input} is unavailable: no configured input address."));
         if (!_ready)
         {
-            throw new IOException($"DI {input} is unavailable: no valid input scan.");
+            throw new IOException(UiText.Format($"DI {input} is unavailable: no valid input scan."));
         }
 
         return Volatile.Read(ref _inputs[(int)input]);
@@ -153,7 +154,7 @@ public sealed class PhysicalIoService : IIoService, IDisposable
     public bool GetOutput(OutputIo output)
     {
         if (!_outputMap.TryGetValue(output, out var mapping) || mapping.Number < 0)
-            throw new IOException($"DO {output} is unavailable: no configured output address.");
+            throw new IOException(UiText.Format($"DO {output} is unavailable: no configured output address."));
         return ReadOutput(mapping.Number);
     }
 
@@ -167,7 +168,7 @@ public sealed class PhysicalIoService : IIoService, IDisposable
         var mapping = _outputMap[output];
         // Validate both coils before any write; a missing OFF address is not a single-coil valve.
         if (mapping.Number < 0 || mapping.OffNumber is < 0)
-            throw new IOException($"DO {output} is unavailable: configure both output addresses before operation.");
+            throw new IOException(UiText.Format($"DO {output} is unavailable: configure both output addresses before operation."));
         if (mapping.OffNumber is { } offChannel)
         {
             // Keep opposite commands for this valve from interleaving its two writes.

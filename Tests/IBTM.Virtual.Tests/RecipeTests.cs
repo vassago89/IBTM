@@ -86,97 +86,45 @@ public sealed class RecipeTests
     }
 
     [Fact]
-    public void TurnsLimitsFollowEachBoltThroughRecipeSaveReorderAndClear()
-    {
-        var first = new BoltPoint();
-        var second = new BoltPoint();
-        Assert.Null(first.MinimumTurns);
-        Assert.Null(first.MaximumTurns);
-        first.MinimumTurns = 0;
-        first.MaximumTurns = 0;
-        Assert.Null(first.MinimumTurns);
-        Assert.Null(first.MaximumTurns);
-        Assert.Throws<ArgumentOutOfRangeException>(() => first.MinimumTurns = -1);
-        Assert.Throws<ArgumentOutOfRangeException>(() => first.MinimumTurns = double.NaN);
-        Assert.Throws<ArgumentOutOfRangeException>(() => first.MaximumTurns = -1);
-        Assert.Throws<ArgumentOutOfRangeException>(() => first.MaximumTurns = double.PositiveInfinity);
-        first.MinimumTurns = 3.5;
-        first.MaximumTurns = 8.5;
-        second.MinimumTurns = 10;
-        second.MaximumTurns = 30;
-        var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
-        var store = VirtualTestSupport.OpenMachineStore();
-        store.SaveRecipe(recipe);
-
-        var loaded = store.LoadRecipe(recipe.Name);
-        Assert.Equal(3.5, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns);
-        Assert.Equal(10, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == second.Id).MinimumTurns);
-        Assert.Equal(8.5, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MaximumTurns);
-        Assert.Equal(30, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == second.Id).MaximumTurns);
-        loaded.Pcb.BoltPoints.Move(0, 1);
-        loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns = 0;
-        loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MaximumTurns = 0;
-        store.SaveRecipe(loaded);
-        var reopened = store.LoadRecipe(recipe.Name);
-        Assert.Equal(second.Id, reopened.Pcb.BoltPoints[0].Id);
-        Assert.Equal(10, reopened.Pcb.BoltPoints[0].MinimumTurns);
-        Assert.Equal(30, reopened.Pcb.BoltPoints[0].MaximumTurns);
-        Assert.Equal(first.Id, reopened.Pcb.BoltPoints[1].Id);
-        Assert.Null(reopened.Pcb.BoltPoints[1].MinimumTurns);
-        Assert.Null(reopened.Pcb.BoltPoints[1].MaximumTurns);
-    }
-
-    [Fact]
-    public async Task FasteningFeedsAndPerBoltPositionsSurviveRecipeReload()
+    public async Task PerBoltFeedAndShootingPreliminaryPositionSurviveRecipeReload()
     {
         var first = new BoltPoint
         {
+            FeedDistance = 4, FeedSeconds = 0.8,
             PreliminaryFasteningPosition = new() { X = 10, Y = 20 },
             FasteningZOffset = -0.75, PreliminaryFasteningZOffset = 1.25,
+            PreliminaryFeedDistance = 2, PreliminaryFeedSeconds = 0.5,
         };
-        var second = new BoltPoint();
+        var second = new BoltPoint { FeedDistance = 3, FeedSeconds = 1.2 };
         var store = VirtualTestSupport.OpenMachineStore();
-        var recipe = new Recipe
-        {
-            Pcb = new() { BoltPoints = [first, second] },
-            BoltFastening = new()
-            {
-                ShootingIpmFeed = new() { Distance = 2.25, Seconds = 0.5 },
-                PickupIpmFeed = new() { Distance = 4.5, Seconds = 0.8 },
-                ShootingPcbFeed = new() { Distance = 3.75, Seconds = 1.2 },
-            },
-        };
+        var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
         store.SaveRecipe(recipe);
         var recipes = new RecipeManager(store, new());
-        var notifications = new List<string?>();
-        recipes.Current.PropertyChanged += (sender, args) => notifications.Add(args.PropertyName);
         await recipes.LoadAsync(recipe.Name);
-        var feeds = recipes.Current.BoltFastening;
-        Assert.Equal((2.25, 0.5), (feeds.ShootingIpmFeed.Distance, feeds.ShootingIpmFeed.Seconds));
-        Assert.Equal((4.5, 0.8), (feeds.PickupIpmFeed.Distance, feeds.PickupIpmFeed.Seconds));
-        Assert.Equal((3.75, 1.2), (feeds.ShootingPcbFeed.Distance, feeds.ShootingPcbFeed.Seconds));
-        Assert.Contains(nameof(Recipe.BoltFastening), notifications);
         var loaded = recipes.Current.Pcb.BoltPoints;
+        Assert.Equal((4, 0.8), (loaded[0].FeedDistance, loaded[0].FeedSeconds));
+        Assert.Equal((2, 0.5), (loaded[0].PreliminaryFeedDistance, loaded[0].PreliminaryFeedSeconds));
+        Assert.Equal((3, 1.2), (loaded[1].FeedDistance, loaded[1].FeedSeconds));
+        Assert.Equal((0d, 1d), (loaded[1].PreliminaryFeedDistance, loaded[1].PreliminaryFeedSeconds));
         Assert.Equal((10, 20), (loaded[0].PreliminaryFasteningPosition!.X, loaded[0].PreliminaryFasteningPosition!.Y));
         Assert.Equal(-0.75, loaded[0].FasteningZOffset);
         Assert.Equal(1.25, loaded[0].PreliminaryFasteningZOffset);
         Assert.Null(loaded[1].PreliminaryFasteningPosition);
-        Assert.Throws<ArgumentOutOfRangeException>(() => feeds.ShootingIpmFeed.Distance = -1);
-        Assert.Throws<ArgumentOutOfRangeException>(() => feeds.ShootingIpmFeed.Seconds = 0);
-        Assert.Throws<ArgumentOutOfRangeException>(() => feeds.ShootingIpmFeed.Distance = double.NaN);
-        Assert.Throws<ArgumentOutOfRangeException>(() => feeds.ShootingIpmFeed.Seconds = double.PositiveInfinity);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.FeedDistance = -1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.FeedSeconds = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.PreliminaryFeedDistance = double.NaN);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.PreliminaryFeedSeconds = double.PositiveInfinity);
         Assert.Throws<ArgumentOutOfRangeException>(() => first.PreliminaryFasteningZOffset = double.NaN);
 
-        feeds.ShootingIpmFeed.Distance = 6.25;
+        loaded[0].PreliminaryFeedDistance = 6.25;
         await recipes.SaveAsync(recipe.Name);
         await recipes.NewAsync();
-        foreach (var feed in new[] { recipes.Current.BoltFastening.ShootingIpmFeed,
-            recipes.Current.BoltFastening.PickupIpmFeed, recipes.Current.BoltFastening.ShootingPcbFeed })
-            Assert.Equal((0d, 1d), (feed.Distance, feed.Seconds));
+        Assert.Empty(recipes.Current.Pcb.BoltPoints);
         await recipes.LoadAsync(recipe.Name);
-        Assert.Equal(6.25, recipes.Current.BoltFastening.ShootingIpmFeed.Distance);
-        Assert.Equal(4.5, recipes.Current.BoltFastening.PickupIpmFeed.Distance);
-        Assert.Equal(3.75, recipes.Current.BoltFastening.ShootingPcbFeed.Distance);
+        loaded = recipes.Current.Pcb.BoltPoints;
+        Assert.Equal(6.25, loaded[0].PreliminaryFeedDistance);
+        Assert.Equal((4, 0.8), (loaded[0].FeedDistance, loaded[0].FeedSeconds));
+        Assert.Equal((3, 1.2), (loaded[1].FeedDistance, loaded[1].FeedSeconds));
     }
 
     [Fact]
@@ -234,11 +182,10 @@ public sealed class RecipeTests
         Assert.Equal((280.25, 410.5, 13.75), (preliminary.X, preliminary.Y, preliminary.Z));
         Assert.Equal((-30.125, 240.375, 29.25), (final.X, final.Y, final.Z));
         Assert.Equal((270.625, 420.875, 20.5), (pcbFinal.X, pcbFinal.Y, pcbFinal.Z));
-        foreach (var feed in new[] { recipe.BoltFastening.ShootingIpmFeed,
-            recipe.BoltFastening.PickupIpmFeed, recipe.BoltFastening.ShootingPcbFeed })
-            Assert.Equal((0d, 1d), (feed.Distance, feed.Seconds));
-        Assert.DoesNotContain("FeedDistance", JsonSerializer.Serialize(recipe.Pcb));
-        Assert.DoesNotContain("FeedSeconds", JsonSerializer.Serialize(recipe.Pcb));
+        Assert.Equal((4, 0.8), (ipm.FeedDistance, ipm.FeedSeconds));
+        Assert.Equal((2, 0.5), (ipm.PreliminaryFeedDistance, ipm.PreliminaryFeedSeconds));
+        Assert.Equal((0d, 1d), (pcb.FeedDistance, pcb.FeedSeconds));
+        Assert.Equal((0d, 1d), (pcb.PreliminaryFeedDistance, pcb.PreliminaryFeedSeconds));
         Assert.Equal(new[] { pcb.Id, ipm.Id }, recipe.Pcb.FasteningOrder);
 
         var before = JsonSerializer.Serialize(recipe.Pcb);
@@ -442,7 +389,7 @@ public sealed class RecipeTests
         var store = VirtualTestSupport.OpenMachineStore();
         store.SaveRecipe(recipe);
         var draft = store.LoadRecipe(recipe.Name);
-        draft.Pcb.BoltPoints[0].MinimumTurns = 180;
+        draft.Pcb.BoltPoints[0].MinimumHeight = 180;
         recipe.Pcb.BoltPoints.Move(0, 1);
         store.SaveRecipe(recipe);
         store.SaveInspectionSettings(draft);
@@ -450,7 +397,7 @@ public sealed class RecipeTests
         Assert.Equal(11, recipe.GetInspectionPosition(recipe.CarrierImages[0]).X);
         Assert.Equal(101, first.FasteningX);
         var saved = store.LoadRecipe(recipe.Name);
-        Assert.Equal(180, saved.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns);
+        Assert.Equal(180, saved.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumHeight);
         Assert.Equal(new[] { second.Id, first.Id }, saved.Pcb.BoltPoints.Select(bolt => bolt.Id));
         Assert.Equal(first.Id, saved.CarrierImages[0].BoltId);
         Assert.Equal("좌상단 고정", saved.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).Name);
@@ -549,7 +496,7 @@ public sealed class RecipeTests
             HeatSink = HeatSinkSlot.HeatSink1,
             X = 13,
             Y = 24,
-            MinimumTurns = 140,
+            MinimumHeight = 140,
         });
         layout.BoltPoints.Add(new()
         {
@@ -557,7 +504,7 @@ public sealed class RecipeTests
             HeatSink = HeatSinkSlot.HeatSink2,
             X = 73,
             Y = 29,
-            MinimumTurns = 210,
+            MinimumHeight = 210,
         });
         var targets = layout.BoltPoints.ToArray();
         Assert.NotSame(targets[0], targets[1]);
@@ -586,8 +533,8 @@ public sealed class RecipeTests
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count);
         Assert.Equal(13d, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink1).X);
         Assert.Equal(175d, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink2).X);
-        Assert.Equal(140, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink1).MinimumTurns);
-        Assert.Equal(210, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink2).MinimumTurns);
+        Assert.Equal(140, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink1).MinimumHeight);
+        Assert.Equal(210, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink2).MinimumHeight);
         layout.BoltPoints.Remove(targets[1]);
         Assert.DoesNotContain(layout.BoltPoints, point => point.HeatSink == HeatSinkSlot.HeatSink2);
         Assert.Single(layout.BoltPoints, point => point.HeatSink == HeatSinkSlot.HeatSink1);

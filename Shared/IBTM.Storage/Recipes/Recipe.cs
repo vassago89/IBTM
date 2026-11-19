@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
@@ -10,14 +9,13 @@ using IBTM.PcbSupply;
 
 namespace IBTM;
 
-public sealed partial class Recipe : ObservableObject
+public sealed class Recipe
 {
     public Recipe()
     {
         PcbSupply = new();
         PcbPlacement = new();
         Pcb = new();
-        BoltFastening = new();
         BoltInspection = new();
         CarrierImages = [];
     }
@@ -26,10 +24,6 @@ public sealed partial class Recipe : ObservableObject
     public PcbSupplyRecipe PcbSupply { get; set; }
     public PcbPlacementRecipe PcbPlacement { get; set; }
     public PcbLayout Pcb { get; set; }
-
-    [ObservableProperty]
-    public partial BoltFasteningRecipe BoltFastening { get; set; }
-
     public BoltInspectionRecipe BoltInspection { get; set; }
     public List<CarrierImageTile> CarrierImages { get; set; }
 
@@ -41,10 +35,10 @@ public sealed partial class Recipe : ObservableObject
             var bolt = Pcb.BoltPoints[index];
             if (bolt.Id == Guid.Empty)
                 throw new InvalidDataException(
-                    $"Recipe '{Name}': bolt entry {index + 1} ({bolt.HeatSink}) has no valid GUID. Its images and results cannot be linked.");
+                    UiText.Format($"Recipe '{Name}': bolt entry {index + 1} ({bolt.HeatSink}) has no valid GUID. Its images and results cannot be linked."));
             if (!ids.Add(bolt.Id))
                 throw new InvalidDataException(
-                    $"Recipe '{Name}': bolt entry {index + 1} ({bolt.HeatSink}) has duplicate GUID {bolt.Id}. Each bolt must have its own GUID.");
+                    UiText.Format($"Recipe '{Name}': bolt entry {index + 1} ({bolt.HeatSink}) has duplicate GUID {bolt.Id}. Each bolt must have its own GUID."));
         }
     }
 
@@ -53,7 +47,7 @@ public sealed partial class Recipe : ObservableObject
         var position = tile.IsBarcode ? tile.Center : Pcb.BoltPoints.SingleOrDefault(
             bolt => tile.IsForTarget(bolt.HeatSink, bolt.Id))?.InspectionPosition;
         return position ?? throw new InvalidOperationException(
-            $"Record an inspection position for {tile.HeatSink}, image {tile.Number}.");
+            UiText.Format($"Record an inspection position for {tile.HeatSink}, image {tile.Number}."));
     }
 
     public CarrierImageTile? FindInspectionImage(HeatSinkSlot heatSink, Guid? boltId)
@@ -70,7 +64,6 @@ public sealed partial class Recipe : ObservableObject
         PcbPlacement = recipe.PcbPlacement;
         Pcb.BoltPoints = recipe.Pcb.BoltPoints;
         Pcb.FasteningOrder = recipe.Pcb.FasteningOrder;
-        BoltFastening = recipe.BoltFastening;
         BoltInspection = recipe.BoltInspection;
         CarrierImages = recipe.CarrierImages;
     }

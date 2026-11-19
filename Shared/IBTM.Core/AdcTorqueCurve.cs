@@ -39,14 +39,14 @@ public sealed record AdcTorqueCurve(
     {
         // 15 result registers followed by the samples for each channel.
         if (values.Count < MetadataRegisterCount)
-            throw new InvalidDataException("ADC graph metadata is incomplete.");
+            throw new InvalidDataException(UiText.Get("ADC graph metadata is incomplete."));
         var sampleMilliseconds = values[2] switch
         {
             1 => 5,
             2 => 10,
             3 => 15,
             4 => 30,
-            _ => throw new InvalidDataException($"ADC graph sampling code: {values[2]}."),
+            _ => throw new InvalidDataException(UiText.Format($"ADC graph sampling code: {values[2]}.")),
         };
         var length = values[4];
         var offset = MetadataRegisterCount;
@@ -54,11 +54,11 @@ public sealed record AdcTorqueCurve(
         {
             // Channel 2 can supply torque unless channel 1 uses an angle axis (mode 8).
             if (values[1] != 1 || values[0] == 8)
-                throw new InvalidDataException("ADC graph has no torque/time channel.");
+                throw new InvalidDataException(UiText.Get("ADC graph has no torque/time channel."));
             offset += length;
         }
         if (length <= 0 || values.Count < offset + length)
-            throw new InvalidDataException("ADC torque/time channel is incomplete.");
+            throw new InvalidDataException(UiText.Get("ADC torque/time channel is incomplete."));
         var torques = new double[length];
         for (var index = 0; index < length; index++)
             torques[index] = values[offset + index] / 100.0;
@@ -67,7 +67,7 @@ public sealed record AdcTorqueCurve(
         {
             var angleOffset = MetadataRegisterCount + (values[0] == 4 ? 0 : length);
             if (values.Count < angleOffset + length)
-                throw new InvalidDataException("ADC angle/time channel is incomplete.");
+                throw new InvalidDataException(UiText.Get("ADC angle/time channel is incomplete."));
             angles = new double[length];
             // Angle is in degrees; only torque uses the protocol's x100 scale.
             for (var index = 0; index < length; index++)

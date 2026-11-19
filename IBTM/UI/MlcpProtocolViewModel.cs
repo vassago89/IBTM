@@ -132,7 +132,7 @@ public partial class MlcpProtocolViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            ErrorMessage = exception.Message;
+            ErrorMessage = UiText.Get(exception);
             _log.LogError(exception, "LVDT diagnostic connection failed.");
         }
         finally
@@ -141,14 +141,14 @@ public partial class MlcpProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task MeasureAsync(CancellationToken cancellationToken)
+    private Task MeasureAsync(CancellationToken cancellationToken)
     {
-        await ReadMeasurementAsync(false, cancellationToken);
+        return ReadMeasurementAsync(false, cancellationToken);
     }
 
-    private async Task ReadLastAsync(CancellationToken cancellationToken)
+    private Task ReadLastAsync(CancellationToken cancellationToken)
     {
-        await ReadMeasurementAsync(true, cancellationToken);
+        return ReadMeasurementAsync(true, cancellationToken);
     }
 
     private async Task ReadMeasurementAsync(bool recall, CancellationToken cancellationToken)
@@ -180,7 +180,7 @@ public partial class MlcpProtocolViewModel : ObservableObject, IDisposable
         catch (Exception exception)
         {
             StatusMessage = UiText.Get("No result read");
-            ErrorMessage = exception.Message;
+            ErrorMessage = UiText.Get(exception);
             _log.LogError(exception, "LVDT diagnostic {Command} failed.", recall ? "RECALL" : "START");
         }
         finally
@@ -205,7 +205,7 @@ public partial class MlcpProtocolViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            ErrorMessage = exception.Message;
+            ErrorMessage = UiText.Get(exception);
             _log.LogError(exception, "LVDT serial port enumeration failed.");
         }
     }
@@ -284,7 +284,7 @@ public partial class MlcpProtocolViewModel : ObservableObject, IDisposable
         catch (Exception exception)
         {
             IsClosing = false;
-            CloseError = exception.Message;
+            CloseError = UiText.Get(exception);
             _log.LogError(exception, "LVDT diagnostic shutdown failed.");
             return false;
         }

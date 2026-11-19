@@ -52,11 +52,4 @@ public sealed class InspectionPoint
                 && image.Metadata.IsForTarget(HeatSink, Bolt?.Id))
             : null;
     }
-
-    public static IEnumerable<InspectionPoint> ForPcb(Recipe recipe, HeatSinkSlot heatSink)
-    {
-        yield return new(recipe, heatSink);
-        foreach (var bolt in recipe.Pcb.BoltPoints.Where(point => point.HeatSink == heatSink))
-            yield return new(recipe, heatSink, bolt);
-    }
 }

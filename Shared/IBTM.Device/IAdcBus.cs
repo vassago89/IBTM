@@ -261,17 +261,12 @@ public sealed record AdcFasteningResult(
             return values[(ushort)register - FirstRegister];
         }
 
-        double ReadScaled(AdcResultRegister register)
-        {
-            return Read(register) / RegisterScale;
-        }
-
         return new(
             Read(AdcResultRegister.EventCount),
             Read(AdcResultRegister.FasteningTime),
             Read(AdcResultRegister.Preset),
-            ReadScaled(AdcResultRegister.TargetTorque),
-            ReadScaled(AdcResultRegister.ConvertedTorque),
+            Read(AdcResultRegister.TargetTorque) / RegisterScale,
+            Read(AdcResultRegister.ConvertedTorque) / RegisterScale,
             Read(AdcResultRegister.TargetSpeed),
             Read(AdcResultRegister.Angle1),
             Read(AdcResultRegister.Angle2),

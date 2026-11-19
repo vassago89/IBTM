@@ -133,9 +133,9 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         var firstSamples = new List<Task> { firstInputs.Task, firstOutputs.Task };
         var monitors = new List<Task>
         {
-            Task.Run(() => MonitorAsync(
+            Task.Run(() => MonitorIoAsync(
                 "Input", firstInputs, s_inputPollInterval, null, ReadInputs, FailInputs)),
-            Task.Run(() => MonitorAsync(
+            Task.Run(() => MonitorIoAsync(
                 "Output", firstOutputs, s_outputPollInterval, _outputsRequested, ReadOutputs, FailOutputs)),
         };
         foreach (var (group, motion) in Motions)
@@ -150,11 +150,10 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         return _firstSamples;
     }
 
-    // Shared task lifetime only; device reads and failure handling stay in named methods.
-    private async Task MonitorAsync(
+    private async Task MonitorIoAsync(
         string name,
         TaskCompletionSource first,
-        TimeSpan? interval,
+        TimeSpan interval,
         AsyncAutoResetEvent? requested,
         Action read,
         Action<Exception> failed)
@@ -167,12 +166,10 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 read();
                 first.TrySetResult();
-                // Motion polling uses the current setting; fixed I/O intervals stay independent.
-                var delay = interval ?? TimeSpan.FromMilliseconds(_options.MotionPollMilliseconds);
                 if (requested is null)
-                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
                 else
-                    await requested.WaitAsync(delay, cancellationToken).ConfigureAwait(false);
+                    await requested.WaitAsync(interval, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -249,17 +246,69 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
     private async Task MonitorMotionAsync(MotionGroup group, MotionStatus motion, TaskCompletionSource first)
     {
+        var cancellationToken = _lifetime.Token;
         var requested = new AsyncAutoResetEvent();
         motion.Feedback.StateChanged += requested.Set;
         try
         {
-            await MonitorAsync(
-                $"Motion {group}",
-                first,
-                null,
-                requested,
-                () => ReadMotion(group, motion),
-                error => FailMotion(group, motion, error)).ConfigureAwait(false);
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var startedAt = Stopwatch.GetTimestamp();
+                var enabled = _units.IsMotionEnabled(group);
+                var ioReady = _io.IsReady;
+                MotionFeedbackSample sample;
+                try
+                {
+                    // Raw diagnostics remain available for disabled axes as well.
+                    motion.RefreshMonitorFeedback((axis, error) => _log?.LogError(
+                        error, "Motion monitor {Group}/{Axis}: feedback read failed.", group.ToString(), axis.ToString()));
+                    ioReady = _io.IsReady;
+                    motion.RefreshControlFeedback(ioReady && enabled);
+                    var error = enabled && ioReady
+                        ? motion.MonitorAxes.Values.Select(axis => axis.Sample.ReadError)
+                            .FirstOrDefault(value => value is not null)
+                        : null;
+                    var axes = motion.Axes.Values;
+                    var readiness = new MotionReadiness(
+                        axes.All(axis => axis.State is { Homed: true }),
+                        axes.All(axis => axis.State is { ServoOn: true }),
+                        axes.Any(axis => axis.State is null or { Alarm: true } or { Emergency: true }));
+                    sample = new(startedAt, enabled, ioReady, readiness, error);
+                }
+                catch (IOException error)
+                {
+                    motion.RefreshControlFeedback(available: false);
+                    sample = new(startedAt, enabled, ioReady, new(false, false, true), error);
+                }
+
+                if (!_io.IsReady)
+                {
+                    motion.RefreshControlFeedback(available: false);
+                    sample = sample with { IoReady = false, Readiness = new(false, false, true) };
+                }
+
+                PublishMotionSample(group, sample);
+                first.TrySetResult();
+                await requested.WaitAsync(TimeSpan.FromMilliseconds(_options.MotionPollMilliseconds), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            first.TrySetCanceled(cancellationToken);
+        }
+        catch (Exception error)
+        {
+            _failure = error;
+            first.TrySetException(error);
+            _log?.LogError(error, "{Monitor} monitor stopped by an unexpected error. Restart the application.", $"Motion {group}");
+            motion.InvalidateFeedback(error);
+            PublishMotionSample(group, new(
+                Stopwatch.GetTimestamp(), _units.IsMotionEnabled(group), _io.IsReady,
+                new(false, false, true), error));
+            ReadErrorChanged?.Invoke();
+            throw;
         }
         finally
         {
@@ -267,63 +316,13 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         }
     }
 
-    private void ReadMotion(MotionGroup group, MotionStatus motion)
+    private void PublishMotionSample(MotionGroup group, MotionFeedbackSample sample)
     {
-        var startedAt = Stopwatch.GetTimestamp();
-        var enabled = _units.IsMotionEnabled(group);
-        var ioReady = _io.IsReady;
-        MotionFeedbackSample sample;
-        try
-        {
-            // Raw diagnostics remain available for disabled axes as well.
-            motion.RefreshMonitorFeedback((axis, error) => _log?.LogError(
-                error, "Motion monitor {Group}/{Axis}: feedback read failed.", group.ToString(), axis.ToString()));
-            ioReady = _io.IsReady;
-            motion.RefreshControlFeedback(ioReady && enabled);
-            var error = enabled && ioReady
-                ? motion.MonitorAxes.Values.Select(axis => axis.Sample.ReadError)
-                    .FirstOrDefault(value => value is not null)
-                : null;
-            var axes = motion.Axes.Values;
-            var readiness = new MotionReadiness(
-                axes.All(axis => axis.State is { Homed: true }),
-                axes.All(axis => axis.State is { ServoOn: true }),
-                axes.Any(axis => axis.State is null or { Alarm: true } or { Emergency: true }));
-            sample = new(startedAt, enabled, ioReady, readiness, error);
-        }
-        catch (IOException error)
-        {
-            motion.RefreshControlFeedback(available: false);
-            sample = new(startedAt, enabled, ioReady, new(false, false, true), error);
-        }
-
-        if (!_io.IsReady)
-        {
-            motion.RefreshControlFeedback(available: false);
-            sample = sample with { IoReady = false, Readiness = new(false, false, true) };
-        }
-
         var previousReadiness = Readiness;
         var previousError = ReadError;
         var previousSample = _samples.GetValueOrDefault(group);
         _samples[group] = sample;
         // Safety checks consume every sample, including its acquisition timestamp.
-        Sampled?.Invoke(group, sample);
-        NotifyChanges(previousReadiness, previousError,
-            previousSample?.Enabled != sample.Enabled || previousSample?.IoReady != sample.IoReady
-                || previousSample?.Readiness != sample.Readiness);
-    }
-
-    private void FailMotion(MotionGroup group, MotionStatus motion, Exception error)
-    {
-        var previousReadiness = Readiness;
-        var previousError = ReadError;
-        var previousSample = _samples.GetValueOrDefault(group);
-        motion.InvalidateFeedback(error);
-        var sample = new MotionFeedbackSample(
-            Stopwatch.GetTimestamp(), _units.IsMotionEnabled(group), _io.IsReady,
-            new(false, false, true), error);
-        _samples[group] = sample;
         Sampled?.Invoke(group, sample);
         NotifyChanges(previousReadiness, previousError,
             previousSample?.Enabled != sample.Enabled || previousSample?.IoReady != sample.IoReady

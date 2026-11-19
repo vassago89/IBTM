@@ -174,7 +174,7 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
         catch (Exception exception)
         {
             IsClosing = false;
-            CloseError = exception.Message;
+            CloseError = UiText.Get(exception);
             _log?.LogError(exception, "Motion window shutdown failed.");
             return false;
         }

@@ -54,6 +54,8 @@ public enum TeachingMotionHint
     UnitDisabled,
     [Description("Raise NG pickup before XY movement")]
     RaiseNgPickup,
+    [Description("Check LVDT up and shuttle down")]
+    InspectionXyBlocked,
     [Description("Raise placement handler")]
     RaisePlacementCylinders,
     [Description("Raise both fastening heads")]
@@ -144,11 +146,14 @@ public partial class TeachingViewModel : ObservableObject
                 new(settings.BoltFeederHardware, io, machine),
             ],
             [HardwareArea.InspectionGantry] = [
+                new(settings.InspectionGantryHardware, io, machine),
                 new(settings.InspectionStationHardware, io, machine),
                 new(settings.NgCarrierTransferHardware, io, machine),
                 new(settings.NgShuttleHardware, io, machine),
             ],
         };
+        InspectionProbe = _teachingIoGroups[HardwareArea.InspectionGantry]
+            .SelectMany(group => group.Outputs).Single(row => row.Io.Signal == OutputIo.InspectionProbeDown);
         foreach (var unit in _teachingIoGroups)
         {
             foreach (var row in unit.Value.SelectMany(group => group.Outputs))
@@ -187,7 +192,9 @@ public partial class TeachingViewModel : ObservableObject
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync);
         RegisterFiducialCommand = new AsyncRelayCommand(RegisterFiducialAsync);
         FindFiducialCommand = new AsyncRelayCommand(FindFiducialAsync);
-        ShowLiveImageCommand = new RelayCommand(ShowLiveImage);
+        CheckAlignmentCommand = new AsyncRelayCommand(CheckAlignmentAsync, () => IsAlignmentTestAllowed);
+        MeasureHeightCommand = new AsyncRelayCommand(MeasureHeightAsync, () => IsHeightTestAllowed);
+        StopInspectionTestCommand = new RelayCommand(StopInspectionTest, () => IsInspectionTestRunning);
         DrawFiducialRegionCommand = new RelayCommand<Rect>(DrawFiducialRegion, _ => SelectedPoint?.Fiducial is not null && State.SetupEditingEnabled);
         ApplyLightCommand = new AsyncRelayCommand(ApplyLightAsync);
         AddBoltPointCommand = new AsyncRelayCommand(AddBoltPointAsync);
@@ -201,6 +208,8 @@ public partial class TeachingViewModel : ObservableObject
             ToggleLiveViewCommand,
             RegisterFiducialCommand,
             FindFiducialCommand,
+            CheckAlignmentCommand,
+            MeasureHeightCommand,
             AddBoltPointCommand,
             ApplyLightCommand,
             JogCommand,
@@ -228,6 +237,7 @@ public partial class TeachingViewModel : ObservableObject
 
         inspectionStation.FrameReady += UpdateLiveImage;
         inspectionStation.LiveViewChanged += OnLiveViewChanged;
+        inspectionStation.Changed += RefreshManualControls;
         state.PropertyChanged += OnMachineStateChanged;
         recipes.Changed += OnRecipeChanged;
         recipeEditor.PropertyChanged += OnRecipeEditorChanged;
@@ -394,6 +404,8 @@ public partial class TeachingViewModel : ObservableObject
 
     public IReadOnlyList<TeachingIoGroup> TeachingIoGroups => _teachingIoGroups[SelectedTeachingUnit];
 
+    public TeachingOutputRow InspectionProbe { get; }
+
     private MachineController Machine { get; }
 
     public MachineState State { get; }
@@ -461,6 +473,10 @@ public partial class TeachingViewModel : ObservableObject
         if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
             return;
         OnPropertyChanged(nameof(IsBusy));
+        OnPropertyChanged(nameof(IsInspectionTestRunning));
+        StopInspectionTestCommand.NotifyCanExecuteChanged();
+        CheckAlignmentCommand.NotifyCanExecuteChanged();
+        MeasureHeightCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsToggleLiveViewAllowed));
         OnPropertyChanged(nameof(IsApplyLightAllowed));
         OnPropertyChanged(nameof(IsFiducialCaptureAllowed));
@@ -471,6 +487,12 @@ public partial class TeachingViewModel : ObservableObject
     {
         if (!PositionUpdatesActive)
             return;
+        // Device feedback can arrive on a worker; WPF command subscribers require the UI thread.
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(RefreshManualControls);
+            return;
+        }
         OnPropertyChanged(nameof(HomeBlock));
         if (!State.ManualMode
             && (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning))
@@ -503,6 +525,9 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(IsFiducialCaptureAllowed));
         DrawFiducialRegionCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsRemoveBoltPointAllowed));
+        OnPropertyChanged(nameof(IsHeightTestSelected));
+        CheckAlignmentCommand.NotifyCanExecuteChanged();
+        MeasureHeightCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsMoveFasteningEarlierAllowed));
         OnPropertyChanged(nameof(IsMoveFasteningLaterAllowed));
     }
@@ -537,6 +562,11 @@ public partial class TeachingViewModel : ObservableObject
         FiducialImage = null;
         DetectedFiducial = null;
         FiducialMessage = null;
+        HeightTestResult = null;
+        HeightTestSuccess = null;
+        AlignmentTestResult = null;
+        InspectionTestMessage = null;
+        InspectionTestError = null;
         OnPropertyChanged(nameof(FiducialRegion));
         OnPropertyChanged(nameof(IsFiducialSelected));
         OnPropertyChanged(nameof(FiducialRegistration));
@@ -594,6 +624,10 @@ public partial class TeachingViewModel : ObservableObject
         var selectedTarget = SelectedPoint?.Position.Target;
         var selectedBolt = SelectedPoint?.Position.Bolt;
         var unitMotionGroup = IsFasteningSelected ? MotionGroup.BoltFastening : ActiveMotionGroup;
+        var bolts = IsFasteningSelected || IsInspectionSelected
+            ? Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
+                .Where(bolt => bolt.HeatSink == SelectedPcb).ToArray()
+            : [];
         TeachingPoint Point(TeachingTarget target, TeachMode mode, BoltPoint? bolt = null)
         {
             var group = target is TeachingTarget.BackupTransferHeight or TeachingTarget.BackupFasteningHeight
@@ -620,11 +654,8 @@ public partial class TeachingViewModel : ObservableObject
                 Point(TeachingTarget.ShootingHeadFasteningZ, TeachMode.ZOnly),
                 Point(TeachingTarget.PickupHeadFasteningZ, TeachMode.ZOnly),
                 Point(TeachingTarget.BoltPickup, TeachMode.Full),
-                .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
-                    .Where(bolt => bolt.HeatSink == SelectedPcb)
-                    .Select(bolt => Point(TeachingTarget.BoltPosition, TeachMode.XYOnly, bolt)),
-                .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
-                    .Where(bolt => bolt.HeatSink == SelectedPcb && bolt.Head == FasteningHead.Pickup)
+                .. bolts.Select(bolt => Point(TeachingTarget.BoltPosition, TeachMode.XYOnly, bolt)),
+                .. bolts.Where(bolt => bolt.Head == FasteningHead.Pickup)
                     .Select(bolt => Point(TeachingTarget.BoltPreliminaryPosition, TeachMode.XYOnly, bolt)),
                 Point(TeachingTarget.BackupTransferHeight, TeachMode.ZOnly),
                 Point(TeachingTarget.BackupFasteningHeight, TeachMode.ZOnly),
@@ -639,9 +670,7 @@ public partial class TeachingViewModel : ObservableObject
                 Point(TeachingTarget.HeightReference1, TeachMode.XYOnly),
                 Point(TeachingTarget.HeightReference2, TeachMode.XYOnly),
                 Point(TeachingTarget.HeightReference3, TeachMode.XYOnly),
-                .. Recipes.Current.Pcb.GetFasteningPoints(_settings.BoltFastening.FirstFasteningHead)
-                    .Where(bolt => bolt.HeatSink == SelectedPcb)
-                    .Select(bolt => Point(TeachingTarget.BoltReference, TeachMode.Image, bolt)),
+                .. bolts.Select(bolt => Point(TeachingTarget.BoltReference, TeachMode.Image, bolt)),
             ],
             _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
         };
@@ -1004,6 +1033,8 @@ public partial class TeachingViewModel : ObservableObject
                     return TeachingMotionHint.RaiseFasteningTooling;
                 case MotionGroup.InspectionGantry when !Inspection.IsRaised:
                     return TeachingMotionHint.RaiseNgPickup;
+                case MotionGroup.InspectionGantry when !Inspection.IsHorizontalMoveAllowed:
+                    return TeachingMotionHint.InspectionXyBlocked;
                 default:
                     return TeachingMotionHint.None;
             }
@@ -1055,7 +1086,7 @@ public partial class TeachingViewModel : ObservableObject
                 MotionGroup.BoltFasteningBackup => IsBackupMoveAllowed,
                 MotionGroup.PcbPlacementHandler => axis == MotionAxis.Z
                     || _pcbPlacement.Lift == StationCylinderState.Up,
-                MotionGroup.InspectionGantry => Inspection.IsRaised,
+                MotionGroup.InspectionGantry => Inspection.IsHorizontalMoveAllowed,
                 _ => false,
             };
     }
@@ -1137,7 +1168,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
+            SaveError = UiText.Format($"Motion settings or target are invalid: {UiText.Get(exception)}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1210,7 +1241,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
+            SaveError = UiText.Format($"Motion settings or target are invalid: {UiText.Get(exception)}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1317,7 +1348,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
+            SaveError = UiText.Format($"Motion settings or target are invalid: {UiText.Get(exception)}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1355,7 +1386,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
+            SaveError = UiText.Format($"Motion settings or target are invalid: {UiText.Get(exception)}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1435,7 +1466,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
+            SaveError = UiText.Format($"Motion settings or target are invalid: {UiText.Get(exception)}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1483,7 +1514,7 @@ public partial class TeachingViewModel : ObservableObject
                 case MotionGroup.BoltFastening:
                     return _fasteningStation.IsHorizontalMoveAllowed;
                 case MotionGroup.InspectionGantry:
-                    return Inspection.IsRaised;
+                    return Inspection.IsHorizontalMoveAllowed;
                 default:
                     return false;
             }
@@ -1510,7 +1541,7 @@ public partial class TeachingViewModel : ObservableObject
 
     public string? CameraError
     {
-        get => field ?? SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Error ?? Inspection.LiveViewError?.Message;
+        get => field ?? SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Error ?? (Inspection.LiveViewError is { } liveError ? UiText.Get(liveError) : null);
         private set => SetProperty(ref field, value);
     }
 
@@ -1518,16 +1549,197 @@ public partial class TeachingViewModel : ObservableObject
     {
         get
         {
-            if (IsFiducialSelected && FiducialImage is not null)
+            if (Inspection.IsLiveView)
+                return LiveImage;
+            if (IsFiducialSelected)
                 return FiducialImage;
-            return Inspection.IsLiveView ? LiveImage
-                : IsFiducialSelected ? FiducialImage : SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Image;
+            return SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Image;
         }
     }
 
     public IAsyncRelayCommand RegisterFiducialCommand { get; }
     public IAsyncRelayCommand FindFiducialCommand { get; }
-    public IRelayCommand ShowLiveImageCommand { get; }
+    public IAsyncRelayCommand CheckAlignmentCommand { get; }
+    public IAsyncRelayCommand MeasureHeightCommand { get; }
+    public IRelayCommand StopInspectionTestCommand { get; }
+
+    public bool IsInspectionTestRunning => CheckAlignmentCommand.IsRunning || MeasureHeightCommand.IsRunning;
+
+    private void StopInspectionTest()
+    {
+        CheckAlignmentCommand.Cancel();
+        MeasureHeightCommand.Cancel();
+    }
+
+    public bool IsHeightTestSelected => IsInspectionSelected && SelectedPoint?.Position.Target
+        is TeachingTarget.BoltReference or TeachingTarget.HeightReference1
+            or TeachingTarget.HeightReference2 or TeachingTarget.HeightReference3;
+
+    public bool IsAlignmentTestAllowed => IsInspectionSelected && !State.IsRunning
+        && Machine.IsManualMotionReady(MotionGroup.InspectionGantry, live: false)
+        && Inspection.IsHorizontalMoveAllowed;
+
+    public bool IsHeightTestAllowed => IsHeightTestSelected && !State.IsRunning
+        && Machine.IsManualMotionReady(MotionGroup.InspectionGantry, live: false)
+        && SelectedPoint?.Coordinates is not null;
+
+    [ObservableProperty]
+    public partial string? HeightTestResult { get; private set; }
+
+    [ObservableProperty]
+    public partial bool? HeightTestSuccess { get; private set; }
+
+    [ObservableProperty]
+    public partial string? AlignmentTestResult { get; private set; }
+
+    [ObservableProperty]
+    public partial string? InspectionTestMessage { get; private set; }
+
+    [ObservableProperty]
+    public partial string? InspectionTestError { get; private set; }
+
+    private async Task CheckAlignmentAsync(CancellationToken cancellationToken)
+    {
+        var viewToken = _viewCancellation.Token;
+        var activeToken = cancellationToken;
+        AlignmentTestResult = null;
+        InspectionTestMessage = null;
+        InspectionTestError = null;
+        FiducialImage = null;
+        DetectedFiducial = null;
+        FiducialMessage = null;
+        try
+        {
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(MotionGroup.InspectionGantry), cancellationToken, viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            await _cameraStop;
+            await MeasureTeachingAlignmentAsync(SelectedPcb, operation.Token);
+            InspectionTestMessage = null;
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested || viewToken.IsCancellationRequested)
+        {
+            if (!viewToken.IsCancellationRequested)
+                InspectionTestMessage = UiText.Get("Cancelled");
+        }
+        catch (Exception exception)
+        {
+            if (!viewToken.IsCancellationRequested)
+                InspectionTestError = UiText.Get(exception);
+            _logger.LogError(exception, "Teaching alignment check failed.");
+            if (MachineController.IsDeviceFailure(exception))
+                Machine.ReportManualFailure(MachineAlarm.Inspection, exception);
+        }
+    }
+
+    private async Task<PcbAlignment> MeasureTeachingAlignmentAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
+    {
+        AlignmentTestResult = null;
+        var fiducials = Recipes.Current.BoltInspection.GetFiducials(pcb);
+        if (fiducials.First is not { CameraPosition: not null, Contour.Length: >= 5 }
+            || fiducials.Second is not { CameraPosition: not null, Contour.Length: >= 5 })
+            throw new InvalidOperationException(UiText.Get("Register both fiducials"));
+        _ = _settings.InspectionGantry.ToMachinePosition(fiducials.First.CameraPosition,
+            new(0, 0), fiducials.First.ImageWidth, fiducials.First.ImageHeight);
+        InspectionTestMessage = UiText.Get("Fiducial 1");
+        var first = await Inspection.FindFiducialAsync(fiducials.First, cancellationToken);
+        InspectionTestMessage = UiText.Get("Fiducial 2");
+        var second = await Inspection.FindFiducialAsync(fiducials.Second, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (double.Hypot(second.Reference.X - first.Reference.X, second.Reference.Y - first.Reference.Y) < 0.001
+            || double.Hypot(second.Measured.X - first.Measured.X, second.Measured.Y - first.Measured.Y) < 0.001)
+            throw new FiducialDetectionException(UiText.Get("Fiducials must be at two different positions"));
+        var alignment = new PcbAlignment(DateTimeOffset.Now, first, second);
+        var dx = (first.Measured.X + second.Measured.X - first.Reference.X - second.Reference.X) / 2;
+        var dy = (first.Measured.Y + second.Measured.Y - first.Reference.Y - second.Reference.Y) / 2;
+        AlignmentTestResult = UiText.Format($"Mark midpoint: X {dx:+0.###;-0.###;0} mm / Y {dy:+0.###;-0.###;0} mm / Rotation {alignment.AngleDegrees:+0.###;-0.###;0}°");
+        return alignment;
+    }
+
+    private async Task MeasureHeightAsync(CancellationToken cancellationToken)
+    {
+        if (!IsHeightTestSelected || SelectedPoint?.Coordinates is not { } position)
+            return;
+        var point = SelectedPoint;
+        var pcb = SelectedPcb;
+        var bolt = point.Position.Bolt;
+        var reference = Recipes.Current.BoltInspection.GetHeightReference(pcb);
+        var viewToken = _viewCancellation.Token;
+        var activeToken = cancellationToken;
+        HeightTestResult = null;
+        HeightTestSuccess = null;
+        AlignmentTestResult = null;
+        InspectionTestMessage = null;
+        InspectionTestError = null;
+        try
+        {
+            if (bolt is not null)
+            {
+                if (reference.Point1 is not { } p1 || reference.Point2 is not { } p2 || reference.Point3 is not { } p3)
+                    throw new InvalidOperationException(UiText.Get("Teach all three height reference points"));
+                _ = new HeightReferencePlane(DateTimeOffset.Now,
+                    new(p1.X, p1.Y, 0), new(p2.X, p2.Y, 0), new(p3.X, p3.Y, 0)).HeightAt(p1.X, p1.Y);
+                if (bolt.MinimumHeight is null || bolt.MaximumHeight is null || bolt.MinimumHeight > bolt.MaximumHeight)
+                    throw new InvalidOperationException(UiText.Get("Height limits are not set"));
+            }
+            if (Inspection.Station.BackupPlate != StationCylinderState.Down)
+                throw new InvalidOperationException(UiText.Get("Lower the inspection backup before measuring"));
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(MotionGroup.InspectionGantry)
+                    && Inspection.Station.BackupPlate == StationCylinderState.Down,
+                cancellationToken, viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            await _cameraStop;
+            await Inspection.PrepareMeasurementAsync(operation.Token);
+            var alignment = SelectedFiducials.Enabled
+                ? await MeasureTeachingAlignmentAsync(pcb, operation.Token) : null;
+            HeightReferencePlane? plane = null;
+            if (bolt is not null)
+            {
+                InspectionTestMessage = UiText.Get("Height reference 1");
+                var first = await Inspection.MeasureHeightAtAsync(
+                    alignment?.Transform(reference.Point1!) ?? reference.Point1!, operation.Token);
+                InspectionTestMessage = UiText.Get("Height reference 2");
+                var second = await Inspection.MeasureHeightAtAsync(
+                    alignment?.Transform(reference.Point2!) ?? reference.Point2!, operation.Token);
+                InspectionTestMessage = UiText.Get("Height reference 3");
+                var third = await Inspection.MeasureHeightAtAsync(
+                    alignment?.Transform(reference.Point3!) ?? reference.Point3!, operation.Token);
+                plane = new(DateTimeOffset.Now, first, second, third);
+            }
+            InspectionTestMessage = point.Name;
+            var sample = await Inspection.MeasureHeightAtAsync(alignment?.Transform(position) ?? position, operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
+            HeightTestResult = UiText.Format($"Measured: {sample.Value:0.###} mm");
+            if (bolt is not null && plane is not null)
+            {
+                var result = new BoltHeightResult(DateTimeOffset.Now, sample, plane.HeightAt(sample.X, sample.Y),
+                    bolt.MinimumHeight!.Value, bolt.MaximumHeight!.Value);
+                HeightTestSuccess = result.Success;
+                HeightTestResult += "\n" + UiText.Format($"Reference: {result.ReferenceHeight:0.###} mm / Height: {result.Height:0.###} mm")
+                    + "\n" + UiText.Format($"Limits: {result.Minimum:0.###}–{result.Maximum:0.###} mm / {(result.Success ? "OK" : "NG")}");
+            }
+            InspectionTestMessage = null;
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested || viewToken.IsCancellationRequested)
+        {
+            if (!viewToken.IsCancellationRequested)
+                InspectionTestMessage = UiText.Get("Cancelled");
+        }
+        catch (Exception exception)
+        {
+            if (!viewToken.IsCancellationRequested)
+                InspectionTestError = UiText.Get(exception);
+            _logger.LogError(exception, "Teaching height measurement failed.");
+            if (MachineController.IsDeviceFailure(exception))
+                Machine.ReportManualFailure(MachineAlarm.Inspection, exception);
+        }
+    }
+
     public IRelayCommand<Rect> DrawFiducialRegionCommand { get; }
     public FiducialRecipe SelectedFiducials => Recipes.Current.BoltInspection.GetFiducials(SelectedPcb);
     public bool IsFiducialSelected => SelectedPoint?.Fiducial is not null;
@@ -1570,14 +1782,14 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(FiducialRegistration));
     }
 
-    private async Task RegisterFiducialAsync(CancellationToken cancellationToken)
+    private Task RegisterFiducialAsync(CancellationToken cancellationToken)
     {
-        await CaptureFiducialAsync(registering: true, cancellationToken);
+        return CaptureFiducialAsync(registering: true, cancellationToken);
     }
 
-    private async Task FindFiducialAsync(CancellationToken cancellationToken)
+    private Task FindFiducialAsync(CancellationToken cancellationToken)
     {
-        await CaptureFiducialAsync(registering: false, cancellationToken);
+        return CaptureFiducialAsync(registering: false, cancellationToken);
     }
 
     private async Task CaptureFiducialAsync(bool registering, CancellationToken cancellationToken)
@@ -1600,7 +1812,8 @@ public partial class TeachingViewModel : ObservableObject
             operation.Token.ThrowIfCancellationRequested();
             var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, LiveLightLevel);
             FiducialImage = InspectionPreviewViewModel.CreateBitmap(captured.Frame);
-            var found = await Task.Run(() => FiducialDetector.Detect(captured.Frame, mark, registering), operation.Token);
+            var useCurrentRegion = registering || mark.Contour.Length < 5;
+            var found = await Task.Run(() => FiducialDetector.Detect(captured.Frame, mark, useCurrentRegion), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             DetectedFiducial = found;
             var position = _settings.InspectionGantry.ToMachinePosition(captured.Center, found.Center,
@@ -1637,18 +1850,8 @@ public partial class TeachingViewModel : ObservableObject
         catch (Exception exception)
         {
             _logger.LogError(exception, "Fiducial teaching failed.");
-            CameraError = exception.Message;
+            CameraError = UiText.Get(exception);
         }
-    }
-
-    private void ShowLiveImage()
-    {
-        if (!Inspection.IsLiveView)
-            return;
-        FiducialImage = null;
-        DetectedFiducial = null;
-        FiducialMessage = null;
-        CameraError = null;
     }
 
     public IAsyncRelayCommand ApplyLightCommand { get; }
@@ -1669,7 +1872,7 @@ public partial class TeachingViewModel : ObservableObject
         catch (Exception exception)
         {
             _logger.LogError(exception, "Teaching light adjustment failed.");
-            CameraError = exception.Message;
+            CameraError = UiText.Get(exception);
         }
     }
 
@@ -1706,7 +1909,7 @@ public partial class TeachingViewModel : ObservableObject
         catch (Exception exception)
         {
             _logger.LogError(exception, "Camera live view operation failed.");
-            CameraError = exception.Message;
+            CameraError = UiText.Get(exception);
         }
     }
 
@@ -1714,9 +1917,9 @@ public partial class TeachingViewModel : ObservableObject
     {
         get
         {
-            return Inspection.IsLiveView
+            return !IsInspectionTestRunning && (Inspection.IsLiveView
                 || IsInspectionSelected && State.ManualMode
-                    && !TeachCurrentPositionCommand.IsRunning && !AddBoltPointCommand.IsRunning;
+                    && !TeachCurrentPositionCommand.IsRunning && !AddBoltPointCommand.IsRunning);
         }
     }
 
@@ -1849,7 +2052,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             _logger.LogError(exception, "Teaching capture failed: PCB={Pcb}, point={Point}.", pcb, point.Name);
             if (!activeToken.IsCancellationRequested)
-                CameraError = exception.Message;
+                CameraError = UiText.Get(exception);
         }
         return saved;
     }
@@ -1902,7 +2105,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             _logger.LogError(exception, "Teaching recipe image load failed.");
             if (!cancellationToken.IsCancellationRequested)
-                CameraError ??= exception.Message;
+                CameraError ??= UiText.Get(exception);
         }
     }
 
@@ -2005,7 +2208,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             _logger.LogError(exception, "Camera preview conversion failed.");
             await RequestCameraStopAsync();
-            CameraError = exception.Message;
+            CameraError = UiText.Get(exception);
             lock (_liveImageGate)
             {
                 _pendingLiveFrame = null;

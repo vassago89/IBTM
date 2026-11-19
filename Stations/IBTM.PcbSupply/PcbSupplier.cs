@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -141,7 +142,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         // Ready OFF releases the upstream carrier, even in manual mode.
         // STOP must use the physical input, never the teaching test signal.
         if (!Io.IsReady)
-            throw new IOException("Supply SMEMA feedback is unavailable; Ready cannot be cleared safely.");
+            throw new IOException(UiText.Get("Supply SMEMA feedback is unavailable; Ready cannot be cleared safely."));
         if (!Io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
             Io.SetOutput(OutputIo.PcbSupplyReadyToFront1, false);
     }
@@ -213,7 +214,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         var continueHandoff = IsHandoffRestartAllowed;
         if (_units.PcbSupply && Pcb != PcbSupplyPcbState.None
             && Gripper != PcbSupplyCylinderState.Backward && !continueHandoff)
-            throw new InvalidOperationException("Remove the Supply PCB before starting a new run.");
+            throw new InvalidOperationException(UiText.Get("Remove the Supply PCB before starting a new run."));
         Exception? failure = null;
         _pickStep = PickStep.Pcb1;
         // Keep waiting in place only when current feedback still confirms the handoff position.
@@ -243,7 +244,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             break;
                         default:
                             throw new InvalidOperationException(
-                                "Supply PCB grip is incomplete away from a confirmed support. Check the gripper before moving or releasing it.");
+                                UiText.Get("Supply PCB grip is incomplete away from a confirmed support. Check the gripper before moving or releasing it."));
                     }
                 }
                 var step = GetNextStep(placement);
@@ -257,7 +258,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 }
                 if (Phase is PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear
                     && Rotation != PcbSupplyRotationState.Unrotated)
-                    throw new MotionInterlockException("Supply handoff requires confirmed Unrotated feedback.");
+                    throw new MotionInterlockException(UiText.Get("Supply handoff requires confirmed Unrotated feedback."));
 
                 if (_pickStep != PickStep.WaitingForCarrierExit)
                 {
@@ -348,15 +349,15 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             && !cancellationToken.IsCancellationRequested)
                         {
                             if (!PcbReleased)
-                                throw new InvalidOperationException("The upstream carrier left while Supply was gripping its PCB. Check the PCB before resuming pickup.");
+                                throw new InvalidOperationException(UiText.Get("The upstream carrier left while Supply was gripping its PCB. Check the PCB before resuming pickup."));
                             _pickStep = PickStep.Pcb1;
                             EnterStep(PcbSupplyState.WaitingForCarrier);
                         }
                         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                         {
                             if (gripRequired && Gripper != PcbSupplyCylinderState.Forward)
-                                throw new InvalidOperationException("Supply lost gripper feedback during pickup lift.");
-                            throw new MotionInterlockException("Supply rotation must remain confirmed Rotated throughout PCB pickup.");
+                                throw new InvalidOperationException(UiText.Get("Supply lost gripper feedback during pickup lift."));
+                            throw new MotionInterlockException(UiText.Get("Supply rotation must remain confirmed Rotated throughout PCB pickup."));
                         }
                         finally
                         {
@@ -381,7 +382,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         }
                         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                         {
-                            throw new InvalidOperationException("Supply lost PCB grip during forward handoff.");
+                            throw new InvalidOperationException(UiText.Get("Supply lost PCB grip during forward handoff."));
                         }
                         finally
                         {
@@ -392,7 +393,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                     case PcbSupplyState.HandingOff:
                         if (!MotionServiceBase.IsReadyAndStopped(_motion)
                             || Rotation != PcbSupplyRotationState.Unrotated)
-                            throw new MotionInterlockException("Supply axes must be ready and stopped with Unrotated feedback before releasing the PCB.");
+                            throw new MotionInterlockException(UiText.Get("Supply axes must be ready and stopped with Unrotated feedback before releasing the PCB."));
                         if (PcbSecured && placement.Handoff != PcbPlacementHandoff.Holding)
                         {
                             await WaitForChangeAsync(cancellationToken);
@@ -401,7 +402,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         if (Io.GetOutput(OutputIo.PcbSupplyIpmFixerForward))
                         {
                             if (placement.Handoff != PcbPlacementHandoff.Holding)
-                                throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
+                                throw new InvalidOperationException(UiText.Get("Placement must detect and secure the PCB before supply releases its fixer."));
                             cancellationToken.ThrowIfCancellationRequested();
                             Io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, false);
                         }
@@ -409,9 +410,9 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         {
                             if (!MotionServiceBase.IsReadyAndStopped(_motion)
                                 || Rotation != PcbSupplyRotationState.Unrotated)
-                                throw new MotionInterlockException("Supply lost axis readiness or Unrotated feedback before opening its gripper.");
+                                throw new MotionInterlockException(UiText.Get("Supply lost axis readiness or Unrotated feedback before opening its gripper."));
                             if (placement.Handoff != PcbPlacementHandoff.Holding)
-                                throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
+                                throw new InvalidOperationException(UiText.Get("Placement lost PCB holding feedback before supply opened its gripper."));
                             await Io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, cancellationToken);
                         }
                         EnterStep(PcbSupplyState.WaitingForPlacementClear);
@@ -421,7 +422,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         await WaitForChangeAsync(cancellationToken);
                         break;
                     default:
-                        throw new ArgumentOutOfRangeException(nameof(step), step, "Unsupported PCB supply step.");
+                        throw new ArgumentOutOfRangeException(nameof(step), step, UiText.Get("Unsupported PCB supply step."));
                 }
             }
         }
@@ -431,24 +432,22 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         catch (Exception exception)
         {
             failure = exception;
-            throw;
+        }
+        placement.Changed -= WakeRun;
+        try
+        {
+            StopUpstream();
+        }
+        catch (Exception cleanupFailure) when (failure is not null)
+        {
+            throw new AggregateException(failure, cleanupFailure);
         }
         finally
         {
-            placement.Changed -= WakeRun;
-            try
-            {
-                StopUpstream();
-            }
-            catch (Exception cleanupFailure) when (failure is not null)
-            {
-                throw new AggregateException(failure, cleanupFailure);
-            }
-            finally
-            {
-                EndRun(cancellationToken);
-            }
+            EndRun(cancellationToken);
         }
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
     internal PcbSupplyState GetNextStep(IPcbPlacementHandoff placement)
@@ -483,7 +482,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (position.Y is not { } y)
-            throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
+            throw new MotionInterlockException(UiText.Get("Teach the selected PCB pickup XYZ before moving Supply."));
         using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckRotation()
         {
@@ -502,7 +501,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new MotionInterlockException("Supply must remain rotated while moving to a PCB pickup position.");
+            throw new MotionInterlockException(UiText.Get("Supply must remain rotated while moving to a PCB pickup position."));
         }
         finally
         {
@@ -534,7 +533,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 break;
             case TeachMode.Full when point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
                 if (!point.HasPosition)
-                    throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
+                    throw new MotionInterlockException(UiText.Get("Teach the selected PCB pickup XYZ before moving Supply."));
                 await MoveToPositionAsync(position, PcbSupplyRotationState.Rotated, cancellationToken);
                 break;
             case TeachMode.Full or TeachMode.XYOnly:
@@ -549,10 +548,10 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (Rotation == PcbSupplyRotationState.Between)
-            throw new MotionInterlockException("Confirm Supply rotation feedback before moving to the handoff position.");
+            throw new MotionInterlockException(UiText.Get("Confirm Supply rotation feedback before moving to the handoff position."));
         var position = _recipes.Current.PcbSupply.Pcb1PickPosition;
         if (position.Y is null)
-            throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
+            throw new MotionInterlockException(UiText.Get("Teach the selected PCB pickup XYZ before moving Supply."));
         await PrepareEmptyGripperAsync(cancellationToken);
         await MoveFromHandoffAsync(position, cancellationToken);
     }
@@ -584,12 +583,12 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             CheckStartupPcb();
             preparation.Token.ThrowIfCancellationRequested();
             if (!PcbReleased)
-                throw new MotionInterlockException("Supply startup requires an open gripper before moving.");
+                throw new MotionInterlockException(UiText.Get("Supply startup requires an open gripper before moving."));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             throw new InvalidOperationException(
-                "Supply detected a PCB with its gripper not open during startup. Check and remove the PCB before restarting.");
+                UiText.Get("Supply detected a PCB with its gripper not open during startup. Check and remove the PCB before restarting."));
         }
         finally
         {
@@ -601,7 +600,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (nextPick.Y is null)
-            throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
+            throw new MotionInterlockException(UiText.Get("Teach the selected PCB pickup XYZ before moving Supply."));
         if (Rotation != PcbSupplyRotationState.Rotated)
         {
             // Normal handoff already leaves Supply at the rotation position.
@@ -620,7 +619,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (rotation == PcbSupplyRotationState.Between)
-            throw new MotionInterlockException("Confirm Supply rotation feedback before moving to the handoff position.");
+            throw new MotionInterlockException(UiText.Get("Confirm Supply rotation feedback before moving to the handoff position."));
         using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckRotation()
         {
@@ -641,7 +640,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new MotionInterlockException("Supply rotation feedback changed during movement.");
+            throw new MotionInterlockException(UiText.Get("Supply rotation feedback changed during movement."));
         }
         finally
         {
@@ -669,7 +668,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
         cancellationToken.ThrowIfCancellationRequested();
         if (axis == MotionAxis.Z && !_motion.GetAxisState(axis).Homed)
-            throw new MotionInterlockException("Home Supply Z before moving to a taught height.");
+            throw new MotionInterlockException(UiText.Get("Home Supply Z before moving to a taught height."));
         return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
 
@@ -740,7 +739,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new MotionInterlockException(blockedReason ?? "Supply must remain at handoff XYZ while rotating.");
+            throw new MotionInterlockException(blockedReason ?? UiText.Get("Supply must remain at handoff XYZ while rotating."));
         }
         finally
         {

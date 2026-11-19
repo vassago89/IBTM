@@ -70,7 +70,7 @@ public sealed class HikCamera : ICamera, IDisposable
                         device.SerialNumber,
                         _deviceId,
                         StringComparison.OrdinalIgnoreCase)) ?? throw new InvalidOperationException(
-                            $"Hik camera '{_deviceId}' was not found.");
+                            UiText.Format($"Hik camera '{_deviceId}' was not found."));
 
             _device = DeviceFactory.CreateDevice(deviceInfo);
             try
@@ -352,7 +352,7 @@ public sealed class HikCamera : ICamera, IDisposable
             if (frameOut.LostPacket != 0)
             {
                 throw new InvalidOperationException(
-                    $"Hik frame {frameOut.FrameNum} lost {frameOut.LostPacket} packet(s).");
+                    UiText.Format($"Hik frame {frameOut.FrameNum} lost {frameOut.LostPacket} packet(s)."));
             }
 
             var image = frameOut.Image;
@@ -370,7 +370,7 @@ public sealed class HikCamera : ICamera, IDisposable
             if (convertedSize != checked((ulong)pixels.Length))
             {
                 throw new InvalidOperationException(
-                    $"Hik RGB frame size is {convertedSize}; expected {pixels.Length}.");
+                    UiText.Format($"Hik RGB frame size is {convertedSize}; expected {pixels.Length}."));
             }
 
             // Packed RGB has no row padding. Reversing all bytes flips X/Y and converts RGB to BGR.
@@ -441,7 +441,7 @@ public sealed class HikCamera : ICamera, IDisposable
     {
         if (result != 0)
         {
-            throw new InvalidOperationException($"{operation} failed. MVS error code: 0x{result:X8}");
+            throw new InvalidOperationException(UiText.Format($"{UiText.Get(operation)} failed. MVS error code: 0x{result:X8}"));
         }
     }
 }

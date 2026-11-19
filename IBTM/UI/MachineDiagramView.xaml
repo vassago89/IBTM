@@ -237,24 +237,6 @@
                     </Border>
                 </Canvas>
                 <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningLeft}">
-                    <Border Tag="{Binding Machine.StartChecks[PickupHead]}"
-                        Width="{x:Static ui:MachineDiagramLayout.PlateWidth}"
-                        Height="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"
-                        BorderThickness="2" Style="{StaticResource StartCheckOutline}">
-                        <Border.RenderTransform>
-                            <TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}"
-                                Y="{x:Static ui:MachineDiagramLayout.PickupControllerRowTop}"/>
-                        </Border.RenderTransform>
-                        <Button Command="{Binding SelectStartAreaCommand}" CommandParameter="{x:Static app:StartArea.PickupHead}"
-                            AutomationProperties.Name="{Binding Source={x:Static app:StartArea.PickupHead}, Converter={StaticResource UiTextConverter}}">
-                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource StartAreaTarget}">
-                                <Style.Triggers><DataTrigger Binding="{Binding SelectedStartArea}" Value="{x:Static app:StartArea.PickupHead}">
-                                    <Setter Property="Background" Value="#305E9BC6"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-                                </DataTrigger></Style.Triggers>
-                            </Style></Button.Style>
-                        </Button>
-                    </Border>
                     <Border Tag="{Binding Machine.StartChecks[ShootingHead]}"
                         Width="{x:Static ui:MachineDiagramLayout.PlateWidth}"
                         Height="{x:Static ui:MachineDiagramLayout.ControllerRowHeight}"

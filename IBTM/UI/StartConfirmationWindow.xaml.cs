@@ -24,7 +24,7 @@ public partial class StartConfirmationWindow : Window
     {
         _viewModel = viewModel;
         InitializeComponent();
-        StartAreaSelector.ItemsSource = Enum.GetValues<StartArea>();
+        StartAreaSelector.ItemsSource = Enum.GetValues<StartArea>().Where(area => area != StartArea.PickupHead);
         DataContext = viewModel;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         // Binding delivers the production state change on this window's dispatcher.

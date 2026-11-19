@@ -29,7 +29,7 @@ public sealed class BoltFasteningSettings : Setting
         set
         {
             if (value is { } seconds && (!double.IsFinite(seconds) || seconds <= 0))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a positive finite acceleration time.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a positive finite acceleration time."));
             field = value;
         }
     }
@@ -39,7 +39,7 @@ public sealed class BoltFasteningSettings : Setting
         set
         {
             if (value is { } seconds && (!double.IsFinite(seconds) || seconds <= 0))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a positive finite deceleration time.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a positive finite deceleration time."));
             field = value;
         }
     }
@@ -60,7 +60,7 @@ public sealed class BoltFasteningSettings : Setting
         set
         {
             if (value is < 1 or > 3)
-                throw new ArgumentOutOfRangeException(nameof(value), "IO bolt presets are 1, 2 and 3.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("IO bolt presets are 1, 2 and 3."));
             field = value;
         }
     } = 1;
@@ -71,7 +71,7 @@ public sealed class BoltFasteningSettings : Setting
         set
         {
             if (value is < 1 or > 3)
-                throw new ArgumentOutOfRangeException(nameof(value), "IO bolt presets are 1, 2 and 3.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("IO bolt presets are 1, 2 and 3."));
             field = value;
         }
     } = 2;
@@ -82,7 +82,7 @@ public sealed class BoltFasteningSettings : Setting
         set
         {
             if (value is < 1 or > 3)
-                throw new ArgumentOutOfRangeException(nameof(value), "IO bolt presets are 1, 2 and 3.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("IO bolt presets are 1, 2 and 3."));
             field = value;
         }
     } = 1;
@@ -152,7 +152,7 @@ public sealed class BoltFasteningSettings : Setting
         set
         {
             if (value < 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Pickup vacuum delay must be zero or greater.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Pickup vacuum delay must be zero or greater."));
             field = value;
         }
     } = 100;
@@ -162,7 +162,7 @@ public sealed class BoltFasteningSettings : Setting
         set
         {
             if (value < 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Pickup retry count must be zero or greater.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Pickup retry count must be zero or greater."));
             field = value;
         }
     } = 3;
@@ -172,7 +172,7 @@ public sealed class BoltFasteningSettings : Setting
         set
         {
             if (value <= 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Dry-run duration must be greater than zero.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Dry-run duration must be greater than zero."));
             field = value;
         }
     } = 2_000;
@@ -185,7 +185,7 @@ public sealed class BoltFasteningSettings : Setting
             if (!double.IsFinite(value) || value < 0)
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(value), "Shooting arrival delay must be a finite number of 0 seconds or more.");
+                    nameof(value), UiText.Get("Shooting arrival delay must be a finite number of 0 seconds or more."));
             }
             field = value;
         }
@@ -197,7 +197,7 @@ public sealed class BoltFasteningSettings : Setting
         set
         {
             if (value is { } z && !double.IsFinite(z))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite Z position in millimetres.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite Z position in millimetres."));
             field = value;
         }
     }
@@ -205,37 +205,30 @@ public sealed class BoltFasteningSettings : Setting
     public BoltHeadSettings ShootingHead { get; set; }
     public BoltHeadSettings PickupHead { get; set; }
 
-    public BoltHeadSettings GetHead(FasteningHead head)
-    {
-        switch (head)
-        {
-            case FasteningHead.Shooting:
-                return ShootingHead;
-            case FasteningHead.Pickup:
-                return PickupHead;
-            default:
-                throw new System.ArgumentOutOfRangeException(nameof(head));
-        }
-    }
-
     public AxisPosition GetBoltPosition(BoltPoint bolt, bool preliminary = false)
     {
         if (preliminary)
         {
             if (bolt.PreliminaryFasteningPosition is not { } position
                 || !double.IsFinite(position.X) || !double.IsFinite(position.Y))
-                throw new InvalidOperationException($"Teach shooting preliminary XY for {bolt.HeatSink}, bolt {bolt.Id} before moving.");
+                throw new InvalidOperationException(UiText.Format($"Teach shooting preliminary XY for {bolt.HeatSink}, bolt {bolt.Id} before moving."));
             if (ShootingPreliminaryZ is not { } z)
-                throw new InvalidOperationException("Teach shooting IPM preliminary Z before moving.");
+                throw new InvalidOperationException(UiText.Get("Teach shooting IPM preliminary Z before moving."));
             return new() { X = position.X, Y = position.Y, Z = z + bolt.PreliminaryFasteningZOffset };
         }
         if (!bolt.IsFasteningPositionDefined)
-            throw new InvalidOperationException($"Record fastening XY for {bolt.HeatSink}, bolt {bolt.Id} before moving.");
+            throw new InvalidOperationException(UiText.Format($"Record fastening XY for {bolt.HeatSink}, bolt {bolt.Id} before moving."));
+        var head = bolt.Head switch
+        {
+            FasteningHead.Shooting => ShootingHead,
+            FasteningHead.Pickup => PickupHead,
+            _ => throw new ArgumentOutOfRangeException(nameof(bolt.Head)),
+        };
         return new()
         {
             X = bolt.FasteningX!.Value,
             Y = bolt.FasteningY!.Value,
-            Z = GetHead(bolt.Head).FasteningZ + bolt.FasteningZOffset,
+            Z = head.FasteningZ + bolt.FasteningZOffset,
         };
     }
 }

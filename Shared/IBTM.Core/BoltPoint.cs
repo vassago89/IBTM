@@ -41,7 +41,7 @@ public sealed class BoltPoint
         set
         {
             if (value is < 0 or > 255)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255, or leave blank for the recipe default.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use 0 to 255, or leave blank for the recipe default."));
             field = value;
         }
     }
@@ -52,7 +52,7 @@ public sealed class BoltPoint
         set
         {
             if (value is { } height && !double.IsFinite(height))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite height in millimetres.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite height in millimetres."));
             field = value;
         }
     }
@@ -63,7 +63,7 @@ public sealed class BoltPoint
         set
         {
             if (value is { } height && !double.IsFinite(height))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite height in millimetres.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite height in millimetres."));
             field = value;
         }
     }
@@ -102,10 +102,32 @@ public sealed class BoltPoint
         set
         {
             if (!double.IsFinite(value))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite Z offset in millimetres.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite Z offset in millimetres."));
             field = value;
         }
     }
+
+    public double FeedDistance
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value) || value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite distance of zero or greater."));
+            field = value;
+        }
+    }
+
+    public double FeedSeconds
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a positive finite time in seconds."));
+            field = value;
+        }
+    } = 1;
 
     // XY only; Z is the shooting preliminary reference plus the per-bolt offset.
     [JsonPropertyName("FinalFasteningPosition")]
@@ -117,31 +139,32 @@ public sealed class BoltPoint
         set
         {
             if (!double.IsFinite(value))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite Z offset in millimetres.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite Z offset in millimetres."));
             field = value;
         }
     }
 
-    public double? MinimumTurns
+    [JsonPropertyName("FinalFeedDistance")]
+    public double PreliminaryFeedDistance
     {
         get;
         set
         {
-            if (value is { } turns && (!double.IsFinite(turns) || turns < 0))
-                throw new ArgumentOutOfRangeException(nameof(value), "Minimum turns must be zero or greater. Use 0 to disable the check.");
-            field = value == 0 ? null : value;
+            if (!double.IsFinite(value) || value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite distance of zero or greater."));
+            field = value;
         }
     }
 
-    public double? MaximumTurns
+    [JsonPropertyName("FinalFeedSeconds")]
+    public double PreliminaryFeedSeconds
     {
         get;
         set
         {
-            if (value is { } turns && (!double.IsFinite(turns) || turns < 0))
-                throw new ArgumentOutOfRangeException(nameof(value), "Maximum turns must be zero or greater. Use 0 to disable the check.");
-            field = value == 0 ? null : value;
+            if (!double.IsFinite(value) || value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a positive finite time in seconds."));
+            field = value;
         }
-    }
-
+    } = 1;
 }

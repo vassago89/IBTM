@@ -40,9 +40,7 @@ public sealed record FasteningResumeRow(
             ? "Retightening pending" : "Final tightening pending"
         : Result.Source == BoltResultSource.DryRun ? "Dry run · NG"
         : Result.Stage == BoltFasteningStage.Preliminary ? "Pre-tightening NG"
-        : !Result.Success ? "NG"
-        : Result.TurnsResult == AssemblyResult.Ng ? "Turns NG"
-        : Result.TurnsResult == AssemblyResult.Pending ? "Turns unavailable" : "OK";
+        : !Result.Success ? "NG" : "OK";
 }
 
 public partial class OperationViewModel : ObservableObject
@@ -372,7 +370,9 @@ public partial class OperationViewModel : ObservableObject
 
     public string? AlarmDetail => State.AlarmDetail ?? State.ReadError?.ToString() ?? State.PendingStop?.Error.ToString();
 
-    public string? AlarmMessage => State.AlarmMessage ?? State.ReadError?.Message ?? State.PendingStop?.Error.Message;
+    public string? AlarmMessage => State.AlarmMessage
+        ?? (State.ReadError is { } readError ? UiText.Get(readError) : null)
+        ?? (State.PendingStop is { } pendingStop ? UiText.Get(pendingStop.Error) : null);
 
     public string? AlarmAction
     {
@@ -490,7 +490,7 @@ public partial class OperationViewModel : ObservableObject
     public ObservableCollection<PlacementResumeRow> PlacementResumeTargets { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsStartReviewAllowed))]
+    [NotifyPropertyChangedFor(nameof(IsStartReviewAllowed), nameof(StartBlockMessages))]
     public partial bool IsPlacementResumeConfirmed { get; set; }
 
     public bool IsPlacementResumeAvailable => State.Available
@@ -516,7 +516,7 @@ public partial class OperationViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsStartReviewAllowed))]
+    [NotifyPropertyChangedFor(nameof(IsStartReviewAllowed), nameof(StartBlockMessages))]
     public partial bool IsFasteningResumeConfirmed { get; set; }
 
     public int RemainingFasteningCount => FasteningResumeBolts.Count(row => row.Result is not { IsComplete: true });
@@ -565,7 +565,7 @@ public partial class OperationViewModel : ObservableObject
         catch (Exception exception)
         {
             _log.LogError(exception, "Production count reset failed.");
-            CountResetError = UiText.Format($"Count reset failed: {exception.Message}");
+            CountResetError = UiText.Format($"Count reset failed: {UiText.Get(exception)}");
         }
     }
 
@@ -598,7 +598,7 @@ public partial class OperationViewModel : ObservableObject
         catch (Exception exception)
         {
             _log.LogError(exception, "START standby failed.");
-            StartActionMessage = UiText.Get(exception.Message);
+            StartActionMessage = UiText.Get(exception);
         }
         finally
         {
@@ -626,7 +626,7 @@ public partial class OperationViewModel : ObservableObject
         catch (Exception exception)
         {
             _log.LogError(exception, "START preparation failed: {Area}, {Action}.", area, action);
-            StartActionMessage = UiText.Get(exception.Message);
+            StartActionMessage = UiText.Get(exception);
         }
         finally
         {
@@ -663,7 +663,7 @@ public partial class OperationViewModel : ObservableObject
         catch (Exception exception)
         {
             _log.LogError(exception, "Carrier work change failed: {Area}, {Action}.", area, action);
-            StartActionMessage = UiText.Get(exception.Message);
+            StartActionMessage = UiText.Get(exception);
         }
         finally
         {
@@ -686,7 +686,7 @@ public partial class OperationViewModel : ObservableObject
         catch (Exception exception)
         {
             _log.LogError(exception, "Manual PCB placement completion failed: {HeatSink}.", row.HeatSink);
-            StartActionMessage = UiText.Get(exception.Message);
+            StartActionMessage = UiText.Get(exception);
         }
     }
 
@@ -715,7 +715,7 @@ public partial class OperationViewModel : ObservableObject
         catch (Exception exception)
         {
             _log.LogError(exception, "Manual bolt work change failed: {Bolt}, completed={Completed}.", row.BoltId, completed);
-            StartActionMessage = UiText.Get(exception.Message);
+            StartActionMessage = UiText.Get(exception);
         }
     }
 
@@ -724,6 +724,44 @@ public partial class OperationViewModel : ObservableObject
             IsFasteningResumeConfirmed && IsFasteningResumeAvailable ? _reviewedFasteningJob : null,
             IsPlacementResumeConfirmed && IsPlacementResumeAvailable ? _reviewedPlacementJob : null)
                 == StartBlockReason.None;
+
+    public IReadOnlyList<string> StartBlockMessages
+    {
+        get
+        {
+            var messages = Machine.GetStartBlocks(State.FeedbackReadiness)
+                .Select(reason => reason == StartBlockReason.DoorOpen && State.Alarm != MachineAlarm.DoorOpen
+                    ? UiText.Get("Close doors before starting.") : UiText.Get(reason)).ToList();
+            if (State.IsRunning)
+                messages.Add(UiText.Get("Wait for the current operation to finish."));
+            foreach (var (area, check) in Machine.StartChecks)
+            {
+                switch (check)
+                {
+                    case StartCheckState.MaterialRemaining:
+                        messages.Add(UiText.Get(area == StartArea.Supply
+                            ? "Supply: PCB held outside the handoff position"
+                            : "Placement: PCB vacuum detected"));
+                        break;
+                    case StartCheckState.NgGripperCheckRequired:
+                        messages.Add(UiText.Get("S3: support the carrier and check the NG gripper"));
+                        break;
+                    case StartCheckState.UnfinishedCarrier when area == StartArea.Station1:
+                        if (!IsPlacementResumeConfirmed || !IsPlacementResumeAvailable)
+                            messages.Add(UiText.Get("S1: review PCB placement and confirm resume"));
+                        break;
+                    case StartCheckState.UnfinishedCarrier when area == StartArea.Station2:
+                        if (Fastening.Station.Assemblies.Any(assembly => assembly.PickupBoltResults.Values
+                            .Concat(assembly.ShootingBoltResults.Values).Any(result => result.Source == BoltResultSource.Interrupted)))
+                            messages.Add(UiText.Get("S2: remove interrupted bolts and confirm rework"));
+                        else if (!IsFasteningResumeConfirmed || !IsFasteningResumeAvailable)
+                            messages.Add(UiText.Get("S2: review bolt work and confirm resume"));
+                        break;
+                }
+            }
+            return messages;
+        }
+    }
 
     private async Task ConfirmStartAsync(CancellationToken cancellationToken)
     {
@@ -853,7 +891,7 @@ public partial class OperationViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            ResetError = UiText.Format($"RESET failed: {exception.Message}");
+            ResetError = UiText.Format($"RESET failed: {UiText.Get(exception)}");
             _log.LogError(exception, "On-screen RESET failed.");
         }
     }
@@ -921,6 +959,7 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        OnPropertyChanged(nameof(StartBlockMessages));
         if (e.PropertyName is null or nameof(MachineState.SetupEnabled) or nameof(MachineState.FeedbackReadiness))
             foreach (var row in StartOutputs)
                 row.Refresh();
@@ -979,6 +1018,7 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(nameof(StartBlock));
             OnPropertyChanged(nameof(IsStartReviewAllowed));
             OnPropertyChanged(nameof(StartMaterialState));
+            OnPropertyChanged(nameof(StartBlockMessages));
         }
     }
 
@@ -1016,6 +1056,7 @@ public partial class OperationViewModel : ObservableObject
     // Devices expose Changed events; notifying their property also refreshes nested XAML bindings.
     private void OnPcbSupplyChanged()
     {
+        OnPropertyChanged(nameof(StartBlockMessages));
         if (SelectedStartArea == StartArea.Supply)
             foreach (var row in StartOutputs)
                 row.Refresh();
@@ -1030,6 +1071,7 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnPcbPlacementChanged()
     {
+        OnPropertyChanged(nameof(StartBlockMessages));
         if (IsPlacementResumeConfirmed && !IsPlacementResumeAvailable)
             IsPlacementResumeConfirmed = false;
         OnPropertyChanged(nameof(IsPlacementResumeAvailable));
@@ -1086,6 +1128,7 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnBoltFasteningChanged()
     {
+        OnPropertyChanged(nameof(StartBlockMessages));
         if (IsFasteningResumeConfirmed && !IsFasteningResumeAvailable)
             IsFasteningResumeConfirmed = false;
         OnPropertyChanged(nameof(IsFasteningResumeAvailable));
@@ -1116,6 +1159,7 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnInspectionChanged()
     {
+        OnPropertyChanged(nameof(StartBlockMessages));
         if (!_active)
             return;
 

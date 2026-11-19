@@ -141,7 +141,7 @@
                             </TextBlock>
                             <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding Bus.Monitor.Sample.Error.Message}"/>
+                                    <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding Bus.Monitor.Sample.Error, Converter={StaticResource UiTextConverter}}"/>
                                     <TextBlock Style="{StaticResource ErrorStatusMessageStyle}" Text="{Binding Bus.Monitor.Sample.Rejection}"/>
                                 </StackPanel>
                             </ScrollViewer>

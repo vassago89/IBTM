@@ -19,7 +19,6 @@ public sealed record PcbRecord(
     IReadOnlyDictionary<Guid, BoltResult> PickupBoltResults,
     IReadOnlyList<Guid> BoltIds)
 {
-    public AssemblyResult? TurnsResult { get; init; }
     public bool IsDataMatrixNgExcluded { get; init; }
     public PcbAlignment? Alignment { get; init; }
     public string? FiducialError { get; init; }
@@ -45,15 +44,5 @@ public sealed record PcbRecord(
     public bool IsCurveDataLoaded { get; init; } = true;
 
     [JsonIgnore]
-    public AssemblyResult Result
-    {
-        get
-        {
-            if (FasteningResult == AssemblyResult.Ng || TurnsResult == AssemblyResult.Ng)
-                return AssemblyResult.Ng;
-            if (TurnsResult == AssemblyResult.Pending && InspectionResult == AssemblyResult.Ok)
-                return AssemblyResult.Pending;
-            return InspectionResult;
-        }
-    }
+    public AssemblyResult Result => FasteningResult == AssemblyResult.Ng ? AssemblyResult.Ng : InspectionResult;
 }

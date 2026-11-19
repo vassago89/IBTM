@@ -46,7 +46,7 @@ public sealed class InspectionGantrySettings : Setting
         set
         {
             if (!double.IsFinite(value))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite offset in millimetres.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite offset in millimetres."));
             field = value;
         }
     }
@@ -57,7 +57,7 @@ public sealed class InspectionGantrySettings : Setting
         set
         {
             if (!double.IsFinite(value))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite offset in millimetres.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a finite offset in millimetres."));
             field = value;
         }
     }

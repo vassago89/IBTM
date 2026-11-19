@@ -126,7 +126,7 @@ public interface IIoService
         CancellationToken cancellationToken = default)
     {
         var feedback = GetOutputFeedback(output) ?? throw new InvalidOperationException(
-            $"{output.GetDescription()} has no feedback mapping.");
+            UiText.Format($"{UiText.Get(output)} has no feedback mapping."));
         if (feedback.OffInput is { } offInput)
         {
             await WaitForInputsAsync(
@@ -154,7 +154,7 @@ public sealed class IoTimeoutException : TimeoutException
 {
     public IoTimeoutException(InputIo input, bool inputValue, int timeoutMilliseconds)
         : base(
-            $"{input.GetDescription()}={(inputValue ? "ON" : "OFF")} " + $"timeout ({timeoutMilliseconds} ms)")
+            UiText.Format($"{UiText.Get(input)}={(inputValue ? "ON" : "OFF")} timeout ({timeoutMilliseconds} ms)"))
     {
         Input = input;
     }

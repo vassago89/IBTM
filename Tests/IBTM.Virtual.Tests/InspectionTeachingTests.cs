@@ -103,7 +103,7 @@ public sealed class InspectionTeachingTests
         var recipe = store.LoadRecipe("Inspection");
         var bolt = recipe.Pcb.BoltPoints[0];
         bolt.Name = "Connector bolt";
-        bolt.MinimumTurns = 91;
+        bolt.MinimumHeight = 91;
         recipe.CarrierImages[1].BoltId = null;
         store.SaveRecipe(recipe);
         var recipes = new RecipeManager(store, new());
@@ -122,7 +122,7 @@ public sealed class InspectionTeachingTests
         Assert.Equal(teaching.PositionLabel, editor.SelectedPoint.PositionLabel);
         Assert.Equal((10d, 20d), (editor.SelectedPoint.Position!.X, editor.SelectedPoint.Position.Y));
         Assert.Equal("Connector bolt", editor.SelectedPoint.Name);
-        Assert.Equal(91, editor.SelectedPoint!.Bolt!.MinimumTurns);
+        Assert.Equal(91, editor.SelectedPoint!.Bolt!.MinimumHeight);
         Assert.False(editor.Preview.HasImage);
         Assert.False(editor.IsInspectAllowed);
         Assert.False(editor.IsDrawRegionAllowed);
@@ -130,10 +130,10 @@ public sealed class InspectionTeachingTests
         Assert.False(string.IsNullOrWhiteSpace(editor.Message));
         await editor.InspectCommand.ExecuteAsync(null);
         Assert.Null(editor.Preview.Result);
-        editor.SelectedPoint!.Bolt!.MinimumTurns = 173;
+        editor.SelectedPoint!.Bolt!.MinimumHeight = 173;
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
-        Assert.Equal(173, store.LoadRecipe("Inspection").Pcb.BoltPoints[0].MinimumTurns);
+        Assert.Equal(173, store.LoadRecipe("Inspection").Pcb.BoltPoints[0].MinimumHeight);
 
         var tiles = recipes.Current.CarrierImages.ToList();
         tiles.Add(new() { Number = 3, BoltId = bolt.Id, Region = new(2, 2, 10, 10) });
@@ -161,13 +161,13 @@ public sealed class InspectionTeachingTests
         var editor = CreateEditor(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         var removedId = editor.Preview.Recipe.Pcb.BoltPoints[0].Id;
-        editor.Preview.Recipe.Pcb.BoltPoints[0].MinimumTurns = 91;
+        editor.Preview.Recipe.Pcb.BoltPoints[0].MinimumHeight = 91;
         editor.Preview.Recipe.CarrierImages[1].Region = new(2, 2, 10, 10);
         editor.Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 73;
 
         recipes.Current.Pcb.BoltPoints.Clear();
         recipes.Current.CarrierImages.RemoveAll(tile => !tile.IsBarcode);
-        var replacement = new BoltPoint { X = 100, Y = 200, MinimumTurns = 180 };
+        var replacement = new BoltPoint { X = 100, Y = 200, MinimumHeight = 180 };
         recipes.Current.Pcb.BoltPoints.Add(replacement);
         var tile = new CarrierImageTile { Number = 2, BoltId = replacement.Id };
         await recipes.SaveAsync("Inspection", [recipes.Current.CarrierImages[0], tile], [new(1, png), new(2, png)]);
@@ -175,21 +175,21 @@ public sealed class InspectionTeachingTests
         // Saving before refreshing the point list must leave the replacement untouched.
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
-        Assert.Equal(180, recipes.Current.Pcb.BoltPoints[0].MinimumTurns);
+        Assert.Equal(180, recipes.Current.Pcb.BoltPoints[0].MinimumHeight);
         Assert.Null(recipes.Current.CarrierImages[1].Region);
 
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
         Assert.NotEqual(removedId, editor.Preview.Recipe.Pcb.BoltPoints[0].Id);
         Assert.Equal(replacement.Id, editor.Preview.Recipe.Pcb.BoltPoints[0].Id);
-        Assert.Equal(180, editor.Preview.Recipe.Pcb.BoltPoints[0].MinimumTurns);
+        Assert.Equal(180, editor.Preview.Recipe.Pcb.BoltPoints[0].MinimumHeight);
         Assert.Null(editor.Preview.Recipe.CarrierImages[1].Region);
         Assert.Equal(73, editor.Preview.Recipe.BoltInspection.DataMatrix1.ThresholdMinimum);
 
         await editor.SaveCommand.ExecuteAsync(null);
         var saved = store.LoadRecipe("Inspection");
         Assert.Equal(replacement.Id, saved.Pcb.BoltPoints[0].Id);
-        Assert.Equal(180, saved.Pcb.BoltPoints[0].MinimumTurns);
+        Assert.Equal(180, saved.Pcb.BoltPoints[0].MinimumHeight);
         Assert.Null(saved.CarrierImages[1].Region);
     }
 
@@ -336,9 +336,9 @@ public sealed class InspectionTeachingTests
         recipe.BoltInspection.DataMatrix1.ThresholdMinimum = 51;
         recipe.BoltInspection.DataMatrix2.ThresholdMinimum = 180;
         recipe.BoltInspection.DataMatrix2.TryInverted = false;
-        recipe.Pcb.BoltPoints[0].MinimumTurns = 9.1;
-        recipe.Pcb.BoltPoints[0].MaximumTurns = 25;
-        recipe.Pcb.BoltPoints.Add(new() { Id = VirtualTestSupport.BoltId(2), MinimumTurns = 17.2, MaximumTurns = 75 });
+        recipe.Pcb.BoltPoints[0].MinimumHeight = 9.1;
+        recipe.Pcb.BoltPoints[0].MaximumHeight = 25;
+        recipe.Pcb.BoltPoints.Add(new() { Id = VirtualTestSupport.BoltId(2), MinimumHeight = 17.2, MaximumHeight = 75 });
         recipe.CarrierImages.Add(new() { Number = 3, BoltId = VirtualTestSupport.BoltId(2), Region = new(2, 2, 10, 10) });
         recipe.CarrierImages.Add(new() { Number = 4, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(2, 2, 10, 10) });
         store.SaveRecipe(recipe, images: [new(1, png), new(2, png), new(3, png), new(4, png)]);
@@ -354,13 +354,13 @@ public sealed class InspectionTeachingTests
             list.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(editor.Points)));
             list.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedItemProperty,
                 new Binding(nameof(editor.SelectedPoint)) { BindingGroupName = null });
-            var minimumTurns = new TextBox();
-            minimumTurns.SetBinding(TextBox.TextProperty, new Binding("SelectedPoint.Bolt.MinimumTurns")
+            var minimumHeight = new TextBox();
+            minimumHeight.SetBinding(TextBox.TextProperty, new Binding("SelectedPoint.Bolt.MinimumHeight")
             {
                 BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
             });
-            var maximumTurns = new TextBox();
-            maximumTurns.SetBinding(TextBox.TextProperty, new Binding("SelectedPoint.Bolt.MaximumTurns")
+            var maximumHeight = new TextBox();
+            maximumHeight.SetBinding(TextBox.TextProperty, new Binding("SelectedPoint.Bolt.MaximumHeight")
             {
                 BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
             });
@@ -373,8 +373,8 @@ public sealed class InspectionTeachingTests
             inverted.SetBinding(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
                 new Binding("DataMatrix.TryInverted") { BindingGroupName = null });
             panel.Children.Add(list);
-            panel.Children.Add(minimumTurns);
-            panel.Children.Add(maximumTurns);
+            panel.Children.Add(minimumHeight);
+            panel.Children.Add(maximumHeight);
             panel.Children.Add(matrixThreshold);
             panel.Children.Add(inverted);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -391,15 +391,15 @@ public sealed class InspectionTeachingTests
             list.SelectedItem = editor.Points.Single(point => point.Bolt?.Id == VirtualTestSupport.BoltId(1));
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             Assert.Equal(VirtualTestSupport.BoltId(1), editor.SelectedPoint!.Bolt!.Id);
-            Assert.Equal("9.1", minimumTurns.Text);
-            Assert.Equal("25", maximumTurns.Text);
-            minimumTurns.Text = "10.3";
+            Assert.Equal("9.1", minimumHeight.Text);
+            Assert.Equal("25", maximumHeight.Text);
+            minimumHeight.Text = "10.3";
             list.SelectedItem = editor.Points.Single(point => point.Bolt?.Id == VirtualTestSupport.BoltId(2));
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             Assert.Equal(VirtualTestSupport.BoltId(2), editor.SelectedPoint!.Bolt!.Id);
-            Assert.Equal("17.2", minimumTurns.Text);
-            Assert.Equal("75", maximumTurns.Text);
-            Assert.Equal(10.3, editor.Preview.Recipe.Pcb.BoltPoints[0].MinimumTurns);
+            Assert.Equal("17.2", minimumHeight.Text);
+            Assert.Equal("75", maximumHeight.Text);
+            Assert.Equal(10.3, editor.Preview.Recipe.Pcb.BoltPoints[0].MinimumHeight);
             GC.KeepAlive(root);
         });
     }
@@ -550,10 +550,10 @@ public sealed class InspectionTeachingTests
         editor.DataMatrix.ThresholdStep = 5;
         editor.DataMatrix.DilationRadius = 2;
         editor.SelectedPoint = editor.Points.Single(point => !point.IsDataMatrix);
-        editor.SelectedPoint.Bolt!.MinimumTurns = 12.5;
-        editor.SelectedPoint.Bolt.MaximumTurns = 15.75;
-        Assert.Equal(12.5, recipes.Current.Pcb.BoltPoints[0].MinimumTurns);
-        Assert.Equal(15.75, recipes.Current.Pcb.BoltPoints[0].MaximumTurns);
+        editor.SelectedPoint.Bolt!.MinimumHeight = 12.5;
+        editor.SelectedPoint.Bolt.MaximumHeight = 15.75;
+        Assert.Equal(12.5, recipes.Current.Pcb.BoltPoints[0].MinimumHeight);
+        Assert.Equal(15.75, recipes.Current.Pcb.BoltPoints[0].MaximumHeight);
         Assert.Null(recipes.Current.Pcb.BoltPoints[0].LightLevel);
         Assert.Equal(255, recipes.Current.BoltInspection.LightLevel);
         Assert.False(recipes.Current.BoltInspection.DataMatrix1.TryInverted);
@@ -572,7 +572,7 @@ public sealed class InspectionTeachingTests
         recipes.Current.BoltInspection.DataMatrix1.LightLevel = 53;
         recipes.Current.BoltInspection.DataMatrix2.LightLevel = 61;
         await recipes.SaveAsync("Inspection");
-        editor.SelectedPoint.Bolt.MaximumTurns = 18.75;
+        editor.SelectedPoint.Bolt.MaximumHeight = 18.75;
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Null(editor.Error);
@@ -596,8 +596,8 @@ public sealed class InspectionTeachingTests
             Assert.Equal(2, recipe.BoltInspection.DataMatrix1.DilationRadius);
             Assert.Equal(0, recipe.BoltInspection.DataMatrix2.ThresholdMinimum);
             Assert.Equal(87, recipe.Pcb.BoltPoints[0].LightLevel);
-            Assert.Equal(12.5, recipe.Pcb.BoltPoints[0].MinimumTurns);
-            Assert.Equal(18.75, recipe.Pcb.BoltPoints[0].MaximumTurns);
+            Assert.Equal(12.5, recipe.Pcb.BoltPoints[0].MinimumHeight);
+            Assert.Equal(18.75, recipe.Pcb.BoltPoints[0].MaximumHeight);
         }
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 1));
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 2));
@@ -719,7 +719,7 @@ public sealed class InspectionTeachingTests
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         editor.SelectedPoint = editor.Points.Single(point => point.Bolt?.Id == VirtualTestSupport.BoltId(1));
         editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
-        editor.SelectedPoint.Bolt!.MinimumTurns = 8.25;
+        editor.SelectedPoint.Bolt!.MinimumHeight = 8.25;
         editor.Preview.Recipe.BoltInspection.DataMatrix1.TryInverted = false;
         var previousImage = editor.Preview.Image;
         var png = await SaveRecipeAsync(store, brightness: 90);
@@ -732,7 +732,7 @@ public sealed class InspectionTeachingTests
         Assert.NotSame(previousImage, editor.Preview.Image);
         Assert.All(InspectionPreviewViewModel.CreateFrame(editor.Preview.Image!).Pixels, pixel => Assert.Equal(90, pixel));
         Assert.Null(editor.Preview.Region);
-        Assert.Equal(8.25, editor.SelectedPoint.Bolt!.MinimumTurns);
+        Assert.Equal(8.25, editor.SelectedPoint.Bolt!.MinimumHeight);
         Assert.False(editor.Preview.Recipe.BoltInspection.DataMatrix1.TryInverted);
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);

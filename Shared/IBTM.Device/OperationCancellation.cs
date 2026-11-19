@@ -1,6 +1,8 @@
 using System;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 
 namespace IBTM.Device;
 
@@ -66,7 +68,7 @@ public sealed class OperationCancellation
         {
             if (_shutdown is not null)
             {
-                throw new OperationCanceledException("The machine is shutting down.");
+                throw new OperationCanceledException(UiText.Get("The machine is shutting down."));
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -157,7 +159,7 @@ public sealed class OperationCancellation
         lock (_gate)
         {
             if (_shutdown is not null)
-                throw new OperationCanceledException("The machine is shutting down.");
+                throw new OperationCanceledException(UiText.Get("The machine is shutting down."));
             cancellationToken = _source.Token;
             drained = _activeOperations == 0
                 ? Task.CompletedTask
@@ -174,24 +176,28 @@ public sealed class OperationCancellation
         Task drained,
         TaskCompletionSource completion)
     {
+        Exception? failure = null;
         try
         {
-            try
-            {
-                source.Cancel();
-            }
-            finally
-            {
-                await drained.ConfigureAwait(false);
-                source.Dispose();
-            }
-
-            completion.SetResult();
+            source.Cancel();
         }
         catch (Exception exception)
         {
-            completion.SetException(exception);
+            failure = exception;
         }
+        try
+        {
+            await drained.ConfigureAwait(false);
+            source.Dispose();
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
+        if (failure is null)
+            completion.SetResult();
+        else
+            completion.SetException(failure);
     }
 
     private void CompleteOperation()
@@ -255,19 +261,17 @@ public sealed class OperationCancellation
             catch (Exception exception)
             {
                 failure = exception;
-                throw;
             }
-            finally
+            try
             {
-                try
-                {
-                    Release();
-                }
-                catch (Exception cleanupFailure) when (failure is not null)
-                {
-                    throw new AggregateException(failure, cleanupFailure);
-                }
+                Release();
             }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
+            if (failure is not null)
+                ExceptionDispatchInfo.Throw(failure);
         }
 
         public void Dispose()

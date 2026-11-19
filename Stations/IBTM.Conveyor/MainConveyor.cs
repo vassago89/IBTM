@@ -183,7 +183,7 @@ public sealed class MainConveyor : AutoUnit
                         if (!IsRearDischargeAllowed)
                         {
                             throw new MotionInterlockException(
-                                "Rear discharge requires a completed carrier and the raised, clear inspection pickup at its waiting position.");
+                                UiText.Get("Rear discharge requires a completed carrier and the raised, clear inspection pickup at its waiting position."));
                         }
                         var departingJob = _inspection.Station.CurrentJob;
                         var rearReleased = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -215,7 +215,7 @@ public sealed class MainConveyor : AutoUnit
                                 || !_inspection.IsRearDischargeReady)
                             {
                                 throw new MotionInterlockException(
-                                    "Rear discharge lost support release or inspection pickup clearance before starting the belt.");
+                                    UiText.Get("Rear discharge lost support release or inspection pickup clearance before starting the belt."));
                             }
                             EnterStep(MainConveyorState.DischargingInspectionCarrier, waitingFor: "Rear Ready=OFF");
                             // Finish motor setup before the final READY check.
@@ -303,7 +303,7 @@ public sealed class MainConveyor : AutoUnit
                         EnterStep(state);
                         break;
                     default:
-                        throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported main conveyor step.");
+                        throw new ArgumentOutOfRangeException(nameof(state), state, UiText.Get("Unsupported main conveyor step."));
                 }
 
                 if (!IsTransferPaused
@@ -330,17 +330,14 @@ public sealed class MainConveyor : AutoUnit
         {
             motor.Failure = exception;
         }
+        try
+        {
+            motor.Dispose();
+        }
         finally
         {
-            try
-            {
-                motor.Dispose();
-            }
-            finally
-            {
-                _inspection.ClearInspectionRequest();
-                EndRun(cancellationToken);
-            }
+            _inspection.ClearInspectionRequest();
+            EndRun(cancellationToken);
         }
     }
 
@@ -487,7 +484,7 @@ public sealed class MainConveyor : AutoUnit
                             ? _inspection.IsReceiveAllowed : !destination.CarrierPresent))
                     {
                         throw new InvalidOperationException(
-                            "Transfer requires the completed source carrier to remain seated and the destination to remain empty.");
+                            UiText.Get("Transfer requires the completed source carrier to remain seated and the destination to remain empty."));
                     }
                     await source.ReleaseAsync(cancellationToken);
                     RequireSeatingPushPosition(destination);
@@ -553,7 +550,7 @@ public sealed class MainConveyor : AutoUnit
                     transfer.Token);
                 transfer.Token.ThrowIfCancellationRequested();
                 if (!destination.CarrierPresent)
-                    throw new InvalidOperationException("Carrier was not detected after the seating push.");
+                    throw new InvalidOperationException(UiText.Get("Carrier was not detected after the seating push."));
             }
             catch (OperationCanceledException exception) when (transfer.IsCancellationRequested
                 && !cancellationToken.IsCancellationRequested)
@@ -561,7 +558,7 @@ public sealed class MainConveyor : AutoUnit
                 motor.Failure = cancellationToken.IsCancellationRequested
                     ? exception
                     : new MotionInterlockException(
-                        "Transfer lost backup plate DOWN and stopper UP feedback. Check the stopped carrier position.");
+                        UiText.Get("Transfer lost backup plate DOWN and stopper UP feedback. Check the stopped carrier position."));
             }
             catch (Exception exception)
             {
@@ -614,7 +611,7 @@ public sealed class MainConveyor : AutoUnit
             || destination.Stopper != StationCylinderState.Up)
         {
             throw new InvalidOperationException(
-                "Seating push requires backup plate DOWN and stopper UP feedback. Check the stopped carrier position.");
+                UiText.Get("Seating push requires backup plate DOWN and stopper UP feedback. Check the stopped carrier position."));
         }
     }
 

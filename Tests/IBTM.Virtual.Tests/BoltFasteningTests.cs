@@ -297,28 +297,27 @@ public sealed class BoltFasteningTests
             {
                 Head = FasteningHead.Pickup, X = 10, Y = 20,
                 FasteningX = 10, FasteningY = 20,
+                FeedDistance = 2, FeedSeconds = 0.12,
                 PreliminaryFasteningPosition = new() { X = 30, Y = 40 },
                 PreliminaryFasteningZOffset = 0.5,
+                PreliminaryFeedDistance = 3, PreliminaryFeedSeconds = 0.18,
             },
             new BoltPoint
             {
                 Head = FasteningHead.Pickup, X = 20, Y = 20,
                 FasteningX = 20, FasteningY = 20,
+                FeedDistance = 4, FeedSeconds = 0.16,
                 PreliminaryFasteningPosition = new() { X = 40, Y = 40 },
                 PreliminaryFasteningZOffset = 1.5,
+                PreliminaryFeedDistance = 5, PreliminaryFeedSeconds = 0.2,
             },
-        };
-        var feedSettings = new BoltFasteningRecipe
-        {
-            ShootingIpmFeed = new() { Distance = 3, Seconds = 0.18 },
-            PickupIpmFeed = new() { Distance = 2, Seconds = 0.12 },
         };
         var work = VirtualTestSupport.CreateFasteningBackup(io);
         var observedMotion = DispatchProxy.Create<IXyMotion, MachineTestSupport.DisplayReadMotion>();
         var motionCalls = (MachineTestSupport.DisplayReadMotion)observedMotion;
         motionCalls.Motion = motion;
         var station = new BoltFasteningStation(shooting, pickup, io, observedMotion, new(motion), settings, work,
-            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] }, BoltFastening = feedSettings } },
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
             units, new BoltFeederUnit(io, new(), units));
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
@@ -412,9 +411,9 @@ public sealed class BoltFasteningTests
                 Assert.Equal(0.03, settings.Motion.ZDecelerationSeconds);
                 Assert.Equal(0.05, motionCalls.LastMoveAccelerationSeconds);
                 Assert.Equal(0.1, motionCalls.LastMoveDecelerationSeconds);
-                var feed = pickupRunning ? feedSettings.PickupIpmFeed : feedSettings.ShootingIpmFeed;
-                var distance = feed.Distance;
-                var seconds = feed.Seconds;
+                var bolt = station.ActiveBolt!;
+                var distance = pickupRunning ? bolt.FeedDistance : bolt.PreliminaryFeedDistance;
+                var seconds = pickupRunning ? bolt.FeedSeconds : bolt.PreliminaryFeedSeconds;
                 var velocity = motionCalls.LastMoveVelocity!.Value;
                 var acceleration = velocity / 0.05;
                 var deceleration = velocity / 0.1;
@@ -430,14 +429,13 @@ public sealed class BoltFasteningTests
             {
                 var bolt = station.ActiveBolt!;
                 feeds.Add((Array.IndexOf(bolts, bolt) + 1, startZ, motion.Position.Z));
-                var feed = pickupRunning ? feedSettings.PickupIpmFeed : feedSettings.ShootingIpmFeed;
-                var distance = feed.Distance;
+                var distance = pickupRunning ? bolt.FeedDistance : bolt.PreliminaryFeedDistance;
                 if (earlyTorque && stopFeedOnCompletion)
                     Assert.InRange(motion.Position.Z, startZ, startZ + distance - 0.01);
                 else
                 {
                     Assert.Equal(startZ + distance, motion.Position.Z, 3);
-                    var seconds = feed.Seconds;
+                    var seconds = pickupRunning ? bolt.FeedSeconds : bolt.PreliminaryFeedSeconds;
                     Assert.True(Stopwatch.GetElapsedTime(feedStartedAt).TotalSeconds >= seconds - 0.01);
                 }
                 bus.SuppressCompletion = false;
@@ -1001,6 +999,69 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(0.1)]
+    public async Task ContinuousRetighteningIgnoresInPositionButRejectsPositionDrift(double drift)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            IpmRetighteningEnabled = true,
+            MonitorTorqueCurves = false,
+            PickupHead = new() { FasteningZ = 10 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+        };
+        var io = new VirtualIoService(Outputs(new BoltFasteningHardwareSettings(), new BoltFasteningStationHardwareSettings()), new());
+        io.Initialize();
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        var observedMotion = DispatchProxy.Create<IXyMotion, MachineTestSupport.ScopedMotionProbe>();
+        var probe = (MachineTestSupport.ScopedMotionProbe)observedMotion;
+        probe.Motion = motion;
+        probe.ReportReady = true;
+        using var pickupBus = new AdcControllerStub();
+        using var shootingBus = new AdcControllerStub();
+        var pickup = CreateAdcHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Pickup", 115200);
+        var shooting = CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new(), 1, "Shooting", 115200);
+        var bolt = new BoltPoint { Head = FasteningHead.Pickup, FasteningX = 10, FasteningY = 10 };
+        var work = VirtualTestSupport.CreateFasteningBackup(io);
+        var station = new BoltFasteningStation(shooting, pickup, io, observedMotion, new(observedMotion), settings, work,
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
+            new(), new BoltFeederUnit(io, new(), new()));
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        await work.SeatAsync(CancellationToken.None);
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordBolt(FasteningHead.Pickup, bolt.Id,
+            new BoltResult(true, 1) { Stage = BoltFasteningStage.Preliminary });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = station.RunAsync(timeout.Token, selectedBolts: [bolt.Id], resultReceived: (point, result) =>
+        {
+            if (result.Stage != BoltFasteningStage.FinalBeforeRetightening)
+                return;
+            probe.OverrideState = (axis, state) => axis == MotionAxis.Z ? state with { InPosition = false } : state;
+            if (drift != 0)
+                motion.SetAxisPosition(MotionAxis.Z, motion.Position.Z + drift, homed: true);
+        });
+        if (drift == 0)
+        {
+            await run;
+            var result = assembly.PickupBoltResults[bolt.Id];
+            Assert.True(result.Success);
+            Assert.True(result.IsComplete);
+            Assert.Equal(BoltFasteningStage.Retightening, result.Stage);
+            Assert.NotNull(result.PreviousFinalResult);
+            Assert.Equal(2, pickupBus.StartWrites);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<MotionInterlockException>(() => run);
+            Assert.Equal(BoltFasteningStage.FinalBeforeRetightening, assembly.PickupBoltResults[bolt.Id].Stage);
+            Assert.Equal(1, pickupBus.StartWrites);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        }
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]
@@ -1315,7 +1376,6 @@ public sealed class BoltFasteningTests
         {
             Stage = BoltFasteningStage.Final, PreliminaryResult = preliminary,
             Controller = preliminary.Controller with { Preset = 3, Angle3 = 720, TorqueCompensationPercent = 100 },
-            MinimumTurns = 11, MaximumTurns = 13,
         };
         var restored = System.Text.Json.JsonSerializer.Deserialize<BoltResult>(System.Text.Json.JsonSerializer.Serialize(final))!;
         Assert.Equal(10, restored.PreliminaryResult!.MeasuredTurns);
@@ -1323,38 +1383,29 @@ public sealed class BoltFasteningTests
         Assert.Equal((ushort)100, restored.Controller!.TorqueCompensationPercent);
         Assert.Equal(2, restored.MeasuredTurns);
         Assert.Equal(12, restored.TotalTurns);
-        Assert.Equal(AssemblyResult.Ok, restored.TurnsResult);
-        Assert.Equal(AssemblyResult.Ng, (restored with { MaximumTurns = 11 }).TurnsResult);
-        Assert.Equal(AssemblyResult.Ng, (restored with { MinimumTurns = 13 }).TurnsResult);
         Assert.Null((restored with { PreliminaryResult = preliminary with { Controller = null } }).TotalTurns);
 
-        var firstFinal = restored with { Stage = BoltFasteningStage.FinalBeforeRetightening, MinimumTurns = 13 };
+        var firstFinal = restored with { Stage = BoltFasteningStage.FinalBeforeRetightening };
         Assert.False((preliminary with { Source = BoltResultSource.DryRun }).IsComplete);
         Assert.False(firstFinal.IsComplete);
         Assert.False((firstFinal with { Source = BoltResultSource.DryRun }).IsComplete);
         Assert.True((firstFinal with { Success = false }).IsComplete);
-        Assert.Equal(AssemblyResult.Pending, firstFinal.TurnsResult);
         var assembly = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
         var boltId = Guid.NewGuid();
         assembly.RecordBolt(FasteningHead.Pickup, boltId, preliminary);
         assembly.RecordBolt(FasteningHead.Pickup, boltId, firstFinal);
-        Assert.Equal(AssemblyResult.Pending, assembly.TurnsResult);
         var retightened = restored with
         {
             Stage = BoltFasteningStage.Retightening, PreliminaryResult = null, PreviousFinalResult = firstFinal,
             Controller = restored.Controller! with { Angle3 = 360 },
-            MinimumTurns = 13,
         };
         retightened = System.Text.Json.JsonSerializer.Deserialize<BoltResult>(System.Text.Json.JsonSerializer.Serialize(retightened))!;
         Assert.True(retightened.IsComplete);
         Assert.Equal(13, retightened.TotalTurns);
         Assert.Equal(12, retightened.PreviousFinalResult!.TotalTurns);
-        Assert.Equal(AssemblyResult.Ok, retightened.TurnsResult);
-        Assert.Equal(AssemblyResult.Ng, (retightened with { MaximumTurns = 12 }).TurnsResult);
         assembly.RecordBolt(FasteningHead.Pickup, boltId, retightened);
         assembly.CompleteFastening();
         assembly.CompleteInspection();
-        Assert.Equal(AssemblyResult.Ok, assembly.TurnsResult);
         Assert.Equal(AssemblyResult.Ok, assembly.Result);
     }
 
@@ -1597,9 +1648,6 @@ public sealed class BoltFasteningTests
         {
             Current = { Pcb = new() { BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30)] } },
         };
-        var bolt = recipes.Current.Pcb.BoltPoints[0];
-        bolt.MinimumTurns = 3;
-        bolt.MaximumTurns = 15;
         var station = new BoltFasteningStation(shooting, pickup, io, motion, new MotionStatus(motion), settings,
             work, recipes, units,
             new BoltFeederUnit(io, new(), units));
@@ -1630,11 +1678,6 @@ public sealed class BoltFasteningTests
                 else if (headWasLowered && failClearance)
                     throw clearFailure;
             }
-            if (output == OutputIo.ShootingBoltStart && on)
-            {
-                bolt.MinimumTurns = 20;
-                bolt.MaximumTurns = 30;
-            }
         };
         assembly.ResultsChanged += updated =>
         {
@@ -1662,8 +1705,6 @@ public sealed class BoltFasteningTests
         Assert.True(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Success);
         Assert.NotNull(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Torque);
         Assert.NotNull(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Controller);
-        Assert.Equal(3, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].MinimumTurns);
-        Assert.Equal(15, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].MaximumTurns);
         Assert.Equal(1, bus.StartWrites);
         Assert.False(work.Completed);
     }
@@ -3945,9 +3986,10 @@ public sealed class BoltFasteningTests
         var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
         var work = VirtualTestSupport.CreateFasteningBackup(io);
         var bolt = Bolt(1, FasteningHead.Shooting, 20, 30);
-        var feed = new FasteningFeed { Distance = duringFeed ? 2 : 0, Seconds = 2 };
+        bolt.FeedDistance = duringFeed ? 2 : 0;
+        bolt.FeedSeconds = 2;
         var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, work,
-            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] }, BoltFastening = new() { ShootingPcbFeed = feed } } },
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
             units, new BoltFeederUnit(io, new(), units));
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
@@ -3986,7 +4028,7 @@ public sealed class BoltFasteningTests
             Assert.Equal(BoltResultSource.Interrupted, result.Source);
             Assert.Equal(motion.Position.Z - settings.ShootingHead.FasteningZ, result.ZFeedDistance!.Value, 3);
             if (duringFeed)
-                Assert.InRange(result.ZFeedDistance.Value, 0.05, feed.Distance - 0.05);
+                Assert.InRange(result.ZFeedDistance.Value, 0.05, bolt.FeedDistance - 0.05);
             Assert.False(result.IsComplete);
             Assert.Null(result.Torque);
             Assert.Equal(AssemblyResult.Pending, assembly.FasteningResult);
@@ -4359,7 +4401,8 @@ public sealed class BoltFasteningTests
         var point = new TeachingPosition(TeachingTarget.BoltPosition, MotionGroup.BoltFastening,
             TeachMode.XYOnly, bolt.IsFasteningPositionDefined) { Bolt = bolt };
         var destination = settings.GetBoltPosition(bolt);
-        Assert.Equal(settings.GetHead(head).FasteningZ + 0.75, destination.Z);
+        var headSettings = head == FasteningHead.Pickup ? settings.PickupHead : settings.ShootingHead;
+        Assert.Equal(headSettings.FasteningZ + 0.75, destination.Z);
         var tableDown = head == FasteningHead.Pickup;
         var io = new VirtualIoService(
             Outputs(new BoltFasteningHardwareSettings(), new BoltFasteningStationHardwareSettings()),

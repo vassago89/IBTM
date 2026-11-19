@@ -111,7 +111,7 @@ public partial class App : System.Windows.Application
                     InitializeLogging(new LogSettings());
                 _log.LogError(exception, "Application startup failed.");
                 MessageBox.Show(
-                    UiText.Format($"Application could not start.\n\n{exception.GetBaseException().Message}"),
+                    UiText.Format($"Application could not start.\n\n{UiText.Get(exception)}"),
                     UiText.Get("Startup Failed"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -305,7 +305,7 @@ public partial class App : System.Windows.Application
             return;
 
         var detail = error is Exception exception
-            ? exception.GetBaseException().Message
+            ? UiText.Get(exception)
             : error.ToString();
         MessageBox.Show(
             UiText.Format($"{message}\n\n{detail}\n\nSee the application log for details."),

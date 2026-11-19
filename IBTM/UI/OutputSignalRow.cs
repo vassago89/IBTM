@@ -36,7 +36,7 @@ public sealed partial class OutputSignalRow : ObservableObject
         catch (Exception exception)
         {
             // Hardware errors are logged by the controller, not hidden by the UI.
-            ActionMessage = exception.Message;
+            ActionMessage = UiText.Get(exception);
         }
     }
 }

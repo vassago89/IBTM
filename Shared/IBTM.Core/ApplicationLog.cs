@@ -161,7 +161,7 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
         {
             if (_fileError is not null)
                 return;
-            _fileError = exception?.Message ?? message;
+            _fileError = exception is null ? UiText.Get(message) : UiText.Get(exception);
         }
 
         PropertyChanged?.Invoke(this, new(nameof(FileError)));

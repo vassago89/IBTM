@@ -46,7 +46,7 @@ public sealed partial class ManualConveyorRow : ObservableObject
         catch (Exception exception)
         {
             // The controller records the hardware error; this is the displayed result.
-            ActionMessage = exception.Message;
+            ActionMessage = UiText.Get(exception);
         }
     }
 
@@ -66,7 +66,7 @@ public sealed partial class ManualConveyorRow : ObservableObject
         }
         catch (Exception exception)
         {
-            ActionMessage = exception.Message;
+            ActionMessage = UiText.Get(exception);
             _log?.LogError(exception, "Manual conveyor STOP failed.");
         }
         finally

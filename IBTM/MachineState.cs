@@ -373,7 +373,7 @@ public sealed class MachineState : INotifyPropertyChanged
 
         Alarm = alarm;
         AlarmDetail = exception?.ToString();
-        AlarmMessage = exception?.Message;
+        AlarmMessage = exception is null ? null : UiText.Get(exception);
         _log?.LogError(exception, "Machine alarm: {Alarm}.", alarm.ToString());
         PropertyChanged?.Invoke(this, new(nameof(Alarm)));
         PropertyChanged?.Invoke(this, new(nameof(AlarmDetail)));

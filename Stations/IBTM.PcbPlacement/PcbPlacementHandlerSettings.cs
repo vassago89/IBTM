@@ -28,7 +28,7 @@ public sealed class PcbPlacementHandlerSettings : Setting
                 || value > int.MaxValue / 1000.0)
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(value), "IPM delay must be non-negative and fit in milliseconds.");
+                    nameof(value), UiText.Get("IPM delay must be non-negative and fit in milliseconds."));
             }
 
             field = value;

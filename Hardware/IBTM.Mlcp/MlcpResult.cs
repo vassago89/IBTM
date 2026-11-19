@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using IBTM.Core;
 
 namespace IBTM.Mlcp;
 
@@ -22,11 +23,11 @@ public sealed record MlcpResult(
         // The manual does not define the two bytes marked @@ as a checksum.
         if (frame.Length < 8 || frame[0] != 0x05 || frame[^5] != 0x03
             || frame[^2] != 0x0D || frame[^1] != 0x0A)
-            throw new InvalidDataException("Invalid LVDT ASCII frame: expected ENQ ... ETX, two trailer bytes, CR LF.");
+            throw new InvalidDataException(UiText.Get("Invalid LVDT ASCII frame: expected ENQ ... ETX, two trailer bytes, CR LF."));
         for (var index = 1; index < frame.Length - 2; index++)
         {
             if (index != frame.Length - 5 && (frame[index] < 0x20 || frame[index] > 0x7E))
-                throw new InvalidDataException("LVDT returned non-ASCII data. Set Serial Type to ASCII.");
+                throw new InvalidDataException(UiText.Get("LVDT returned non-ASCII data. Set Serial Type to ASCII."));
         }
 
         var body = Encoding.ASCII.GetString(frame[1..^5]);
@@ -37,11 +38,11 @@ public sealed record MlcpResult(
         if (fields.Length < 3 || string.IsNullOrWhiteSpace(fields[0])
             || !int.TryParse(fields[1], NumberStyles.None, CultureInfo.InvariantCulture, out var count)
             || count is < 1 or > 8)
-            throw new InvalidDataException("Invalid LVDT header or data count. Set POS2 to Data Number.");
+            throw new InvalidDataException(UiText.Get("Invalid LVDT header or data count. Set POS2 to Data Number."));
 
         var groupResults = fields.Length == 2 + count * 2;
         if (!groupResults && fields.Length != 2 + count)
-            throw new InvalidDataException($"LVDT data count {count} does not match the received fields.");
+            throw new InvalidDataException(UiText.Format($"LVDT data count {count} does not match the received fields."));
 
         var measurements = new MlcpMeasurement[count];
         for (var index = 0; index < count; index++)
@@ -50,7 +51,7 @@ public sealed record MlcpResult(
             if (!decimal.TryParse(fields[fieldIndex].AsSpan().Trim(),
                     NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
                     CultureInfo.InvariantCulture, out var value))
-                throw new InvalidDataException($"Invalid LVDT measurement {index + 1}: '{fields[fieldIndex]}'.");
+                throw new InvalidDataException(UiText.Format($"Invalid LVDT measurement {index + 1}: '{fields[fieldIndex]}'."));
             bool? success = null;
             if (groupResults)
             {
@@ -59,7 +60,7 @@ public sealed record MlcpResult(
                     case "OK": success = true; break;
                     case "NG": success = false; break;
                     default:
-                        throw new InvalidDataException($"Invalid LVDT group result: '{fields[fieldIndex + 1]}'.");
+                        throw new InvalidDataException(UiText.Format($"Invalid LVDT group result: '{fields[fieldIndex + 1]}'."));
                 }
             }
             measurements[index] = new(value, success);

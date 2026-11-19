@@ -28,7 +28,7 @@ public sealed class SavedSettings
     {
         return _values.TryGetValue(typeof(T).Name, out var json)
             ? JsonSerializer.Deserialize<T>(json) ?? throw new InvalidDataException(
-                $"{typeof(T).Name} is empty.")
+                UiText.Format($"{typeof(T).Name} is empty."))
             : new T();
     }
 }
@@ -158,7 +158,7 @@ public sealed class MachineStore
         using var db = new MachineDbContext(_options);
         var json = db.Recipes.Where(row => row.Name == name).Select(row => row.Value).Single();
         var recipe = JsonSerializer.Deserialize<Recipe>(json) ?? throw new InvalidDataException(
-            $"Recipe '{name}' is empty.");
+            UiText.Format($"Recipe '{name}' is empty."));
         recipe.ValidateBoltIds();
         return recipe;
     }
@@ -172,7 +172,7 @@ public sealed class MachineStore
         using var transaction = db.Database.BeginTransaction();
         var row = db.Recipes.Single(item => item.Name == edited.Name);
         var saved = JsonSerializer.Deserialize<Recipe>(row.Value)
-            ?? throw new InvalidDataException($"Recipe '{edited.Name}' is empty.");
+            ?? throw new InvalidDataException(UiText.Format($"Recipe '{edited.Name}' is empty."));
         saved.ValidateBoltIds();
         foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
         {
@@ -192,8 +192,6 @@ public sealed class MachineStore
             var changed = edited.Pcb.BoltPoints.SingleOrDefault(item => item.Id == bolt.Id);
             if (changed is null)
                 continue;
-            bolt.MinimumTurns = changed.MinimumTurns;
-            bolt.MaximumTurns = changed.MaximumTurns;
             bolt.MinimumHeight = changed.MinimumHeight;
             bolt.MaximumHeight = changed.MaximumHeight;
         }
@@ -236,7 +234,7 @@ public sealed class MachineStore
             var count = db.RecipeImages.Count(
                 row => row.RecipeName == sourceRecipe && imageNumbers.Contains(row.Number));
             if (count != imageNumbers.Length)
-                throw new InvalidDataException($"Recipe '{sourceRecipe}' has missing images.");
+                throw new InvalidDataException(UiText.Format($"Recipe '{sourceRecipe}' has missing images."));
         }
 
         var saved = db.Recipes.SingleOrDefault(row => row.Name == name);
@@ -297,7 +295,7 @@ public sealed class MachineStore
         using var db = new MachineDbContext(_options);
         return db.RecipeImages.Where(row => row.RecipeName == name && row.Number == number)
             .Select(row => row.Image)
-            .SingleOrDefault() ?? throw new FileNotFoundException($"Recipe '{name}', image {number} is missing.");
+            .SingleOrDefault() ?? throw new FileNotFoundException(UiText.Format($"Recipe '{name}', image {number} is missing."));
     }
 
     public long NextPcbNumber(string directory)
@@ -329,7 +327,7 @@ public sealed class MachineStore
             command.CommandText = "UPDATE PcbCounter SET Number = MAX(Number, $saved) + 1 WHERE Id = 1 RETURNING Number";
             command.Parameters.Add(new SqliteParameter("$saved", lastSavedNumber));
             var number = (long)(command.ExecuteScalar()
-                ?? throw new InvalidDataException("The PCB counter is missing."));
+                ?? throw new InvalidDataException(UiText.Get("The PCB counter is missing.")));
             _pcbCounterDirectory = directory;
             return number;
         }
@@ -338,7 +336,7 @@ public sealed class MachineStore
     public void SavePcb(string databaseFile, PcbRecord record)
     {
         if (!record.IsCurveDataLoaded)
-            throw new InvalidOperationException("Load the complete PCB result before saving it.");
+            throw new InvalidOperationException(UiText.Get("Load the complete PCB result before saving it."));
         // Readers must wait until a new monthly file's schema is committed.
         using var historyLock = _pcbHistoryGate.EnterScope();
         Directory.CreateDirectory(Path.GetDirectoryName(databaseFile)!);
@@ -370,7 +368,7 @@ public sealed class MachineStore
         command.Parameters.AddWithValue("$number", record.Number);
         command.Parameters.AddWithValue("$value", JsonSerializer.Serialize(record));
         if (command.ExecuteNonQuery() != 1)
-            throw new InvalidDataException($"PCB {record.Number} already belongs to a different production record ({databaseFile}).");
+            throw new InvalidDataException(UiText.Format($"PCB {record.Number} already belongs to a different production record ({databaseFile})."));
 
         // Replace the complete snapshot so removed/manual results cannot keep an old graph.
         command.CommandText = "DELETE FROM PcbBoltCurves WHERE PcbNumber=$number";
@@ -433,7 +431,7 @@ public sealed class MachineStore
             while (reader.Read())
             {
                 var record = JsonSerializer.Deserialize<PcbRecord>(reader.GetString(1))
-                    ?? throw new InvalidDataException($"PCB {reader.GetInt64(0)} has no result data.");
+                    ?? throw new InvalidDataException(UiText.Format($"PCB {reader.GetInt64(0)} has no result data."));
                 records.Add(record with
                 {
                     Number = reader.GetInt64(0), DatabaseFile = Path.GetFullPath(file), IsCurveDataLoaded = false,
@@ -462,7 +460,7 @@ public sealed class MachineStore
         command.Parameters.AddWithValue("$pcb", record.Number);
         var saved = command.ExecuteScalar() is string json ? JsonSerializer.Deserialize<PcbRecord>(json) : null;
         if (saved is null || saved.CreatedAt != record.CreatedAt)
-            throw new InvalidDataException($"PCB {record.Number} result was not found ({record.DatabaseFile}).");
+            throw new InvalidDataException(UiText.Format($"PCB {record.Number} result was not found ({record.DatabaseFile})."));
         saved = saved with { Number = record.Number, DatabaseFile = record.DatabaseFile };
         command.CommandText = "SELECT Head, BoltId, Stage, Value FROM PcbBoltCurves WHERE PcbNumber=$pcb";
         using var reader = command.ExecuteReader();
@@ -471,7 +469,7 @@ public sealed class MachineStore
         {
             var key = ((FasteningHead)reader.GetInt32(0), Guid.Parse(reader.GetString(1)), (BoltFasteningStage)reader.GetInt32(2));
             curves.Add(key, JsonSerializer.Deserialize<AdcTorqueCurve>(reader.GetString(3))
-                ?? throw new InvalidDataException($"PCB {record.Number} has invalid graph data."));
+                ?? throw new InvalidDataException(UiText.Format($"PCB {record.Number} has invalid graph data.")));
         }
         return saved with
         {
@@ -497,7 +495,7 @@ public sealed class MachineStore
     public void SavePcbImage(string databaseFile, long pcbNumber, PcbInspectionImage image)
     {
         if (image.BoltId == Guid.Empty)
-            throw new ArgumentException("A bolt image requires a nonempty GUID; use null for Data Matrix.", nameof(image));
+            throw new ArgumentException(UiText.Get("A bolt image requires a nonempty GUID; use null for Data Matrix."), nameof(image));
         using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
             DataSource = databaseFile, Mode = SqliteOpenMode.ReadWrite, ForeignKeys = true,
@@ -547,7 +545,7 @@ public sealed class MachineStore
         {
             var target = Guid.Parse(reader.GetString(0));
             var image = JsonSerializer.Deserialize<PcbInspectionImage>(reader.GetString(1))
-                ?? throw new InvalidDataException($"PCB {record.Number} has invalid inspection image metadata.");
+                ?? throw new InvalidDataException(UiText.Format($"PCB {record.Number} has invalid inspection image metadata."));
             images.Add(image with { BoltId = target == Guid.Empty ? null : target, Png = (byte[])reader[2] });
         }
         return images.OrderBy(image => image.BoltId is { } id ? record.GetBoltOrdinal(id) ?? int.MaxValue : 0).ToArray();

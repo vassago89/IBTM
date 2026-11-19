@@ -23,7 +23,7 @@ public static class FiducialDetector
         if (mark.Region is not { } region || !region.IsInside(frame.Width, frame.Height))
             throw new InvalidOperationException(UiText.Get("Draw the fiducial region"));
         if (frame.Stride < frame.Width * 3 || frame.Pixels.LongLength < (long)frame.Stride * frame.Height)
-            throw new ArgumentException("Invalid image buffer.", nameof(frame));
+            throw new ArgumentException(UiText.Get("Invalid image buffer."), nameof(frame));
         if (!registering && (mark.Contour.Length < 5 || mark.ImageWidth != frame.Width || mark.ImageHeight != frame.Height))
             throw new InvalidOperationException(UiText.Get("Register the fiducial contour"));
 

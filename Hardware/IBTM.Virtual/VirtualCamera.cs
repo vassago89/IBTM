@@ -49,10 +49,10 @@ public sealed class VirtualCamera : ICamera
         StopLiveView();
     }
 
-    public async Task<ImageFrame> CaptureAsync(
+    public Task<ImageFrame> CaptureAsync(
         CancellationToken cancellationToken = default)
     {
-        return await Task.Run(CreateFrame, cancellationToken).ConfigureAwait(false);
+        return Task.Run(CreateFrame, cancellationToken);
     }
 
     private ImageFrame CreateFrame()

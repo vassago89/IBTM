@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using IBTM.Core;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.Ajin;
@@ -71,7 +72,7 @@ public sealed class AjinController : IDisposable
                 uint status = 0;
                 Check(CAXD.AxdInfoIsDIOModule(ref status), nameof(CAXD.AxdInfoIsDIOModule));
                 if (status != (uint)AXT_EXISTENCE.STATUS_EXIST)
-                    throw new IOException("AJIN DIO modules were not detected.");
+                    throw new IOException(UiText.Get("AJIN DIO modules were not detected."));
 
                 var moduleCount = 0;
                 Check(CAXD.AxdInfoGetModuleCount(ref moduleCount), nameof(CAXD.AxdInfoGetModuleCount));
@@ -79,14 +80,14 @@ public sealed class AjinController : IDisposable
                     "AJIN DIO module count={ModuleCount}; input modules=[{InputModules}], output modules=[{OutputModules}].",
                     moduleCount, string.Join(",", _inputModules), string.Join(",", _outputModules));
                 if (moduleCount <= 0)
-                    throw new IOException($"AJIN reported an invalid DIO module count: {moduleCount}.");
+                    throw new IOException(UiText.Format($"AJIN reported an invalid DIO module count: {moduleCount}."));
 
                 var counts = new Dictionary<int, (int Inputs, int Outputs)>();
                 foreach (var module in _inputModules.Concat(_outputModules).Distinct().Order())
                 {
                     if (module >= moduleCount)
                         throw new IOException(
-                            $"AJIN configured DIO module={module} is unavailable; detected {moduleCount} modules (0..{moduleCount - 1}).");
+                            UiText.Format($"AJIN configured DIO module={module} is unavailable; detected {moduleCount} modules (0..{moduleCount - 1})."));
 
                     int board = 0, position = 0, inputs = 0, outputs = 0;
                     uint type = 0;
@@ -163,7 +164,7 @@ public sealed class AjinController : IDisposable
         ArgumentNullException.ThrowIfNull(values);
         if (values.Length != RtexInputWordCount)
             throw new ArgumentException(
-                $"Expected {RtexInputWordCount} AJIN input module slots.",
+                UiText.Format($"Expected {RtexInputWordCount} AJIN input module slots."),
                 nameof(values));
 
         lock (_gate)
@@ -222,7 +223,7 @@ public sealed class AjinController : IDisposable
             var count = input ? counts[modules[index]].Inputs : counts[modules[index]].Outputs;
             if (count is not (16 or 32))
                 throw new IOException(
-                    $"AJIN configured {(input ? "input" : "output")} module={modules[index]} has {count} {(input ? "DI" : "DO")} points; the RTEX mapping requires 16 or 32 points per module.");
+                    UiText.Format($"AJIN configured {(input ? "input" : "output")} module={modules[index]} has {count} {(input ? "DI" : "DO")} points; the RTEX mapping requires 16 or 32 points per module."));
             result[index] = count;
         }
 
@@ -244,14 +245,14 @@ public sealed class AjinController : IDisposable
     {
         if (!_initialized)
             throw new IOException(
-                $"{operation} cannot run: AJIN initialization and DIO module validation have not completed.");
+                UiText.Format($"{operation} cannot run: AJIN initialization and DIO module validation have not completed."));
     }
 
     private static int[] CaptureModules(int[] modules, string name)
     {
         ArgumentNullException.ThrowIfNull(modules, name);
         if (modules.Any(module => module < 0))
-            throw new ArgumentException("AJIN DIO module numbers must be nonnegative.", name);
+            throw new ArgumentException(UiText.Get("AJIN DIO module numbers must be nonnegative."), name);
         return (int[])modules.Clone();
     }
 
@@ -265,13 +266,13 @@ public sealed class AjinController : IDisposable
             throw new ArgumentOutOfRangeException(
                 nameof(channel),
                 channel,
-                "The RTEX channel is outside the configured module slots.");
+                UiText.Get("The RTEX channel is outside the configured module slots."));
         var index = channel / RtexChannelCountPerModule;
         var module = modules[index];
         var offset = channel % RtexChannelCountPerModule;
         if (offset >= counts[index])
             throw new IOException(
-                $"AJIN RTEX {direction} channel={channel} maps to module={module}, offset={offset}, but the module has only {counts[index]} {direction} points.");
+                UiText.Format($"AJIN RTEX {direction} channel={channel} maps to module={module}, offset={offset}, but the module has only {counts[index]} {direction} points."));
         return (module, offset);
     }
 
@@ -280,9 +281,9 @@ public sealed class AjinController : IDisposable
         if (result != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS)
         {
             throw new IOException(
-                $"{operation}{(module is null
+                UiText.Format($"{operation}{(module is null
                         ? ""
-                        : $" (module={module}{(offset is null ? "" : $", offset={offset}")})")} failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
+                        : $" (module={module}{(offset is null ? "" : $", offset={offset}")})")} failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8})."));
         }
     }
 }

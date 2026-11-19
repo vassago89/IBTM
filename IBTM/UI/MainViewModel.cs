@@ -200,12 +200,9 @@ public partial class MainViewModel : ObservableObject
         catch (Exception exception)
         {
             _log.LogError(exception, "Main window shutdown failed.");
-            var errors = exception is AggregateException aggregate
-                ? aggregate.Flatten().InnerExceptions.Select(error => error.Message).Distinct()
-                : [exception.Message];
             CloseError = UiText.Get("Shutdown could not be completed.\n")
                 + UiText.Get("Check equipment stop and any unsaved PCB results before exiting.\n\n")
-                + string.Join("\n", errors)
+                + UiText.Get(exception)
                 + UiText.Get("\n\nExit the application anyway? Full details are saved in the log.");
             IsClosing = false;
             return false;
@@ -281,7 +278,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            NavigationError = UiText.Format($"Page change failed: {exception.Message}");
+            NavigationError = UiText.Format($"Page change failed: {UiText.Get(exception)}");
             _log.LogError(exception, "Page change failed while leaving {Page}.", SelectedPage);
             if (!_shuttingDown)
                 ActivateCurrentPage();

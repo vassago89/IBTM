@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 using FASTECH;
 using IBTM.Device;
 using Microsoft.Extensions.DependencyInjection;
@@ -125,7 +126,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
                     nameof(EziMOTIONPlusELib.FAS_GetActualPos));
                 var millimeters = pulses / _pulsesPerMillimeter;
                 if (!double.IsFinite(millimeters))
-                    throw new InvalidOperationException("FASTECH position scale produced a non-finite coordinate.");
+                    throw new InvalidOperationException(UiText.Get("FASTECH position scale produced a non-finite coordinate."));
                 return (millimeters, null);
             }
         }
@@ -145,7 +146,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             throw new ArgumentOutOfRangeException(nameof(axis));
         var target = Math.Round(position * _pulsesPerMillimeter);
         if (!double.IsFinite(target) || target < int.MinValue || target > int.MaxValue)
-            throw new ArgumentOutOfRangeException(nameof(position), "Position exceeds the FASTECH pulse range.");
+            throw new ArgumentOutOfRangeException(nameof(position), UiText.Get("Position exceeds the FASTECH pulse range."));
         EnsureStopped();
         var speed = ToSpeed(velocity);
         var options = new EziMOTIONPlusELib.MOTION_OPTION_EX
@@ -236,7 +237,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
         var speed = ToSpeed(velocity);
         var searchSpeed = ToSpeed(_settings.ZHome.DetectionSpeed);
         if (speed > int.MaxValue || searchSpeed > int.MaxValue)
-            throw new ArgumentOutOfRangeException(nameof(velocity), "Home speed exceeds the FASTECH parameter range.");
+            throw new ArgumentOutOfRangeException(nameof(velocity), UiText.Get("Home speed exceeds the FASTECH parameter range."));
         var acceleration = ToMilliseconds(_settings.ZHome.SearchAccelerationSeconds);
         cancellationToken.ThrowIfCancellationRequested();
         try
@@ -290,7 +291,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             var state = GetAxisState(MotionAxis.Z);
             cancellationToken.ThrowIfCancellationRequested();
             if (state.Alarm || state.Emergency || !state.ServoOn)
-                throw new MotionInterlockException("FASTECH Z motion stopped by an axis fault or servo OFF.");
+                throw new MotionInterlockException(UiText.Get("FASTECH Z motion stopped by an axis fault or servo OFF."));
             if (!state.InMotion && state.InPosition && (!homing || state.Homed))
             {
                 PositionChanged?.Invoke(0, 0, Position.Z);
@@ -302,8 +303,8 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             {
                 stoppedAt ??= Stopwatch.GetTimestamp();
                 if (Stopwatch.GetElapsedTime(stoppedAt.Value).TotalMilliseconds >= _options.TimeoutMilliseconds)
-                    throw new MotionException("Move FASTECH Z",
-                        new TimeoutException("FASTECH Z completion feedback was not received."));
+                    throw new MotionException(UiText.Get("Move FASTECH Z"),
+                        new TimeoutException(UiText.Get("FASTECH Z completion feedback was not received.")));
             }
             await Task.Delay(_options.MotionPollMilliseconds, cancellationToken).ConfigureAwait(false);
         }
@@ -326,7 +327,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             while (IsMoving)
             {
                 if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= _options.TimeoutMilliseconds)
-                    throw new TimeoutException("FASTECH Z stop feedback was not received.");
+                    throw new TimeoutException(UiText.Get("FASTECH Z stop feedback was not received."));
                 await Task.Delay(_options.MotionPollMilliseconds).ConfigureAwait(false);
             }
         }
@@ -335,7 +336,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
             failures.Add(error);
         }
         if (failures.Count > 1)
-            throw new MotionException("Stop FASTECH Z", new AggregateException(failures));
+            throw new MotionException(UiText.Get("Stop FASTECH Z"), new AggregateException(failures));
     }
 
     public void Stop()
@@ -385,7 +386,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
     private void EnsureStopped()
     {
         if (Command != MotionCommand.None || IsMoving)
-            throw new MotionInterlockException("Wait for Z to stop before moving.");
+            throw new MotionInterlockException(UiText.Get("Wait for Z to stop before moving."));
     }
 
     private void BeginMotion(MotionCommand command)
@@ -405,7 +406,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
     private static void ValidatePositive(double value, string parameterName)
     {
         if (!double.IsFinite(value) || value <= 0)
-            throw new ArgumentOutOfRangeException(parameterName, value, "Value must be positive and finite.");
+            throw new ArgumentOutOfRangeException(parameterName, value, UiText.Get("Value must be positive and finite."));
     }
 
     private uint ToSpeed(double millimetersPerSecond)
@@ -413,7 +414,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
         ValidatePositive(millimetersPerSecond, nameof(millimetersPerSecond));
         var speed = Math.Round(millimetersPerSecond * _pulsesPerMillimeter);
         if (!double.IsFinite(speed) || speed < 1 || speed > uint.MaxValue)
-            throw new ArgumentOutOfRangeException(nameof(millimetersPerSecond), "Speed must be within 1–4294967295 pulses per second.");
+            throw new ArgumentOutOfRangeException(nameof(millimetersPerSecond), UiText.Get("Speed must be within 1–4294967295 pulses per second."));
         return (uint)speed;
     }
 
@@ -422,7 +423,7 @@ public sealed class FastechZMotion : IAxisMotion, IMotionDiagnostics
         ValidatePositive(seconds, nameof(seconds));
         var milliseconds = Math.Round(seconds * 1000);
         if (milliseconds < 1 || milliseconds > ushort.MaxValue)
-            throw new ArgumentOutOfRangeException(nameof(seconds), "Time must be within 1–65535 milliseconds.");
+            throw new ArgumentOutOfRangeException(nameof(seconds), UiText.Get("Time must be within 1–65535 milliseconds."));
         return (ushort)milliseconds;
     }
 }

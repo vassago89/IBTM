@@ -1,4 +1,5 @@
 using System;
+using IBTM.Core;
 using AnyWave.Device.LightControllers;
 
 namespace IBTM.Device;
@@ -18,7 +19,7 @@ public sealed class MovsLightController : ILightController, IDisposable
     public void Initialize()
     {
         if (string.IsNullOrWhiteSpace(_portName))
-            throw new InvalidOperationException("Set the MOVS lighting COM port before using the light controller.");
+            throw new InvalidOperationException(UiText.Get("Set the MOVS lighting COM port before using the light controller."));
         _controller.Connect(_portName);
     }
 

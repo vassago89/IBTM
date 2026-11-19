@@ -59,27 +59,24 @@ public partial class SettingsViewModel : ObservableObject
         _motions = settings.MotionSections.ToDictionary(section => section.Hardware.Group);
         MotionGroups = _motions.Keys.ToArray();
         var hardware = settings.HardwareSections;
-        var inputMappings = hardware.OfType<IoHardwareSettings>()
-            .SelectMany(
-                section => section.Inputs.Select(
-                    mapping => new HardwareMappingRow(section, mapping.Key)))
-            .ToArray();
-        var outputMappings = hardware.OfType<IoHardwareSettings>()
-            .SelectMany(
-                section =>
-                    section.Outputs.Select(
-                        mapping =>
-                            new HardwareMappingRow(section, mapping.Key) { Output = mapping.Value }))
-            .ToArray();
-        AxisMappings = hardware.OfType<MotionHardwareSettings>()
-            .SelectMany(
-                section =>
-                    section.Axes.Select(
-                        mapping =>
-                            new HardwareMappingRow(section, mapping.Key) { Axis = mapping.Value }))
-            .ToArray();
-        InputMappingView = GroupMappings(inputMappings);
-        OutputMappingView = GroupMappings(outputMappings);
+        var inputMappings = new List<HardwareMappingRow>();
+        var outputMappings = new List<HardwareMappingRow>();
+        var axisMappings = new List<HardwareMappingRow>();
+        foreach (var section in hardware.OfType<IoHardwareSettings>())
+        {
+            foreach (var input in section.Inputs.Keys)
+                inputMappings.Add(new(section, input));
+            foreach (var (output, mapping) in section.Outputs)
+                outputMappings.Add(new(section, output) { Output = mapping });
+            if (section is MotionHardwareSettings motion)
+            {
+                foreach (var (axis, mapping) in motion.Axes)
+                    axisMappings.Add(new(motion, axis) { Axis = mapping });
+            }
+        }
+        AxisMappings = axisMappings.ToArray();
+        InputMappingView = GroupMappings(inputMappings.ToArray());
+        OutputMappingView = GroupMappings(outputMappings.ToArray());
         MappingAreas = [
             new(null, UiText.Get("All devices")),
             .. hardware.OfType<IoHardwareSettings>()
@@ -390,7 +387,7 @@ public partial class SettingsViewModel : ObservableObject
         catch (Exception exception)
         {
             var failure = new InvalidOperationException(
-                UiText.Format($"OFF failed on channel {channel}; light state is unknown. Press OFF to retry. {exception.Message}"),
+                UiText.Format($"OFF failed on channel {channel}; light state is unknown. Press OFF to retry. {UiText.Get(exception)}"),
                 exception);
             _log.LogError(exception, "Lighting test cleanup failed; light may still be ON.");
             return failure;
@@ -456,7 +453,7 @@ public partial class SettingsViewModel : ObservableObject
         catch (Exception exception)
         {
             failure = exception;
-            LightTestMessage = exception.Message;
+            LightTestMessage = UiText.Get(exception);
             _log.LogError(exception, "Lighting test failed.");
         }
         finally

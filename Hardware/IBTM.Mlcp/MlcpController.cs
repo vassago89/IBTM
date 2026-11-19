@@ -5,6 +5,7 @@ using System.IO.Ports;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.Mlcp;
@@ -57,11 +58,11 @@ public sealed class MlcpController : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(portName);
         if (baudRate is < 9600 or > 115200)
-            throw new ArgumentOutOfRangeException(nameof(baudRate), "LVDT supports 9600–115200 baud.");
+            throw new ArgumentOutOfRangeException(nameof(baudRate), UiText.Get("LVDT supports 9600–115200 baud."));
         lock (_gate)
         {
             if (_pending is not null || _stream is not null)
-                throw new InvalidOperationException("Close the LVDT connection before opening another port.");
+                throw new InvalidOperationException(UiText.Get("Close the LVDT connection before opening another port."));
             var port = new SerialPort(portName, baudRate, Parity.None, 8, StopBits.One)
             {
                 Handshake = Handshake.None,
@@ -82,14 +83,14 @@ public sealed class MlcpController : IDisposable
         }
     }
 
-    public async Task<MlcpResult> MeasureAsync(CancellationToken cancellationToken = default)
+    public Task<MlcpResult> MeasureAsync(CancellationToken cancellationToken = default)
     {
-        return await RequestAsync("START", cancellationToken).ConfigureAwait(false);
+        return RequestAsync("START", cancellationToken);
     }
 
-    public async Task<MlcpResult> ReadLastMeasurementAsync(CancellationToken cancellationToken = default)
+    public Task<MlcpResult> ReadLastMeasurementAsync(CancellationToken cancellationToken = default)
     {
-        return await RequestAsync("RECALL", cancellationToken).ConfigureAwait(false);
+        return RequestAsync("RECALL", cancellationToken);
     }
 
     private async Task<MlcpResult> RequestAsync(string command, CancellationToken cancellationToken)
@@ -112,7 +113,7 @@ public sealed class MlcpController : IDisposable
             lock (_gate)
             {
                 _pending = pending;
-                stream = _stream ?? throw new IOException("LVDT is not connected.");
+                stream = _stream ?? throw new IOException(UiText.Get("LVDT is not connected."));
                 _port?.DiscardInBuffer();
             }
             var token = pending.Token;
@@ -129,7 +130,7 @@ public sealed class MlcpController : IDisposable
                 token.ThrowIfCancellationRequested();
                 var length = await stream.ReadAsync(buffer, token).AsTask().WaitAsync(token).ConfigureAwait(false);
                 if (length == 0)
-                    throw new IOException("LVDT disconnected before returning a measurement.");
+                    throw new IOException(UiText.Get("LVDT disconnected before returning a measurement."));
                 var bytes = buffer[..length];
                 _log?.LogDebug("LVDT RX {Bytes}", Convert.ToHexString(bytes));
                 FrameTransferred?.Invoke(MlcpFrameDirection.Receive, bytes);
@@ -141,12 +142,12 @@ public sealed class MlcpController : IDisposable
                     else if (received.Count == 0)
                     {
                         if (value == 0x02)
-                            throw new InvalidDataException("LVDT returned HEX data. Set Serial Type to ASCII.");
+                            throw new InvalidDataException(UiText.Get("LVDT returned HEX data. Set Serial Type to ASCII."));
                         continue; // ACK is not a measurement result.
                     }
                     received.Add(value);
                     if (received.Count > 4096)
-                        throw new InvalidDataException("LVDT measurement frame exceeds 4096 bytes.");
+                        throw new InvalidDataException(UiText.Get("LVDT measurement frame exceeds 4096 bytes."));
                     if (value == 0x0A)
                     {
                         var frame = received.ToArray();
@@ -158,12 +159,12 @@ public sealed class MlcpController : IDisposable
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
         {
             Close();
-            throw new TimeoutException($"LVDT {command} response timed out after {timeoutDuration.TotalSeconds:0.###} s.");
+            throw new TimeoutException(UiText.Format($"LVDT {command} response timed out after {timeoutDuration.TotalSeconds:0.###} s."));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             Close();
-            throw new IOException("LVDT connection closed while waiting for a measurement.");
+            throw new IOException(UiText.Get("LVDT connection closed while waiting for a measurement."));
         }
         catch
         {

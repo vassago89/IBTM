@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BackupPlate;
@@ -207,7 +208,7 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         cancellationToken.ThrowIfCancellationRequested();
         var position = StandbyPosition
-            ?? throw new InvalidOperationException("Teach the first shooting bolt before moving Fastening to standby.");
+            ?? throw new InvalidOperationException(UiText.Get("Teach the first shooting bolt before moving Fastening to standby."));
         await SetVacuumAsync(FasteningHead.Pickup, false, cancellationToken);
         await SetVacuumAsync(FasteningHead.Shooting, false, cancellationToken);
         await Io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected, false, cancellationToken, requireCurrent: true);
@@ -230,7 +231,7 @@ public sealed class BoltFasteningStation : AutoUnit
             return;
         if (_units.BoltFastening && Station.Assemblies.Any(assembly => assembly.PickupBoltResults.Values
             .Concat(assembly.ShootingBoltResults.Values).Any(result => result.Source == BoltResultSource.Interrupted)))
-            throw new InvalidOperationException("Remove interrupted bolts and confirm rework before starting.");
+            throw new InvalidOperationException(UiText.Get("Remove interrupted bolts and confirm rework before starting."));
         var resumeJob = selectedBolts is null ? null : Station.CurrentJob;
         if (selectedBolts is not null)
         {
@@ -238,11 +239,11 @@ public sealed class BoltFasteningStation : AutoUnit
             if (!_units.BoltFastening
                 || selectedBolts.Count == 0 && (!IsFasteningRecorded || Station.Completed)
                 || bolts.Length != selectedBolts.Distinct().Count())
-                throw new InvalidOperationException("Select current recipe bolts to resume fastening.");
+                throw new InvalidOperationException(UiText.Get("Select current recipe bolts to resume fastening."));
             if (!Station.CarrierSeated || bolts.Any(bolt => !Station.IsHeatSinkPresent(bolt.HeatSink)))
-                throw new InvalidOperationException("Seat the carrier and load every selected PCB before resuming fastening.");
+                throw new InvalidOperationException(UiText.Get("Seat the carrier and load every selected PCB before resuming fastening."));
             if (bolts.Any(bolt => !bolt.IsFasteningPositionDefined))
-                throw new InvalidOperationException("Teach the fastening position of every selected bolt before resuming fastening.");
+                throw new InvalidOperationException(UiText.Get("Teach the fastening position of every selected bolt before resuming fastening."));
         }
         Exception? failure = null;
         try
@@ -379,7 +380,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 case FasteningHead.Shooting or FasteningHead.Pickup:
                     return BoltFasteningState.Fastening;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(BoltPoint.Head), head, "Unsupported fastening head.");
+                    throw new ArgumentOutOfRangeException(nameof(BoltPoint.Head), head, UiText.Get("Unsupported fastening head."));
             }
         }
     }
@@ -417,7 +418,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     {
                         if (selectedBolts is null && !_recipes.Current.Pcb.BoltPoints.Any(point => point.HeatSink == heatSink))
                             throw new InvalidOperationException(
-                                $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
+                                UiText.Format($"{UiText.Get(heatSink)} has no taught bolts. Complete bolt teaching before fastening."));
                     }
                     _runJob = Station.CurrentJob;
                     var recipeBolts = _recipes.Current.Pcb.GetFasteningPoints(_settings.FirstFasteningHead).ToArray();
@@ -433,7 +434,7 @@ public sealed class BoltFasteningStation : AutoUnit
                             continue;
                         }
                         if (group.Key != FasteningHead.Pickup)
-                            throw new ArgumentOutOfRangeException(nameof(BoltPoint.Head), group.Key, "Unsupported fastening head.");
+                            throw new ArgumentOutOfRangeException(nameof(BoltPoint.Head), group.Key, UiText.Get("Unsupported fastening head."));
                         // Place every IPM bolt before switching heads for final tightening.
                         foreach (var point in group)
                         {
@@ -482,7 +483,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     return true;
                 case BoltFasteningState.CompletingCarrier:
                 {
-                    var token = operation?.Token ?? throw new InvalidOperationException("No fastening work is selected.");
+                    var token = operation?.Token ?? throw new InvalidOperationException(UiText.Get("No fastening work is selected."));
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     var completionStarted = Stopwatch.GetTimestamp();
@@ -503,7 +504,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     // A partial selection still returns to standby, but cannot release an unfinished carrier.
                     var complete = IsFasteningRecorded;
                     if (!complete && continueAfterSelection)
-                        throw new InvalidOperationException("The resumed carrier still has unrecorded bolts.");
+                        throw new InvalidOperationException(UiText.Get("The resumed carrier still has unrecorded bolts."));
                     if (complete)
                     {
                         foreach (var heatSink in _runTargets!)
@@ -519,20 +520,17 @@ public sealed class BoltFasteningStation : AutoUnit
 
                 case BoltFasteningState.Fastening:
                 {
-                    var token = operation?.Token ?? throw new InvalidOperationException("No fastening work is selected.");
+                    var token = operation?.Token ?? throw new InvalidOperationException(UiText.Get("No fastening work is selected."));
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
-                    var bolt = selectedBolt ?? throw new InvalidOperationException("No bolt is selected.");
+                    var bolt = selectedBolt ?? throw new InvalidOperationException(UiText.Get("No bolt is selected."));
                     var stage = _runBolts![_boltIndex].Stage;
                     var isPreliminary = stage == BoltFasteningStage.Preliminary;
                     var isFinal = stage is BoltFasteningStage.Final or BoltFasteningStage.FinalBeforeRetightening
                         or BoltFasteningStage.Retightening;
                     var toolHead = isFinal ? FasteningHead.Pickup : FasteningHead.Shooting;
-                    var feeds = _recipes.Current.BoltFastening;
-                    var feed = isPreliminary ? feeds.ShootingIpmFeed
-                        : isFinal ? feeds.PickupIpmFeed : feeds.ShootingPcbFeed;
-                    var feedDistance = feed.Distance;
-                    var feedSeconds = feed.Seconds;
+                    var feedDistance = isPreliminary ? bolt.PreliminaryFeedDistance : bolt.FeedDistance;
+                    var feedSeconds = isPreliminary ? bolt.PreliminaryFeedSeconds : bolt.FeedSeconds;
                     var assembly = Station.GetAssembly(job, bolt.HeatSink);
                     BoltResult? preliminary = null;
                     BoltResult? previousFinal = null;
@@ -540,7 +538,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     {
                         preliminary = assembly.PickupBoltResults.GetValueOrDefault(bolt.Id);
                         if (preliminary is not { Stage: BoltFasteningStage.Preliminary })
-                            throw new InvalidOperationException("Final tightening requires the recorded pre-tightening result.");
+                            throw new InvalidOperationException(UiText.Get("Final tightening requires the recorded pre-tightening result."));
                         if (preliminary.IsComplete)
                         {
                             _boltIndex++;
@@ -559,13 +557,13 @@ public sealed class BoltFasteningStation : AutoUnit
                             return true;
                         }
                         if (previousFinal is not { Stage: BoltFasteningStage.FinalBeforeRetightening })
-                            throw new InvalidOperationException("Retightening requires the recorded first final-tightening result.");
+                            throw new InvalidOperationException(UiText.Get("Retightening requires the recorded first final-tightening result."));
                     }
                     var fasteningPosition = _settings.GetBoltPosition(bolt, isPreliminary);
                     if (stage == BoltFasteningStage.Retightening)
                     {
                         fasteningPosition.Z += previousFinal!.ZFeedDistance
-                            ?? throw new InvalidOperationException("The previous final-tightening Z feed distance was not recorded.");
+                            ?? throw new InvalidOperationException(UiText.Get("The previous final-tightening Z feed distance was not recorded."));
                         feedDistance = 0;
                     }
                     var continuingFinal = stage == BoltFasteningStage.Retightening && _boltIndex > 0
@@ -595,14 +593,14 @@ public sealed class BoltFasteningStation : AutoUnit
                             if (isPreliminary && feeding && _feeder.PickupEmptyAlarm is { } pickupAlarm
                                 && !Io.GetInput(InputIo.ShootingHeadVacuumDetected))
                                 throw new MaintenanceStopException(
-                                    "Pickup bolt supply stopped. Refill the feeder and RESET before resuming.", pickupAlarm);
+                                    UiText.Get("Pickup bolt supply stopped. Refill the feeder and RESET before resuming."), pickupAlarm);
                             TraceStep(step, target, job.Id, "head/table clearance, shooting feed and point movement");
                             if (_shootingFeed is not null)
                             {
                                 // Do not release a supplied bolt by repeating vacuum-OFF clearance.
                                 if (!IsHorizontalMoveAllowed || PickupTablePosition != StationCylinderState.Up)
                                     throw new MotionInterlockException(
-                                        "Head/table clearance was lost after starting supply for the next shooting bolt.");
+                                        UiText.Get("Head/table clearance was lost after starting supply for the next shooting bolt."));
                             }
                             else if (!isPreliminary)
                             {
@@ -633,7 +631,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                         {
                                             if (_feeder.PickupEmptyAlarm is { } supplyAlarm)
                                                 throw new MaintenanceStopException(
-                                                    "Pickup bolt supply stopped. Refill the feeder and RESET before resuming.", supplyAlarm);
+                                                    UiText.Get("Pickup bolt supply stopped. Refill the feeder and RESET before resuming."), supplyAlarm);
                                             Io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
                                             await Task.Delay(_settings.PickupVacuumDelayMilliseconds, token);
                                             Io.SetOutput(OutputIo.ShootingBoltDirection, false);
@@ -667,7 +665,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                         Io.SetOutput(OutputIo.ShootingHeadVacuumPump, false);
                                         if (retry >= retryCount)
                                             throw new MaintenanceStopException(
-                                                $"IPM bolt {bolt.Id}, {bolt.HeatSink}: shooting vacuum not detected after {retry + 1} pickup attempts.");
+                                                UiText.Format($"IPM bolt {bolt.Id}, {bolt.HeatSink}: shooting vacuum not detected after {retry + 1} pickup attempts."));
                                     }
                                 }
                                 await MoveWithHeadDownAsync(FasteningHead.Shooting, fasteningPosition, token);
@@ -676,7 +674,7 @@ public sealed class BoltFasteningStation : AutoUnit
                             {
                                 var pendingFeed = _shootingFeed;
                                 if (pendingFeed is { } pending && pending.BoltId != bolt.Id)
-                                    throw new InvalidOperationException("The shooting supply belongs to a different bolt.");
+                                    throw new InvalidOperationException(UiText.Get("The shooting supply belongs to a different bolt."));
                                 _shootingFeed = null;
                                 using var pendingCancellation = pendingFeed?.Cancellation;
                                 using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -722,7 +720,9 @@ public sealed class BoltFasteningStation : AutoUnit
                             {
                                 const double PositionToleranceMillimeters = 0.05;
                                 var current = _motion.Position;
-                                if (!MotionServiceBase.IsReadyAndStopped(_motion)
+                                if (!_motion.IsReady || _motion.IsMoving
+                                    || _motion.Axes.Any(axis => _motion.GetAxisState(axis) is not
+                                        { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false })
                                     || PickupHeadPosition != StationCylinderState.Down
                                     || PickupTablePosition != StationCylinderState.Down
                                     || ShootingHeadPosition != StationCylinderState.Up
@@ -753,13 +753,6 @@ public sealed class BoltFasteningStation : AutoUnit
                         if (on && output == (toolHead == FasteningHead.Pickup
                             ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart))
                             tighteningStarted = true;
-                    }
-                    double? minimumTurns;
-                    double? maximumTurns;
-                    lock (_recipes.InspectionSync)
-                    {
-                        minimumTurns = stage == BoltFasteningStage.Preliminary ? null : bolt.MinimumTurns;
-                        maximumTurns = stage == BoltFasteningStage.Preliminary ? null : bolt.MaximumTurns;
                     }
                     Io.OutputChanged += TrackStart;
                     try
@@ -896,93 +889,89 @@ public sealed class BoltFasteningStation : AutoUnit
                         catch (Exception exception)
                         {
                             retractionFailure = exception;
-                            throw;
                         }
-                        finally
+
+                        // Finish this bolt's graph before another START can replace it in the controller.
+                        if (receivingCurve is not null)
                         {
-                            // Finish this bolt's graph before another START can replace it in the controller.
-                            if (receivingCurve is not null)
+                            if (retractionFailure is not null)
+                                curveCancellation.Cancel();
+                            try
                             {
-                                if (retractionFailure is not null)
-                                    curveCancellation.Cancel();
-                                try
-                                {
-                                    torqueCurve = await receivingCurve;
-                                }
-                                catch (TimeoutException)
-                                {
-                                    torqueCurveError = head.Monitor?.TorqueCurveError ?? UiText.Get("Torque curve not received");
-                                    _log?.LogWarning("Torque curve not received for carrier {Job}, bolt {Bolt}, stage {Stage}.",
-                                        job.Id, bolt.Id, stage);
-                                }
-                                catch (OperationCanceledException) when (retractionFailure is not null && curveCancellation.IsCancellationRequested) { }
-                                catch (Exception curveFailure) when (retractionFailure is not null)
-                                {
-                                    throw new AggregateException(retractionFailure, curveFailure);
-                                }
+                                torqueCurve = await receivingCurve;
+                            }
+                            catch (TimeoutException)
+                            {
+                                torqueCurveError = head.Monitor?.TorqueCurveError ?? UiText.Get("Torque curve not received");
+                                _log?.LogWarning("Torque curve not received for carrier {Job}, bolt {Bolt}, stage {Stage}.",
+                                    job.Id, bolt.Id, stage);
+                            }
+                            catch (OperationCanceledException) when (retractionFailure is not null && curveCancellation.IsCancellationRequested) { }
+                            catch (Exception curveFailure) when (retractionFailure is not null)
+                            {
+                                throw new AggregateException(retractionFailure, curveFailure);
                             }
                         }
+                        if (retractionFailure is not null)
+                            ExceptionDispatchInfo.Throw(retractionFailure);
                     }
                     catch (Exception exception)
                     {
                         fasteningFailure = exception;
-                        throw;
                     }
-                    finally
+
+                    Io.OutputChanged -= TrackStart;
+                    // Keep the measured result with its original carrier even if STOP or clearance
+                    // fails. A storage failure must not hide the original hardware failure.
+                    try
                     {
-                        Io.OutputChanged -= TrackStart;
-                        // Keep the measured result with its original carrier even if STOP or clearance
-                        // fails. A storage failure must not hide the original hardware failure.
-                        try
+                        if (result is null && tighteningStarted)
                         {
-                            if (result is null && tighteningStarted)
+                            result = new(false, null, BoltResultSource.Interrupted)
                             {
-                                result = new(false, null, BoltResultSource.Interrupted)
+                                RecordedAt = DateTimeOffset.Now,
+                                Error = UiText.Get("Remove interrupted bolts and confirm rework before starting."),
+                            };
+                            if (feedStartZ is { } startZ)
+                            {
+                                try
                                 {
-                                    RecordedAt = DateTimeOffset.Now,
-                                    Error = "Remove interrupted bolts and confirm rework before starting.",
-                                };
-                                if (feedStartZ is { } startZ)
+                                    result = result with { ZFeedDistance = _motion.Position.Z - startZ };
+                                }
+                                catch (Exception positionError)
                                 {
-                                    try
-                                    {
-                                        result = result with { ZFeedDistance = _motion.Position.Z - startZ };
-                                    }
-                                    catch (Exception positionError)
-                                    {
-                                        // Keep the interrupted result even when current position cannot be read.
-                                        result = result with { Error = $"{result.Error} Z: {positionError.Message}" };
-                                        _log?.LogWarning(positionError, "Bolt {Bolt}: interrupted Z feed distance unavailable.", bolt.Id);
-                                    }
+                                    // Keep the interrupted result even when current position cannot be read.
+                                    result = result with { Error = $"{result.Error} Z: {UiText.Get(positionError)}" };
+                                    _log?.LogWarning(positionError, "Bolt {Bolt}: interrupted Z feed distance unavailable.", bolt.Id);
                                 }
                             }
-                            if (result is not null)
-                            {
-                                result = result with
-                                {
-                                    Stage = stage,
-                                    ToolHead = toolHead,
-                                    PreliminaryResult = preliminary,
-                                    PreviousFinalResult = previousFinal,
-                                    MinimumTurns = minimumTurns,
-                                    MaximumTurns = maximumTurns,
-                                    TorqueCurve = torqueCurve,
-                                    TorqueCurveError = torqueCurveError,
-                                };
-                                var recordStarted = Stopwatch.GetTimestamp();
-                                assembly.RecordBolt(bolt.Head, bolt.Id, result);
-                                resultReceived?.Invoke(bolt, result);
-                                _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}, minimum={MinimumTurns}, maximum={MaximumTurns}, turns result={TurnsResult}.",
-                                    bolt.Id, result.Success, result.TotalTurns, result.MinimumTurns, result.MaximumTurns, result.TurnsResult);
-                                _log?.LogInformation("Bolt timing {Job}/{Bolt}: result published, elapsed={ElapsedMs:F1} ms.",
-                                    job.Id, bolt.Id, Stopwatch.GetElapsedTime(recordStarted).TotalMilliseconds);
-                            }
                         }
-                        catch (Exception recordFailure) when (fasteningFailure is not null)
+                        if (result is not null)
                         {
-                            throw new AggregateException(fasteningFailure, recordFailure);
+                            result = result with
+                            {
+                                Stage = stage,
+                                ToolHead = toolHead,
+                                PreliminaryResult = preliminary,
+                                PreviousFinalResult = previousFinal,
+                                TorqueCurve = torqueCurve,
+                                TorqueCurveError = torqueCurveError,
+                            };
+                            var recordStarted = Stopwatch.GetTimestamp();
+                            assembly.RecordBolt(bolt.Head, bolt.Id, result);
+                            resultReceived?.Invoke(bolt, result);
+                            _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}.",
+                                bolt.Id, result.Success, result.TotalTurns);
+                            _log?.LogInformation("Bolt timing {Job}/{Bolt}: result published, elapsed={ElapsedMs:F1} ms.",
+                                job.Id, bolt.Id, Stopwatch.GetElapsedTime(recordStarted).TotalMilliseconds);
                         }
                     }
+                    catch (Exception recordFailure) when (fasteningFailure is not null)
+                    {
+                        throw new AggregateException(fasteningFailure, recordFailure);
+                    }
+                    if (fasteningFailure is not null)
+                        ExceptionDispatchInfo.Throw(fasteningFailure);
 
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
@@ -1000,7 +989,7 @@ public sealed class BoltFasteningStation : AutoUnit
             && !cancellationToken.IsCancellationRequested)
         {
             throw new MotionInterlockException(
-                "The fastening carrier changed or lost its PCB presence feedback. Check the carrier before restarting.");
+                UiText.Get("The fastening carrier changed or lost its PCB presence feedback. Check the carrier before restarting."));
         }
     }
 
@@ -1244,7 +1233,7 @@ public sealed class BoltFasteningStation : AutoUnit
 
         if (failures is not null)
         {
-            throw new AggregateException("Bolt controller reset failed.", failures);
+            throw new AggregateException(UiText.Get("Bolt controller reset failed."), failures);
         }
     }
 
@@ -1305,7 +1294,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 // A ready shooting supply can finish; a new pickup still requires RESET after its alarm.
                 if (alarm is not null && (head == FasteningHead.Pickup || !detected))
                     throw new MaintenanceStopException(
-                        "Bolt supply stopped. Refill the feeder and RESET before resuming.", alarm);
+                        UiText.Get("Bolt supply stopped. Refill the feeder and RESET before resuming."), alarm);
                 if (detected)
                     return;
                 await changed.WaitAsync(cancellationToken);
@@ -1389,7 +1378,7 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!_motion.GetAxisState(MotionAxis.Z).Homed)
-            throw new MotionInterlockException("Home fastening Z before moving to a taught height.");
+            throw new MotionInterlockException(UiText.Get("Home fastening Z before moving to a taught height."));
         return _motion.MoveAxisAsync(MotionAxis.Z, z, _settings.Motion.ZSpeed, cancellationToken);
     }
 
@@ -1412,7 +1401,7 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             case { Target: TeachingTarget.BoltPickup }:
                 if (!point.HasPosition)
-                    throw new MotionInterlockException("Record the teaching position before moving.");
+                    throw new MotionInterlockException(UiText.Get("Record the teaching position before moving."));
                 await RaiseCylindersAsync(cancellationToken);
                 await MoveWithHeadDownAsync(FasteningHead.Shooting, position, cancellationToken);
                 break;
@@ -1424,7 +1413,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     "Bolt teaching Move To: {Target}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}; Safe Z={SafeZ}.",
                     point.Target, point.Bolt?.Id, head, position.X, position.Y, position.Z, _settings.SafeZ);
                 if (!point.HasPosition)
-                    throw new MotionInterlockException("Record the teaching position before moving.");
+                    throw new MotionInterlockException(UiText.Get("Record the teaching position before moving."));
                 var tableDown = head == FasteningHead.Pickup;
                 EnsureCanMoveHorizontal(cancellationToken);
                 await MoveZAsync(_settings.SafeZ, cancellationToken);
@@ -1459,7 +1448,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 catch (OperationCanceledException) when (move.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
                 {
                     throw new MotionInterlockException(
-                        $"Keep both fastening heads up and the pickup table {(tableDown ? "down" : "up")} while moving to the teaching position.");
+                        UiText.Format($"Keep both fastening heads up and the pickup table {(tableDown ? "down" : "up")} while moving to the teaching position."));
                 }
                 finally
                 {
@@ -1628,7 +1617,7 @@ public sealed class BoltFasteningStation : AutoUnit
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new MotionInterlockException($"Head/table feedback was lost while moving with the {head} head down.");
+            throw new MotionInterlockException(UiText.Format($"Head/table feedback was lost while moving with the {head} head down."));
         }
         finally
         {
@@ -1642,7 +1631,7 @@ public sealed class BoltFasteningStation : AutoUnit
         cancellationToken.ThrowIfCancellationRequested();
         if (!IsHorizontalMoveAllowed)
         {
-            throw new MotionInterlockException("Raise both fastening heads before moving X/Y.");
+            throw new MotionInterlockException(UiText.Get("Raise both fastening heads before moving X/Y."));
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 
 namespace IBTM.Device;
 
@@ -158,7 +159,7 @@ public abstract class MotionServiceBase : IXyMotion
         cancellationToken = operation.Token;
         if (!Axes.Contains(axis))
         {
-            throw new InvalidOperationException($"This motion group has no {axis} axis.");
+            throw new InvalidOperationException(UiText.Format($"This motion group has no {axis} axis."));
         }
 
         ValidatePositive(velocity, nameof(velocity));
@@ -249,7 +250,7 @@ public abstract class MotionServiceBase : IXyMotion
     {
         if (!HasY)
         {
-            throw new InvalidOperationException("This motion group has no Y axis.");
+            throw new InvalidOperationException(UiText.Get("This motion group has no Y axis."));
         }
     }
 
@@ -257,7 +258,7 @@ public abstract class MotionServiceBase : IXyMotion
     {
         if (!HasZ)
         {
-            throw new InvalidOperationException("This motion group has no Z axis.");
+            throw new InvalidOperationException(UiText.Get("This motion group has no Z axis."));
         }
     }
 
@@ -266,14 +267,14 @@ public abstract class MotionServiceBase : IXyMotion
         if (Volatile.Read(ref _activeMotions) > 0
             || IsMoving)
         {
-            throw new MotionInterlockException("Wait for all axes to stop before moving.");
+            throw new MotionInterlockException(UiText.Get("Wait for all axes to stop before moving."));
         }
     }
 
     protected static void ValidatePositive(double value, string parameterName)
     {
         if (!double.IsFinite(value) || value <= 0)
-            throw new ArgumentOutOfRangeException(parameterName, value, "Value must be positive and finite.");
+            throw new ArgumentOutOfRangeException(parameterName, value, UiText.Get("Value must be positive and finite."));
     }
 
     private void ValidateTarget(MotionAxis axis, double position)
@@ -283,7 +284,7 @@ public abstract class MotionServiceBase : IXyMotion
             throw new ArgumentOutOfRangeException(
                 axis.ToString(),
                 position,
-                $"{axis} target must be a finite coordinate.");
+                UiText.Format($"{axis} target must be a finite coordinate."));
         }
     }
 }

@@ -531,7 +531,7 @@ public sealed class PcbHistoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task TurnsLimitsAndIndependentVerdictsSurviveHistoryReload(bool dryRun)
+    public async Task ControllerVerdictAndMeasuredTurnsSurviveHistoryReload(bool dryRun)
     {
         var store = VirtualTestSupport.OpenMachineStore();
         var settings = new MachineSettings();
@@ -539,7 +539,7 @@ public sealed class PcbHistoryTests
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddVirtualApplication(settings).BuildServiceProvider();
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        recipe.Pcb.BoltPoints = [new() { MinimumTurns = 3, MaximumTurns = 6 }, new() { Head = FasteningHead.Pickup, MaximumTurns = 4 }];
+        recipe.Pcb.BoltPoints = [new(), new() { Head = FasteningHead.Pickup }];
         var history = services.GetRequiredService<PcbHistoryWriter>();
         var assembly = services.GetRequiredService<BoltFasteningStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
         foreach (var bolt in recipe.Pcb.BoltPoints)
@@ -547,30 +547,20 @@ public sealed class PcbHistoryTests
             assembly.RecordBolt(bolt.Head, bolt.Id, new(true, dryRun ? null : 8,
                 dryRun ? BoltResultSource.DryRun : BoltResultSource.Controller)
             {
-                MinimumTurns = bolt.MinimumTurns,
-                MaximumTurns = bolt.MaximumTurns,
                 Controller = dryRun ? null : new("Virtual", 1, 1, 1000, 1, 8, 800, 100, 200, 1800, 1, 0, 0, 1, 0, null),
             });
         }
         assembly.CompleteFastening();
         assembly.CompleteInspection();
-        recipe.Pcb.BoltPoints[1].MaximumTurns = 10;
         await history.FlushAsync();
 
         var record = Assert.Single(new MachineStore(store.DatabaseFile).LoadPcbs(settings.PcbHistory.Directory));
         Assert.Equal(dryRun ? AssemblyResult.Ng : AssemblyResult.Ok, record.FasteningResult);
         Assert.Equal(AssemblyResult.Ok, record.InspectionResult);
-        Assert.Equal(dryRun ? AssemblyResult.Pending : AssemblyResult.Ng, record.TurnsResult);
-        Assert.Equal(AssemblyResult.Ng, record.Result);
-        Assert.Equal(3, Assert.Single(record.ShootingBoltResults).Value.MinimumTurns);
-        Assert.Equal(6, Assert.Single(record.ShootingBoltResults).Value.MaximumTurns);
-        Assert.Null(Assert.Single(record.PickupBoltResults).Value.MinimumTurns);
-        Assert.Equal(4, Assert.Single(record.PickupBoltResults).Value.MaximumTurns);
+        Assert.Equal(dryRun ? AssemblyResult.Ng : AssemblyResult.Ok, record.Result);
         Assert.Equal(dryRun ? (double?)null : 5, Assert.Single(record.PickupBoltResults).Value.TotalTurns);
         var details = services.GetRequiredService<PcbResultsViewModel>();
         details.Record = record;
-        Assert.Equal(dryRun ? new[] { UiText.Get("No data"), UiText.Get("No data") } : new[] { "OK", "NG" },
-            details.BoltResults.Select(row => row.TurnsVerdict));
         Assert.All(details.BoltResults, row =>
         {
             Assert.Equal(dryRun ? UiText.Get("Dry run · NG") : "OK", row.Verdict);

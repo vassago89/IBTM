@@ -17,7 +17,7 @@
 | `IBTM.Virtual.Tests/InspectionTeachingTests.cs` | 검사 이미지·ROI·레시피 편집, 손상 이미지 보존, 저장 결과 불러오기 |
 | `IBTM.Virtual.Tests/RecipeTests.cs` | 레시피 목록 비동기 조회, 저장·복사 트랜잭션, GUID·티칭 정보 유지 |
 | `IBTM.Virtual.Tests/UiBindingTests.cs` | WPF 바인딩의 스레드 갱신, 창 열기 실패와 재열기 |
-| `IBTM.Virtual.Tests/HeatSinkAssemblyTests.cs` | 저장소 없는 결과 판정, 최소 회전수 |
+| `IBTM.Virtual.Tests/HeatSinkAssemblyTests.cs` | 체결·바코드·높이 결과 판정, 수동 결과 변경 |
 | `IBTM.Virtual.Tests/PcbHistoryTests.cs` | 결과·이미지 DB 저장, 저장 실패 후 재시도, 번호 유지·조회 |
 | `IBTM.Virtual.Tests/LightingTests.cs` | 조명 연결·진단, 작업 소유권, 종료와 출력 실패 처리 |
 | `IBTM.Virtual.Tests/MotionStatusTests.cs` | 모션 피드백·진단 조회, 축 알람과 드라이버 공유 |

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.Virtual;
@@ -73,7 +74,7 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
 
             _connected = value;
             if (!value)
-                Faulted?.Invoke(new InvalidOperationException("Virtual control I/O is disconnected."));
+                Faulted?.Invoke(new InvalidOperationException(UiText.Get("Virtual control I/O is disconnected.")));
         }
     }
 
@@ -161,7 +162,7 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
     {
         if (!_connected)
         {
-            throw new InvalidOperationException("Virtual control I/O is disconnected.");
+            throw new InvalidOperationException(UiText.Get("Virtual control I/O is disconnected."));
         }
     }
 

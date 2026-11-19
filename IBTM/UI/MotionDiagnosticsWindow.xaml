@@ -141,7 +141,7 @@
                             Text="{Binding Diagnostics.Sample.Position, StringFormat=F3, TargetNullValue=—}"
                             VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0" FontFamily="Consolas" FontSize="15"/>
                         <TextBlock Grid.Column="3"
-                            ToolTip="{Binding Diagnostics.Sample.ReadError.Message}"
+                            ToolTip="{Binding Diagnostics.Sample.ReadError, Converter={StaticResource UiTextConverter}}"
                             VerticalAlignment="Center" MaxHeight="36" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Margin="0,0,8,0">
                             <Run Text="{Binding Diagnostics.Sample.Condition, Mode=OneWay, Converter={StaticResource UiTextConverter}}"/>
                             <Run>

@@ -70,7 +70,6 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
             assembly.ShootingBoltResults.ToDictionary(), assembly.PickupBoltResults.ToDictionary(),
             recipe.Pcb.BoltPoints.Where(point => point.HeatSink == assembly.HeatSink).Select(bolt => bolt.Id).ToArray())
         {
-            TurnsResult = assembly.TurnsResult,
             IsDataMatrixNgExcluded = assembly.IsDataMatrixNgExcluded,
             HeightReference = assembly.HeightReference,
             Alignment = assembly.Alignment,
@@ -100,7 +99,6 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                 HeightResults = source.HeightResults.ToDictionary(),
                 FasteningResult = source.FasteningResult,
                 InspectionResult = source.InspectionResult,
-                TurnsResult = source.TurnsResult,
                 ShootingBoltResults = source.ShootingBoltResults.ToDictionary(),
                 PickupBoltResults = source.PickupBoltResults.ToDictionary(),
             };
@@ -189,8 +187,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
             {
                 var number = write.Assembly.PcbNumber?.ToString() ?? "number pending";
                 var failure = new IOException(
-                    $"PCB {number} save failed ({file}): {exception.Message}. "
-                    + "Unsaved data is held in memory; retry saving before exiting.", exception);
+                    UiText.Format($"PCB {number} save failed ({file}): {UiText.Get(exception)}. Unsaved data is held in memory; retry saving before exiting."), exception);
                 _log.LogError(failure, "PCB persistence paused; machine operation continues.");
                 lock (_gate)
                 {

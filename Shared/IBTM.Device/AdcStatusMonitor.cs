@@ -65,7 +65,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             if (_lifetime is { IsCancellationRequested: false })
             {
                 if (SlaveAddress != slaveAddress)
-                    throw new InvalidOperationException("Close the ADC connection before changing the monitored slave.");
+                    throw new InvalidOperationException(UiText.Get("Close the ADC connection before changing the monitored slave."));
                 return;
             }
             await _completion.ConfigureAwait(false);
@@ -73,7 +73,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!_bus.IsOpen)
-                    throw new IOException("Open the ADC connection before starting its status monitor.");
+                    throw new IOException(UiText.Get("Open the ADC connection before starting its status monitor."));
                 _lifetime?.Dispose();
                 _lifetime = new();
                 SlaveAddress = slaveAddress;
@@ -101,7 +101,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             TorqueCurveCaptureStartedAt = 0;
             var now = Stopwatch.GetTimestamp();
             Publish(new(now, now, null,
-                new IOException($"ADC {_bus.PortName}/{SlaveAddress} status monitor is disconnected.")));
+                new IOException(UiText.Format($"ADC {_bus.PortName}/{SlaveAddress} status monitor is disconnected."))));
         }
     }
 
@@ -127,7 +127,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             }
             catch (OperationCanceledException) when (lifetimeToken.IsCancellationRequested)
             {
-                completion.TrySetException(new IOException($"ADC {_bus.PortName}/{SlaveAddress} communication stopped."));
+                completion.TrySetException(new IOException(UiText.Format($"ADC {_bus.PortName}/{SlaveAddress} communication stopped.")));
             }
             catch (Exception exception)
             {
@@ -147,7 +147,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         lock (_stateGate)
         {
             if (_lifetime is not { IsCancellationRequested: false })
-                throw new IOException("Start the ADC status monitor before queuing a request.");
+                throw new IOException(UiText.Get("Start the ADC status monitor before queuing a request."));
             _requests.Writer.TryWrite(ExecuteAsync);
         }
         return completion.Task;

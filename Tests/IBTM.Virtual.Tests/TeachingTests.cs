@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BackupPlate;
@@ -11,6 +13,7 @@ using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using IBTM.Mlcp;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
@@ -26,6 +29,203 @@ namespace IBTM.Virtual.Tests;
 [Collection("Machine integration")]
 public sealed class TeachingTests
 {
+    [Fact]
+    public async Task InspectionTeachingMeasuresReferenceAndBoltWithoutChangingProductionResults()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.InspectionGantry.ProbeOffsetX = 2.5;
+        settings.InspectionGantry.ProbeOffsetY = -1.5;
+        var connection = new MlcpTests.TestConnection();
+        using var controller = new MlcpController(connection);
+        await using var services = new ServiceCollection().AddSingleton(OpenMachineStore())
+            .AddVirtualApplication(settings).AddSingleton(controller).BuildServiceProvider();
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var motion = services.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.InspectionGantry);
+        var recipe = teaching.Recipes.Current;
+        var bolt = new BoltPoint { X = 3, Y = 4, MinimumHeight = 1.4, MaximumHeight = 1.6 };
+        recipe.Pcb.BoltPoints = [bolt];
+        recipe.BoltInspection.HeightReference1 = new()
+        {
+            Point1 = new() { X = 0, Y = 0 }, Point2 = new() { X = 10, Y = 0 }, Point3 = new() { X = 0, Y = 10 },
+        };
+        var values = new Queue<string>(["9.5", "10", "11", "12", "12.6"]);
+        var measuredAt = new List<(double X, double Y)>();
+        controller.FrameTransferred += (direction, bytes) =>
+        {
+            if (direction != MlcpFrameDirection.Transmit)
+                return;
+            Assert.True(io.GetInput(InputIo.InspectionProbeDown));
+            Assert.False(teaching.IsJogXAllowed);
+            Assert.False(teaching.IsJogYAllowed);
+            Assert.False(teaching.CheckAlignmentCommand.CanExecute(null));
+            Assert.False(motion.IsMoving);
+            measuredAt.Add((motion.Position.X, motion.Position.Y));
+            connection.Reply(Encoding.ASCII.GetBytes("\x05OK,01,+" + values.Dequeue() + "\x03@@\r\n"));
+        };
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        teaching.Activate();
+        try
+        {
+            var probe = TeachingRows(teaching)[OutputIo.InspectionProbeDown];
+            Assert.True(probe.IsSupported);
+            await probe.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.True(io.GetInput(InputIo.InspectionProbeDown));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => teaching.Inspection.MoveToAsync(new() { X = 9 }));
+            await probe.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.True(io.GetInput(InputIo.InspectionProbeUp));
+            Assert.True(teaching.IsJogXAllowed);
+
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.HeightReference2);
+            await WaitUntilAsync(() => teaching.MeasureHeightCommand.CanExecute(null));
+            await teaching.MeasureHeightCommand.ExecuteAsync(null);
+            Assert.Null(teaching.InspectionTestMessage);
+            Assert.Contains("9.5", teaching.HeightTestResult);
+            Assert.True(io.GetInput(InputIo.InspectionProbeUp));
+
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltReference);
+            Assert.Null(teaching.HeightTestResult);
+            await teaching.MeasureHeightCommand.ExecuteAsync(null);
+            Assert.Null(teaching.InspectionTestMessage);
+            Assert.Contains("1.5", teaching.HeightTestResult);
+            Assert.Contains("OK", teaching.HeightTestResult);
+            Assert.True(teaching.HeightTestSuccess);
+            Assert.Equal(new[] { (12.5, -1.5), (2.5, -1.5), (12.5, -1.5), (2.5, 8.5), (5.5, 2.5) }, measuredAt);
+            Assert.True(io.GetInput(InputIo.InspectionProbeUp));
+            var assembly = teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+            Assert.Empty(assembly.HeightResults);
+            Assert.Null(assembly.HeightReference);
+            Assert.False(teaching.Inspection.Station.Completed);
+            Assert.Equal((3d, 4d), (bolt.X, bolt.Y));
+        }
+        finally
+        {
+            await teaching.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task InspectionTeachingChecksBothMarksAndAppliesFreshAlignmentToHeightTest()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.InspectionGantry.CameraResolution = 0.1;
+        settings.InspectionGantry.ProbeOffsetX = 2;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var camera = services.GetRequiredService<VirtualCamera>();
+        var motion = services.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.InspectionGantry);
+        var fiducials = teaching.Recipes.Current.BoltInspection.Fiducials1;
+        fiducials.Enabled = true;
+        var referenceImage = FiducialTests.CircleImage((100, 100, 14));
+        foreach (var mark in new[] { fiducials.First, fiducials.Second })
+        {
+            mark.CameraPosition = new() { X = ReferenceEquals(mark, fiducials.First) ? 0 : 10 };
+            mark.Region = new(75, 75, 50, 50);
+            mark.WhiteMark = true;
+            mark.Contour = FiducialDetector.Detect(referenceImage, mark, registering: true).Contour;
+            mark.ImageWidth = mark.ImageHeight = 200;
+        }
+        teaching.Recipes.Current.BoltInspection.HeightReference1.Point1 = new() { X = 3, Y = 4 };
+        camera.SourceImage = FiducialTests.CircleImage((110, 95, 14));
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        teaching.Activate();
+        try
+        {
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.Fiducial1);
+            await WaitUntilAsync(() => teaching.CheckAlignmentCommand.CanExecute(null));
+            await teaching.CheckAlignmentCommand.ExecuteAsync(null);
+            Assert.Null(teaching.InspectionTestMessage);
+            Assert.Contains("+1", teaching.AlignmentTestResult);
+            Assert.Contains("+0.5", teaching.AlignmentTestResult);
+            Assert.Equal(10, motion.Position.X, 3);
+            Assert.Null(teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1).Alignment);
+            Assert.Equal(0, fiducials.First.CameraPosition!.X);
+
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.HeightReference1);
+            // Each trial reads the current product again instead of reusing the previous correction.
+            camera.SourceImage = FiducialTests.CircleImage((120, 90, 14));
+            await teaching.MeasureHeightCommand.ExecuteAsync(null);
+            Assert.Null(teaching.InspectionTestMessage);
+            Assert.NotNull(teaching.HeightTestResult);
+            Assert.Equal(7, motion.Position.X, 2);
+            Assert.Equal(5, motion.Position.Y, 2);
+
+            camera.SourceImage = FiducialTests.CircleImage();
+            await teaching.CheckAlignmentCommand.ExecuteAsync(null);
+            Assert.Null(teaching.AlignmentTestResult);
+            Assert.NotNull(teaching.InspectionTestError);
+            Assert.Null(teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1).FiducialError);
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+            Assert.Null(teaching.AlignmentTestResult);
+            Assert.Null(teaching.HeightTestResult);
+        }
+        finally
+        {
+            await teaching.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task CancelledTeachingMeasurementStopsBeforeTheNextPointAndAllowsProbeRetraction()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        using var controller = new MlcpController(new MlcpTests.TestConnection());
+        await using var services = new ServiceCollection().AddSingleton(OpenMachineStore())
+            .AddVirtualApplication(settings).AddSingleton(controller).BuildServiceProvider();
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var motion = services.GetRequiredKeyedService<VirtualMotionService>(MotionGroup.InspectionGantry);
+        var bolt = new BoltPoint { X = 3, Y = 4, MinimumHeight = 0, MaximumHeight = 2 };
+        teaching.Recipes.Current.Pcb.BoltPoints = [bolt];
+        TeachInspectionHeights(teaching.Recipes.Current);
+        var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        controller.FrameTransferred += (direction, bytes) =>
+        {
+            if (direction == MlcpFrameDirection.Transmit)
+                requested.TrySetResult();
+        };
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        teaching.Activate();
+        try
+        {
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltReference);
+            await WaitUntilAsync(() => teaching.MeasureHeightCommand.CanExecute(null));
+            var pending = teaching.MeasureHeightCommand.ExecuteAsync(null);
+            await requested.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var position = motion.Position;
+            Assert.True(teaching.StopInspectionTestCommand.CanExecute(null));
+            Assert.False(teaching.IsToggleLiveViewAllowed);
+            teaching.StopInspectionTestCommand.Execute(null);
+            await pending.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Null(teaching.HeightTestResult);
+            Assert.False(teaching.StopInspectionTestCommand.CanExecute(null));
+            Assert.Equal(UiText.Get("Cancelled"), teaching.InspectionTestMessage);
+            Assert.Equal(position, motion.Position);
+            Assert.True(io.GetInput(InputIo.InspectionProbeDown));
+            var probe = TeachingRows(teaching)[OutputIo.InspectionProbeDown];
+            await WaitUntilAsync(() => probe.IsToggleOutputAllowed);
+            await probe.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.True(io.GetInput(InputIo.InspectionProbeUp));
+            Assert.Empty(teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1).HeightResults);
+        }
+        finally
+        {
+            await teaching.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task BackupTeachingUsesItsOwnAxisAndPersistsBothHeights()
     {
@@ -1060,7 +1260,9 @@ public sealed class TeachingTests
         await WaitUntilAsync(() => teaching.IsTeachCurrentPositionAllowed);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
-        Assert.Equal(expectedZ, settings.BoltFastening.GetHead(head).FasteningZ);
+        var headSettings = head == FasteningHead.Pickup
+            ? settings.BoltFastening.PickupHead : settings.BoltFastening.ShootingHead;
+        Assert.Equal(expectedZ, headSettings.FasteningZ);
         expectedZ -= 0.75;
         Assert.Equal((expectedX, expectedY, expectedZ), (position.Coordinates!.X, position.Coordinates.Y, position.Coordinates.Z));
         if (head == FasteningHead.Pickup)
@@ -1446,7 +1648,7 @@ public sealed class TeachingTests
         await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var addedId = teaching.SelectedPoint!.Position.Bolt!.Id;
         Assert.NotEqual(shooting1.Id, addedId);
-        Assert.True(teaching.SelectedPoint.Position.Bolt!.IsFasteningPositionDefined);
+        Assert.False(teaching.SelectedPoint.Position.Bolt!.IsFasteningPositionDefined);
         teaching.NewFasteningHead = FasteningHead.Pickup;
         await teaching.AddBoltPointCommand.ExecuteAsync(null);
         var addedPickupId = teaching.SelectedPoint!.Position.Bolt!.Id;

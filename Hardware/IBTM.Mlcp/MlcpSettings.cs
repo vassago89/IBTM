@@ -14,7 +14,7 @@ public sealed class MlcpSettings : Setting
         set
         {
             if (value <= 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Response timeout must be positive.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Response timeout must be positive."));
             field = value;
         }
     } = 3000;

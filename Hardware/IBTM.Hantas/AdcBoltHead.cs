@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -72,9 +73,7 @@ public sealed class AdcBoltHead : IBoltHead
     {
         if (status.Alarm != 0 || !status.Ready || status.Running || _io.GetOutput(_start))
             throw new InvalidOperationException(
-                $"ADC {_portName}/{_slaveAddress} not ready: "
-                + $"{AdcControllerError.Describe(status.Alarm)}, READY={status.Ready}, "
-                + $"RUN={status.Running}, START={_io.GetOutput(_start)}.");
+                UiText.Format($"ADC {_portName}/{_slaveAddress} not ready: {AdcControllerError.Describe(status.Alarm)}, READY={status.Ready}, RUN={status.Running}, START={_io.GetOutput(_start)}."));
     }
 
     private async Task<AdcControllerStatus> WaitForStatusAsync(
@@ -117,12 +116,9 @@ public sealed class AdcBoltHead : IBoltHead
         {
             if (waitingForReady)
                 throw new TimeoutException(
-                    $"ADC {_portName}/{_slaveAddress}: READY timeout after preset selection; "
-                    + $"requested preset={expectedPreset}, actual preset={Monitor.Sample?.Status?.Preset}, READY={Monitor.Sample?.Status?.Ready}; "
-                    + $"last rejection={Monitor.Sample?.Rejection ?? "none"}.");
+                    UiText.Format($"ADC {_portName}/{_slaveAddress}: READY timeout after preset selection; requested preset={expectedPreset}, actual preset={Monitor.Sample?.Status?.Preset}, READY={Monitor.Sample?.Status?.Ready}; last rejection={Monitor.Sample?.Rejection ?? UiText.Get("None")}."));
             throw new TimeoutException(
-                $"ADC {_portName}/{_slaveAddress}: no fresh controller status from the monitor; "
-                + $"last rejection={Monitor.Sample?.Rejection ?? "none"}.");
+                UiText.Format($"ADC {_portName}/{_slaveAddress}: no fresh controller status from the monitor; last rejection={Monitor.Sample?.Rejection ?? UiText.Get("None")}."));
         }
     }
 
@@ -130,10 +126,10 @@ public sealed class AdcBoltHead : IBoltHead
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (preset is < 1 or > 3)
-            throw new ArgumentOutOfRangeException(nameof(preset), "IO bolt presets are 1, 2 and 3.");
+            throw new ArgumentOutOfRangeException(nameof(preset), UiText.Get("IO bolt presets are 1, 2 and 3."));
         _io.CheckReady();
         if (_io.GetOutput(_start))
-            throw new InvalidOperationException("Turn START OFF before selecting a preset.");
+            throw new InvalidOperationException(UiText.Get("Turn START OFF before selecting a preset."));
         _requestedPreset = null;
         var presetSettleMilliseconds = _connection.PresetSettleMilliseconds;
         ArgumentOutOfRangeException.ThrowIfNegative(presetSettleMilliseconds);
@@ -173,10 +169,10 @@ public sealed class AdcBoltHead : IBoltHead
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (preset is < 1 or > 3)
-            throw new ArgumentOutOfRangeException(nameof(preset), "IO bolt presets are 1, 2 and 3.");
+            throw new ArgumentOutOfRangeException(nameof(preset), UiText.Get("IO bolt presets are 1, 2 and 3."));
         _io.CheckReady();
         if (_io.GetOutput(_start))
-            throw new InvalidOperationException("Turn START OFF before reading preset settings.");
+            throw new InvalidOperationException(UiText.Get("Turn START OFF before reading preset settings."));
         _bus.Open(_portName, _baudRate, _slaveAddress);
         Monitor.IntervalMilliseconds = _connection.StatusPollMilliseconds;
         await Monitor.StartAsync(_slaveAddress, cancellationToken);
@@ -203,19 +199,17 @@ public sealed class AdcBoltHead : IBoltHead
         catch (Exception exception)
         {
             failure = exception;
-            throw;
         }
-        finally
+        try
         {
-            try
-            {
-                _io.SetOutput(_reset, false);
-            }
-            catch (Exception cleanupFailure) when (failure is not null)
-            {
-                throw new AggregateException("ADC RESET and output release both failed.", failure, cleanupFailure);
-            }
+            _io.SetOutput(_reset, false);
         }
+        catch (Exception cleanupFailure) when (failure is not null)
+        {
+            throw new AggregateException(UiText.Get("ADC RESET and output release both failed."), failure, cleanupFailure);
+        }
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
         await CheckReadyAsync(cancellationToken);
     }
 
@@ -225,7 +219,7 @@ public sealed class AdcBoltHead : IBoltHead
         cancellationToken.ThrowIfCancellationRequested();
         _io.CheckReady();
         if (_io.GetOutput(_start))
-            throw new InvalidOperationException("Turn START OFF before loosening.");
+            throw new InvalidOperationException(UiText.Get("Turn START OFF before loosening."));
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Exception? failure = null;
         Exception? ioFailure = null;
@@ -273,9 +267,10 @@ public sealed class AdcBoltHead : IBoltHead
         var fasteningTimeoutMilliseconds = _connection.FasteningTimeoutMilliseconds;
         if (dryRunMilliseconds == 0 || feedAsync is not null)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fasteningTimeoutMilliseconds);
-        var operationTimeoutMilliseconds = dryRunMilliseconds > 0
-            ? feedAsync is null ? dryRunMilliseconds : Math.Min(dryRunMilliseconds, fasteningTimeoutMilliseconds)
-            : fasteningTimeoutMilliseconds;
+        var operationTimeoutMilliseconds = fasteningTimeoutMilliseconds;
+        if (dryRunMilliseconds > 0)
+            operationTimeoutMilliseconds = feedAsync is null
+                ? dryRunMilliseconds : Math.Min(dryRunMilliseconds, fasteningTimeoutMilliseconds);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         (ushort EventCount, ushort Preset)? started = null;
         BoltResult? completed = null;
@@ -359,14 +354,14 @@ public sealed class AdcBoltHead : IBoltHead
         {
             _io.CheckReady();
             if (_io.GetOutput(_start))
-                throw new InvalidOperationException("Turn START OFF before fastening.");
+                throw new InvalidOperationException(UiText.Get("Turn START OFF before fastening."));
             _bus.Open(_portName, _baudRate, _slaveAddress);
             if (_requestedPreset is not { } preset)
-                throw new InvalidOperationException("Select an I/O fastening preset before starting.");
+                throw new InvalidOperationException(UiText.Get("Select an I/O fastening preset before starting."));
             for (var index = 0; index < _presets.Length; index++)
             {
                 if (_io.GetOutput(_presets[index]) != (index == preset - 1))
-                    throw new InvalidOperationException($"Preset outputs no longer match preset {preset}.");
+                    throw new InvalidOperationException(UiText.Format($"Preset outputs no longer match preset {preset}."));
             }
             // Reuse the selected preset while live feedback agrees; recheck only if it changed or is unknown.
             if (Monitor.Sample?.Status is not { } readyStatus
@@ -383,8 +378,10 @@ public sealed class AdcBoltHead : IBoltHead
             else
                 RequireReady(readyStatus);
             eventQueuedAt = Stopwatch.GetTimestamp();
-            var initialEvent = dryRunMilliseconds > 0
-                ? null : await Monitor.EnqueueAsync(
+            ushort initialEventCount = 0;
+            if (dryRunMilliseconds == 0)
+            {
+                var initialEvent = await Monitor.EnqueueAsync(
                     async token =>
                     {
                         eventReadStartedAt = Stopwatch.GetTimestamp();
@@ -393,8 +390,10 @@ public sealed class AdcBoltHead : IBoltHead
                         eventReceivedAt = Stopwatch.GetTimestamp();
                         return registers;
                     }, timeout.Token);
+                initialEventCount = initialEvent[0];
+            }
             // One pre-START baseline excludes previously received bolt results.
-            var fastening = (EventCount: initialEvent?[0] ?? (ushort)0, Preset: preset);
+            var fastening = (EventCount: initialEventCount, Preset: preset);
             _io.SetOutput(_direction, false);
 
             timeout.CancelAfter(operationTimeoutMilliseconds);
@@ -443,7 +442,7 @@ public sealed class AdcBoltHead : IBoltHead
                 {
                     finishedSample = await stopped.Task;
                     failure = new InvalidOperationException(finishedSample.Status!.Alarm != 0
-                        ? AdcControllerError.Describe(finishedSample.Status.Alarm) : "RUN stopped during Z feed.");
+                        ? AdcControllerError.Describe(finishedSample.Status.Alarm) : UiText.Get("RUN stopped during Z feed."));
                 }
             }
             if (dryRunMilliseconds > 0)
@@ -457,9 +456,9 @@ public sealed class AdcBoltHead : IBoltHead
                         await Task.Delay(remaining, timeout.Token);
                 }
             }
-            waitingForResult = dryRunMilliseconds == 0;
-            if (dryRunMilliseconds == 0)
+            else
             {
+                waitingForResult = true;
                 try
                 {
                     finishedSample = await stopped.Task.WaitAsync(timeout.Token);
@@ -487,21 +486,21 @@ public sealed class AdcBoltHead : IBoltHead
                             && result.Status is AdcEventStatus.Error or AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg;
                         if (!hasNewResult)
                             failure = new InvalidOperationException(
-                                $"RUN OFF, but no new completed fastening result: "
-                                + $"start event={fastening.EventCount}, event={result.EventCount}, status={result.Status}, alarm={Monitor.Sample?.Status?.Alarm}.");
+                                UiText.Format($"RUN OFF, but no new completed fastening result: start event={fastening.EventCount}, event={result.EventCount}, status={result.Status}, alarm={Monitor.Sample?.Status?.Alarm}."));
                         else if (result.Status != AdcEventStatus.Error
                             && (result.Preset != fastening.Preset || result.Direction != AdcDirection.Fastening))
                             throw new InvalidOperationException(
-                                $"ADC {_slaveAddress} result event {result.EventCount} does not match this fastening: "
-                                + $"preset {result.Preset}, direction {result.Direction}; expected preset {fastening.Preset}, Fastening.");
+                                UiText.Format($"ADC {_slaveAddress} result event {result.EventCount} does not match this fastening: preset {result.Preset}, direction {result.Direction}; expected preset {fastening.Preset}, Fastening."));
                         else
                         {
-                            var error = result.Status == AdcEventStatus.Error || result.Error != 0
-                                ? $"ADC {_portName}/{_slaveAddress} controller error: "
-                                    + (result.Error == 0 ? "Error 이벤트 수신; 상세 오류 코드 없음."
-                                        : AdcControllerError.Describe(result.Error))
-                                    + $" event={result.EventCount}, status={result.Status}."
-                                    : null;
+                            string? error = null;
+                            if (result.Status == AdcEventStatus.Error || result.Error != 0)
+                            {
+                                var description = result.Error == 0
+                                    ? UiText.Get("Error event received without an error code.")
+                                    : AdcControllerError.Describe(result.Error);
+                                error = UiText.Format($"ADC {_portName}/{_slaveAddress} controller error: {description} event={result.EventCount}, status={result.Status}.");
+                            }
                             completed = new BoltResult(result.Status == AdcEventStatus.FasteningOk && error is null,
                                 result.Torque, Error: error)
                             {
@@ -541,12 +540,7 @@ public sealed class AdcBoltHead : IBoltHead
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
         {
             failure = new TimeoutException(
-                $"ADC {_portName}/{_slaveAddress} fastening timed out after {operationTimeoutMilliseconds} ms; "
-                + $"waiting for RUN ON then OFF / fastening result; RUN observed={runObserved}, last RUN={Monitor.Sample?.Status?.Running}; "
-                + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
-                + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
-                + $"direction={lastResult?.Direction}, error={lastResult?.Error}; "
-                + $"last status error={Monitor.Sample?.Error?.Message ?? Monitor.Sample?.Rejection ?? "none"}.");
+                UiText.Format($"ADC {_portName}/{_slaveAddress} fastening timed out after {operationTimeoutMilliseconds} ms; waiting for RUN ON then OFF / fastening result; RUN observed={runObserved}, last RUN={Monitor.Sample?.Status?.Running}; start event={started?.EventCount}, expected preset={started?.Preset}, last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, direction={lastResult?.Direction}, error={lastResult?.Error}; last status error={Monitor.Sample?.Error?.Message ?? Monitor.Sample?.Rejection ?? UiText.Get("None")}."));
             if (!waitingForResult)
                 throw failure;
         }
@@ -620,7 +614,7 @@ public sealed class AdcBoltHead : IBoltHead
         {
             // START is OFF. No torque was received for this bolt.
             return new BoltResult(false, null,
-                Error: $"ADC {_portName}/{_slaveAddress}: {failure.Message}");
+                Error: $"ADC {_portName}/{_slaveAddress}: {UiText.Get(failure)}");
         }
 
         if (dryRunMilliseconds > 0)
@@ -629,7 +623,7 @@ public sealed class AdcBoltHead : IBoltHead
         if (completed is not null)
             return completed;
 
-        throw new InvalidOperationException("ADC fastening ended without a result.");
+        throw new InvalidOperationException(UiText.Get("ADC fastening ended without a result."));
     }
 
     public void Stop()
@@ -647,7 +641,7 @@ public sealed class AdcBoltHead : IBoltHead
         }
         catch (Exception stopError) when (failure is not null)
         {
-            throw new AggregateException("ADC operation and STOP cleanup both failed.", failure, stopError);
+            throw new AggregateException(UiText.Get("ADC operation and STOP cleanup both failed."), failure, stopError);
         }
     }
 }

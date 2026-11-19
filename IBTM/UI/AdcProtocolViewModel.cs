@@ -192,7 +192,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             IsClosing = false;
             RefreshControls();
-            CloseError = exception.Message;
+            CloseError = UiText.Get(exception);
             _log?.LogError(exception, "ADC diagnostic shutdown failed.");
             return false;
         }
@@ -750,7 +750,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
         catch (ExternalException exception)
         {
-            ClipboardError = UiText.Format($"Clipboard is unavailable: {exception.Message}");
+            ClipboardError = UiText.Format($"Clipboard is unavailable: {UiText.Get(exception)}");
         }
     }
 
@@ -786,9 +786,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         var message = UiText.Get("\nOperation failed. Check controller status.");
         if (!ResultMessage.EndsWith(message, StringComparison.Ordinal))
             ResultMessage += message;
-        ConnectionStatus = exception.Message;
+        ConnectionStatus = UiText.Get(exception);
         _log?.LogError(exception, "ADC diagnostic operation failed.");
-        AppendLog($"ERROR  {exception.Message}", record: false);
+        AppendLog($"ERROR  {UiText.Get(exception)}", record: false);
     }
 
     public bool IsConnectAllowed

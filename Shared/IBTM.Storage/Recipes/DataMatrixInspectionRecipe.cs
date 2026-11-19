@@ -11,7 +11,7 @@ public sealed class DataMatrixInspectionRecipe
         set
         {
             if (value is < 0 or > 255)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255, or leave blank for the recipe default.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use 0 to 255, or leave blank for the recipe default."));
             field = value;
         }
     }
@@ -27,7 +27,7 @@ public sealed class DataMatrixInspectionRecipe
         set
         {
             if (value is < 0 or > 255)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a threshold from 0 to 255.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a threshold from 0 to 255."));
             field = value;
         }
     }
@@ -38,7 +38,7 @@ public sealed class DataMatrixInspectionRecipe
         set
         {
             if (value is < 0 or > 255)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a threshold from 0 to 255.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a threshold from 0 to 255."));
             field = value;
         }
     } = 255;
@@ -49,7 +49,7 @@ public sealed class DataMatrixInspectionRecipe
         set
         {
             if (value is < 1 or > 255)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a threshold step from 1 to 255.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a threshold step from 1 to 255."));
             field = value;
         }
     } = 5;
@@ -61,7 +61,7 @@ public sealed class DataMatrixInspectionRecipe
         set
         {
             if (value is < 0 or > 5)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a dilation radius from 0 to 5 pixels.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a dilation radius from 0 to 5 pixels."));
             field = value;
         }
     } = 1;

@@ -13,7 +13,7 @@ public sealed class MachineOptions : Setting
         set
         {
             if (value is < 10 or > 1_000)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a motion refresh interval from 10 to 1000 ms.");
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use a motion refresh interval from 10 to 1000 ms."));
             field = value;
         }
     } = 50;

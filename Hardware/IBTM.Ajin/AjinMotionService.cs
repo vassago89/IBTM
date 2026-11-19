@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 using IBTM.Device;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -112,7 +114,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
             if (inMotion != 0)
             {
                 throw new MotionInterlockException(
-                    $"Cannot change AJIN axis {axis} unit settings: AxmStatusReadInMotion={inMotion}.");
+                    UiText.Format($"Cannot change AJIN axis {axis} unit settings: AxmStatusReadInMotion={inMotion}."));
             }
 
             AjinController.Check(
@@ -125,10 +127,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
             if (!DoAxisParametersMatch(axis, out current))
             {
                 throw new MotionInterlockException(
-                    $"AJIN axis {axis} initialization did not retain motion parameters: "
-                    + $"SDK Unit={current.Unit}, Pulse={current.Pulse}, AccelUnit={current.AccelerationUnit}; "
-                    + $"configured Unit={scale.MoveUnit}, Pulse={scale.MovePulse}, "
-                    + $"AccelUnit={AccelerationInUnitsPerSecondSquared}.");
+                    UiText.Format($"AJIN axis {axis} initialization did not retain motion parameters: SDK Unit={current.Unit}, Pulse={current.Pulse}, AccelUnit={current.AccelerationUnit}; configured Unit={scale.MoveUnit}, Pulse={scale.MovePulse}, AccelUnit={AccelerationInUnitsPerSecondSquared}."));
             }
             _log?.LogInformation("AJIN axis {Axis} unit settings applied and read back successfully.", axis);
         }
@@ -354,7 +353,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
                 {
                     HomeDirection.Negative => 0,
                     HomeDirection.Positive => 1,
-                    var value => throw new InvalidOperationException($"Invalid home direction for axis {axisNumber}: {value}."),
+                    var value => throw new InvalidOperationException(UiText.Format($"Invalid home direction for axis {axisNumber}: {value}.")),
                 };
                 signal = _axisParameters[axisNumber].HomeSignal switch
                 {
@@ -362,7 +361,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
                     HomeSignal.HomeSensor => (uint)AXT_MOTION_HOME_DETECT.HomeSensor,
                     HomeSignal.NegativeLimit => (uint)AXT_MOTION_HOME_DETECT.NegEndLimit,
                     HomeSignal.PositiveLimit => (uint)AXT_MOTION_HOME_DETECT.PosEndLimit,
-                    var value => throw new InvalidOperationException($"Invalid home signal for axis {axisNumber}: {value}."),
+                    var value => throw new InvalidOperationException(UiText.Format($"Invalid home signal for axis {axisNumber}: {value}.")),
                 };
                 _log?.LogInformation(
                     "AJIN axis {Axis} home: direction={Direction}, signal={Signal} (configured={ConfiguredSignal}).",
@@ -458,33 +457,31 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         catch (Exception exception)
         {
             failure = exception;
-            throw;
         }
-        finally
+        var failures = new List<Exception>();
+        foreach (var axis in _axisParameters.Keys)
         {
-            var failures = new List<Exception>();
-            foreach (var axis in _axisParameters.Keys)
+            try
             {
-                try
-                {
-                    // Release every reset output even after cancellation or another axis fails.
-                    AjinController.Check(
-                        CAXM.AxmSignalServoAlarmReset(axis, 0),
-                        $"{nameof(CAXM.AxmSignalServoAlarmReset)} (axis={axis}, on=0)");
-                }
-                catch (Exception exception)
-                {
-                    failures.Add(exception);
-                }
+                // Release every reset output even after cancellation or another axis fails.
+                AjinController.Check(
+                    CAXM.AxmSignalServoAlarmReset(axis, 0),
+                    $"{nameof(CAXM.AxmSignalServoAlarmReset)} (axis={axis}, on=0)");
             }
-            if (failures.Count > 0)
+            catch (Exception exception)
             {
-                if (failure is not null)
-                    failures.Insert(0, failure);
-                throw new AggregateException("Failed to release servo alarm reset outputs.", failures);
+                failures.Add(exception);
             }
-            PublishStateChanged();
         }
+        if (failures.Count > 0)
+        {
+            if (failure is not null)
+                failures.Insert(0, failure);
+            throw new AggregateException(UiText.Get("Failed to release servo alarm reset outputs."), failures);
+        }
+        PublishStateChanged();
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
     protected override async Task MoveAsync(
@@ -544,7 +541,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         if (mode != AbsolutePositionMode)
         {
             throw new MotionInterlockException(
-                $"AJIN axis {axis} is not in absolute positioning mode (mode={mode}).");
+                UiText.Format($"AJIN axis {axis} is not in absolute positioning mode (mode={mode})."));
         }
     }
 
@@ -582,7 +579,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
             Stopwatch.GetElapsedTime(requestedAt, returnedAt).TotalMilliseconds,
             Stopwatch.GetElapsedTime(returnedAt, confirmedAt).TotalMilliseconds, stopConfirmed);
         if (failures.Count > 1)
-            throw new MotionException("Stop motion", new AggregateException(failures));
+            throw new MotionException(UiText.Get("Stop motion"), new AggregateException(failures));
     }
 
     protected async Task WaitForStopAsync(int[] axes)
@@ -593,7 +590,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         {
             if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= _options.TimeoutMilliseconds)
                 throw new TimeoutException(
-                    $"Motion did not stop within {_options.TimeoutMilliseconds} ms.");
+                    UiText.Format($"Motion did not stop within {_options.TimeoutMilliseconds} ms."));
             await Task.Delay(s_statusPollInterval).ConfigureAwait(false);
         }
     }
@@ -607,7 +604,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
             var (moving, inPosition, faulted) = ReadMoveState(axes);
             cancellationToken.ThrowIfCancellationRequested();
             if (faulted)
-                throw new MotionInterlockException("Motion stopped by an axis fault.");
+                throw new MotionInterlockException(UiText.Get("Motion stopped by an axis fault."));
             if (!moving && inPosition)
                 return;
 
@@ -617,8 +614,8 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
             {
                 stoppedAt ??= Stopwatch.GetTimestamp();
                 if (Stopwatch.GetElapsedTime(stoppedAt.Value).TotalMilliseconds >= _options.TimeoutMilliseconds)
-                    throw new MotionException("Move", new TimeoutException(
-                        $"In-position feedback was not received within {_options.TimeoutMilliseconds} ms."));
+                    throw new MotionException(UiText.Get("Move"), new TimeoutException(
+                        UiText.Format($"In-position feedback was not received within {_options.TimeoutMilliseconds} ms.")));
             }
 
             await Task.Delay(s_statusPollInterval, cancellationToken).ConfigureAwait(false);
@@ -692,19 +689,19 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
                         continue;
                 }
                 errors.Add(new System.IO.IOException(
-                    $"AJIN {axis} (axis {failure.Axis}) feedback after STOP: {state}.",
+                    UiText.Format($"AJIN {axis} (axis {failure.Axis}) feedback after STOP: {state}."),
                     failure.Error));
             }
             catch (Exception feedbackError)
             {
                 errors.Add(new AggregateException(
-                    $"AJIN axis {failure.Axis} feedback after STOP is unknown.",
+                    UiText.Format($"AJIN axis {failure.Axis} feedback after STOP is unknown."),
                     failure.Error, feedbackError));
             }
         }
 
         if (errors.Count > 0)
-            throw new MotionException("Stop axes", new AggregateException(errors));
+            throw new MotionException(UiText.Get("Stop axes"), new AggregateException(errors));
     }
 
     private double ReadPosition(int axis)
@@ -729,7 +726,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         if (!double.IsFinite(millimeters))
         {
             return (null, new System.IO.IOException(
-                $"Invalid AJIN position (axis={axis}, position={position}, millimeters={millimeters})."));
+                UiText.Format($"Invalid AJIN position (axis={axis}, position={position}, millimeters={millimeters}).")));
         }
 
         return (millimeters, null);
@@ -740,7 +737,7 @@ public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
         if (result == (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS)
             return null;
         return new System.IO.IOException(
-            $"{operation} (axis={axis}) failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
+            UiText.Format($"{operation} (axis={axis}) failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8})."));
     }
 
     private bool DoAxisParametersMatch(

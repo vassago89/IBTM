@@ -164,6 +164,10 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
 
     public bool IsClear => IsRaised && !IsTransferPending;
 
+    public bool IsHorizontalMoveAllowed => IsRaised
+        && Io.GetInput(InputIo.InspectionProbeUp) && !Io.GetInput(InputIo.InspectionProbeDown)
+        && (!_waitingForShuttleDown || _ngConveyor.ShuttleLift == StationCylinderState.Down);
+
     public bool IsAtInspectionPosition
     {
         get
@@ -202,9 +206,6 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                 return true;
             if (!Station.Completed)
                 return false;
-            // A completed carrier still goes to NG if required measurements are missing.
-            if (Station.Assemblies.Any(assembly => assembly.TurnsResult == AssemblyResult.Pending))
-                return true;
             return _units.Inspection
                 && !Station.Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending);
         }
@@ -247,7 +248,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     {
         Station.RequireCurrentJob(job);
         if (!IsAtInspectionPosition || !IsClear)
-            throw new InvalidOperationException("Inspection requires a present carrier, plate DOWN, stopper UP, stopped belt and clear pickup.");
+            throw new InvalidOperationException(UiText.Get("Inspection requires a present carrier, plate DOWN, stopper UP, stopped belt and clear pickup."));
         _inspectionRequestedJob = job;
         NotifyChanged();
     }
@@ -370,7 +371,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                         var pcbBolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => bolt.HeatSink == pcb).ToArray();
                         if (!pcbBolts.Any())
                             throw new InvalidOperationException(
-                                $"{pcb.GetDescription()} has no taught bolts. Complete bolt teaching before inspection.");
+                                UiText.Format($"{UiText.Get(pcb)} has no taught bolts. Complete bolt teaching before inspection."));
                         var reference = _recipes.Current.BoltInspection.GetHeightReference(pcb);
                         if (reference.Point1 is not { } p1 || reference.Point2 is not { } p2 || reference.Point3 is not { } p3)
                             throw new InvalidOperationException(UiText.Get("Teach all three height reference points"));
@@ -399,23 +400,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                         foreach (var bolt in pcbBolts)
                             points.Add((pcb, bolt, InspectionPointKind.Height));
                     }
-                    // Unassigned I/O must fail before XY movement or a measurement request.
-                    _ = Io.GetInput(InputIo.InspectionProbeUp);
-                    _ = Io.GetInput(InputIo.InspectionProbeDown);
-                    _ = Io.GetOutput(OutputIo.InspectionProbeDown);
-                    if (!_measurement.IsOpen
-                        || !string.Equals(_measurement.PortName, _measurementSettings.PortName, StringComparison.OrdinalIgnoreCase)
-                        || _measurement.BaudRate is { } baud && baud != _measurementSettings.BaudRate)
-                    {
-                        await Task.Run(() =>
-                        {
-                            _measurement.Close();
-                            _measurement.Open(_measurementSettings.PortName, _measurementSettings.BaudRate);
-                        }, cancellationToken);
-                    }
-                    _measurement.ResponseTimeout = TimeSpan.FromMilliseconds(_measurementSettings.ResponseTimeoutMilliseconds);
-                    _measurement.CommandFormat = _measurementSettings.CommandFormat;
-                    await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false, cancellationToken);
+                    await PrepareMeasurementAsync(cancellationToken);
                     foreach (var point in points.Where(point => point.Kind == InspectionPointKind.ReferencePlane))
                         Station.GetAssembly(point.Pcb).ClearInspectionResults();
                     _runJob = Station.CurrentJob;
@@ -459,7 +444,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                 case InspectionStationState.CompletingInspection:
                 {
                     EnterStep(state, workId: Station.CurrentJob.Id);
-                    var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
+                    var token = operation?.Token ?? throw new InvalidOperationException(UiText.Get("No inspection work is selected."));
                     var job = _runJob!;
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
@@ -495,7 +480,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                 }
                 case InspectionStationState.FindingFiducials:
                 {
-                    var job = _runJob ?? throw new InvalidOperationException("Inspection has no active carrier job.");
+                    var job = _runJob ?? throw new InvalidOperationException(UiText.Get("Inspection has no active carrier job."));
                     var pcb = InspectionTarget.Pcb!.Value;
                     var token = _inspectionOperation!.Token;
                     var fiducials = _recipes.Current.BoltInspection.GetFiducials(pcb);
@@ -521,7 +506,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     {
                         token.ThrowIfCancellationRequested();
                         Station.RequireCurrentJob(job);
-                        var error = $"{markName}: {exception.Message}";
+                        var error = $"{markName}: {UiText.Get(exception)}";
                         Station.GetAssembly(job, pcb).RecordFiducialFailure(error, _gantrySettings.ExcludeFiducialFromNg);
                         _log?.LogWarning("Fiducials {Pcb} failed: {Error}. Continuing at taught coordinates; excluded from NG={Excluded}.",
                             pcb, error, _gantrySettings.ExcludeFiducialFromNg);
@@ -533,8 +518,8 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                 case InspectionStationState.MeasuringHeight:
                 {
                     var target = InspectionTarget;
-                    var pcb = target.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
-                    var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
+                    var pcb = target.Pcb ?? throw new InvalidOperationException(UiText.Get("No inspection target is selected."));
+                    var token = operation?.Token ?? throw new InvalidOperationException(UiText.Get("No inspection work is selected."));
                     var job = _runJob!;
                     Station.RequireCurrentJob(job);
                     var assembly = Station.GetAssembly(job, pcb);
@@ -578,11 +563,11 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                 case InspectionStationState.InspectingPoint:
                 {
                     var target = InspectionTarget;
-                    var pcb = target.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
+                    var pcb = target.Pcb ?? throw new InvalidOperationException(UiText.Get("No inspection target is selected."));
                     var bolt = target.Bolt;
                     var pointName = bolt is null ? "Data Matrix" : $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}";
                     EnterStep(state, $"{pcb.GetDescription()} / {pointName}", Station.CurrentJob.Id);
-                    var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
+                    var token = operation?.Token ?? throw new InvalidOperationException(UiText.Get("No inspection work is selected."));
                     var job = _runJob!;
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
@@ -611,7 +596,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             && !cancellationToken.IsCancellationRequested)
         {
             throw new MotionInterlockException(
-                "Inspection carrier feedback changed during inspection. Check the PCB presence and supports before restarting.");
+                UiText.Get("Inspection carrier feedback changed during inspection. Check the PCB presence and supports before restarting."));
         }
     }
 
@@ -650,7 +635,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     {
         cancellationToken.ThrowIfCancellationRequested();
         var position = _settings.WaitingPosition
-            ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
+            ?? throw new InvalidOperationException(UiText.Get("Record Inspection Waiting X/Y before moving to the inspection waiting position."));
         await MoveToAsync(position, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (_waitingForShuttleDown)
@@ -680,7 +665,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             {
                 EnterStep(state, nameof(NgTransferDestination.Shuttle));
                 if (IsTransferPending)
-                    throw new InvalidOperationException("Finish the pending NG transfer before picking another carrier.");
+                    throw new InvalidOperationException(UiText.Get("Finish the pending NG transfer before picking another carrier."));
                 await SetLiftUpAsync(true, cancellationToken);
                 await SetGripperOpenAsync(true, cancellationToken);
                 await MoveToCarrierAsync(NgTransferDestination.Station, cancellationToken);
@@ -714,7 +699,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     carrying.Token.ThrowIfCancellationRequested();
                     // A stopped, lowered release is not resumed by guessing its XY location.
                     if (!IsRaised)
-                        throw new InvalidOperationException("Raise the gripped NG carrier before transferring it.");
+                        throw new InvalidOperationException(UiText.Get("Raise the gripped NG carrier before transferring it."));
                     await MoveToAsync(_settings.ShuttlePlacePosition, cancellationToken: carrying.Token);
                     carrying.Token.ThrowIfCancellationRequested();
                     // Keep the closed gripper while waiting for the receiving support.
@@ -728,11 +713,11 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     carrying.Token.ThrowIfCancellationRequested();
                     if (!IsSupportReady(NgTransferDestination.Shuttle) || Lift != StationCylinderState.Down
                         || !Io.GetInput(InputIo.NgShuttleCarrierDetected))
-                        throw new InvalidOperationException("Confirm the destination supports the pending NG carrier before releasing it.");
+                        throw new InvalidOperationException(UiText.Get("Confirm the destination supports the pending NG carrier before releasing it."));
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                    throw new InvalidOperationException("NG transfer lost confirmed grip while carrying or lowering the carrier.");
+                    throw new InvalidOperationException(UiText.Get("NG transfer lost confirmed grip while carrying or lowering the carrier."));
                 }
                 finally
                 {
@@ -753,7 +738,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                         + $"pickup={Lift}, gripper={Gripper}, pending={IsTransferPending}");
                 return false;
             default:
-                throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported inspection transfer step.");
+                throw new ArgumentOutOfRangeException(nameof(state), state, UiText.Get("Unsupported inspection transfer step."));
         }
         return true;
     }
@@ -761,7 +746,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     public async Task SeatStationAsync(CancellationToken cancellationToken)
     {
         var position = _settings.CarrierPickupPosition
-            ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before raising the inspection backup plate.");
+            ?? throw new InvalidOperationException(UiText.Get("Record Carrier Pickup (S3) X/Y before raising the inspection backup plate."));
         // This awaited sequence owns XY until the plate finishes rising.
         // Do not infer permission to raise the plate from a coordinate comparison.
         await MoveToAsync(position, cancellationToken: cancellationToken);
@@ -781,7 +766,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (up && IsTransferPending && Gripper != NgTransferGripperState.Closed)
-            throw new MotionInterlockException("Confirm the NG gripper is closed before raising the pending transfer.");
+            throw new MotionInterlockException(UiText.Get("Confirm the NG gripper is closed before raising the pending transfer."));
         return Io.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, !up, cancellationToken);
     }
 
@@ -811,7 +796,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         cancellationToken.ThrowIfCancellationRequested();
         var position = (source == NgTransferDestination.Station
             ? _settings.CarrierPickupPosition : _settings.ShuttlePlacePosition)
-            ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to a carrier.");
+            ?? throw new InvalidOperationException(UiText.Get("Record Carrier Pickup (S3) X/Y before moving to a carrier."));
         await MoveToAsync(position, cancellationToken: cancellationToken);
     }
 
@@ -848,17 +833,17 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             throw new MotionInterlockException(UiText.Get("Raise the inspection probe before XY movement"));
         if (!IsRaised)
         {
-            throw new MotionInterlockException("NG carrier pickup must be raised before inspection XY movement.");
+            throw new MotionInterlockException(UiText.Get("NG carrier pickup must be raised before inspection XY movement."));
         }
         if (_waitingForShuttleDown && _ngConveyor.ShuttleLift != StationCylinderState.Down)
         {
-            throw new MotionInterlockException("Wait for the NG shuttle to finish lowering after carrier release before inspection XY movement.");
+            throw new MotionInterlockException(UiText.Get("Wait for the NG shuttle to finish lowering after carrier release before inspection XY movement."));
         }
     }
 
     public event Action? LiveViewChanged;
 
-    internal async Task<FiducialObservation> FindFiducialAsync(FiducialMark mark, CancellationToken cancellationToken)
+    public async Task<FiducialObservation> FindFiducialAsync(FiducialMark mark, CancellationToken cancellationToken)
     {
         await MoveToAsync(mark.CameraPosition!, cancellationToken: cancellationToken);
         var image = await CaptureCurrentAsync(cancellationToken, lightLevel: mark.LightLevel ?? _recipes.Current.BoltInspection.LightLevel);
@@ -872,7 +857,28 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         return new(reference, measured, detection.ShapeError);
     }
 
-    internal async Task<HeightSample> MeasureHeightAtAsync(AxisPosition cameraPosition, CancellationToken cancellationToken)
+    public async Task PrepareMeasurementAsync(CancellationToken cancellationToken)
+    {
+        // Unassigned I/O must fail before XY movement or a measurement request.
+        _ = Io.GetInput(InputIo.InspectionProbeUp);
+        _ = Io.GetInput(InputIo.InspectionProbeDown);
+        _ = Io.GetOutput(OutputIo.InspectionProbeDown);
+        if (!_measurement.IsOpen
+            || !string.Equals(_measurement.PortName, _measurementSettings.PortName, StringComparison.OrdinalIgnoreCase)
+            || _measurement.BaudRate is { } baud && baud != _measurementSettings.BaudRate)
+        {
+            await Task.Run(() =>
+            {
+                _measurement.Close();
+                _measurement.Open(_measurementSettings.PortName, _measurementSettings.BaudRate);
+            }, cancellationToken);
+        }
+        _measurement.ResponseTimeout = TimeSpan.FromMilliseconds(_measurementSettings.ResponseTimeoutMilliseconds);
+        _measurement.CommandFormat = _measurementSettings.CommandFormat;
+        await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false, cancellationToken);
+    }
+
+    public async Task<HeightSample> MeasureHeightAtAsync(AxisPosition cameraPosition, CancellationToken cancellationToken)
     {
         var position = new AxisPosition
         {
@@ -916,42 +922,39 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await Task.Run(InitializeVision, cancellationToken).ConfigureAwait(false);
+            await Task.Run(() =>
+            {
+                // Restore each connection; camera initialization leaves acquisition stopped.
+                Exception? failure = null;
+                try
+                {
+                    _camera.Initialize();
+                }
+                catch (Exception exception)
+                {
+                    failure = exception;
+                }
+
+                try
+                {
+                    _light.Initialize();
+                    _light.TurnOffAll();
+                    _lightChannel = null;
+                }
+                catch (Exception exception)
+                {
+                    failure = failure is null ? exception : new AggregateException(failure, exception);
+                }
+
+                LiveViewError = failure;
+                if (failure is not null)
+                    ExceptionDispatchInfo.Throw(failure);
+            }, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             _visionGate.Release();
         }
-    }
-
-    private void InitializeVision()
-    {
-        // Recovery does not require a successful OFF on a disconnected device.
-        // Each driver first restores its connection; camera initialization leaves acquisition stopped.
-        Exception? failure = null;
-        try
-        {
-            _camera.Initialize();
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-        }
-
-        try
-        {
-            _light.Initialize();
-            _light.TurnOffAll();
-            _lightChannel = null;
-        }
-        catch (Exception exception)
-        {
-            failure = failure is null ? exception : new AggregateException(failure, exception);
-        }
-
-        LiveViewError = failure;
-        if (failure is not null)
-            ExceptionDispatchInfo.Throw(failure);
     }
 
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
@@ -965,7 +968,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     {
         var fov = _recipes.Current.CarrierImages.SingleOrDefault(item => item.IsForTarget(pcb, boltId: null));
         if (fov is null)
-            throw new InvalidOperationException($"Record a position for {pcb.GetDescription()} Data Matrix.");
+            throw new InvalidOperationException(UiText.Format($"Record a position for {UiText.Get(pcb)} Data Matrix."));
         return fov;
     }
 
@@ -995,7 +998,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     internal async Task<InspectionCapture> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken, PcbAlignment? alignment = null)
     {
         if (!HasBarcodeRegion(pcb))
-            throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
+            throw new InvalidOperationException(UiText.Format($"Teach a FOV and ROI for {UiText.Get(pcb)} Data Matrix."));
         var fov = GetBarcodeFov(pcb);
         var position = _recipes.Current.GetInspectionPosition(fov);
         await MoveToAsync(alignment?.Transform(position) ?? position, cancellationToken: cancellationToken);
@@ -1025,7 +1028,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     public Task MoveToBoltAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
         var position = point.InspectionPosition ?? throw new InvalidOperationException(
-            $"Record an inspection position for {point.HeatSink.GetDescription()} bolt {point.Id}.");
+            UiText.Format($"Record an inspection position for {UiText.Get(point.HeatSink)} bolt {point.Id}."));
         return MoveToAsync(position, cancellationToken: cancellationToken);
     }
 
@@ -1081,7 +1084,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     if (_motion.IsMoving
                         || !_motion.GetAxisState(MotionAxis.X).InPosition
                         || !_motion.GetAxisState(MotionAxis.Y).InPosition)
-                        throw new InvalidOperationException("Stop jogging before adding a map image.");
+                        throw new InvalidOperationException(UiText.Get("Stop jogging before adding a map image."));
 
                     var position = _motion.Position;
                     var center = new AxisPosition { X = position.X, Y = position.Y };

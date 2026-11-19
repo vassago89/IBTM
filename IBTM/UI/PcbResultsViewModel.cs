@@ -84,7 +84,9 @@ public partial class PcbResultsViewModel : ObservableObject
             return;
         LoadCurvesCommand.Cancel();
         CurveLoadError = null;
-        if (oldValue?.Number != newValue?.Number || oldValue?.DatabaseFile != newValue?.DatabaseFile)
+        var recordChanged = oldValue?.Number != newValue?.Number
+            || oldValue?.DatabaseFile != newValue?.DatabaseFile;
+        if (recordChanged)
         {
             SelectedBolt = null;
             SelectedHeight = null;
@@ -93,13 +95,10 @@ public partial class PcbResultsViewModel : ObservableObject
             ExportMessage = null;
             Images = [];
             SelectedImage = null;
-            RefreshResults();
+        }
+        RefreshResults();
+        if (recordChanged)
             _ = LoadImagesCommand.ExecuteAsync(null);
-        }
-        else
-        {
-            RefreshResults();
-        }
         if (newValue is { IsCurveDataLoaded: false })
             _ = LoadCurvesCommand.ExecuteAsync(null);
     }
@@ -120,8 +119,9 @@ public partial class PcbResultsViewModel : ObservableObject
                 HeightResults.Insert(index, new(height.Key, ordinal, label, height.Value));
             else
             {
-                if (HeightResults.IndexOf(row) != index)
-                    HeightResults.Move(HeightResults.IndexOf(row), index);
+                var previousIndex = HeightResults.IndexOf(row);
+                if (previousIndex != index)
+                    HeightResults.Move(previousIndex, index);
                 row.Result = height.Value;
                 row.BoltLabel = label;
             }
@@ -147,8 +147,9 @@ public partial class PcbResultsViewModel : ObservableObject
             }
             else
             {
-                if (BoltResults.IndexOf(row) != index)
-                    BoltResults.Move(BoltResults.IndexOf(row), index);
+                var previousIndex = BoltResults.IndexOf(row);
+                if (previousIndex != index)
+                    BoltResults.Move(previousIndex, index);
                 row.Result = result.Value;
                 row.Recipe = recipe;
             }
@@ -175,8 +176,9 @@ public partial class PcbResultsViewModel : ObservableObject
             }
             else
             {
-                if (BoltStages.IndexOf(row) != index)
-                    BoltStages.Move(BoltStages.IndexOf(row), index);
+                var previousIndex = BoltStages.IndexOf(row);
+                if (previousIndex != index)
+                    BoltStages.Move(previousIndex, index);
                 row.Result = stage.Result;
                 row.Recipe = stage.Recipe;
             }
@@ -265,14 +267,13 @@ public partial class PcbResultsViewModel : ObservableObject
             if (record.IsDataMatrixNgExcluded)
                 AppendRow(UiText.Get("Data Matrix"), UiText.Get("Excluded from NG"));
             AppendRow(UiText.Get("Bolt fastening"), UiText.Get(record.FasteningResult));
-            AppendRow(UiText.Get("Turns result"), record.TurnsResult is { } turns ? UiText.Get(turns) : UiText.Get("Not set"));
             AppendRow(UiText.Get("Torque (controller unit)"));
             AppendRow(UiText.Get("Blank = not recorded"));
             csv.AppendLine();
             AppendRow(UiText.Get("Bolt results"));
             AppendRow(UiText.Get("No."), UiText.Get("Bolt name"), UiText.Get("Fastening type"),
                 UiText.Get("Stage"), UiText.Get("Fasten"), UiText.Get("Combined turns"),
-                UiText.Get("Minimum turns"), UiText.Get("Maximum turns"), UiText.Get("Turns result"), UiText.Get("Torque"),
+                UiText.Get("Torque"),
                 UiText.Get("Target torque"), UiText.Get("Target speed (rpm)"), UiText.Get("Time (ms)"),
                 UiText.Get("Angle A3 (°)"), UiText.Get("Recorded at"), UiText.Get("Result source"),
                 UiText.Get("Error code"), UiText.Get("Error / message"), UiText.Get("Z feed distance (mm)"));
@@ -283,7 +284,7 @@ public partial class PcbResultsViewModel : ObservableObject
                 var controller = result.Controller;
                 AppendRow(++number, bolt.BoltLabel, bolt.HeadLabel, UiText.Get(result.Stage), bolt.Verdict,
                     result.TotalTurns,
-                    result.MinimumTurns, result.MaximumTurns, bolt.TurnsVerdict, result.CompensatedTorque,
+                    result.CompensatedTorque,
                     controller?.CompensatedTargetTorque, controller?.TargetSpeedRpm, controller?.FasteningTimeMilliseconds,
                     controller?.Angle3, result.RecordedAt, UiText.Get(result.Source), controller?.ErrorCode,
                     string.Join(" ", new[] { result.Error, controller?.ErrorCode > 0 ? bolt.ControllerErrorDescription : null }
@@ -376,7 +377,7 @@ public partial class PcbResultsViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            ExportMessage = UiText.Format($"CSV export failed: {exception.Message}");
+            ExportMessage = UiText.Format($"CSV export failed: {UiText.Get(exception)}");
             _log.LogError(exception, "PCB {Number} CSV export failed.", record.Number);
         }
     }
@@ -400,7 +401,7 @@ public partial class PcbResultsViewModel : ObservableObject
         {
             if (cancellationToken.IsCancellationRequested || !ReferenceEquals(Record, record))
                 return;
-            CurveLoadError = exception.Message;
+            CurveLoadError = UiText.Get(exception);
             _log.LogError(exception, "PCB {Number} graph history load failed.", record?.Number);
         }
         finally
@@ -445,7 +446,7 @@ public partial class PcbResultsViewModel : ObservableObject
         {
             if (cancellationToken.IsCancellationRequested)
                 return;
-            ImageError = UiText.Format($"Inspection images could not be loaded: {exception.Message}");
+            ImageError = UiText.Format($"Inspection images could not be loaded: {UiText.Get(exception)}");
             _log.LogError(exception, "PCB {Number} image history load failed.", record?.Number);
         }
         finally
@@ -475,7 +476,7 @@ public sealed partial class PcbBoltResultView : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HeadLabel), nameof(Title), nameof(Verdict), nameof(StageVerdict),
-        nameof(TurnsVerdict), nameof(ControllerStatus), nameof(Direction), nameof(ControllerErrorDescription), nameof(RegisterText))]
+        nameof(ControllerStatus), nameof(Direction), nameof(ControllerErrorDescription), nameof(RegisterText))]
     public partial BoltResult Result { get; set; }
 
     public Recipe? Recipe
@@ -513,26 +514,6 @@ public sealed partial class PcbBoltResultView : ObservableObject
             if (Result.PreviousFinalResult is { } previousFinal)
                 yield return new(BoltId, Ordinal, Head, previousFinal, Recipe);
             yield return this;
-        }
-    }
-
-    public string TurnsVerdict
-    {
-        get
-        {
-            if (Result.Stage == BoltFasteningStage.Preliminary)
-                return "—";
-            switch (Result.TurnsResult)
-            {
-                case AssemblyResult.Ok:
-                    return "OK";
-                case AssemblyResult.Ng:
-                    return "NG";
-                case AssemblyResult.Pending:
-                    return UiText.Get(Result.IsComplete ? "No data" : "Pending");
-                default:
-                    return UiText.Get("Not set");
-            }
         }
     }
 

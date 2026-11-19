@@ -86,13 +86,9 @@ public sealed class InspectionTests
     }
 
     [Theory]
-    [InlineData(null, null, false, false)]
-    [InlineData(10.0, null, false, true)]
-    [InlineData(null, 10.0, false, true)]
-    [InlineData(null, null, true, true)]
-    [InlineData(10.0, 15.0, true, true)]
-    public void CompletedInspectionRoutesDryRunAndMissingRequiredMeasurementsToNg(
-        double? minimumTurns, double? maximumTurns, bool dryRun, bool routeToNg)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CompletedInspectionRoutesDryRunToNg(bool dryRun)
     {
         var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new InspectionGantryHardwareSettings()), new());
         io.Initialize();
@@ -101,20 +97,15 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         var assembly = station.Station.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordBolt(FasteningHead.Pickup, Guid.NewGuid(), new(true, null,
-            dryRun ? BoltResultSource.DryRun : BoltResultSource.Controller)
-        {
-            MinimumTurns = minimumTurns,
-            MaximumTurns = maximumTurns,
-        });
+            dryRun ? BoltResultSource.DryRun : BoltResultSource.Controller));
         assembly.CompleteFastening();
         assembly.CompleteInspection();
         station.Station.Complete(station.Station.CurrentJob);
 
-        Assert.Equal(minimumTurns.HasValue || maximumTurns.HasValue ? AssemblyResult.Pending : null, assembly.TurnsResult);
         Assert.Equal(dryRun ? AssemblyResult.Ng : AssemblyResult.Ok, assembly.FasteningResult);
         if (dryRun)
             Assert.Equal(AssemblyResult.Ng, assembly.Result);
-        Assert.Equal(routeToNg, station.RouteToNg);
+        Assert.Equal(dryRun, station.RouteToNg);
     }
 
     [Fact]

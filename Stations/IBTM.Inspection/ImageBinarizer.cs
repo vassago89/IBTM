@@ -8,12 +8,12 @@ public static class ImageBinarizer
     public static ImageFrame Binarize(ImageFrame image, PixelRegion region, int threshold)
     {
         if (threshold < 0 || threshold > 255)
-            throw new ArgumentOutOfRangeException(nameof(threshold), "Use a brightness threshold from 0 to 255.");
+            throw new ArgumentOutOfRangeException(nameof(threshold), UiText.Get("Use a brightness threshold from 0 to 255."));
         if (!region.IsInside(image.Width, image.Height))
-            throw new ArgumentOutOfRangeException(nameof(region), "ROI must fit within the image.");
+            throw new ArgumentOutOfRangeException(nameof(region), UiText.Get("ROI must fit within the image."));
         if (image.Stride < (long)image.Width * ImageFrame.ColorChannelCount
             || image.Pixels.LongLength < (long)image.Stride * image.Height)
-            throw new ArgumentException("The image does not contain complete BGR rows.", nameof(image));
+            throw new ArgumentException(UiText.Get("The image does not contain complete BGR rows."), nameof(image));
 
         var stride = checked(region.Width * ImageFrame.ColorChannelCount);
         var pixels = new byte[checked(stride * region.Height)];
