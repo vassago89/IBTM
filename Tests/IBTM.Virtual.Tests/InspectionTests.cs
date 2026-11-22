@@ -11,6 +11,7 @@ using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.Storage;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTestSupport;
 
@@ -265,8 +266,8 @@ public sealed class InspectionTests
             try
             {
                 secondStop.CancelAfter(TimeSpan.FromSeconds(8));
-                var error = await Assert.ThrowsAsync<SqliteException>(() => station.RunAsync(secondStop.Token));
-                Assert.Contains("count save failed", error.Message);
+                var error = await Assert.ThrowsAsync<DbUpdateException>(() => station.RunAsync(secondStop.Token));
+                Assert.Contains("count save failed", error.GetBaseException().Message);
                 Assert.False(work.Completed);
                 Assert.False(station.IsTransferAllowed);
                 Assert.Null(work.LastCycleSeconds);

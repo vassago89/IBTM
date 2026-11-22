@@ -1216,6 +1216,11 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnInspectionChanged()
     {
+        if (Inspection.Step is InspectionStationState.FindingFiducials)
+        {
+            InspectionImage = null;
+            InspectionImageCaption = null;
+        }
         OnPropertyChanged(nameof(StartBlockMessages));
         if (!_active)
             return;

@@ -12,4 +12,7 @@ public sealed record PcbInspectionImage(
     string? Barcode,
     [property: JsonIgnore] byte[] Png,
     int? Threshold = null,
-    bool? Dilated = null);
+    bool? Dilated = null)
+{
+    public int InspectionPass { get; init; }
+}

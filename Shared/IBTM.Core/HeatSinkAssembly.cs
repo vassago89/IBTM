@@ -88,6 +88,7 @@ public sealed class HeatSinkAssembly
 
     public AssemblyResult FasteningResult { get; private set; }
     public AssemblyResult InspectionResult { get; private set; }
+    public int InspectionPass { get; private set; }
     // Pending is untested; assigning a null barcode records a failed read.
     public AssemblyResult PcbBarcodeResult { get; private set; }
     // Inspection policy applied to this read; later setting changes do not rewrite its verdict.
@@ -180,6 +181,7 @@ public sealed class HeatSinkAssembly
 
     public void ClearInspectionResults()
     {
+        InspectionPass++;
         _heightResults.Clear();
         HeightReference = null;
         Alignment = null;

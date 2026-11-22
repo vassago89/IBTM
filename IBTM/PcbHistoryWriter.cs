@@ -67,6 +67,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
             assembly.ShootingBoltResults.ToDictionary(), assembly.PickupBoltResults.ToDictionary(),
             recipe.Pcb.BoltPoints.Where(point => point.HeatSink == assembly.HeatSink).Select(bolt => bolt.Id).ToArray())
         {
+            InspectionPass = assembly.InspectionPass,
             IsDataMatrixNgExcluded = assembly.IsDataMatrixNgExcluded,
             HeightReference = assembly.HeightReference,
             Alignment = assembly.Alignment,
@@ -86,6 +87,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
             var record = initial with
             {
                 UpdatedAt = DateTimeOffset.Now,
+                InspectionPass = source.InspectionPass,
                 PcbBarcode = source.PcbBarcode,
                 PcbBarcodeResult = source.PcbBarcodeResult,
                 IsDataMatrixNgExcluded = source.IsDataMatrixNgExcluded,
@@ -106,7 +108,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
         {
             // The camera/preview can reuse its buffer after this callback returns.
             var copy = capture with { Frame = capture.Frame with { Pixels = (byte[])capture.Frame.Pixels.Clone() } };
-            Enqueue(new(assembly, directory, initial, copy));
+            Enqueue(new(assembly, directory, initial with { InspectionPass = assembly.InspectionPass }, copy));
         }
 
         void QueueInspectionClear(HeatSinkAssembly source)
@@ -145,7 +147,6 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                 if (write.ClearInspectionImages)
                 {
                     _store.DeletePcbImages(file, number);
-                    ImageSaved?.Invoke(file, number);
                 }
                 else if (write.Capture is { } capture)
                 {
@@ -155,7 +156,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
                     encoder.Save(output);
                     var image = new PcbInspectionImage(capture.BoltId, capture.CapturedAt, capture.Region,
                         capture.Success, capture.Barcode, output.ToArray(),
-                        capture.Threshold, capture.Dilated);
+                        capture.Threshold, capture.Dilated) { InspectionPass = write.Record.InspectionPass };
                     _store.SavePcbImage(file, number, image);
                     ImageSaved?.Invoke(file, number);
                 }

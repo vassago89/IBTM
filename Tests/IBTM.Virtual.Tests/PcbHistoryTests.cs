@@ -13,6 +13,7 @@ using IBTM.PcbPlacement;
 using IBTM.Storage;
 using IBTM.UI;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -71,6 +72,65 @@ public sealed class PcbHistoryTests
         Assert.Equal(AssemblyResult.Ok, reinspected.Result);
         Assert.Equal("Fiducial 2: not found", loaded.FiducialError);
         Assert.Equal(excludeFromNg, loaded.IsFiducialNgExcluded);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReinspectionKeepsFasteningNgAndShowsOnlyCurrentPhotos(bool failImageDelete)
+    {
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
+        var history = services.GetRequiredService<PcbHistoryWriter>();
+        var store = services.GetRequiredService<MachineStore>();
+        var directory = store.DatabaseFile + ".results";
+        services.GetRequiredService<MachineSettings>().PcbHistory.Directory = directory;
+        var station = services.GetRequiredService<InspectionStation>().Station;
+        var pcb = station.GetAssembly(HeatSinkSlot.HeatSink1);
+        var other = station.GetAssembly(HeatSinkSlot.HeatSink2);
+        var bolt = VirtualTestSupport.BoltId(1);
+        var curve = new AdcTorqueCurve(1, 30, [1, 2], 60, 2, 2, 1, 0);
+        pcb.IsPlacementCompleted = true;
+        pcb.RecordBolt(FasteningHead.Pickup, bolt, new(false, 2) { TorqueCurve = curve });
+        pcb.CompleteFastening();
+        pcb.PcbBarcode = "FIRST";
+        pcb.CompleteInspection();
+        var photo = new InspectionCapture(null, DateTimeOffset.Now, new(1, 1, 3, [0, 0, 0]), null, null);
+        pcb.RecordInspectionCapture(photo);
+        pcb.RecordInspectionCapture(photo with { BoltId = bolt });
+        other.RecordInspectionCapture(photo);
+        await history.FlushAsync();
+        var before = store.LoadPcbs(directory).Single(row => row.Number == pcb.PcbNumber);
+        if (failImageDelete)
+        {
+            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = before.DatabaseFile }.ToString());
+            connection.Open();
+            using var block = connection.CreateCommand();
+            block.CommandText = "CREATE TRIGGER block_image_delete BEFORE DELETE ON PcbImages BEGIN SELECT RAISE(ABORT, 'delete failed'); END";
+            block.ExecuteNonQuery();
+        }
+
+        pcb.ClearInspectionResults();
+        await history.FlushAsync();
+        var current = store.LoadPcb(before);
+        Assert.True(pcb.IsPlacementCompleted);
+        Assert.Null(current.PcbBarcode);
+        Assert.Equal(AssemblyResult.Pending, current.InspectionResult);
+        Assert.Equal(AssemblyResult.Ng, current.Result);
+        Assert.Empty(store.LoadPcbImages(current));
+        Assert.Equal(failImageDelete ? 2 : 0, store.LoadPcbImages(before).Count);
+        Assert.Equal(failImageDelete, history.SaveError is not null);
+
+        pcb.RecordInspectionCapture(photo with { BoltId = bolt });
+        pcb.CompleteInspection();
+        await history.FlushAsync();
+        current = store.LoadPcb(before);
+        Assert.Equal(AssemblyResult.Ok, current.InspectionResult);
+        Assert.Equal(AssemblyResult.Ng, current.FasteningResult);
+        Assert.Equal(AssemblyResult.Ng, current.Result);
+        Assert.Equal(curve.Torques, current.PickupBoltResults[bolt].TorqueCurve!.Torques);
+        Assert.Equal(bolt, Assert.Single(store.LoadPcbImages(current)).BoltId);
+        var unchanged = store.LoadPcbs(directory).Single(row => row.Number == other.PcbNumber);
+        Assert.Null(Assert.Single(store.LoadPcbImages(unchanged)).BoltId);
     }
 
     [Fact]
@@ -300,7 +360,8 @@ public sealed class PcbHistoryTests
             BEGIN SELECT RAISE(ABORT, 'Graph write failed'); END;
             """;
         query.ExecuteNonQuery();
-        Assert.Throws<SqliteException>(() => store.SavePcb(file, record with { PcbBarcode = "CHANGED" }));
+        var failure = Assert.Throws<DbUpdateException>(() => store.SavePcb(file, record with { PcbBarcode = "CHANGED" }));
+        Assert.Contains("Graph write failed", failure.GetBaseException().Message);
         var restored = store.LoadPcb(summary);
         Assert.Equal("ORIGINAL", restored.PcbBarcode);
         Assert.Equal(shooting.TorqueCurve.Torques, restored.ShootingBoltResults[boltId].TorqueCurve!.Torques);
@@ -322,7 +383,8 @@ public sealed class PcbHistoryTests
         query.CommandText = "SELECT COUNT(*) FROM PcbBoltCurves WHERE PcbNumber=2";
         Assert.Equal(2L, query.ExecuteScalar());
         var image = new PcbInspectionImage(boltId, record.CreatedAt, new(0, 0, 1, 1), true, null, [1]);
-        Assert.Throws<SqliteException>(() => store.SavePcbImage(file, 999, image));
+        var orphan = Assert.Throws<DbUpdateException>(() => store.SavePcbImage(file, 999, image));
+        Assert.Equal(787, Assert.IsType<SqliteException>(orphan.InnerException).SqliteExtendedErrorCode);
         store.SavePcbImage(file, 2, image);
         query.CommandText = "DELETE FROM Pcbs WHERE Number=2";
         query.ExecuteNonQuery();
@@ -888,8 +950,9 @@ public sealed class PcbHistoryTests
 
         store = new(store.DatabaseFile);
         Assert.Equal(1, store.NextPcbNumber(settings.Directory));
+        var secondWriter = new MachineStore(store.DatabaseFile);
         var numbers = await Task.WhenAll(Enumerable.Range(0, 8)
-            .Select(_ => Task.Run(() => store.NextPcbNumber(settings.Directory))));
+            .Select(index => Task.Run(() => (index % 2 == 0 ? store : secondWriter).NextPcbNumber(settings.Directory))));
         Assert.Equal(Enumerable.Range(2, 8).Select(number => (long)number), numbers.Order());
         var reopened = new MachineStore(store.DatabaseFile);
         Assert.Equal(10, reopened.NextPcbNumber(settings.Directory));
@@ -900,6 +963,42 @@ public sealed class PcbHistoryTests
         using var query = db.CreateCommand();
         query.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='Pcbs'";
         Assert.Equal(0L, query.ExecuteScalar()); // Main DB holds only the counter, not results.
+    }
+
+    [Fact]
+    public void EarlierMonthlyFileKeepsBoltResultsAndPhotosWhenGraphTablesAreAdded()
+    {
+        var store = VirtualTestSupport.OpenMachineStore();
+        var directory = store.DatabaseFile + ".results";
+        var file = Path.Combine(directory, "PCB-2026-09.db");
+        var boltId = VirtualTestSupport.BoltId(1);
+        var created = DateTimeOffset.Now;
+        var record = new PcbRecord(1, created, created, "Default", HeatSinkSlot.HeatSink1, null,
+            AssemblyResult.Pending, AssemblyResult.Ok, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult> { [boltId] = new(true, 8) }, new Dictionary<Guid, BoltResult>(), [boltId]);
+        store.SavePcb(file, record);
+        store.SavePcbImage(file, record.Number, new(boltId, created, null, null, null, [1, 2]));
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = file }.ToString());
+        connection.Open();
+        using var fixture = connection.CreateCommand();
+        fixture.CommandText = """
+            DROP TABLE PcbBoltCurves;
+            DROP TABLE PcbHeightCurves;
+            UPDATE Pcbs SET Value = replace(Value, '"ShootingBoltResults":', '"PcbBoltResults":');
+            """;
+        fixture.ExecuteNonQuery();
+
+        var summary = Assert.Single(store.LoadPcbs(directory));
+        var loaded = store.LoadPcb(summary);
+        Assert.Equal(8, loaded.ShootingBoltResults[boltId].Torque);
+        Assert.Null(loaded.ShootingBoltResults[boltId].TorqueCurve);
+        var curve = new AdcTorqueCurve(1, 5, [0, 8], 10, 8, 8, 1, 0);
+        store.SavePcb(file, loaded with
+        {
+            ShootingBoltResults = new Dictionary<Guid, BoltResult> { [boltId] = loaded.ShootingBoltResults[boltId] with { TorqueCurve = curve } },
+        });
+        Assert.Equal(curve.Torques, store.LoadPcb(summary).ShootingBoltResults[boltId].TorqueCurve!.Torques);
+        Assert.Equal(new byte[] { 1, 2 }, Assert.Single(store.LoadPcbImages(loaded)).Png);
     }
 
     [Fact]

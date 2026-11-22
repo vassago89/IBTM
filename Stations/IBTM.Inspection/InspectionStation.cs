@@ -389,8 +389,6 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                             points.Add((pcb, bolt, InspectionPointKind.Height));
                     }
                     await PrepareMeasurementAsync(cancellationToken);
-                    foreach (var point in points.Where(point => point.Kind == InspectionPointKind.ReferencePlane))
-                        Station.GetAssembly(point.Pcb).ClearInspectionResults();
                     _runJob = Station.CurrentJob;
                     _runPoints = points.ToArray();
                     _inspectionOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -471,6 +469,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
                     var job = _runJob ?? throw new InvalidOperationException(UiText.Get("Inspection has no active carrier job."));
                     var pcb = InspectionTarget.Pcb!.Value;
                     var token = _inspectionOperation!.Token;
+                    Station.GetAssembly(job, pcb).ClearInspectionResults();
                     string? markName = null;
                     try
                     {

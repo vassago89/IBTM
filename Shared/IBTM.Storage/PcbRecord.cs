@@ -19,6 +19,7 @@ public sealed record PcbRecord(
     IReadOnlyDictionary<Guid, BoltResult> PickupBoltResults,
     IReadOnlyList<Guid> BoltIds)
 {
+    public int InspectionPass { get; init; }
     public bool IsDataMatrixNgExcluded { get; init; }
     public PcbAlignment? Alignment { get; init; }
     public string? FiducialError { get; init; }

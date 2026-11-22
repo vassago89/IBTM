@@ -14,6 +14,9 @@ internal sealed class MachineDbContext : DbContext
 
     internal DbSet<RecipeImageRow> RecipeImages => Set<RecipeImageRow>();
 
+    internal DbSet<ProductionCountRow> ProductionCounts => Set<ProductionCountRow>();
+    internal DbSet<PcbCounterRow> PcbCounter => Set<PcbCounterRow>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<SettingRow>().HasKey(row => row.Key);
@@ -35,7 +38,6 @@ internal sealed class MachineDbContext : DbContext
         counter.HasData(new PcbCounterRow { Id = 1, Number = 0 });
 
         var counts = modelBuilder.Entity<ProductionCountRow>();
-        counts.ToTable("ProductionCounts");
         counts.HasKey(row => row.RecipeName);
         counts.Property(row => row.RecipeName).UseCollation("NOCASE");
     }

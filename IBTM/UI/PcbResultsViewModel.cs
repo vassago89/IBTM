@@ -86,6 +86,7 @@ public partial class PcbResultsViewModel : ObservableObject
         CurveLoadError = null;
         var recordChanged = oldValue?.Number != newValue?.Number
             || oldValue?.DatabaseFile != newValue?.DatabaseFile;
+        var imagesChanged = recordChanged || oldValue?.InspectionPass != newValue?.InspectionPass;
         if (recordChanged)
         {
             SelectedBolt = null;
@@ -93,11 +94,14 @@ public partial class PcbResultsViewModel : ObservableObject
             BoltResults.Clear();
             HeightResults.Clear();
             ExportMessage = null;
+        }
+        if (imagesChanged)
+        {
             Images = [];
             SelectedImage = null;
         }
         RefreshResults();
-        if (recordChanged)
+        if (imagesChanged)
             _ = LoadImagesCommand.ExecuteAsync(null);
         if (newValue is { IsCurveDataLoaded: false })
             _ = LoadCurvesCommand.ExecuteAsync(null);

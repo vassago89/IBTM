@@ -172,6 +172,8 @@ public sealed class HeightInspectionTests
             work.GetAssembly(pcb).InspectionCaptured += capture =>
             {
                 var assembly = work.GetAssembly(pcb);
+                if (pcb == HeatSinkSlot.HeatSink1)
+                    Assert.Equal(99, work.GetAssembly(HeatSinkSlot.HeatSink2).HeightReference!.Point1.Value);
                 if (pcb == HeatSinkSlot.HeatSink1 && failSecondMark)
                 {
                     Assert.Null(assembly.Alignment);

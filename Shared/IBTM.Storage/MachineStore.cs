@@ -60,7 +60,7 @@ public sealed class MachineStore
     public ProductionCounts LoadProductionCounts(string recipeName)
     {
         using var db = new MachineDbContext(_options);
-        return db.Set<ProductionCountRow>().Where(row => row.RecipeName == recipeName)
+        return db.ProductionCounts.Where(row => row.RecipeName == recipeName)
             .Select(row => new ProductionCounts(row.OkCount, row.NgCount))
             .SingleOrDefault() ?? new(0, 0);
     }
@@ -68,27 +68,21 @@ public sealed class MachineStore
     public ProductionCounts AddProductionCounts(string recipeName, int okCount, int ngCount)
     {
         using var db = new MachineDbContext(_options);
-        db.Database.OpenConnection();
-        using var command = db.Database.GetDbConnection().CreateCommand();
-        command.CommandText = """
-            INSERT INTO ProductionCounts (RecipeName, OkCount, NgCount) VALUES ($recipe, $ok, $ng)
-            ON CONFLICT(RecipeName) DO UPDATE SET
-                OkCount = ProductionCounts.OkCount + excluded.OkCount,
-                NgCount = ProductionCounts.NgCount + excluded.NgCount
-            RETURNING OkCount, NgCount
-            """;
-        command.Parameters.Add(new SqliteParameter("$recipe", recipeName));
-        command.Parameters.Add(new SqliteParameter("$ok", okCount));
-        command.Parameters.Add(new SqliteParameter("$ng", ngCount));
-        using var reader = command.ExecuteReader();
-        reader.Read();
-        return new(reader.GetInt64(0), reader.GetInt64(1));
+        using var transaction = db.Database.BeginTransaction();
+        var row = db.ProductionCounts.SingleOrDefault(item => item.RecipeName == recipeName);
+        if (row is null)
+            db.ProductionCounts.Add(row = new() { RecipeName = recipeName });
+        row.OkCount += okCount;
+        row.NgCount += ngCount;
+        db.SaveChanges();
+        transaction.Commit();
+        return new(row.OkCount, row.NgCount);
     }
 
     public void ClearProductionCounts(string recipeName)
     {
         using var db = new MachineDbContext(_options);
-        db.Database.ExecuteSql($"DELETE FROM ProductionCounts WHERE RecipeName = {recipeName}");
+        db.ProductionCounts.Where(row => row.RecipeName == recipeName).ExecuteDelete();
     }
 
     public SavedSettings LoadSettings()
@@ -229,6 +223,10 @@ public sealed class MachineStore
                 row => row.RecipeName == sourceRecipe && imageNumbers.Contains(row.Number));
             if (count != imageNumbers.Length)
                 throw new InvalidDataException(UiText.Format($"Recipe '{sourceRecipe}' has missing images."));
+            // Read one retained image at a time while the save-as transaction owns the source.
+            images = imageNumbers.Select(number => new RecipeImage(number, db.RecipeImages
+                .Where(row => row.RecipeName == sourceRecipe && row.Number == number)
+                .Select(row => row.Image).Single()));
         }
 
         var saved = db.Recipes.SingleOrDefault(row => row.Name == name);
@@ -248,21 +246,11 @@ public sealed class MachineStore
             foreach (var image in images)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                db.Database.ExecuteSql($"""
-                    INSERT INTO RecipeImages (RecipeName, Number, Image)
-                    VALUES ({saved.Name}, {image.Number}, {image.Image})
-                    """);
+                var row = new RecipeImageRow { RecipeName = saved.Name, Number = image.Number, Image = image.Image };
+                db.RecipeImages.Add(row);
+                db.SaveChanges();
+                db.Entry(row).State = EntityState.Detached;
             }
-        }
-        else if (copyImages)
-        {
-            db.RecipeImages.Where(row => row.RecipeName == name).ExecuteDelete();
-            // Copy only retained BLOBs inside SQLite, without loading them into application memory.
-            db.Database.ExecuteSql($"""
-                INSERT INTO RecipeImages (RecipeName, Number, Image)
-                SELECT {saved.Name}, Number, Image FROM RecipeImages
-                WHERE RecipeName = {sourceRecipe} AND Number IN (SELECT value FROM json_each({JsonSerializer.Serialize(imageNumbers)}))
-                """);
         }
         else
         {
@@ -304,26 +292,19 @@ public sealed class MachineStore
             {
                 foreach (var file in Directory.EnumerateFiles(directory, "PCB-????-??.db"))
                 {
-                    using var results = new SqliteConnection(new SqliteConnectionStringBuilder
-                    {
-                        DataSource = file,
-                        Mode = SqliteOpenMode.ReadOnly,
-                    }.ToString());
-                    results.Open();
-                    using var latest = results.CreateCommand();
-                    latest.CommandText = "SELECT COALESCE(MAX(Number), 0) FROM Pcbs";
-                    lastSavedNumber = Math.Max(lastSavedNumber, (long)latest.ExecuteScalar()!);
+                    using var results = new PcbHistoryDbContext(file, SqliteOpenMode.ReadOnly);
+                    lastSavedNumber = Math.Max(lastSavedNumber, results.Pcbs.Max(row => (long?)row.Number) ?? 0);
                 }
             }
             using var db = new MachineDbContext(_options);
-            db.Database.OpenConnection();
-            using var command = db.Database.GetDbConnection().CreateCommand();
-            command.CommandText = "UPDATE PcbCounter SET Number = MAX(Number, $saved) + 1 WHERE Id = 1 RETURNING Number";
-            command.Parameters.Add(new SqliteParameter("$saved", lastSavedNumber));
-            var number = (long)(command.ExecuteScalar()
-                ?? throw new InvalidDataException(UiText.Get("The PCB counter is missing.")));
+            using var transaction = db.Database.BeginTransaction();
+            var counter = db.PcbCounter.Find(1)
+                ?? throw new InvalidDataException(UiText.Get("The PCB counter is missing."));
+            counter.Number = checked(Math.Max(counter.Number, lastSavedNumber) + 1);
+            db.SaveChanges();
+            transaction.Commit();
             _pcbCounterDirectory = directory;
-            return number;
+            return counter.Number;
         }
     }
 
@@ -334,59 +315,30 @@ public sealed class MachineStore
         // Readers must wait until a new monthly file's schema is committed.
         using var historyLock = _pcbHistoryGate.EnterScope();
         Directory.CreateDirectory(Path.GetDirectoryName(databaseFile)!);
-        using var connection = new SqliteConnection(
-            new SqliteConnectionStringBuilder { DataSource = databaseFile, ForeignKeys = true }.ToString());
-        connection.Open();
-        using var transaction = connection.BeginTransaction();
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = """
-            CREATE TABLE IF NOT EXISTS Pcbs (Number INTEGER NOT NULL PRIMARY KEY, Value TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS PcbBoltCurves (
-                PcbNumber INTEGER NOT NULL, Head INTEGER NOT NULL, BoltId TEXT NOT NULL,
-                Stage INTEGER NOT NULL, Value TEXT NOT NULL,
-                PRIMARY KEY (PcbNumber, Head, BoltId, Stage),
-                FOREIGN KEY (PcbNumber) REFERENCES Pcbs(Number) ON DELETE CASCADE);
-            CREATE TABLE IF NOT EXISTS PcbHeightCurves (
-                PcbNumber INTEGER PRIMARY KEY REFERENCES Pcbs(Number) ON DELETE CASCADE,
-                Value TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS PcbImages (
-                PcbNumber INTEGER NOT NULL, Target TEXT NOT NULL,
-                Metadata TEXT NOT NULL, Png BLOB NOT NULL,
-                PRIMARY KEY (PcbNumber, Target),
-                FOREIGN KEY (PcbNumber) REFERENCES Pcbs(Number) ON DELETE CASCADE);
-            """;
-        command.ExecuteNonQuery();
-        command.CommandText = """
-            INSERT INTO Pcbs (Number, Value) VALUES ($number, $value)
-            ON CONFLICT(Number) DO UPDATE SET Value = excluded.Value
-            WHERE json_extract(Pcbs.Value, '$.CreatedAt') = json_extract(excluded.Value, '$.CreatedAt')
-            """;
-        command.Parameters.AddWithValue("$number", record.Number);
-        command.Parameters.AddWithValue("$value", JsonSerializer.Serialize(record));
-        if (command.ExecuteNonQuery() != 1)
-            throw new InvalidDataException(UiText.Format($"PCB {record.Number} already belongs to a different production record ({databaseFile})."));
+        using var db = new PcbHistoryDbContext(databaseFile, SqliteOpenMode.ReadWriteCreate);
+        using var transaction = db.Database.BeginTransaction();
+        db.CreateMissingTables();
+        var pcb = db.Pcbs.Find(record.Number);
+        if (pcb is null)
+            db.Pcbs.Add(pcb = new() { Number = record.Number });
+        else
+        {
+            using var saved = JsonDocument.Parse(pcb.Value);
+            if (!saved.RootElement.GetProperty(nameof(record.CreatedAt)).GetDateTimeOffset().EqualsExact(record.CreatedAt))
+                throw new InvalidDataException(UiText.Format($"PCB {record.Number} already belongs to a different production record ({databaseFile})."));
+        }
+        pcb.Value = JsonSerializer.Serialize(record);
 
         // Replace the complete snapshot so removed/manual results cannot keep an old graph.
-        command.CommandText = "DELETE FROM PcbBoltCurves WHERE PcbNumber=$number";
-        command.ExecuteNonQuery();
-        command.CommandText = """
-            INSERT INTO PcbBoltCurves (PcbNumber, Head, BoltId, Stage, Value)
-            VALUES ($number, $head, $bolt, $stage, $value)
-            """;
-        command.Parameters.Add("$head", SqliteType.Integer);
-        command.Parameters.Add("$bolt", SqliteType.Text);
-        command.Parameters.Add("$stage", SqliteType.Integer);
+        db.PcbBoltCurves.Where(row => row.PcbNumber == record.Number).ExecuteDelete();
         foreach (var (head, results) in new[]
         {
             (FasteningHead.Shooting, record.ShootingBoltResults),
             (FasteningHead.Pickup, record.PickupBoltResults),
         })
         {
-            command.Parameters["$head"].Value = (int)head;
             foreach (var (boltId, result) in results)
             {
-                command.Parameters["$bolt"].Value = boltId.ToString("D");
                 foreach (var stage in new[]
                 {
                     result.PreliminaryResult ?? result.PreviousFinalResult?.PreliminaryResult,
@@ -396,9 +348,11 @@ public sealed class MachineStore
                 {
                     if (stage?.TorqueCurve is not { } curve)
                         continue;
-                    command.Parameters["$stage"].Value = (int)stage.Stage;
-                    command.Parameters["$value"].Value = JsonSerializer.Serialize(curve);
-                    command.ExecuteNonQuery();
+                    db.PcbBoltCurves.Add(new()
+                    {
+                        PcbNumber = record.Number, Head = head, BoltId = boltId.ToString("D"),
+                        Stage = stage.Stage, Value = JsonSerializer.Serialize(curve),
+                    });
                 }
             }
         }
@@ -410,14 +364,10 @@ public sealed class MachineStore
             if (plane.Point2.Readings.Length > 0) heightCurves.Add(nameof(plane.Point2), plane.Point2.Readings);
             if (plane.Point3.Readings.Length > 0) heightCurves.Add(nameof(plane.Point3), plane.Point3.Readings);
         }
-        command.CommandText = "DELETE FROM PcbHeightCurves WHERE PcbNumber=$number";
-        command.ExecuteNonQuery();
+        db.PcbHeightCurves.Where(row => row.PcbNumber == record.Number).ExecuteDelete();
         if (heightCurves.Count > 0)
-        {
-            command.CommandText = "INSERT INTO PcbHeightCurves (PcbNumber, Value) VALUES ($number, $value)";
-            command.Parameters["$value"].Value = JsonSerializer.Serialize(heightCurves);
-            command.ExecuteNonQuery();
-        }
+            db.PcbHeightCurves.Add(new() { PcbNumber = record.Number, Value = JsonSerializer.Serialize(heightCurves) });
+        db.SaveChanges();
         transaction.Commit();
     }
 
@@ -430,26 +380,15 @@ public sealed class MachineStore
         foreach (var file in Directory.EnumerateFiles(directory, "PCB-????-??.db")
             .OrderByDescending(Path.GetFileName))
         {
-            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-            {
-                DataSource = file,
-                Mode = SqliteOpenMode.ReadOnly,
-            }.ToString());
-            connection.Open();
-            using var command = connection.CreateCommand();
-            command.CommandText = "SELECT Number, Value FROM Pcbs WHERE ($before IS NULL OR Number < $before) ORDER BY Number DESC LIMIT $count";
-            command.Parameters.AddWithValue("$before", (object?)beforeNumber ?? DBNull.Value);
-            command.Parameters.AddWithValue("$count", count - records.Count ?? -1);
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                var record = JsonSerializer.Deserialize<PcbRecord>(reader.GetString(1))
-                    ?? throw new InvalidDataException(UiText.Format($"PCB {reader.GetInt64(0)} has no result data."));
-                records.Add(record with
-                {
-                    Number = reader.GetInt64(0), DatabaseFile = Path.GetFullPath(file), IsCurveDataLoaded = false,
-                });
-            }
+            using var db = new PcbHistoryDbContext(file, SqliteOpenMode.ReadOnly);
+            var query = db.Pcbs.AsNoTracking();
+            if (beforeNumber.HasValue)
+                query = query.Where(row => row.Number < beforeNumber.Value);
+            query = query.OrderByDescending(row => row.Number);
+            if (count is >= 0)
+                query = query.Take(count.Value - records.Count);
+            foreach (var row in query)
+                records.Add(row.ReadRecord(file) with { IsCurveDataLoaded = false });
             if (records.Count == count)
                 break;
         }
@@ -460,57 +399,42 @@ public sealed class MachineStore
     {
         if (record.DatabaseFile is null)
             return record;
-        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = record.DatabaseFile,
-            Mode = SqliteOpenMode.ReadOnly,
-        }.ToString());
-        connection.Open();
-        using var transaction = connection.BeginTransaction(deferred: true);
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = "SELECT Value FROM Pcbs WHERE Number=$pcb";
-        command.Parameters.AddWithValue("$pcb", record.Number);
-        var saved = command.ExecuteScalar() is string json ? JsonSerializer.Deserialize<PcbRecord>(json) : null;
+        using var db = new PcbHistoryDbContext(record.DatabaseFile, SqliteOpenMode.ReadOnly);
+        var tables = db.Schema.Where(row => row.Type == "table").Select(row => row.Name).ToHashSet();
+        var query = db.Pcbs.AsNoTracking();
+        if (tables.Contains(nameof(db.PcbBoltCurves)))
+            query = query.Include(row => row.BoltCurves);
+        if (tables.Contains(nameof(db.PcbHeightCurves)))
+            query = query.Include(row => row.HeightCurve);
+        var pcb = query.SingleOrDefault(row => row.Number == record.Number);
+        var saved = pcb?.ReadRecord(record.DatabaseFile);
         if (saved is null || saved.CreatedAt != record.CreatedAt)
             throw new InvalidDataException(UiText.Format($"PCB {record.Number} result was not found ({record.DatabaseFile})."));
-        saved = saved with { Number = record.Number, DatabaseFile = record.DatabaseFile };
-        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='PcbHeightCurves'";
-        if (command.ExecuteScalar() is not null)
+        if (pcb!.HeightCurve is { } heightCurve)
         {
-            command.CommandText = "SELECT Value FROM PcbHeightCurves WHERE PcbNumber=$pcb";
-            if (command.ExecuteScalar() is string heightJson)
+            var traces = JsonSerializer.Deserialize<Dictionary<string, ProbeReading[]>>(heightCurve.Value)
+                ?? throw new InvalidDataException(UiText.Format($"PCB {record.Number} has invalid graph data."));
+            HeightSample RestoreReadings(HeightSample sample, string key)
             {
-                var traces = JsonSerializer.Deserialize<Dictionary<string, ProbeReading[]>>(heightJson)
-                    ?? throw new InvalidDataException(UiText.Format($"PCB {record.Number} has invalid graph data."));
-                HeightSample RestoreReadings(HeightSample sample, string key)
-                {
-                    return traces.TryGetValue(key, out var readings) ? sample with { Readings = readings } : sample;
-                }
-                saved = saved with
-                {
-                    HeightReference = saved.HeightReference is { } plane ? plane with
-                    {
-                        Point1 = RestoreReadings(plane.Point1, nameof(plane.Point1)),
-                        Point2 = RestoreReadings(plane.Point2, nameof(plane.Point2)),
-                        Point3 = RestoreReadings(plane.Point3, nameof(plane.Point3)),
-                    } : null,
-                    HeightResults = saved.HeightResults.ToDictionary(pair => pair.Key, pair => pair.Value with
-                    {
-                        Sample = RestoreReadings(pair.Value.Sample, pair.Key.ToString("D")),
-                    }),
-                };
+                return traces.TryGetValue(key, out var readings) ? sample with { Readings = readings } : sample;
             }
+            saved = saved with
+            {
+                HeightReference = saved.HeightReference is { } plane ? plane with
+                {
+                    Point1 = RestoreReadings(plane.Point1, nameof(plane.Point1)),
+                    Point2 = RestoreReadings(plane.Point2, nameof(plane.Point2)),
+                    Point3 = RestoreReadings(plane.Point3, nameof(plane.Point3)),
+                } : null,
+                HeightResults = saved.HeightResults.ToDictionary(pair => pair.Key, pair => pair.Value with
+                {
+                    Sample = RestoreReadings(pair.Value.Sample, pair.Key.ToString("D")),
+                }),
+            };
         }
-        command.CommandText = "SELECT Head, BoltId, Stage, Value FROM PcbBoltCurves WHERE PcbNumber=$pcb";
-        using var reader = command.ExecuteReader();
-        var curves = new Dictionary<(FasteningHead Head, Guid BoltId, BoltFasteningStage Stage), AdcTorqueCurve>();
-        while (reader.Read())
-        {
-            var key = ((FasteningHead)reader.GetInt32(0), Guid.Parse(reader.GetString(1)), (BoltFasteningStage)reader.GetInt32(2));
-            curves.Add(key, JsonSerializer.Deserialize<AdcTorqueCurve>(reader.GetString(3))
+        var curves = pcb.BoltCurves.ToDictionary(row => (row.Head, Guid.Parse(row.BoltId), row.Stage),
+            row => JsonSerializer.Deserialize<AdcTorqueCurve>(row.Value)
                 ?? throw new InvalidDataException(UiText.Format($"PCB {record.Number} has invalid graph data.")));
-        }
         return saved with
         {
             ShootingBoltResults = saved.ShootingBoltResults.ToDictionary(pair => pair.Key,
@@ -536,57 +460,39 @@ public sealed class MachineStore
     {
         if (image.BoltId == Guid.Empty)
             throw new ArgumentException(UiText.Get("A bolt image requires a nonempty GUID; use null for Data Matrix."), nameof(image));
-        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        using var db = new PcbHistoryDbContext(databaseFile, SqliteOpenMode.ReadWrite);
+        using var transaction = db.Database.BeginTransaction();
+        var target = (image.BoltId ?? Guid.Empty).ToString("D");
+        var metadata = JsonSerializer.Serialize(image);
+        var updated = db.PcbImages.Where(row => row.PcbNumber == pcbNumber && row.Target == target)
+            .ExecuteUpdate(update => update.SetProperty(row => row.Metadata, metadata).SetProperty(row => row.Png, image.Png));
+        if (updated == 0)
         {
-            DataSource = databaseFile, Mode = SqliteOpenMode.ReadWrite, ForeignKeys = true,
-        }.ToString());
-        connection.Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO PcbImages (PcbNumber, Target, Metadata, Png) VALUES ($pcb, $target, $metadata, $png)
-            ON CONFLICT(PcbNumber, Target) DO UPDATE SET Metadata=excluded.Metadata, Png=excluded.Png
-            """;
-        command.Parameters.AddWithValue("$pcb", pcbNumber);
-        command.Parameters.AddWithValue("$target", (image.BoltId ?? Guid.Empty).ToString("D"));
-        command.Parameters.AddWithValue("$metadata", JsonSerializer.Serialize(image));
-        command.Parameters.AddWithValue("$png", image.Png);
-        command.ExecuteNonQuery();
+            db.PcbImages.Add(new() { PcbNumber = pcbNumber, Target = target, Metadata = metadata, Png = image.Png });
+            db.SaveChanges();
+        }
+        transaction.Commit();
     }
 
     public void DeletePcbImages(string databaseFile, long pcbNumber)
     {
-        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = databaseFile, Mode = SqliteOpenMode.ReadWrite, ForeignKeys = true,
-        }.ToString());
-        connection.Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM PcbImages WHERE PcbNumber=$pcb";
-        command.Parameters.AddWithValue("$pcb", pcbNumber);
-        command.ExecuteNonQuery();
+        using var db = new PcbHistoryDbContext(databaseFile, SqliteOpenMode.ReadWrite);
+        db.PcbImages.Where(row => row.PcbNumber == pcbNumber).ExecuteDelete();
     }
 
     public IReadOnlyList<PcbInspectionImage> LoadPcbImages(PcbRecord record)
     {
         if (record.DatabaseFile is null)
             return [];
-        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = record.DatabaseFile,
-            Mode = SqliteOpenMode.ReadOnly,
-        }.ToString());
-        connection.Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT Target, Metadata, Png FROM PcbImages WHERE PcbNumber=$pcb ORDER BY Target";
-        command.Parameters.AddWithValue("$pcb", record.Number);
-        using var reader = command.ExecuteReader();
+        using var db = new PcbHistoryDbContext(record.DatabaseFile, SqliteOpenMode.ReadOnly);
         var images = new List<PcbInspectionImage>();
-        while (reader.Read())
+        foreach (var row in db.PcbImages.AsNoTracking().Where(row => row.PcbNumber == record.Number).OrderBy(row => row.Target))
         {
-            var target = Guid.Parse(reader.GetString(0));
-            var image = JsonSerializer.Deserialize<PcbInspectionImage>(reader.GetString(1))
+            var target = Guid.Parse(row.Target);
+            var image = JsonSerializer.Deserialize<PcbInspectionImage>(row.Metadata)
                 ?? throw new InvalidDataException(UiText.Format($"PCB {record.Number} has invalid inspection image metadata."));
-            images.Add(image with { BoltId = target == Guid.Empty ? null : target, Png = (byte[])reader[2] });
+            if (image.InspectionPass == record.InspectionPass)
+                images.Add(image with { BoltId = target == Guid.Empty ? null : target, Png = row.Png });
         }
         return images.OrderBy(image => image.BoltId is { } id ? record.GetBoltOrdinal(id) ?? int.MaxValue : 0).ToArray();
     }
