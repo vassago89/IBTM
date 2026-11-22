@@ -18,4 +18,15 @@ public sealed class MlcpSettings : Setting
             field = value;
         }
     } = 3000;
+
+    public int RepeatDelayMilliseconds
+    {
+        get;
+        set
+        {
+            if (value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Repeat delay must be zero or greater"));
+            field = value;
+        }
+    } = 200;
 }

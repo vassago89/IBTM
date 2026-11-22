@@ -280,6 +280,7 @@ public static class MachineTestSupport
         settings.BoltFastening.PickupHead = new();
         settings.BoltFastening.ShootingHead = new();
         settings.InspectionGantry.Motion = FastMotion();
+        settings.Mlcp.RepeatDelayMilliseconds = 0;
         settings.InspectionGantry.CameraResolution = VirtualImageFactory.InspectionMillimetersPerPixel;
         settings.NgCarrierTransfer.WaitingPosition = new() { X = 5, Y = 20 };
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 5, Y = 20 };

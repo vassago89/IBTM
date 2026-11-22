@@ -3497,6 +3497,8 @@
   <data name="protocol test" xml:space="preserve"><value>통신 테스트</value></data>
   <data name="port open" xml:space="preserve"><value>포트 열림</value></data>
   <data name="response timeout (s)" xml:space="preserve"><value>응답 제한 시간 (s)</value></data>
+  <data name="repeat measurement delay (s)" xml:space="preserve"><value>반복 측정 간격 (s)</value></data>
+  <data name="repeat delay must be zero or greater" xml:space="preserve"><value>반복 측정 간격은 0 이상으로 입력</value></data>
   <data name="command format" xml:space="preserve"><value>명령 형식</value></data>
   <data name="measure (start)" xml:space="preserve"><value>측정 (START)</value></data>
   <data name="last result (recall)" xml:space="preserve"><value>최근 결과 (RECALL)</value></data>

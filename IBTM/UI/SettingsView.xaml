@@ -1070,6 +1070,8 @@
                                 <TextBox Text="{Binding Settings.Mlcp.BaudRate, BindingGroupName=SettingsInputs, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" IsEnabled="{Binding IsSettingsEditAllowed}" Margin="0,0,0,12"/>
                                 <TextBlock Text="{ui:Text 'Response timeout (s)'}" Style="{StaticResource FieldLabelStyle}"/>
                                 <TextBox Text="{Binding Settings.Mlcp.ResponseTimeoutMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" IsEnabled="{Binding IsSettingsEditAllowed}" Margin="0,0,0,12"/>
+                                <TextBlock Text="{ui:Text 'Repeat measurement delay (s)'}" Style="{StaticResource FieldLabelStyle}"/>
+                                <TextBox Text="{Binding Settings.Mlcp.RepeatDelayMilliseconds, BindingGroupName=SettingsInputs, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" IsEnabled="{Binding IsSettingsEditAllowed}" Margin="0,0,0,12"/>
                                 <TextBlock Text="{ui:Text 'Command format'}" Style="{StaticResource FieldLabelStyle}"/>
                                 <ComboBox SelectedValuePath="Tag" SelectedValue="{Binding Settings.Mlcp.CommandFormat}" IsEnabled="{Binding IsSettingsEditAllowed}">
                                     <ComboBoxItem Content="COMMAND CR LF" Tag="{x:Static mlcp:MlcpCommandFormat.CommandCrLf}"/>

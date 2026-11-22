@@ -3499,6 +3499,8 @@ Supply: PCB 1, travel Z</value>
   <data name="protocol test" xml:space="preserve"><value>Protocol test</value></data>
   <data name="port open" xml:space="preserve"><value>Port open</value></data>
   <data name="response timeout (s)" xml:space="preserve"><value>Response timeout (s)</value></data>
+  <data name="repeat measurement delay (s)" xml:space="preserve"><value>Repeat measurement delay (s)</value></data>
+  <data name="repeat delay must be zero or greater" xml:space="preserve"><value>Repeat delay must be zero or greater</value></data>
   <data name="command format" xml:space="preserve"><value>Command format</value></data>
   <data name="measure (start)" xml:space="preserve"><value>Measure (START)</value></data>
   <data name="last result (recall)" xml:space="preserve"><value>Last result (RECALL)</value></data>

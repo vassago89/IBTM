@@ -30,6 +30,47 @@ namespace IBTM.Virtual.Tests;
 public sealed class TeachingTests
 {
     [Fact]
+    public async Task LvdtWaitsOnlyBetweenReadingsAndRetractsOnCancellation()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.Mlcp.RepeatDelayMilliseconds = 60_000;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var inspection = services.GetRequiredService<InspectionStation>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current.BoltInspection;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            recipe.HeightMeasurementCount = 1;
+            var single = await inspection.MeasureHeightAtAsync(new(), stop.Token);
+            Assert.Single(single.Readings);
+            Assert.True(inspection.IsProbeRetracted);
+
+            recipe.HeightMeasurementCount = 2;
+            var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var requests = 0;
+            services.GetRequiredService<MlcpController>().FrameTransferred += (direction, bytes) =>
+            {
+                if (direction == MlcpFrameDirection.Transmit)
+                    requests++;
+            };
+            var measurement = inspection.MeasureHeightAtAsync(new(), stop.Token, sample => first.TrySetResult());
+            await first.Task.WaitAsync(stop.Token);
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => measurement.WaitAsync(TimeSpan.FromSeconds(3)));
+            Assert.Equal(1, requests);
+            Assert.True(inspection.IsProbeRetracted);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task InspectionTeachingMeasuresReferenceAndBoltWithoutChangingProductionResults()
     {
         var settings = FlowSettings();

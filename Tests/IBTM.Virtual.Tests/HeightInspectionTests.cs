@@ -147,7 +147,7 @@ public sealed class HeightInspectionTests
         var station = new InspectionStation(work, motion, new(motion), new NgCarrierConveyor(io, new(), units),
             settings, new() { WaitingPosition = new(), CarrierPickupPosition = new() }, io, units,
             camera, new VirtualLightController(), new() { StabilizationDelayMilliseconds = 0 }, recipes,
-            controller, new() { PortName = "Virtual" });
+            controller, new() { PortName = "Virtual", RepeatDelayMilliseconds = 80 });
         motion.PositionChanged += (x, y, z) =>
         {
             if (station.Step is not InspectionStationState.FindingFiducials)
@@ -237,7 +237,7 @@ public sealed class HeightInspectionTests
         Assert.Equal(1.5, first.HeightResults[bolt1.Id].Height, 8);
         var readings = first.HeightResults[bolt1.Id].Sample.Readings;
         Assert.Equal(new[] { 12.4, 12.8 }, readings.Select(point => point.Displacement));
-        Assert.True(readings[1].ElapsedSeconds >= readings[0].ElapsedSeconds);
+        Assert.True(readings[1].ElapsedSeconds - readings[0].ElapsedSeconds >= 0.06);
         Assert.False(Assert.Single(second.HeightResults).Value.Success);
         Assert.Equal(2, second.HeightResults[bolt2.Id].Height, 8);
         Assert.Equal(failSecondMark && !excludeFromNg ? AssemblyResult.Ng : AssemblyResult.Ok, first.InspectionResult);

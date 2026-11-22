@@ -883,6 +883,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             Y = cameraPosition.Y + _gantrySettings.ProbeOffsetY,
         };
         var readings = new ProbeReading[_recipes.Current.BoltInspection.HeightMeasurementCount];
+        var repeatDelay = _measurementSettings.RepeatDelayMilliseconds;
         await MoveToAsync(position, cancellationToken: cancellationToken);
         decimal total = 0;
         try
@@ -892,6 +893,8 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             for (var index = 0; index < readings.Length; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (index > 0 && repeatDelay > 0)
+                    await Task.Delay(repeatDelay, cancellationToken);
                 var result = await _measurement.MeasureAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (result.Measurements.Count != 1)
