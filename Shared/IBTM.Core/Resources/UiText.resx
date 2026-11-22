@@ -1720,9 +1720,8 @@ Operation failed Check controller status</value>
     <value>Use Capture for position and image</value>
   </data>
   <data name="update inspection xy" xml:space="preserve"><value>Update inspection XY</value></data>
-  <data name="check both marks before updating inspection xy" xml:space="preserve"><value>Check both marks before updating inspection XY</value></data>
-  <data name="convert the camera position to recipe xy using both marks" xml:space="preserve"><value>Convert the camera position to recipe XY using both marks</value></data>
-  <data name="carrier changed during fiducial detection" xml:space="preserve"><value>Carrier changed during fiducial detection</value></data>
+  <data name="measure both fiducials, then return here to record xy" xml:space="preserve"><value>Measure both registered fiducials, then return here to record XY</value></data>
+  <data name="inspection target changed" xml:space="preserve"><value>Inspection stopped because the target changed</value></data>
   <data name="record position" xml:space="preserve">
     <value>Record Position</value>
   </data>
@@ -4572,4 +4571,5 @@ Supply: PCB 1, travel Z</value>
   <data name="reference plane {0:0.###} mm" xml:space="preserve"><value>Reference plane {0:0.###} mm</value></data>
   <data name="reference point mean {0:0.###} mm" xml:space="preserve"><value>Reference point mean {0:0.###} mm</value></data>
   <data name="record xy and photo" xml:space="preserve"><value>Record XY and photo</value></data>
+  <data name="fiducials 1 → 2 → corrected xy (taught x {0:f3}  y {1:f3})" xml:space="preserve"><value>Fiducials 1 → 2 → corrected XY (taught X {0:F3}  Y {1:F3})</value></data>
 </root>

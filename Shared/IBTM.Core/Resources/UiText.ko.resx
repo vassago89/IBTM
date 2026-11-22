@@ -1720,9 +1720,8 @@
     <value>위치 이미지는 [촬영]으로 기록</value>
   </data>
   <data name="update inspection xy" xml:space="preserve"><value>검사 XY 갱신</value></data>
-  <data name="check both marks before updating inspection xy" xml:space="preserve"><value>피듀셜에서 두 마크 보정 확인 후 검사 XY 갱신</value></data>
-  <data name="convert the camera position to recipe xy using both marks" xml:space="preserve"><value>두 피듀셜 보정으로 현재 카메라 위치를 레시피 기준 XY로 환산합니다</value></data>
-  <data name="carrier changed during fiducial detection" xml:space="preserve"><value>피듀셜 검출 중 캐리어가 바뀜</value></data>
+  <data name="measure both fiducials, then return here to record xy" xml:space="preserve"><value>등록된 피듀셜 두 곳을 측정하고 현재 위치로 돌아와 XY 기록</value></data>
+  <data name="inspection target changed" xml:space="preserve"><value>검사 대상 변경으로 중단</value></data>
   <data name="record position" xml:space="preserve">
     <value>위치 기록</value>
   </data>
@@ -4570,4 +4569,5 @@
   <data name="reference plane {0:0.###} mm" xml:space="preserve"><value>기준면 {0:0.###} mm</value></data>
   <data name="reference point mean {0:0.###} mm" xml:space="preserve"><value>기준점 평균 {0:0.###} mm</value></data>
   <data name="record xy and photo" xml:space="preserve"><value>XY·사진 등록</value></data>
+  <data name="fiducials 1 → 2 → corrected xy (taught x {0:f3}  y {1:f3})" xml:space="preserve"><value>피듀셜 1 → 2 → 보정 위치 (티칭 X {0:F3}  Y {1:F3})</value></data>
 </root>

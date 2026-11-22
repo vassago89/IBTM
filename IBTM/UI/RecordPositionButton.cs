@@ -16,8 +16,9 @@ public sealed class RecordPositionButton : Button
         var mode = inspectionBolt ? TeachMode.XYOnly : point.Position.Mode;
         var replacement = mode switch
         {
-            TeachMode.XYOnly when inspectionBolt => UiText.Get("Convert the camera position to recipe XY using both marks"),
-            TeachMode.XYOnly when point.ReferencePhotoTarget is not null => UiText.Get("Record XY and photo"),
+            _ when point.UsesFiducialAlignment && (mode == TeachMode.XYOnly
+                || point.Position.Target == TeachingTarget.DataMatrix && point.Coordinates is null)
+                => UiText.Get("Measure both fiducials, then return here to record XY"),
             TeachMode.Image => UiText.Get("Update Image + Light"),
             TeachMode.XYOnly => UiText.Get("Replace the recorded X/Y with the current coordinates."),
             TeachMode.ZOnly => UiText.Get("Replace the recorded Z with the current coordinate."),

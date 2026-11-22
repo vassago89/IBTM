@@ -180,7 +180,8 @@
                                     SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"
                                     IsEnabled="{Binding IsAddBoltPointAllowed}" Margin="0,0,0,6"/>
                                 <UniformGrid Columns="2">
-                                    <Button Content="{ui:Text 'Add Bolt'}" Command="{Binding AddBoltPointCommand}" Padding="8,6" Margin="0,0,3,0">
+                                    <Button Content="{ui:Text 'Add Bolt'}" Command="{Binding AddBoltPointCommand}" Padding="8,6" Margin="0,0,3,0"
+                                        ToolTip="{ui:Text 'Measure both fiducials, then return here to record XY'}" ToolTipService.ShowOnDisabled="True">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="{Binding IsAddBoltPointAllowed}"/>
@@ -591,7 +592,7 @@
                     </ContentPresenter>
                     <WrapPanel Grid.Row="2" HorizontalAlignment="Right" Margin="0,10,0,0">
                         <ui:RecordPositionButton Content="{ui:Text 'Update inspection XY'}" Command="{Binding RecordInspectionBoltPositionCommand}"
-                            ToolTip="{ui:Text 'Check both marks before updating inspection XY'}" ToolTipService.ShowOnDisabled="True"
+                            ToolTip="{ui:Text 'Measure both fiducials, then return here to record XY'}" ToolTipService.ShowOnDisabled="True"
                             IsEnabled="{Binding IsRecordInspectionBoltPositionAllowed}" Padding="12,8" Margin="0,0,8,0">
                             <ui:RecordPositionButton.Style>
                                 <Style TargetType="ui:RecordPositionButton" BasedOn="{StaticResource SecondaryButtonStyle}">

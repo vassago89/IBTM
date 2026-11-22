@@ -252,7 +252,7 @@ public sealed class HeightInspectionTests
     }
 
     [Fact]
-    public async Task MeasurementTimeoutLeavesNoResultAndRequiresProbeUpBeforeMoving()
+    public async Task MeasurementTimeoutRetractsProbeWithoutRecordingHeight()
     {
         var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(),
             new InspectionGantryHardwareSettings()), new());
@@ -271,11 +271,9 @@ public sealed class HeightInspectionTests
         Assert.True(await station.HomeHorizontalAsync());
         await Assert.ThrowsAsync<TimeoutException>(() => station.MeasureHeightAtAsync(new() { X = 3, Y = 4 }, CancellationToken.None));
         Assert.False(controller.IsOpen);
-        Assert.True(io.GetInput(InputIo.InspectionProbeDown));
+        Assert.True(station.IsProbeRetracted);
         Assert.Empty(station.Station.GetAssembly(HeatSinkSlot.HeatSink1).HeightResults);
-        await Assert.ThrowsAsync<MotionInterlockException>(() => station.MoveToAsync(new() { X = 10 }));
         Assert.Equal((5d, 4d), (motion.Position.X, motion.Position.Y));
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false, CancellationToken.None);
         await station.MoveToAsync(new() { X = 10 });
     }
 }

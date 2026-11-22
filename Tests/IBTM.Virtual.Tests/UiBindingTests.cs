@@ -1498,6 +1498,9 @@ public sealed class UiBindingTests
 
             await services.GetRequiredService<InspectionStation>().HomeHorizontalAsync();
             teaching.RecipeEditor.Name = "ThreadingScan";
+            services.GetRequiredService<MachineSettings>().InspectionGantry.CameraResolution = VirtualImageFactory.InspectionMillimetersPerPixel;
+            VirtualTestSupport.TeachVirtualFiducials(teaching.Recipes.Current.BoltInspection.Fiducials1);
+            VirtualTestSupport.TeachVirtualFiducials(teaching.Recipes.Current.BoltInspection.Fiducials2);
             await teaching.AddBoltPointCommand.ExecuteAsync(null);
             var firstBolt = teaching.SelectedPoint!;
             // Device failures are reported at the teaching command boundary.

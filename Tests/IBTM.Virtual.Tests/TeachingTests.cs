@@ -116,6 +116,57 @@ public sealed class TeachingTests
     }
 
     [Fact]
+    public async Task InspectionXyRequiresRetractedLvdtThroughoutTravel()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var inspection = services.GetRequiredService<InspectionStation>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            var jog = inspection.JogAsync(MotionAxis.Y, 2);
+            await WaitUntilAsync(() => inspection.Motion.Feedback.IsMoving);
+            Assert.Equal(OutputBlockReason.InspectionXyNotStopped, machine.ToggleDiagnosticOutput(OutputIo.InspectionProbeDown));
+            Assert.False(io.GetOutput(OutputIo.InspectionProbeDown));
+
+            io.SetInput(InputIo.InspectionProbeUp, false);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(MachineAlarm.Inspection, services.GetRequiredService<MachineState>().Alarm);
+            Assert.False(inspection.Motion.Feedback.IsMoving);
+            var stopped = inspection.Motion.Feedback.Position;
+            await Assert.ThrowsAsync<MotionInterlockException>(() => inspection.MoveAxisAsync(MotionAxis.Y, 10, 1));
+            io.SetInput(InputIo.InspectionProbeDown, true);
+            await Assert.ThrowsAsync<MotionInterlockException>(() => inspection.HomeAxisAsync(MotionAxis.X));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => inspection.HomeHorizontalAsync());
+            io.SetInput(InputIo.InspectionProbeUp, true);
+            await Assert.ThrowsAsync<MotionInterlockException>(() => inspection.MoveToAsync(new() { X = 10 }));
+            Assert.Equal(stopped, inspection.Motion.Feedback.Position);
+
+            io.SetInput(InputIo.InspectionProbeDown, false);
+            await machine.ResetAsync();
+            var move = inspection.MoveToAsync(new() { X = 100 }, velocity: 1);
+            await WaitUntilAsync(() => inspection.Motion.Feedback.IsMoving);
+            io.SetOutput(OutputIo.InspectionProbeDown, true);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => move.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(MachineAlarm.Inspection, services.GetRequiredService<MachineState>().Alarm);
+            Assert.False(inspection.IsHorizontalMoveAllowed);
+            await Assert.ThrowsAsync<MotionInterlockException>(() => inspection.JogAsync(MotionAxis.X, 1));
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false);
+            await machine.ResetAsync();
+            await inspection.MoveToAsync(new() { X = 1 });
+            Assert.Equal(1, inspection.Motion.Feedback.Position.X);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task RegisteringAnOffCentreMarkSavesAndMovesToItsMachineXY()
     {
         var settings = FlowSettings();
@@ -167,8 +218,29 @@ public sealed class TeachingTests
             var planePoint = teaching.FilteredPoints.Single(p => p.Position.Target == TeachingTarget.HeightReference1);
             teaching.SelectedPoint = planePoint;
             Assert.Null(teaching.CameraImage);
+            Assert.False(teaching.IsAddBoltPointAllowed);
+            Assert.False(teaching.IsTeachCurrentPositionAllowed);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Null(planePoint.Coordinates);
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(p => p.Position.Target == TeachingTarget.DataMatrix);
+            Assert.False(teaching.IsTeachCurrentPositionAllowed);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SelectedPoint.Coordinates);
+            await teaching.AddBoltPointCommand.ExecuteAsync(null);
+            Assert.Empty(teaching.Recipes.Current.Pcb.BoltPoints);
+
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(p => p.Position.Target == TeachingTarget.Fiducial2);
+            var second = teaching.SelectedPoint.Fiducial!;
+            second.WhiteMark = true;
+            second.ReferenceDiameterMm = 2.8;
+            await teaching.Inspection.MoveToAsync(new() { X = 20, Y = 16 });
+            await WaitUntilAsync(() => teaching.IsFiducialCaptureAllowed);
+            await teaching.RegisterFiducialCommand.ExecuteAsync(null);
+            Assert.True(second.IsRegistered);
+            teaching.SelectedPoint = planePoint;
             await teaching.Inspection.MoveToAsync(new() { X = 2, Y = 3 });
             camera.SourceImage = new(2, 2, 6, Enumerable.Repeat((byte)41, 12).ToArray());
+            motion.PositionChanged += (x, y, z) => camera.SourceImage = FiducialTests.CircleImage((100, 100, 14));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Null(teaching.SaveError);
             Assert.Equal(2, teaching.CameraImage!.PixelWidth);
@@ -179,6 +251,13 @@ public sealed class TeachingTests
             teaching.SelectedPoint = teaching.FilteredPoints.Single(p => p.Position.Target == TeachingTarget.HeightReference1);
             Assert.Equal(2, teaching.CameraImage!.PixelWidth);
             Assert.Equal((2d, 3d), (teaching.SelectedPoint.Coordinates!.X, teaching.SelectedPoint.Coordinates.Y));
+            var savedPhoto = teaching.CameraImage;
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            Assert.True(teaching.Inspection.IsLiveView);
+            Assert.NotSame(savedPhoto, teaching.CameraImage);
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            Assert.False(teaching.Inspection.IsLiveView);
+            Assert.Same(savedPhoto, teaching.CameraImage);
             teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
             Assert.Null(teaching.CameraImage);
         }
@@ -190,7 +269,7 @@ public sealed class TeachingTests
     }
 
     [Fact]
-    public async Task InspectionTeachingUsesBothMarksForBoltXyAndAppliesFreshAlignmentToHeightTest()
+    public async Task InspectionTeachingMeasuresFreshMarksForEachMoveRecordAndHeightTest()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -225,19 +304,37 @@ public sealed class TeachingTests
         try
         {
             var boltPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == bolt);
-            teaching.SelectedPoint = boltPoint;
-            Assert.False(teaching.IsRecordInspectionBoltPositionAllowed);
-            await teaching.RecordInspectionBoltPositionCommand.ExecuteAsync(null);
-            Assert.Equal((3d, 4d), (bolt.X, bolt.Y));
-            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.Fiducial1);
-            await WaitUntilAsync(() => teaching.CheckAlignmentCommand.CanExecute(null));
-            await teaching.CheckAlignmentCommand.ExecuteAsync(null);
+            var planePoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.HeightReference1);
+            teaching.SelectedPoint = planePoint;
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
             Assert.Null(teaching.InspectionTestMessage);
             Assert.Contains("+1", teaching.AlignmentTestResult);
             Assert.Contains("+0.5", teaching.AlignmentTestResult);
-            Assert.Equal(10, motion.Position.X, 3);
+            Assert.Equal(4, motion.Position.X, 6);
+            Assert.Equal(4.5, motion.Position.Y, 6);
             Assert.Null(teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1).Alignment);
             Assert.Equal(0, fiducials.First.MarkPosition!.X);
+
+            // No change to the carrier input or work. The next command must see the new mark positions.
+            camera.SourceImage = FiducialTests.CircleImage((120, 90, 14));
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            Assert.Equal((2d, 3.5d), (planePoint.Coordinates!.X, planePoint.Coordinates.Y));
+            Assert.Equal((4d, 4.5d), (motion.Position.X, motion.Position.Y));
+
+            var barcodePoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
+            teaching.SelectedPoint = barcodePoint;
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Null(teaching.CameraError);
+            Assert.Equal((2d, 3.5d), (barcodePoint.Coordinates!.X, barcodePoint.Coordinates.Y));
+            camera.SourceImage = FiducialTests.CircleImage((110, 95, 14));
+            await teaching.Inspection.MoveToAsync(new() { X = 1, Y = 2 });
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            Assert.Equal((3d, 4d), (motion.Position.X, motion.Position.Y));
 
             teaching.SelectedPoint = boltPoint;
             await teaching.Inspection.MoveToAsync(new() { X = 18, Y = 27.5 });
@@ -253,7 +350,9 @@ public sealed class TeachingTests
             Assert.Equal((30d, 40d), (stored.FasteningX, stored.FasteningY));
             Assert.Equal((50d, 60d), (stored.PreliminaryFasteningPosition!.X, stored.PreliminaryFasteningPosition.Y));
             await teaching.Inspection.MoveToAsync(new() { X = 5, Y = 2 });
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
             await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
             Assert.Equal(18, motion.Position.X, 6);
             Assert.Equal(27.5, motion.Position.Y, 6);
 
@@ -263,10 +362,6 @@ public sealed class TeachingTests
             var added = teaching.SelectedPoint!.Position.Bolt!;
             Assert.NotEqual(bolt.Id, added.Id);
             Assert.Equal((stored.X, stored.Y), (added.X, added.Y));
-            var io = services.GetRequiredService<VirtualIoService>();
-            var presence = InputIo.InspectionHeatSink1Present;
-            io.SetInput(presence, !io.GetInput(presence));
-            Assert.False(teaching.IsRecordInspectionBoltPositionAllowed);
 
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.HeightReference1);
             // Each trial reads the current product again instead of reusing the previous correction.
@@ -274,17 +369,28 @@ public sealed class TeachingTests
             await teaching.MeasureHeightCommand.ExecuteAsync(null);
             Assert.Null(teaching.InspectionTestMessage);
             Assert.NotNull(teaching.HeightTestResult);
-            Assert.Equal(7, motion.Position.X, 2);
-            Assert.Equal(5, motion.Position.Y, 2);
+            Assert.Equal(6, motion.Position.X, 2);
+            Assert.Equal(4.5, motion.Position.Y, 2);
 
             camera.SourceImage = FiducialTests.CircleImage();
+            await WaitUntilAsync(() => teaching.IsMoveToPointAllowed);
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.NotNull(teaching.SaveError);
+            Assert.Equal((0d, 0d), (motion.Position.X, motion.Position.Y));
             await teaching.CheckAlignmentCommand.ExecuteAsync(null);
             Assert.Null(teaching.AlignmentTestResult);
             Assert.NotNull(teaching.InspectionTestError);
             Assert.Null(teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1).FiducialError);
+            camera.SourceImage = referenceImage;
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.NotNull(teaching.AlignmentTestResult);
+            Assert.Null(teaching.InspectionTestError);
+            Assert.Null(teaching.SaveError);
+            camera.SourceImage = FiducialTests.CircleImage();
             teaching.SelectedPoint = boltPoint;
-            Assert.False(teaching.IsRecordInspectionBoltPositionAllowed);
+            await WaitUntilAsync(() => teaching.IsRecordInspectionBoltPositionAllowed);
             await teaching.RecordInspectionBoltPositionCommand.ExecuteAsync(null);
+            Assert.NotNull(teaching.SaveError);
             Assert.Equal((stored.X, stored.Y), (bolt.X, bolt.Y));
             teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
             Assert.Null(teaching.AlignmentTestResult);
@@ -297,11 +403,60 @@ public sealed class TeachingTests
         }
     }
 
-    [Fact]
-    public async Task CancelledTeachingMeasurementStopsBeforeTheNextPointAndAllowsProbeRetraction()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RemovingTheSelectedHeatSinkAfterTeachingAlignmentStopsTheMoveOrMeasurement(bool measureHeight)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        TeachInspectionReferences(teaching.Recipes.Current);
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        teaching.Activate();
+        try
+        {
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.HeightReference2);
+            io.SetInput(InputIo.InspectionHeatSink1Present, true);
+            var probeLowered = false;
+            io.OutputChanged += (output, value) => probeLowered |= output == OutputIo.InspectionProbeDown && value;
+            teaching.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(teaching.AlignmentTestResult) && teaching.AlignmentTestResult is not null)
+                    io.SetInput(InputIo.InspectionHeatSink1Present, false);
+            };
+            if (measureHeight)
+                await teaching.MeasureHeightCommand.ExecuteAsync(null);
+            else
+                await teaching.MoveToPointCommand.ExecuteAsync(null);
+
+            Assert.False(io.GetInput(InputIo.InspectionHeatSink1Present));
+            Assert.Equal(UiText.Get("Inspection target changed"), teaching.InspectionTestMessage);
+            Assert.True(IsAt(teaching.Inspection.Motion.Feedback, teaching.Recipes.Current.BoltInspection.Fiducials1.Second.MarkPosition!));
+            Assert.False(probeLowered);
+            Assert.Null(teaching.AlignmentTestResult);
+            Assert.Null(teaching.HeightTestResult);
+        }
+        finally
+        {
+            await teaching.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task CancelledTeachingMeasurementWaitsForProbeRetractionAtTheSamePoint(bool retracted, bool removeHeatSink)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.Options.TimeoutMilliseconds = 1000;
         using var controller = new MlcpController(new MlcpTests.TestConnection());
         await using var services = new ServiceCollection().AddSingleton(OpenMachineStore())
             .AddVirtualApplication(settings).AddSingleton(controller).BuildServiceProvider();
@@ -324,23 +479,36 @@ public sealed class TeachingTests
         try
         {
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.BoltReference);
+            io.SetInput(InputIo.InspectionHeatSink1Present, true);
             await WaitUntilAsync(() => teaching.MeasureHeightCommand.CanExecute(null));
             var pending = teaching.MeasureHeightCommand.ExecuteAsync(null);
             await requested.Task.WaitAsync(TimeSpan.FromSeconds(3));
             var position = motion.Position;
             Assert.True(teaching.StopInspectionTestCommand.CanExecute(null));
             Assert.False(teaching.IsToggleLiveViewAllowed);
-            teaching.StopInspectionTestCommand.Execute(null);
+            io.AutoResponseEnabled = false;
+            if (removeHeatSink)
+                io.SetInput(InputIo.InspectionHeatSink1Present, false);
+            else
+                teaching.StopInspectionTestCommand.Execute(null);
+            await WaitUntilAsync(() => !io.GetOutput(OutputIo.InspectionProbeDown));
+            Assert.False(pending.IsCompleted);
+            Assert.False(teaching.Inspection.IsHorizontalMoveAllowed);
+            if (retracted)
+                io.SetInputs((InputIo.InspectionProbeUp, true), (InputIo.InspectionProbeDown, false));
             await pending.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.Null(teaching.HeightTestResult);
             Assert.False(teaching.StopInspectionTestCommand.CanExecute(null));
-            Assert.Equal(UiText.Get("Cancelled"), teaching.InspectionTestMessage);
+            if (retracted)
+                Assert.Equal(UiText.Get(removeHeatSink ? "Inspection target changed" : "Cancelled"), teaching.InspectionTestMessage);
+            else
+            {
+                Assert.NotNull(teaching.InspectionTestError);
+                Assert.Equal(MachineAlarm.Inspection, teaching.State.Alarm);
+                await Assert.ThrowsAsync<MotionInterlockException>(() => teaching.Inspection.MoveToAsync(new() { X = 10 }));
+            }
             Assert.Equal(position, motion.Position);
-            Assert.True(io.GetInput(InputIo.InspectionProbeDown));
-            var probe = TeachingRows(teaching)[OutputIo.InspectionProbeDown];
-            await WaitUntilAsync(() => probe.IsToggleOutputAllowed);
-            await probe.ToggleOutputCommand.ExecuteAsync(null);
-            Assert.True(io.GetInput(InputIo.InspectionProbeUp));
+            Assert.Equal(retracted, teaching.Inspection.IsProbeRetracted);
             Assert.Empty(teaching.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1).HeightResults);
         }
         finally
@@ -1308,6 +1476,7 @@ public sealed class TeachingTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.SelectedPcb = heatSink;
+        TeachVirtualFiducials(teaching.Recipes.Current.BoltInspection.GetFiducials(heatSink));
         teaching.NewFasteningHead = head;
         await teaching.Inspection.MoveToAsync(new() { X = 110, Y = 220 });
         await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
@@ -1493,6 +1662,13 @@ public sealed class TeachingTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var camera = services.GetRequiredService<VirtualCamera>();
         var store = services.GetRequiredService<MachineStore>();
+        TeachVirtualFiducials(teaching.Recipes.Current.BoltInspection.Fiducials1);
+        TeachVirtualFiducials(teaching.Recipes.Current.BoltInspection.Fiducials2);
+        teaching.Inspection.Motion.Feedback.PositionChanged += (x, y, z) =>
+        {
+            if ((x, y) is (2, 2) or (38, 28))
+                camera.SourceImage = null;
+        };
         camera.SourceImage = new(2, 2, 6, Enumerable.Repeat((byte)11, 12).ToArray());
         await teaching.Inspection.MoveToAsync(new() { X = 17, Y = 29 });
         await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
@@ -1603,6 +1779,7 @@ public sealed class TeachingTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
+        TeachVirtualFiducials(teaching.Recipes.Current.BoltInspection.Fiducials1);
         await teaching.Inspection.MoveToAsync(new() { X = 17, Y = 29 });
         await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
         if (barcode)
@@ -1676,6 +1853,8 @@ public sealed class TeachingTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var recipes = services.GetRequiredService<RecipeManager>();
+        TeachVirtualFiducials(recipes.Current.BoltInspection.Fiducials1);
+        TeachVirtualFiducials(recipes.Current.BoltInspection.Fiducials2);
         var shooting1 = new BoltPoint();
         var pickup1 = new BoltPoint { Head = FasteningHead.Pickup };
         var shooting2 = new BoltPoint();
@@ -1829,6 +2008,7 @@ public sealed class TeachingTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
+        TeachVirtualFiducials(teaching.Recipes.Current.BoltInspection.Fiducials1);
         teaching.NewFasteningHead = FasteningHead.Pickup;
         await WaitUntilAsync(() => teaching.IsAddBoltPointAllowed);
         await teaching.AddBoltPointCommand.ExecuteAsync(null);
@@ -1954,6 +2134,7 @@ public sealed class TeachingTests
         try
         {
             var recipe = services.GetRequiredService<RecipeManager>().Current;
+            VirtualTestSupport.TeachVirtualFiducials(recipe.BoltInspection.Fiducials1);
             var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 12, Y = 9 };
             recipe.Pcb.BoltPoints.Add(bolt);
             recipe.CarrierImages.AddRange([

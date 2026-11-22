@@ -69,7 +69,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
             InputIo.NgCarrierGripperClosed,
             InputIo.InspectionProbeUp,
             InputIo.InspectionProbeDown,
-        ], [OutputIo.MainConveyorRun])
+        ], [OutputIo.MainConveyorRun, OutputIo.InspectionProbeDown])
     {
         _log = log;
         Station = station;
@@ -164,8 +164,10 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
 
     public bool IsClear => IsRaised && !IsTransferPending;
 
-    public bool IsHorizontalMoveAllowed => IsRaised
-        && Io.GetInput(InputIo.InspectionProbeUp) && !Io.GetInput(InputIo.InspectionProbeDown)
+    public bool IsProbeRetracted => Io.GetInput(InputIo.InspectionProbeUp)
+        && !Io.GetInput(InputIo.InspectionProbeDown) && !Io.GetOutput(OutputIo.InspectionProbeDown);
+
+    public bool IsHorizontalMoveAllowed => IsRaised && IsProbeRetracted
         && (!_waitingForShuttleDown || _ngConveyor.ShuttleLift == StationCylinderState.Down);
 
     public bool IsAtInspectionPosition
@@ -798,7 +800,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
     private void EnsureCanMove(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!Io.GetInput(InputIo.InspectionProbeUp) || Io.GetInput(InputIo.InspectionProbeDown))
+        if (!IsProbeRetracted)
             throw new MotionInterlockException(UiText.Get("Raise the inspection probe before XY movement"));
         if (!IsRaised)
         {
@@ -882,24 +884,32 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         };
         var readings = new ProbeReading[_recipes.Current.BoltInspection.HeightMeasurementCount];
         await MoveToAsync(position, cancellationToken: cancellationToken);
-        await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, true, cancellationToken);
-        var contact = Stopwatch.GetTimestamp();
         decimal total = 0;
-        for (var index = 0; index < readings.Length; index++)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var result = await _measurement.MeasureAsync(cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (result.Measurements.Count != 1)
-                throw new InvalidOperationException(UiText.Get("ML-CP must return one height value"));
-            if (!Io.GetInput(InputIo.InspectionProbeDown) || Io.GetInput(InputIo.InspectionProbeUp))
-                throw new MotionInterlockException(UiText.Get("LVDT contact lost during measurement"));
-            var value = result.Measurements[0].Value;
-            readings[index] = new(Stopwatch.GetElapsedTime(contact).TotalSeconds, (double)value);
-            total += value;
-            readingsReceived?.Invoke(new(position.X, position.Y, (double)(total / (index + 1))) { Readings = readings[..(index + 1)] });
+            await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, true, cancellationToken);
+            var contact = Stopwatch.GetTimestamp();
+            for (var index = 0; index < readings.Length; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var result = await _measurement.MeasureAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (result.Measurements.Count != 1)
+                    throw new InvalidOperationException(UiText.Get("ML-CP must return one height value"));
+                if (!Io.GetInput(InputIo.InspectionProbeDown) || Io.GetInput(InputIo.InspectionProbeUp))
+                    throw new MotionInterlockException(UiText.Get("LVDT contact lost during measurement"));
+                var value = result.Measurements[0].Value;
+                readings[index] = new(Stopwatch.GetElapsedTime(contact).TotalSeconds, (double)value);
+                total += value;
+                readingsReceived?.Invoke(new(position.X, position.Y, (double)(total / (index + 1))) { Readings = readings[..(index + 1)] });
+            }
         }
-        await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false, cancellationToken);
+        finally
+        {
+            // A cancelled measurement still owns the probe until retraction feedback or the I/O timeout.
+            await Io.SetOutputAndWaitAsync(OutputIo.InspectionProbeDown, false, CancellationToken.None);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
         return new(position.X, position.Y, (double)(total / readings.Length)) { Readings = readings };
     }
 
@@ -980,9 +990,10 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         return fov;
     }
 
-    public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
+    public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default, PcbAlignment? alignment = null)
     {
-        return MoveToAsync(_recipes.Current.GetInspectionPosition(GetBarcodeFov(pcb)), cancellationToken: cancellationToken);
+        var position = _recipes.Current.GetInspectionPosition(GetBarcodeFov(pcb));
+        return MoveToAsync(alignment?.Transform(position) ?? position, cancellationToken: cancellationToken);
     }
 
     public async Task<ImageFrame> CaptureCurrentAsync(
@@ -1008,8 +1019,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
         if (!HasBarcodeRegion(pcb))
             throw new InvalidOperationException(UiText.Format($"Teach a FOV and ROI for {UiText.Get(pcb)} Data Matrix."));
         var fov = GetBarcodeFov(pcb);
-        var position = _recipes.Current.GetInspectionPosition(fov);
-        await MoveToAsync(alignment?.Transform(position) ?? position, cancellationToken: cancellationToken);
+        await MoveToBarcodeAsync(pcb, cancellationToken, alignment);
         var image = await CaptureCurrentAsync(cancellationToken,
             lightLevel: _recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel
                 ?? _recipes.Current.BoltInspection.LightLevel);
@@ -1070,8 +1080,7 @@ public sealed class InspectionStation : AutoUnit, INgCarrierTransferFeedback
 
     internal async Task<InspectionCapture> CaptureBoltAsync(BoltPoint point, CancellationToken cancellationToken = default, PcbAlignment? alignment = null)
     {
-        var position = point.InspectionPosition ?? throw new InvalidOperationException(UiText.Get("Not taught"));
-        await MoveToAsync(alignment?.Transform(position) ?? position, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await MoveToBoltAsync(point, cancellationToken, alignment).ConfigureAwait(false);
         var image = await CaptureCurrentAsync(cancellationToken,
             lightLevel: point.LightLevel ?? _recipes.Current.BoltInspection.LightLevel).ConfigureAwait(false);
         var capturedAt = DateTimeOffset.Now;

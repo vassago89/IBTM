@@ -55,6 +55,9 @@ public class TeachingPoint : ObservableObject
 
     public InspectionPoint? Inspection { get; }
 
+    public bool UsesFiducialAlignment => _definition.Target is TeachingTarget.DataMatrix or TeachingTarget.BoltReference
+        or TeachingTarget.HeightReference1 or TeachingTarget.HeightReference2 or TeachingTarget.HeightReference3;
+
     public InspectionReferencePoint? ReferencePhotoTarget => _definition.Target switch
     {
         TeachingTarget.Fiducial1 => InspectionReferencePoint.Fiducial1,

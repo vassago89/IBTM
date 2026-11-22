@@ -123,6 +123,7 @@ public sealed class MachineController : INotifyPropertyChanged
         conveyor.Changed += state.Refresh;
         ngConveyor.Changed += OnNgConveyorChanged;
         io.InputChanged += OnInputChanged;
+        io.OutputChanged += OnOutputChanged;
         feedback.IoFaulted += OnIoFaulted;
         pcbPlacement.Motion.Feedback.MovingChanged += _ => CheckMotionInterlocks();
         fasteningStation.Motion.Feedback.StateChanged += CheckMotionInterlocks;
@@ -290,6 +291,12 @@ public sealed class MachineController : INotifyPropertyChanged
         _state.Refresh();
     }
 
+    private void OnOutputChanged(OutputIo output, bool value)
+    {
+        if (output == OutputIo.InspectionProbeDown && value)
+            CheckMotionInterlocks();
+    }
+
     private void OnInputChanged(InputIo input, bool value)
     {
         if (MachineState.IsSafetyInput(input))
@@ -314,7 +321,9 @@ public sealed class MachineController : INotifyPropertyChanged
             or InputIo.ShootingHeadUp
             or InputIo.ShootingHeadDown
             or InputIo.NgCarrierPickupUp
-            or InputIo.NgCarrierPickupDown)
+            or InputIo.NgCarrierPickupDown
+            or InputIo.InspectionProbeUp
+            or InputIo.InspectionProbeDown)
         {
             CheckMotionInterlocks();
         }
@@ -328,7 +337,9 @@ public sealed class MachineController : INotifyPropertyChanged
                 or InputIo.ShootingHeadUp
                 or InputIo.ShootingHeadDown
                 or InputIo.NgCarrierPickupUp
-                or InputIo.NgCarrierPickupDown)
+                or InputIo.NgCarrierPickupDown
+                or InputIo.InspectionProbeUp
+                or InputIo.InspectionProbeDown)
             _state.Refresh();
 
         if (input == InputIo.ResetButton && value)
@@ -383,12 +394,18 @@ public sealed class MachineController : INotifyPropertyChanged
             alarm = MachineAlarm.BoltFastening;
             interlockDetail = UiText.Format($"Fastening horizontal movement requires both heads Up. Current pickup head: {UiText.Get(_fasteningStation.PickupHeadPosition)}; shooting head: {UiText.Get(_fasteningStation.ShootingHeadPosition)}.");
         }
-        else if (_units.Inspection
-            && _inspectionStation.Motion.Feedback.IsMoving
-            && !_inspectionStation.IsRaised)
+        else if (_units.Inspection && _inspectionStation.Motion.Feedback.IsMoving)
         {
-            alarm = MachineAlarm.NgCarrierTransfer;
-            interlockDetail = UiText.Format($"Inspection/NG horizontal movement requires the pickup Up. Current lift: {UiText.Get(_inspectionStation.Lift)}.");
+            if (!_inspectionStation.IsProbeRetracted)
+            {
+                alarm = MachineAlarm.Inspection;
+                interlockDetail = UiText.Get("Raise the inspection probe before XY movement");
+            }
+            else if (!_inspectionStation.IsRaised)
+            {
+                alarm = MachineAlarm.NgCarrierTransfer;
+                interlockDetail = UiText.Format($"Inspection/NG horizontal movement requires the pickup Up. Current lift: {UiText.Get(_inspectionStation.Lift)}.");
+            }
         }
 
         if (alarm != MachineAlarm.None)
@@ -2162,6 +2179,9 @@ public sealed class MachineController : INotifyPropertyChanged
 
             var value = !_io.GetOutput(signal);
             operation.Token.ThrowIfCancellationRequested();
+            if (signal == OutputIo.InspectionProbeDown && value
+                && !MotionServiceBase.IsReadyAndStopped(_motions[MotionGroup.InspectionGantry]))
+                return OutputBlockReason.InspectionXyNotStopped;
             _io.SetOutput(signal, value);
             _log?.LogInformation("Direct output {Signal}: {Value}; alarm={Alarm}.",
                 signal.ToString(), value ? "ON" : "OFF", _state.Alarm.ToString());

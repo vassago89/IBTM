@@ -28,4 +28,6 @@ public enum OutputBlockReason
 
     [Description("Operation or stop cleanup in progress")]
     Busy,
+    [Description("Stop inspection XY before lowering the LVDT")]
+    InspectionXyNotStopped,
 }
